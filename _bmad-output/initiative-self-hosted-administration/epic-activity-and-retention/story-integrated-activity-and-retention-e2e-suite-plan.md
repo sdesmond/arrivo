@@ -3,7 +3,7 @@ title: "Integrated Activity and retention E2E suite"
 type: "chore"
 ticket: "10"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "a611232c9a29432cc01d999567ce5e13db3621a6"
 route: "full"
 route_source: "auto"

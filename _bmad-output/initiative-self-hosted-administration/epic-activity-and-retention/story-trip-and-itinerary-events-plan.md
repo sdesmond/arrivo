@@ -3,7 +3,7 @@ title: "Trip and itinerary events"
 type: "feature"
 ticket: "4"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "d682680c3cb9fe7d92c2bb20023c540673996582"
 route: "full"
 route_source: "auto"

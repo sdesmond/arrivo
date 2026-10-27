@@ -3,7 +3,7 @@ title: "Retention policy and cleanup"
 type: "feature"
 ticket: "8"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "5508ece0c9ec3baade3a34cb870db78cb4f891f5"
 route: "full"
 route_source: "auto"

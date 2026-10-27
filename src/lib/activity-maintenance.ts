@@ -41,9 +41,30 @@ export async function cleanupActivity(
   }
 }
 
-export function scheduleActivityMaintenance(): void {
+// Per server process: layouts render often, and each pass costs a transaction before it can know anything is expired.
+export const ACTIVITY_MAINTENANCE_INTERVAL_HOURS = 12;
+const HOUR_MS = 60 * 60 * 1000;
+let lastScheduledAt = Number.NEGATIVE_INFINITY;
+
+/** Test seam: forget the last scheduled pass. */
+export function resetActivityMaintenanceThrottle(): void {
+  lastScheduledAt = Number.NEGATIVE_INFINITY;
+}
+
+// E2E sets the override to 0 so a scenario's seeded expired rows are not hidden behind an earlier render's pass.
+function intervalMs(): number {
+  const raw = process.env.ACTIVITY_MAINTENANCE_INTERVAL_HOURS;
+  const override = Number(raw);
+  return raw && Number.isFinite(override) && override >= 0
+    ? override * HOUR_MS
+    : ACTIVITY_MAINTENANCE_INTERVAL_HOURS * HOUR_MS;
+}
+
+export function scheduleActivityMaintenance(nowMs: number = Date.now()): void {
+  if (nowMs - lastScheduledAt < intervalMs()) return;
   try {
     after(() => cleanupActivity());
+    lastScheduledAt = nowMs;
   } catch (error) {
     failure("schedule", error);
   }

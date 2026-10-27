@@ -3,7 +3,7 @@ title: "Other trip edit events"
 type: "feature"
 ticket: "5"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "3cc26197b5459495ee9053d34c2b5c8e4e705508"
 route: "full"
 route_source: "auto"

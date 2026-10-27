@@ -3,7 +3,7 @@ title: "Authentication and account events"
 type: "feature"
 ticket: "3"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "9b8b7b666fec176b5670d7c63b5e702562a2507e"
 route: "full"
 route_source: "auto"

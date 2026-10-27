@@ -3,7 +3,7 @@ title: "Trip invitation events"
 type: "feature"
 ticket: "6"
 created: "2026-10-26"
-status: "built"
+status: done
 baseline_revision: "31bff0fee8108a4c124df1da72a8eb3cb6bbd4dd"
 route: "full"
 route_source: "auto"

@@ -3,7 +3,7 @@ title: "Sign-in to Activity tracer"
 type: "feature"
 ticket: "1"
 created: "2026-10-25"
-status: "built"
+status: done
 baseline_revision: "fdc4f02d90873b54668b594b903333bd63a8e3f1"
 route: "full"
 route_source: "auto"

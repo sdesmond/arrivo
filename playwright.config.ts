@@ -39,6 +39,7 @@ export default defineConfig({
       DATABASE_URL: process.env.E2E_DATABASE_URL!,
       NEXTAUTH_URL: "http://localhost:3001",
       NEXT_DISTDIR: ".next-e2e",
+      ACTIVITY_MAINTENANCE_INTERVAL_HOURS: "0",
       E2E_MODE: "true",
       E2E_MAPBOX_STUB: "true",
       E2E_UNSPLASH_STUB: "true",
