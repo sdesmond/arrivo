@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ActivityEventType, type ActivityIdentity, type InvitationActivityEventType } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
+import { withTimeout } from "@/lib/with-timeout";
 
 export const TRIP_ACTIVITY_LOOKUP_TIMEOUT_MS = 5_000;
 
@@ -34,18 +35,12 @@ function recordWithActorLookup(
 ): void {
   try {
     after(async () => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const timeout = new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () => reject(new Error("Activity identity lookup timed out")),
-            TRIP_ACTIVITY_LOOKUP_TIMEOUT_MS
-          );
-        });
-        const lookup = Promise.resolve(db.select({ username: users.username }).from(users).where(eq(users.id, userId)));
-        // A timed-out query may still reject later; it must never escape or emit a late event.
-        lookup.catch(() => undefined);
-        const [actor] = await Promise.race([lookup, timeout]);
+        const [actor] = await withTimeout(
+          db.select({ username: users.username }).from(users).where(eq(users.id, userId)),
+          TRIP_ACTIVITY_LOOKUP_TIMEOUT_MS,
+          "Activity identity lookup timed out"
+        );
         if (!actor) return;
         recordActivity({
           type,
@@ -54,8 +49,6 @@ function recordWithActorLookup(
         });
       } catch {
         // Lookup and recording failures are deliberately invisible to the trip mutation.
-      } finally {
-        clearTimeout(timer);
       }
     });
   } catch {

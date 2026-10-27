@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { activityEvents } from "@/db/schema";
 import type { ActivityEventInput } from "@/data/types";
 import { BATCHED_TYPES, mergeActivityInterval } from "./activity-batches";
+import { withTimeout } from "./with-timeout";
 
 export const ACTIVITY_WRITE_TIMEOUT_MS = 5_000;
 
@@ -23,12 +24,8 @@ function logFailure(stage: "schedule" | "write", error: unknown): void {
 }
 
 async function persist(input: ActivityEventInput, occurredAt: Date): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error("Activity write timed out")), ACTIVITY_WRITE_TIMEOUT_MS);
-    });
-    const insert = Promise.resolve(
+    await withTimeout<unknown>(
       BATCHED_TYPES.has(input.type) && input.actor
         ? mergeActivityInterval(db, { ...input, actor: input.actor }, occurredAt)
         : db.insert(activityEvents).values({
@@ -40,15 +37,12 @@ async function persist(input: ActivityEventInput, occurredAt: Date): Promise<voi
             targetId: input.target?.id ?? null,
             targetUsername: input.target?.username ?? null,
             tripId: input.tripId ?? null,
-          })
+          }),
+      ACTIVITY_WRITE_TIMEOUT_MS,
+      "Activity write timed out"
     );
-    // A rejection after the timeout won, if any, must not become an unhandled rejection.
-    insert.catch(() => undefined);
-    await Promise.race([insert, timeout]);
   } catch (error) {
     logFailure("write", error);
-  } finally {
-    clearTimeout(timer);
   }
 }
 
