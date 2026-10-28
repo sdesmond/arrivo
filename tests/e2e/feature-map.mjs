@@ -30,6 +30,11 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("account-setup", [
+    "src/lib/account-setup-session.ts",
+    "src/app/account-setup/**",
+    "src/components/arrivo/account-setup-dialog.tsx",
+  ]),
   entry("credential-authorizations", [
     "src/lib/credential-authorizations.ts",
     "tests/e2e/credential-authorization-fixture.ts",
