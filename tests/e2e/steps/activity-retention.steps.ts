@@ -97,6 +97,10 @@ Then("retention confirmation is a mobile bottom sheet", async ({ page }) => {
       return box ? Math.abs(box.y + box.height - page.viewportSize()!.height) : Infinity;
     })
     .toBeLessThan(2);
+  // The dialog zooms in from 95%; measuring mid-animation shrinks controls below their real size.
+  await popup.evaluate((element) =>
+    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished))
+  );
   for (const control of [
     page.getByRole("button", { name: "Cancel", exact: true }),
     page.getByRole("button", { name: "Confirm retention change" }),
