@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserRole, type InstanceUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
+import { RegenerateSetupLinkDialog } from "./regenerate-setup-link-dialog";
 
 interface InstanceUsersListProps {
   users: InstanceUserSummary[];
@@ -66,6 +67,7 @@ export function InstanceUsersList({ users, currentUserId }: InstanceUsersListPro
                 {user.role === UserRole.Admin ? "Admin" : "Member"} · <SetupStatus user={user} now={now} />
               </p>
             </div>
+            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
             {user.isLastCompletedAdmin ? (
               <Tooltip
                 open={tooltipUserId === user.id}

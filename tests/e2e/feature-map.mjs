@@ -30,6 +30,13 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("setup-link-regeneration", [
+    "src/lib/setup-link-regeneration.ts",
+    "src/components/arrivo/regenerate-setup-link-dialog.tsx",
+    "src/app/(app)/admin/users/actions.ts",
+    "src/components/arrivo/instance-users-list.tsx",
+    "src/lib/activity-labels.ts",
+  ]),
   entry("add-user-dialog", [
     "src/components/arrivo/add-user-dialog.tsx",
     "src/app/(app)/admin/users/page.tsx",

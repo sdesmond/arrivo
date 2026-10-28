@@ -17,6 +17,10 @@ describe("activity labels", () => {
     });
   });
   it("labels completed account setup", () => {
+    expect(EVENT_LABELS[ActivityEventType.SetupLinkRegenerated]).toEqual({
+      type: "Accounts",
+      action: "Regenerated setup link",
+    });
     expect(EVENT_LABELS[ActivityEventType.SetupCompleted]).toEqual({
       type: "Accounts",
       action: "Completed account setup",

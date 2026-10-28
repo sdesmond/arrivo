@@ -14,6 +14,15 @@ import { validateUsername } from "../../src/lib/username";
 // after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
 // Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
 test.describe("E2E scenario fixtures", () => {
+  test("materializes unfinished accounts without a password", async ({ scenario }) => {
+    const result = await scenario.materialize({
+      user: { setCurrent: false, overrides: { user: { setupComplete: false } } },
+    });
+    const [created] = await withE2EDb((database) =>
+      database.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, result.user!.id))
+    );
+    expect(created.passwordHash).toBeNull();
+  });
   test("selects the regular worker database before scenario queries", async ({ bootstrapDatabase }) => {
     expect(bootstrapDatabase).toBe(false);
     const expectedName = new URL(process.env.E2E_DATABASE_URL!).pathname.slice(1);

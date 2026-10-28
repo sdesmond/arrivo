@@ -102,6 +102,7 @@ export const ActivityEventType = {
   SignOut: "sign_out",
   AccountCreated: "account_created",
   SetupLinkGenerated: "setup_link_generated",
+  SetupLinkRegenerated: "setup_link_regenerated",
   /** The actor is the account that finished setup. */
   SetupCompleted: "setup_completed",
   RoleChanged: "role_changed",
@@ -236,6 +237,26 @@ export type AddUserFailure = (typeof AddUserFailure)[keyof typeof AddUserFailure
 
 export interface AddUserInput {
   username: string;
+}
+
+export const RegenerateSetupLinkFailure = {
+  OriginUnavailable: "origin-unavailable",
+  Forbidden: "forbidden",
+  ChangedState: "changed-state",
+  InstanceUnavailable: "instance-unavailable",
+  Retry: "retry",
+} as const;
+export type RegenerateSetupLinkFailure = (typeof RegenerateSetupLinkFailure)[keyof typeof RegenerateSetupLinkFailure];
+export type RegenerateSetupLinkResult =
+  | { ok: true; userId: string; username: string; setupUrl: string; expiresAt: string }
+  | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
+export type RegenerateSetupLinkOutcome =
+  | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
+  | { ok: false; reason: Exclude<RegenerateSetupLinkFailure, "origin-unavailable"> };
+export interface SetupLinkTargetState {
+  userId: string;
+  state: "unfinished" | "completed" | "missing";
+  setupExpiresAt?: string;
 }
 
 /** `setupUrl` is the only copy of the link: it is never stored, logged or recorded in Activity. */
