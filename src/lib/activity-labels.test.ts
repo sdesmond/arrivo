@@ -16,6 +16,12 @@ describe("activity labels", () => {
       action: "Generated setup link",
     });
   });
+  it("labels completed account setup", () => {
+    expect(EVENT_LABELS[ActivityEventType.SetupCompleted]).toEqual({
+      type: "Accounts",
+      action: "Completed account setup",
+    });
+  });
   it("labels every event type", () => {
     for (const type of Object.values(ActivityEventType)) {
       expect(EVENT_LABELS[type].action).not.toBe("");

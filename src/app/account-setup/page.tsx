@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AccountSetupDialog } from "@/components/arrivo/account-setup-dialog";
+import { completeAccountSetupAction } from "./actions";
 import { ACCOUNT_SETUP_COOKIE, resolveAccountSetupContext } from "@/lib/account-setup-session";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export default async function AccountSetupPage() {
   const token = (await cookies()).get(ACCOUNT_SETUP_COOKIE)?.value;
   const context = await resolveAccountSetupContext(token, { headers: await headers() });
 
-  if (context.status === "ready") return <AccountSetupDialog username={context.account.username} />;
+  if (context.status === "ready")
+    return <AccountSetupDialog username={context.account.username} action={completeAccountSetupAction} />;
   if (token) return redirect("/account-setup/open");
 
   return (

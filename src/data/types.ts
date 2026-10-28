@@ -88,6 +88,10 @@ export interface BootstrapAccountValues {
   currency?: string | null;
 }
 
+export type AccountSetupActionState =
+  | { error: string; field: "name" | "password" | "confirmPassword"; name: string }
+  | undefined;
+
 export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
 
 export const ActivityEventType = {
@@ -98,6 +102,8 @@ export const ActivityEventType = {
   SignOut: "sign_out",
   AccountCreated: "account_created",
   SetupLinkGenerated: "setup_link_generated",
+  /** The actor is the account that finished setup. */
+  SetupCompleted: "setup_completed",
   RoleChanged: "role_changed",
   UsernameChanged: "username_changed",
   PasswordChanged: "password_changed",
