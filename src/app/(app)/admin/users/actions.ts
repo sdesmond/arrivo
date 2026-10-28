@@ -14,6 +14,15 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { addUser } from "@/lib/account-creation";
 import { changeUserRole } from "@/lib/account-role-changes";
 import { trustedLinkOrigin } from "@/lib/request-origin";
+import { listInstanceUsers } from "@/lib/instance-users";
+import { normalizeUsername } from "@/lib/username";
+
+export async function checkAddedUserAction(username: string): Promise<boolean> {
+  await requireAdmin();
+  const normalized = normalizeUsername(username);
+  const users = await listInstanceUsers();
+  return users.some((user) => user.username === normalized);
+}
 
 const ORIGIN_UNAVAILABLE_MESSAGE =
   "Setup links need a configured address. Set NEXTAUTH_URL (or AUTH_URL) to the http(s) address people use to reach Arrivo, then restart.";
