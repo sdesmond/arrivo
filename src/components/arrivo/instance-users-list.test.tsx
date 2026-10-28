@@ -40,6 +40,11 @@ describe("InstanceUsersList", () => {
     expect(document.querySelector("time")).toHaveAttribute("datetime", future);
     expect(screen.queryByRole("button", { name: /Make admin/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate new link: bob" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Delete account: bob" })).toBeVisible();
+  });
+  it("offers no delete for completed accounts", () => {
+    show([member]);
+    expect(screen.queryByRole("button", { name: /Delete account/ })).not.toBeInTheDocument();
   });
   it("shows setup expired once the link has lapsed", () => {
     const past = new Date(Date.now() - 3_600_000).toISOString();

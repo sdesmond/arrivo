@@ -6,6 +6,7 @@ const {
   changeUserRole,
   addUser,
   regenerateSetupLink,
+  deleteUnfinishedAccount,
   listInstanceUsers,
   revalidatePath,
   recordActivity,
@@ -17,6 +18,7 @@ const {
   changeUserRole: vi.fn(),
   addUser: vi.fn(),
   regenerateSetupLink: vi.fn(),
+  deleteUnfinishedAccount: vi.fn(),
   listInstanceUsers: vi.fn(),
   revalidatePath: vi.fn(),
   database: {},
@@ -25,6 +27,7 @@ vi.mock("@/lib/auth-helpers", () => ({ requireAdmin }));
 vi.mock("@/lib/account-role-changes", () => ({ changeUserRole }));
 vi.mock("@/lib/account-creation", () => ({ addUser }));
 vi.mock("@/lib/setup-link-regeneration", () => ({ regenerateSetupLink }));
+vi.mock("@/lib/unfinished-account-deletion", () => ({ deleteUnfinishedAccount }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
@@ -37,7 +40,53 @@ import {
   changeUserRoleAction,
   regenerateSetupLinkAction,
   checkSetupLinkTargetAction,
+  deleteUnfinishedAccountAction,
 } from "./actions";
+
+describe("deleteUnfinishedAccountAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    recordActivity.mockReset();
+    requireAdmin.mockResolvedValue({ id: "actor" });
+  });
+  it("records only identities after a committed deletion", async () => {
+    deleteUnfinishedAccount.mockResolvedValue({
+      ok: true,
+      userId: "target",
+      username: "pending",
+      actor: { id: "actor", username: "admin" },
+    });
+    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: true, userId: "target", username: "pending" });
+    expect(deleteUnfinishedAccount).toHaveBeenCalledWith(database, "actor", "target");
+    expect(recordActivity.mock.calls).toEqual([
+      [
+        {
+          type: "pending_account_deleted",
+          actor: { id: "actor", username: "admin" },
+          target: { id: "target", username: "pending" },
+        },
+      ],
+    ]);
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+  it.each(["changed-state", "forbidden"])("passes %s without Activity and refreshes Users", async (reason) => {
+    deleteUnfinishedAccount.mockResolvedValue({ ok: false, reason });
+    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: false, reason });
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+  it.each(["instance-unavailable", "retry"])("passes %s without Activity or refresh", async (reason) => {
+    deleteUnfinishedAccount.mockResolvedValue({ ok: false, reason });
+    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: false, reason });
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it("denies non-admins before any deletion", async () => {
+    requireAdmin.mockRejectedValue(new Error("404"));
+    await expect(deleteUnfinishedAccountAction("target")).rejects.toThrow("404");
+    expect(deleteUnfinishedAccount).not.toHaveBeenCalled();
+  });
+});
 
 describe("setup link regeneration actions", () => {
   beforeEach(() => {

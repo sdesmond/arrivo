@@ -7,6 +7,7 @@ import {
   AddUserFailure,
   type AddUserResult,
   type ChangeUserRoleResult,
+  type DeleteUnfinishedAccountResult,
   type UserRole,
   type RegenerateSetupLinkResult,
   type SetupLinkTargetState,
@@ -19,6 +20,7 @@ import { trustedLinkOrigin } from "@/lib/request-origin";
 import { listInstanceUsers } from "@/lib/instance-users";
 import { normalizeUsername } from "@/lib/username";
 import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
+import { deleteUnfinishedAccount } from "@/lib/unfinished-account-deletion";
 
 export async function checkSetupLinkTargetAction(targetUserId: string): Promise<SetupLinkTargetState> {
   await requireAdmin();
@@ -49,6 +51,23 @@ export async function regenerateSetupLinkAction(targetUserId: string): Promise<R
     expiresAt: outcome.expiresAt,
     setupUrl: `${origin}/account-setup/open?token=${encodeURIComponent(outcome.token)}`,
   };
+}
+
+export async function deleteUnfinishedAccountAction(targetUserId: string): Promise<DeleteUnfinishedAccountResult> {
+  const user = await requireAdmin();
+  const outcome = await deleteUnfinishedAccount(db, user.id!, targetUserId);
+  if (!outcome.ok) {
+    // A stale list is the usual cause: refresh so a gone or completed row is shown as it is.
+    if (outcome.reason === "changed-state" || outcome.reason === "forbidden") revalidatePath("/admin/users");
+    return outcome;
+  }
+  revalidatePath("/admin/users");
+  recordActivity({
+    type: ActivityEventType.PendingAccountDeleted,
+    actor: outcome.actor,
+    target: { id: outcome.userId, username: outcome.username },
+  });
+  return { ok: true, userId: outcome.userId, username: outcome.username };
 }
 
 export async function checkAddedUserAction(username: string): Promise<boolean> {
