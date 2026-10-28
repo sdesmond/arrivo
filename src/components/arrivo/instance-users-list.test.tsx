@@ -33,10 +33,22 @@ describe("InstanceUsersList", () => {
       </TooltipProvider>
     );
   }
-  it("shows setup pending without promotion", () => {
-    show([{ ...member, setupComplete: false }]);
-    expect(screen.getByText(/Setup pending/)).toBeVisible();
+  it("shows pending setup with its expiry, without promotion", () => {
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    show([{ ...member, setupComplete: false, setupExpiresAt: future }]);
+    expect(screen.getByText(/Pending setup · Expires/)).toBeVisible();
+    expect(document.querySelector("time")).toHaveAttribute("datetime", future);
     expect(screen.queryByRole("button", { name: /Make admin/ })).not.toBeInTheDocument();
+  });
+  it("shows setup expired once the link has lapsed", () => {
+    const past = new Date(Date.now() - 3_600_000).toISOString();
+    show([{ ...member, setupComplete: false, setupExpiresAt: past }]);
+    expect(screen.getByText(/Setup expired/)).toBeVisible();
+    expect(screen.queryByText(/Expires/)).not.toBeInTheDocument();
+  });
+  it("shows plain pending setup when no link is on record", () => {
+    show([{ ...member, setupComplete: false }]);
+    expect(screen.getByText(/Member · Pending setup$/)).toBeVisible();
   });
   it("disables last admin removal and explains on keyboard focus", async () => {
     show([{ ...member, role: "admin", isLastCompletedAdmin: true }]);

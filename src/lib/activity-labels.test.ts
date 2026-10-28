@@ -9,6 +9,13 @@ describe("activity labels", () => {
       action: "Changed activity retention",
     });
   });
+  it("labels account creation and setup links", () => {
+    expect(EVENT_LABELS[ActivityEventType.AccountCreated]).toEqual({ type: "Accounts", action: "Created account" });
+    expect(EVENT_LABELS[ActivityEventType.SetupLinkGenerated]).toEqual({
+      type: "Accounts",
+      action: "Generated setup link",
+    });
+  });
   it("labels every event type", () => {
     for (const type of Object.values(ActivityEventType)) {
       expect(EVENT_LABELS[type].action).not.toBe("");

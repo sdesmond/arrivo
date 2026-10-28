@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { select, orderBy } = vi.hoisted(() => ({ select: vi.fn(), orderBy: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: { select } }));
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import { listInstanceUsers, toInstanceUserSummaries } from "./instance-users";
 
 describe("instance users", () => {
@@ -31,12 +33,34 @@ describe("instance users", () => {
     expect(summaries.every((user) => !user.isLastCompletedAdmin)).toBe(true);
     expect(toInstanceUserSummaries([])).toEqual([]);
   });
+  it("carries the setup expiry only for unfinished accounts", () => {
+    const expires = "2026-10-29T12:00:00.000Z";
+    const [done, pending, expired] = toInstanceUserSummaries([
+      { id: "a", username: "amy", role: "member", setupComplete: true, setupExpiresAt: new Date(expires) },
+      { id: "b", username: "bob", role: "member", setupComplete: false, setupExpiresAt: new Date(expires) },
+      { id: "c", username: "cat", role: "member", setupComplete: false, setupExpiresAt: null },
+    ]);
+    expect(done).not.toHaveProperty("setupExpiresAt");
+    expect(pending.setupExpiresAt).toBe(expires);
+    expect(expired).not.toHaveProperty("setupExpiresAt");
+  });
   it("queries a safe projection and maps results", async () => {
-    orderBy.mockResolvedValue([{ id: "member", username: "bob", role: "member", setupComplete: false }]);
+    orderBy.mockResolvedValue([
+      { id: "member", username: "bob", role: "member", setupComplete: false, setupExpiresAt: null },
+    ]);
     expect(await listInstanceUsers()).toEqual([
       { id: "member", username: "bob", role: "member", setupComplete: false, isLastCompletedAdmin: false },
     ]);
-    expect(Object.keys(select.mock.calls[0][0])).toEqual(["id", "username", "role", "setupComplete"]);
+    expect(Object.keys(select.mock.calls[0][0])).toEqual(["id", "username", "role", "setupComplete", "setupExpiresAt"]);
     expect(orderBy).toHaveBeenCalledOnce();
+  });
+
+  it("correlates the setup expiry subquery to the outer user with a qualified id", async () => {
+    orderBy.mockResolvedValue([]);
+    await listInstanceUsers();
+    const field = select.mock.calls[0][0].setupExpiresAt as SQL;
+    // Chunks as the dialect emits them for a single-table select: columns become bare identifiers.
+    const text = new PgDialect().sqlToQuery(field).sql;
+    expect(text).toContain('"users"."id"');
   });
 });
