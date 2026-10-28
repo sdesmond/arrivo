@@ -130,3 +130,49 @@ Feature: Setup-only account context
     When two browsers complete the setup link at the same time
     Then exactly one browser completed setup
     And Activity holds exactly one setup completed event for the pending account
+
+  Scenario: Another signed-in account must explicitly sign out before setup
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    And I am signed in to a different completed account
+    When I open the setup link
+    Then I see the explicit setup sign-out prompt
+    And my current account still accesses Trips
+    And the address has no token
+    When I explicitly sign out and continue setup
+    Then I see the account setup dialog for the pending account
+    And the setup link is still valid with its original expiry
+    And the setup cookie retains its original expiry
+    And requesting "/trips" with only the setup context redirects to sign-in
+
+  Scenario Outline: Invalidating a held sign-out prompt refuses setup without ending current session
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    And I am signed in to a different completed account
+    When I open the setup link
+    Then I see the explicit setup sign-out prompt
+    When <invalidation>
+    And I explicitly sign out and continue setup
+    Then I see the setup link unavailable page
+    And my current account still accesses Trips
+
+    Examples:
+      | invalidation                |
+      | the setup link is replaced  |
+      | the held setup link expires |
+      | the pending account is deleted |
+
+  Scenario Outline: Already invalid links stay generic for signed-in accounts
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    And I am signed in to a different completed account
+    When I open a setup link that is <kind>
+    Then I see the setup link unavailable page
+    And the unavailable setup page offers no sign-out control
+    And my current account still accesses Trips
+    And the pending account has no password
+
+    Examples:
+      | kind     |
+      | replaced |
+      | expired  |
