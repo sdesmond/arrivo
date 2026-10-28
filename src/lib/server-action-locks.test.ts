@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-const { db, packingTemplates, sql, trips, users } = vi.hoisted(() => ({
-  db: { transaction: vi.fn() },
+const { packingTemplates, sql, trips, users } = vi.hoisted(() => ({
   packingTemplates: { id: "packing_templates.id" },
   sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
   trips: { id: "trips.id" },
@@ -13,9 +12,9 @@ vi.mock("drizzle-orm", () => ({
   sql,
 }));
 
-vi.mock("@/db", () => ({
-  db,
-}));
+vi.mock("@/db", () => {
+  throw new Error("Lock helpers must not load the database singleton at runtime.");
+});
 
 vi.mock("@/db/schema", () => ({
   packingTemplates,
