@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
 import { browserUrl } from "@/lib/request-origin";
 
-const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/api/auth", "/api/health"];
+const PUBLIC_PATHS = ["/setup", "/sign-in", "/sign-up", "/api/auth", "/api/health"];
 
 // The database-free config: this runs on every request, so it only checks the JWT (and re-issues it, which keeps
 // "Keep me signed in" sessions sliding). Revocation is checked by requireUser() in pages and server actions.

@@ -106,6 +106,9 @@ export const FEATURE_MAP = [
     "src/lib/authorize-credentials.ts",
   ]),
   entry("instance-bootstrap", [
+    "src/lib/instance-setup.ts",
+    "src/app/(auth)/setup/**",
+    "src/app/(auth)/sign-in/**",
     "src/components/arrivo/auth-forms.tsx",
     "src/app/(auth)/sign-up/**",
     "src/app/(auth)/actions.ts",
@@ -434,6 +437,8 @@ export const SHARED_GLOBS = [
   "drizzle*",
   "eslint.config.mjs",
   "scripts/run-e2e.mjs",
+  "scripts/e2e-bootstrap.mjs",
+  "scripts/e2e-storage.mjs",
   "scripts/affected-e2e.mjs",
 ];
 

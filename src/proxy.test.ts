@@ -38,6 +38,7 @@ describe("proxy", () => {
 
   it.each([
     "/sign-in",
+    "/setup",
     "/sign-up",
     "/api/auth/session",
     "/api/health",

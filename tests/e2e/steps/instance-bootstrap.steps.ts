@@ -4,6 +4,7 @@ import { UserRole } from "../../../src/data/types";
 import { activityEvents, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 const SIGN_UP_USERNAME_KEY = "signUpUsername";
 // Sign-up requires 8+ characters, longer than the seeded E2E_PASSWORD.
@@ -17,17 +18,24 @@ Given("the instance is already set up", async ({ scenario }) => {
   await scenario.setInstanceState("initialized");
 });
 
-Given("I am on the sign-up page", async ({ page, scenario }) => {
+Given("I am on the admin setup page", async ({ page, scenario }) => {
   scenario.signOut();
   await page.context().clearCookies();
-  await page.goto("/sign-up");
+  await page.goto("/setup");
 });
 
 async function submitSignUp(page: Page, username: string) {
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Sign-up Person");
   await page.getByRole("textbox", { name: "Username" }).fill(username);
-  await page.getByRole("textbox", { name: "Password" }).fill(SIGN_UP_PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(SIGN_UP_PASSWORD);
+  await page.getByLabel("Confirm password", { exact: true }).fill(SIGN_UP_PASSWORD);
+  // Auth.js can return a successful 303 after bootstrap; the mutation helper accepts only 2xx.
+  const response = page.waitForResponse(
+    (result) => result.request().method() === "POST" && new URL(result.url()).pathname === "/setup",
+    { timeout: 15_000 }
+  );
+  await page.getByRole("button", { name: "Create admin account" }).click();
+  expect((await response).status()).toBeLessThan(400);
 }
 
 async function findUser(username: string) {
@@ -56,12 +64,12 @@ When("I sign up with the username of an existing account", async ({ page, scenar
 
 Then("I should see that the username is taken", async ({ page }) => {
   await expect(page.locator("#form-error")).toHaveText("That username is taken.");
-  await expect(page).toHaveURL(/\/sign-up/);
+  await expect(page).toHaveURL(/\/setup/);
 });
 
-Then("I should be told to ask an admin for an account", async ({ page }) => {
-  await expect(page.locator("#form-error")).toHaveText("Ask an admin to create your account.");
-  await expect(page).toHaveURL(/\/sign-up/);
+Then("I should be told setup is already complete", async ({ page }) => {
+  await expect(page.locator("#form-error")).toHaveText("Setup is already complete. Sign in to continue.");
+  await expect(page).toHaveURL(/\/setup/);
 });
 
 Then("no account was created for that username", async ({ scenario }) => {
@@ -113,4 +121,63 @@ Then("no account creation was recorded in Activity for that username", async ({ 
   // Nothing to wait for; give a wrongly-scheduled write time to show up before asserting absence.
   await new Promise((resolve) => setTimeout(resolve, 500));
   expect(await creationEvents(username)).toHaveLength(0);
+});
+
+When("I open bootstrap entry {string}", async ({ page, scenario }, path: string) => {
+  scenario.signOut();
+  await page.context().clearCookies();
+  await page.goto(path);
+});
+
+Then("I see the admin setup welcome", async ({ page }) => {
+  await expect(page).toHaveURL(/\/setup$/);
+  await expect(page.getByRole("heading", { name: "Welcome to Arrivo!" })).toBeVisible();
+  await expect(page.getByText("Let's get your admin account set up.")).toBeVisible();
+  expect(
+    await page
+      .locator('form input:not([type="hidden"])')
+      .evaluateAll((inputs) => inputs.map((input) => input.getAttribute("name")))
+  ).toEqual(["username", "name", "password", "confirmPassword"]);
+  for (const label of ["Username", "Name", "Password", "Confirm password"]) {
+    await expect(page.getByLabel(label, { exact: true })).toHaveAttribute("required", "");
+  }
+});
+
+Then("I see the sign-in screen", async ({ page }) => {
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+});
+
+Then("Username is focused", async ({ page }) => {
+  await expect(page.getByLabel("Username", { exact: true })).toBeFocused();
+});
+
+When("I submit admin setup with {string} set to {string}", async ({ page, scenario }, field: string, value: string) => {
+  const username = field === "username" ? value : scenario.uniqueUsername("invalid");
+  scenario.setValue(SIGN_UP_USERNAME_KEY, username);
+  const fields: Record<string, string> = {
+    username,
+    name: "Setup Admin",
+    password: SIGN_UP_PASSWORD,
+    confirmPassword: SIGN_UP_PASSWORD,
+    [field]: value,
+  };
+  for (const [name, inputValue] of Object.entries(fields))
+    await page.locator('input[name="' + name + '"]').fill(inputValue);
+  // Exercise authoritative server validation even when native required/minlength would block submission.
+  await page.locator("form").evaluate((form) => {
+    form.setAttribute("novalidate", "");
+  });
+  const response = waitForServerActionResponse(page, { pathIncludes: "/setup", timeoutMs: 15_000 });
+  await page.getByRole("button", { name: "Create admin account" }).click();
+  await response;
+});
+
+Then("I see setup error {string}", async ({ page }, error: string) => {
+  await expect(page.locator("#form-error")).toHaveText(error);
+});
+
+Then("setup remains open after reload", async ({ page }) => {
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Welcome to Arrivo!" })).toBeVisible();
 });

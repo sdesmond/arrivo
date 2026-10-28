@@ -1,24 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    className,
-    style,
-  }: {
-    children: React.ReactNode;
-    href: string;
-    className?: string;
-    style?: React.CSSProperties;
-  }) => (
-    <a href={href} className={className} style={style}>
-      {children}
-    </a>
-  ),
-}));
-
 const mockState = vi.hoisted(() => ({ value: undefined as { error?: string; mfaRequired?: boolean } | undefined }));
 
 vi.mock("react", async (importOriginal) => {
@@ -29,7 +11,7 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-import { SignInForm, SignUpForm } from "./auth-forms";
+import { SignInForm, AdminSetupForm } from "./auth-forms";
 import { SignInNotice } from "@/data/types";
 
 const noopAction = vi.fn(async () => undefined);
@@ -103,9 +85,19 @@ describe("SignInForm — security flows", () => {
   });
 });
 
-describe("SignUpForm", () => {
+describe("AdminSetupForm", () => {
+  it("focuses username when setup opens instead of the page heading", () => {
+    render(
+      <>
+        <h1 tabIndex={-1}>Welcome to Arrivo!</h1>
+        <AdminSetupForm action={noopAction} />
+      </>
+    );
+    expect(screen.getByLabelText("Username")).toHaveFocus();
+  });
+
   it("renders name, username and password fields", () => {
-    render(<SignUpForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} />);
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     const username = screen.getByLabelText("Username");
     expect(username).toHaveAttribute("name", "username");
@@ -115,21 +107,48 @@ describe("SignUpForm", () => {
   });
 
   it("renders submit button", () => {
-    render(<SignUpForm action={noopAction} />);
-    expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
+    render(<AdminSetupForm action={noopAction} />);
+    expect(screen.getByRole("button", { name: /create admin account/i })).toBeInTheDocument();
   });
 
   it("shows error alert when state has error", () => {
     mockState.value = { error: "That username is taken." };
-    render(<SignUpForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("That username is taken.")).toBeInTheDocument();
   });
 
   it("sets aria-invalid on inputs when there is an error", () => {
     mockState.value = { error: "Signup failed" };
-    render(<SignUpForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} />);
     expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+describe("admin setup contract", () => {
+  it("renders required fields in order with password-manager support", () => {
+    const { container } = render(<AdminSetupForm action={noopAction} />);
+    expect(Array.from(container.querySelectorAll("input")).map((input) => input.name)).toEqual([
+      "username",
+      "name",
+      "password",
+      "confirmPassword",
+    ]);
+    for (const label of ["Username", "Name", "Password", "Confirm password"]) {
+      expect(screen.getByLabelText(label)).toBeRequired();
+    }
+    expect(screen.getByLabelText("Name")).toHaveAttribute("autocomplete", "name");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "new-password");
+    expect(screen.getByLabelText("Confirm password")).toHaveAttribute("autocomplete", "new-password");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "8");
+  });
+  it("associates every setup field with errors", () => {
+    mockState.value = { error: "Setup is already complete. Sign in to continue." };
+    render(<AdminSetupForm action={noopAction} />);
+    for (const label of ["Username", "Name", "Password", "Confirm password"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(mockState.value.error);
+    }
   });
 });

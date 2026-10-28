@@ -37,7 +37,7 @@ vi.mock("next-auth", async () => ({
 import { CredentialsSignin } from "@auth/core/errors";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
-import { signInAction, signOutAction, signUpAction, verifyMfaAction } from "./actions";
+import { signInAction, signOutAction, setupAdminAction, verifyMfaAction } from "./actions";
 
 function cookieJar(values: Record<string, string> = {}) {
   const jar = {
@@ -70,14 +70,20 @@ describe("auth actions", () => {
   }
 
   function signUpForm(fields: Record<string, string> = {}) {
-    return signInForm({ username: " Test.User ", password: "password123", name: "Test User", ...fields });
+    return signInForm({
+      username: " Test.User ",
+      password: "password123",
+      name: "Test User",
+      confirmPassword: "password123",
+      ...fields,
+    });
   }
 
   it("stores a normalized username and locale-derived currency when signing up", async () => {
     vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
     mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toBeUndefined();
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toBeUndefined();
 
     expect(bootstrapFirstAccount).toHaveBeenCalledWith(
       db,
@@ -97,7 +103,7 @@ describe("auth actions", () => {
   it("records the committed creation with the new ID before the automatic sign-in", async () => {
     mockBootstrap();
 
-    await signUpAction(undefined, signUpForm());
+    await setupAdminAction(undefined, signUpForm());
 
     expect(recordActivity).toHaveBeenCalledTimes(1);
     expect(recordActivity).toHaveBeenCalledWith({
@@ -109,23 +115,23 @@ describe("auth actions", () => {
 
   it("records no creation when sign-up is closed, invalid, taken or fails", async () => {
     mockBootstrap(async () => ({ ok: false, reason: "closed" }));
-    await signUpAction(undefined, signUpForm());
+    await setupAdminAction(undefined, signUpForm());
     mockBootstrap(async () => {
       throw new Error("Failed query", { cause: { code: "23505" } });
     });
-    await signUpAction(undefined, signUpForm());
+    await setupAdminAction(undefined, signUpForm());
     mockBootstrap(async () => {
       throw new Error("db down");
     });
-    await signUpAction(undefined, signUpForm()).catch(() => undefined);
-    await signUpAction(undefined, signUpForm({ password: "short" }));
+    await setupAdminAction(undefined, signUpForm()).catch(() => undefined);
+    await setupAdminAction(undefined, signUpForm({ password: "short" }));
     expect(recordActivity).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid username without creating an account", async () => {
     mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
+    await expect(setupAdminAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
       error: "Use letters, numbers, dots, dashes or underscores, starting with a letter or number.",
     });
     expect(bootstrapFirstAccount).not.toHaveBeenCalled();
@@ -134,7 +140,7 @@ describe("auth actions", () => {
   it("rejects a short password", async () => {
     mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
+    await expect(setupAdminAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
       error: "Password must be at least 8 characters.",
     });
     expect(bootstrapFirstAccount).not.toHaveBeenCalled();
@@ -145,7 +151,7 @@ describe("auth actions", () => {
       throw new Error("Failed query", { cause: { code: "23505" } });
     });
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "That username is taken." });
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({ error: "That username is taken." });
     expect(signIn).not.toHaveBeenCalled();
   });
 
@@ -154,14 +160,14 @@ describe("auth actions", () => {
       throw new Error("db down");
     });
 
-    await expect(signUpAction(undefined, signUpForm())).rejects.toThrow("db down");
+    await expect(setupAdminAction(undefined, signUpForm())).rejects.toThrow("db down");
   });
 
   it("refuses sign-up once the instance is initialized", async () => {
     mockBootstrap(async () => ({ ok: false, reason: "closed" }));
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({
-      error: "Ask an admin to create your account.",
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({
+      error: "Setup is already complete. Sign in to continue.",
     });
     expect(signIn).not.toHaveBeenCalled();
   });
@@ -340,5 +346,29 @@ describe("verifyMfaAction", () => {
     cookieJar({ [MFA_COOKIE]: "signed-ticket" });
     signIn.mockRejectedValueOnce(new Error("db down"));
     await expect(verifyMfaAction(undefined, signInForm({ code: "123456" }))).rejects.toThrow("db down");
+  });
+});
+
+describe("setup validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  it.each([
+    [{ name: "   " }, "Name is required."],
+    [{ confirmPassword: "" }, "Confirm your password."],
+    [{ confirmPassword: "different" }, "Passwords do not match."],
+    [{ password: "" }, "Password must be at least 8 characters."],
+  ])("rejects invalid setup %j without side effects", async (overrides, error) => {
+    const fields = signInForm({
+      username: "admin",
+      name: "Admin",
+      password: "password123",
+      confirmPassword: "password123",
+      ...overrides,
+    });
+    await expect(setupAdminAction(undefined, fields)).resolves.toEqual({ error });
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
   });
 });

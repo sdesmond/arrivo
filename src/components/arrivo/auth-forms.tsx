@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import Link from "next/link";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { SignInNotice, type MfaActionState, type SignInActionState } from "@/data/types";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
 import { AuthSubmitButton } from "./auth-submit-button";
@@ -13,7 +12,7 @@ interface SignInFormProps {
   mfaAction: (prev: MfaActionState, formData: FormData) => Promise<MfaActionState>;
   notice?: string;
 }
-interface SignUpFormProps {
+interface AdminSetupFormProps {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
@@ -116,23 +115,17 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
         </span>
       </div>
       <AuthSubmitButton label="Sign in" />
-      <p className="text-center text-sm">
-        Need an account?{" "}
-        <Link href="/sign-up" className="underline" style={{ color: "var(--accent-brand)" }}>
-          Sign up
-        </Link>
-      </p>
     </form>
   );
 }
 
-export function SignUpForm({ action }: SignUpFormProps) {
+export function AdminSetupForm({ action }: AdminSetupFormProps) {
   const [state, formAction] = useActionState(action, undefined);
   const hasError = !!state?.error;
+  const usernameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const h1 = document.querySelector("h1");
-    (h1 as HTMLElement)?.focus();
+    usernameRef.current?.focus();
   }, []);
 
   return (
@@ -142,57 +135,33 @@ export function SignUpForm({ action }: SignUpFormProps) {
           {state!.error}
         </p>
       )}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="name">Name</label>
-        <input
-          id="name"
-          name="name"
-          type="text"
-          required
-          autoComplete="name"
-          className="h-11 rounded-lg border px-3"
-          style={{ borderColor: "var(--line)", background: "var(--surface)" }}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="username">Username</label>
-        <input
-          id="username"
-          name="username"
-          type="text"
-          required
-          minLength={USERNAME_MIN_LENGTH}
-          maxLength={USERNAME_MAX_LENGTH}
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          className="h-11 rounded-lg border px-3"
-          style={{ borderColor: "var(--line)", background: "var(--surface)" }}
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? "form-error" : undefined}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="new-password"
-          className="h-11 rounded-lg border px-3"
-          style={{ borderColor: "var(--line)", background: "var(--surface)" }}
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? "form-error" : undefined}
-        />
-      </div>
-      <AuthSubmitButton label="Create account" />
-      <p className="text-center text-sm">
-        Have an account?{" "}
-        <Link href="/sign-in" className="underline" style={{ color: "var(--accent-brand)" }}>
-          Sign in
-        </Link>
-      </p>
+      {[
+        { name: "username", label: "Username", type: "text", autoComplete: "username" },
+        { name: "name", label: "Name", type: "text", autoComplete: "name" },
+        { name: "password", label: "Password", type: "password", autoComplete: "new-password" },
+        { name: "confirmPassword", label: "Confirm password", type: "password", autoComplete: "new-password" },
+      ].map((field) => (
+        <div key={field.name} className="flex flex-col gap-1">
+          <label htmlFor={field.name}>{field.label}</label>
+          <input
+            ref={field.name === "username" ? usernameRef : undefined}
+            id={field.name}
+            name={field.name}
+            type={field.type}
+            required
+            minLength={field.name === "username" ? USERNAME_MIN_LENGTH : field.type === "password" ? 8 : undefined}
+            maxLength={field.name === "username" ? USERNAME_MAX_LENGTH : undefined}
+            autoComplete={field.autoComplete}
+            autoCapitalize={field.name === "username" ? "none" : undefined}
+            spellCheck={field.name === "username" ? false : undefined}
+            className="h-11 rounded-lg border px-3"
+            style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+            aria-invalid={hasError || undefined}
+            aria-describedby={hasError ? "form-error" : undefined}
+          />
+        </div>
+      ))}
+      <AuthSubmitButton label="Create admin account" />
     </form>
   );
 }
