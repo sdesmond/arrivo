@@ -97,6 +97,7 @@ export const ActivityEventType = {
   SignInFailed: "sign_in_failed",
   SignOut: "sign_out",
   AccountCreated: "account_created",
+  SetupLinkGenerated: "setup_link_generated",
   RoleChanged: "role_changed",
   UsernameChanged: "username_changed",
   PasswordChanged: "password_changed",
@@ -212,8 +213,34 @@ export interface InstanceUserSummary {
   username: string;
   role: UserRole;
   setupComplete: boolean;
+  /** ISO 8601 UTC expiry of the open setup link; present only for an unfinished account that has one. */
+  setupExpiresAt?: string;
   isLastCompletedAdmin: boolean;
 }
+
+export const AddUserFailure = {
+  InvalidUsername: "invalid-username",
+  UsernameTaken: "username-taken",
+  OriginUnavailable: "origin-unavailable",
+  Forbidden: "forbidden",
+  InstanceUnavailable: "instance-unavailable",
+  Retry: "retry",
+} as const;
+export type AddUserFailure = (typeof AddUserFailure)[keyof typeof AddUserFailure];
+
+export interface AddUserInput {
+  username: string;
+}
+
+/** `setupUrl` is the only copy of the link: it is never stored, logged or recorded in Activity. */
+export type AddUserResult =
+  | { ok: true; userId: string; username: string; setupUrl: string; expiresAt: string }
+  | { ok: false; reason: AddUserFailure; message?: string };
+
+/** Service result: the setup token (no origin) plus identities read under the lock, for the post-commit events. */
+export type AddUserOutcome =
+  | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
+  | { ok: false; reason: Exclude<AddUserFailure, "origin-unavailable">; message?: string };
 
 export const RoleChangeFailure = {
   Forbidden: "forbidden",
