@@ -55,6 +55,7 @@ export const FEATURE_MAP = [
     "src/lib/password-policy.ts",
     "src/app/account-setup/**",
     "src/components/arrivo/account-setup-dialog.tsx",
+    "src/components/arrivo/account-setup-sign-out.tsx",
   ]),
   // request-origin.ts stays on the `src/lib/**` full-suite tier: browserUrl redirects every auth entry point.
   entry("account-creation", ["src/lib/account-creation.ts", "src/app/(app)/admin/users/actions.ts"]),

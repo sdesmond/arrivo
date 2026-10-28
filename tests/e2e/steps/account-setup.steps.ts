@@ -11,6 +11,7 @@ import {
 import { withE2EDb } from "../e2e-db";
 import { BASELINE_E2E_USER } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 const LINK_KEY = "accountSetupLink";
 const SETUP_COOKIE = "arrivo_account_setup";
@@ -241,7 +242,10 @@ Then("Activity holds exactly one setup completed event for the pending account",
 When("two browsers complete the setup link at the same time", async ({ page, scenario }) => {
   const browser = page.context().browser()!;
   const baseURL = new URL(page.url() === "about:blank" ? "http://localhost:3001" : page.url()).origin;
-  const contexts = await Promise.all([browser.newContext({ baseURL }), browser.newContext({ baseURL })]);
+  const contexts = await Promise.all([
+    browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } }),
+    browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } }),
+  ]);
   const pages = await Promise.all(contexts.map((context) => context.newPage()));
   for (const racer of pages) {
     await racer.goto(openUrl(linkOf(scenario).token));
@@ -275,4 +279,49 @@ Then("exactly one browser completed setup", async ({ scenario }) => {
   const row = await accountOf(scenario);
   expect(row.name).toBe("Racer");
   await Promise.all(pages.map((racer) => racer.context().close()));
+});
+
+// --- Explicit account switching ---------------------------------------------------------------------------------
+Given("I am signed in to a different completed account", async ({ page, scenario }) => {
+  await scenario.materialize({ user: {} });
+  await scenario.signIn(page);
+});
+
+Then("I see the explicit setup sign-out prompt", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: "Sign out to continue setup.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out and continue", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+});
+
+Then("my current account still accesses Trips", async ({ page }) => {
+  const response = await page.request.get("/trips", { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+});
+
+When("I explicitly sign out and continue setup", async ({ page, scenario }) => {
+  const setupCookie = (await page.context().cookies()).find((cookie) => cookie.name === SETUP_COOKIE);
+  scenario.setValue("setupCookieExpiry", setupCookie?.expires);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/account-setup", expectedStatus: 303 });
+  await page.getByRole("button", { name: "Sign out and continue", exact: true }).click();
+  await response;
+  scenario.signOut();
+});
+
+When("the held setup link expires", async ({ scenario }) => {
+  await withE2EDb((db) =>
+    db
+      .update(credentialAuthorizations)
+      .set({ expiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(credentialAuthorizations.userId, linkOf(scenario).userId))
+  );
+});
+
+Then("the unavailable setup page offers no sign-out control", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Sign out and continue", exact: true })).toHaveCount(0);
+});
+
+Then("the setup cookie retains its original expiry", async ({ page, scenario }) => {
+  const setupCookie = (await page.context().cookies()).find((cookie) => cookie.name === SETUP_COOKIE);
+  expect(setupCookie?.expires).toBe(scenario.getValue<number>("setupCookieExpiry"));
 });

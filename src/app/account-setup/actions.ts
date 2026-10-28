@@ -4,9 +4,16 @@ import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { signIn } from "@/auth";
+import { auth, signIn, signOut } from "@/auth";
+import { eq } from "drizzle-orm";
+import { users } from "@/db/schema";
 import { db } from "@/db";
-import { ActivityEventType, type AccountSetupActionState } from "@/data/types";
+import {
+  ActivityEventType,
+  type ActivityIdentity,
+  type SignInActionState,
+  type AccountSetupActionState,
+} from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { completeAccountSetup } from "@/lib/account-setup-completion";
 import { ACCOUNT_SETUP_COOKIE, resolveAccountSetupContext } from "@/lib/account-setup-session";
@@ -47,6 +54,9 @@ export async function completeAccountSetupAction(
   const context = await resolveAccountSetupContext(token, { headers: await headers() });
   if (context.status !== "ready" || !token) return unavailable();
 
+  const userId = (await auth())?.user?.id;
+  if (userId && userId !== context.account.userId) return redirect("/account-setup");
+
   const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   const completion = await completeAccountSetup(db, { token, name, passwordHash });
   if (!completion.ok) {
@@ -76,4 +86,37 @@ export async function completeAccountSetupAction(
     throw error;
   }
   return undefined;
+}
+
+// Match ordinary auth sign-out: identity lookup is best effort and never blocks logout.
+async function currentIdentity(): Promise<ActivityIdentity | null | undefined> {
+  try {
+    const userId = (await auth())?.user?.id;
+    if (!userId) return undefined;
+    const [row] = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.id, userId));
+    return row ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function signOutAndContinueSetupAction(
+  _prev: SignInActionState,
+  _formData: FormData
+): Promise<SignInActionState> {
+  // Confirmation carries no setup identity or token from the browser.
+  void _formData;
+  const token = (await cookies()).get(ACCOUNT_SETUP_COOKIE)?.value;
+  const context = await resolveAccountSetupContext(token, { headers: await headers() });
+  if (!token || context.status !== "ready") return unavailable();
+
+  const identity = await currentIdentity();
+  try {
+    await signOut({ redirect: false });
+  } catch {
+    return { error: "Could not sign out. Try again." };
+  }
+  if (identity !== undefined) recordActivity({ type: ActivityEventType.SignOut, actor: identity });
+  // Preserve the setup cookie and original expiry. The destination resolves database state again.
+  redirect("/account-setup");
 }
