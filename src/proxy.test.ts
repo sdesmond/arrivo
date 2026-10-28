@@ -32,6 +32,29 @@ describe("proxy", () => {
     expect(request("/trips")?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
   });
 
+  it.each(["/trips", "/api/storage/x.jpg", "/api/users/me/events", "/account-settings"])(
+    "keeps %s closed to a visitor holding only the account-setup cookie",
+    (path) => {
+      const url = `http://localhost:4850${path}`;
+      const req = {
+        url,
+        headers: new Headers({ host: "192.168.1.50:4850", cookie: "arrivo_account_setup=token" }),
+        nextUrl: new URL(url),
+        auth: null,
+      };
+      expect((proxy as unknown as ProxyHandler)(req)?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
+    }
+  );
+
+  it.each(["/account-setup", "/account-setup/open"])(
+    "leaves %s public and marks it uncacheable with no referrer",
+    (path) => {
+      const response = request(path) as Response;
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    }
+  );
+
   it("lets a signed-in visitor through", () => {
     expect(request("/trips", { user: { id: "user-1" } })).toBeUndefined();
   });
