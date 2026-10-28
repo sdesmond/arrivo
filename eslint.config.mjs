@@ -39,6 +39,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".next-e2e/**",
+    ".next-e2e-bootstrap/**",
     ".next-validate/**",
     "out/**",
     "build/**",
