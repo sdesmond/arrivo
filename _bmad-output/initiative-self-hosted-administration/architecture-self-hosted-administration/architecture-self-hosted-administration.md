@@ -7,7 +7,7 @@ paradigm: Layered monolith
 scope: Account lifecycle, administrative authority, recovery, Activity, and instance overview within Arrivo
 status: final
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-27
 binds: [account-lifecycle, administration, recovery, activity, instance-overview]
 sources:
   - ../ux-self-hosted-administration/EXPERIENCE.md
@@ -49,6 +49,8 @@ Arrows fix dependency direction. Shared lifecycle services accept explicit calle
 - **Rule:** Every admin read and action checks current DB authority; mutation services recheck under transaction locks. Menu visibility and proxy JWT checks are insufficient. Ordinary trip data, files, and live subscriptions retain existing membership checks. Privileged account deletion is a narrow lifecycle operation, not a reusable trip-access bypass. No private trip identities enter deletion confirmations, errors, or accessible markup.
 
 ### AD-2 — One durable instance authority governs bootstrap and roles
+
+- **First-run entry (2026-10-27):** `/setup` is instance-admin bootstrap, distinct from later user password-setup links. Server pages read durable initialization on each request before rendering: fresh sign-in and old signup entries redirect to setup; initialized setup/signup entries redirect to sign-in without signup navigation. Missing singleton fails closed and DB failures do not imply a fresh installation. Page checks do not replace the existing transaction lock; stale submissions still cannot create an account. Require server-validated password confirmation. No schema or bootstrap service contract change.
 
 - **Binds:** Bootstrap, upgrade, promotion/demotion, both account-deletion paths.
 - **Prevents:** Two first admins, reopened public signup, or concurrent removal of all usable admins.

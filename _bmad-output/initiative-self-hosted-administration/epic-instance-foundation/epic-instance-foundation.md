@@ -38,6 +38,8 @@ Instance state, roles, menu, admin shell. Not Activity, Add User, recovery, Over
 
 ## Notes
 
+- Decision: 2026-10-27 approved first-run correction adds a follow-up story before account onboarding: dedicated `/setup` welcome form, required password confirmation, automatic fresh entry and initialized setup/signup redirects. Existing bootstrap transaction and completed story history remain authoritative. See `../change-first-run-admin-setup/change-first-run-admin-setup.md`.
+
 - Decision: 2026-10-24 opening epic; defines table, route and naming choices later epics adopt.
 - Decision: 2026-10-24 names later epics adopt: table `instance_state` (singleton), `users.role` const object `admin | member`, routes under `/admin` (`/admin/users`).
 - Decision: 2026-10-24 sole-account promotion and multi-account halt live in the generated SQL migration, not a boot hook.

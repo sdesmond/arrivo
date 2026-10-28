@@ -1,7 +1,7 @@
 ---
 name: Arrivo self-hosted administration
 status: final
-updated: 2026-10-24
+updated: 2026-10-27
 sources:
   - ../brainstorm-admin-page/brainstorm-admin-page.md
   - .memlog.md
@@ -29,7 +29,7 @@ Desktop menu trigger is existing sidebar username/account control. Mobile **Prof
 
 | Surface | Entry / return | Journey |
 | --- | --- | --- |
-| Bootstrap registration | Fresh-instance signup / authenticated app | Flow 1 |
+| First-run admin setup | Fresh-instance entry → `/setup` / authenticated app | Flow 1 |
 | Sign-in | Existing auth entry / authenticated app | Username/password, then applicable MFA; Flow 1 |
 | Account menu | Desktop sidebar account control or mobile Profile tab / dismiss to same context | Settings and Log out for everyone; admin management entry; Flows 1, 8 |
 | Administration / Overview | Admin-only account-menu item / existing side or bottom navigation | Flow 8 |
@@ -67,6 +67,8 @@ Concise, impersonal settings copy; omit “We.” Name affected identity and con
 | Shorter retention | “Activity older than {days} days will be permanently deleted.” |
 | Failure / uncertain result | “Couldn't save. Try again.” / “Couldn't confirm result. Refresh before retrying.” |
 | Closed registration / unknown health | “Ask an admin to create your account.” / “Couldn't check document storage.” |
+
+First-run setup uses “Welcome to Arrivo!” and “Let's get your admin account set up.” Submit action is “Create admin account”. Focus Username on entry. Setup has no “Already set up?” text or sign-in link. Stale setup submissions show “Setup is already complete. Sign in to continue.” Initialized installations expose no signup navigation.
 
 ## Component Patterns
 
@@ -128,7 +130,7 @@ All web surfaces: resolve data/authority before exposing content; visible {color
 
 | Surface | Loading / empty | Failure or stale state | Confirmed outcome |
 | --- | --- | --- | --- |
-| Bootstrap registration | Check first-account eligibility; existing account fields | Concurrent winner closes signup; ambiguous creation reconciles account state | First account admin; public signup then closed, later accounts admin-created; existing sole account auto-promoted on upgrade without wizard |
+| First-run admin setup | Resolve durable eligibility before rendering; required Username, Name, Password, Confirm password | Field validation rejects missing or mismatched values; concurrent winner closes setup; stale submission directs to sign-in; missing instance state fails closed | First account admin, signed in to Trips; initialized setup/signup URLs redirect to sign-in without signup links; later accounts admin-created |
 | Sign-in | Username/password form, then MFA if required | Invalid username/password uses generic error; email is not an alternate identifier. Preserve existing throttling and MFA timeout/retry behavior with username-based copy | Authenticated entry after required factors |
 | Account menu | Closed → open on trigger; role-filtered items | Stale authority removes Manage instance; sign-out failure preserves actionable error rather than claiming logout | Settings/Manage instance navigation, completed sign-out, or dismissal with trigger focus restored |
 | Overview | Per-value loading; zero is valid count | Partial failure labeled Unavailable, never zero/Healthy; stale values retain timestamps | Current metrics and checked times |
@@ -165,15 +167,15 @@ Target WCAG 2.2 AA and project floor of 44×44px for all targets, including clos
 
 ## Key Flows
 
-### Flow 1 — Bootstrap and registration
+### Flow 1 — First-run admin setup
 
-1. Maya installs Arrivo and opens fresh signup on laptop.
-2. She completes existing account fields and submits once.
-3. **Climax:** first account becomes admin; Administration is reachable through admin-only username-menu item.
-4. Public signup closes; admin uses Add User for subsequent accounts. Existing sole account auto-promotes on upgrade without wizard.
-5. Subsequent sign-in uses username and password, then existing MFA when required; email is not accepted as an alternate identifier.
+1. Maya opens a fresh install on desktop or mobile. Root, protected app entry, and sign-in lead automatically to `/setup`; old `/sign-up` links also lead there.
+2. Auth card shows “Welcome to Arrivo!” and “Let's get your admin account set up.” Fields follow reading order: Username, Name, Password, Confirm password. All are required; password fields permit paste and password-manager filling.
+3. She selects “Create admin account”. Server validates fields and matching passwords before existing transactional bootstrap creates the first admin and marks initialization complete.
+4. **Climax:** Maya is signed in to Trips and can reach Manage instance from account menu.
+5. Setup permanently closes: `/setup` and `/sign-up` redirect to `/sign-in`, with no signup link. Later accounts are admin-created; their password-setup links use a separate route. Subsequent sign-in retains username/password and applicable MFA.
 
-Failure: another bootstrap succeeds first; show “Ask an admin to create your account.” Reconcile uncertain creation before retry.
+Failure: invalid fields show associated errors without creating an account. Another bootstrap wins first → “Setup is already complete. Sign in to continue.” Reconcile uncertain creation before retry. Missing instance state or DB failure never opens setup. Existing legacy upgrade behavior is outside this flow change.
 
 ### Flow 2 — Invitations
 

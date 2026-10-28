@@ -20,7 +20,7 @@ A self-hoster can run a closed multi-user installation and recover from lockouts
 
 ## Done when
 
-1. Fresh install: first account is admin, public signup is closed; an upgraded single-account install is promoted exactly once.
+1. Fresh install automatically opens welcome/admin setup; first account is admin, then setup/signup routes redirect to sign-in without signup navigation; an upgraded single-account install is promoted exactly once.
 2. An admin adds a user by username, the user sets a password via a manually shared link, and no regular app data is reachable before then.
 3. Admin can reset a user's password and a server operator can recover a locked-out admin through the CLI, each atomically and with sessions revoked.
 4. Deleting an account hands owned trips to successors without revealing private trip contents; the last admin cannot be removed.

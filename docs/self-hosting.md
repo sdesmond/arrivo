@@ -15,7 +15,7 @@ curl -fsSLO https://raw.githubusercontent.com/sdesmond/arrivo/main/docker-compos
 docker compose up -d
 ```
 
-Open `http://<your-server>:4850` and create your account. It becomes the admin, and sign-up closes after it.
+Open `http://<your-server>:4850`. Fresh installs show **Welcome to Arrivo!** and guide you through creating an admin account with a username, name, password, and password confirmation. After creation, Arrivo signs you in and permanently closes first-run setup. Later visits show sign-in without a signup link.
 
 Before starting, check `PUID` and `PGID` in the file match your user (`id` prints them). They decide
 who owns uploaded files in `./data/storage`.

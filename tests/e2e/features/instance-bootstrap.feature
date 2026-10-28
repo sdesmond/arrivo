@@ -1,10 +1,12 @@
 @feat:instance-bootstrap
-Feature: Instance bootstrap sign-up
+Feature: First-run admin setup
   Only this feature mutates the singleton instance state, so its scenarios never race another file.
 
-  Scenario: The first sign-up on a fresh instance becomes the admin and signs back in
+  Scenario: The first admin setup on a fresh instance becomes the admin and signs back in
     Given the instance has not been set up yet
-    And I am on the sign-up page
+    And I am on the admin setup page
+    Then I see the admin setup welcome
+    And Username is focused
     When I sign up with a new username
     Then I should be redirected to the trips page
     And my new account is the instance admin
@@ -14,10 +16,12 @@ Feature: Instance bootstrap sign-up
     Then I see the Users-only instance management shell
     And I can sign out and sign back in with my new username
 
-  Scenario: The first sign-up on a fresh instance reaches Manage instance from the mobile Profile tab
+  Scenario: The first admin setup on a fresh instance reaches Manage instance from the mobile Profile tab
     Given the instance has not been set up yet
     And I use a mobile account viewport
-    And I am on the sign-up page
+    And I am on the admin setup page
+    Then I see the admin setup welcome
+    And Username is focused
     When I sign up with a new username
     Then I should be redirected to the trips page
     And my new account is the instance admin
@@ -28,26 +32,59 @@ Feature: Instance bootstrap sign-up
     Then I see the Users-only instance management shell
     And I can sign out and sign back in with my new username
 
-  Scenario: Sign-up closes as soon as the first account exists
+  Scenario Outline: Fresh entry resolves to welcome setup
     Given the instance has not been set up yet
-    And I am on the sign-up page
+    When I open bootstrap entry "<path>"
+    Then I see the admin setup welcome
+
+    Examples:
+      | path     |
+      | /        |
+      | /trips   |
+      | /sign-in |
+      | /sign-up |
+      | /setup   |
+
+  Scenario Outline: Initialized entry redirects to sign in
+    Given the instance is already set up
+    When I open bootstrap entry "<path>"
+    Then I see the sign-in screen
+
+    Examples:
+      | path     |
+      | /setup   |
+      | /sign-up |
+      | /sign-in |
+
+  Scenario: A stale open setup form refuses account creation
+    Given the instance has not been set up yet
+    And I am on the admin setup page
+    And the instance is already set up
     When I sign up with a new username
-    Then my new account is the instance admin
-    Given I am on the sign-up page
-    When I sign up with a new username
-    Then I should be told to ask an admin for an account
+    Then I should be told setup is already complete
     And no account was created for that username
     And no account creation was recorded in Activity for that username
 
-  Scenario: Sign-up refuses a username that is already taken
+  Scenario: Setup refuses a username that is already taken
     Given the instance has not been set up yet
-    And I am on the sign-up page
+    And I am on the admin setup page
     When I sign up with the username of an existing account
     Then I should see that the username is taken
 
-  Scenario: Sign-up is closed once the instance is set up
-    Given the instance is already set up
-    And I am on the sign-up page
-    When I sign up with a new username
-    Then I should be told to ask an admin for an account
+  Scenario Outline: Invalid setup is rejected on server and instance stays fresh
+    Given the instance has not been set up yet
+    And I am on the admin setup page
+    When I submit admin setup with "<field>" set to "<value>"
+    Then I see setup error "<error>"
     And no account was created for that username
+    And no account creation was recorded in Activity for that username
+    And setup remains open after reload
+
+    Examples:
+      | field           | value     | error                                  |
+      | confirmPassword | different | Passwords do not match.                |
+      | confirmPassword |           | Confirm your password.                 |
+      | password        |           | Password must be at least 8 characters. |
+      | password        | short     | Password must be at least 8 characters. |
+      | name            |           | Name is required.                      |
+      | username        | bad@email | Use letters, numbers, dots, dashes or underscores, starting with a letter or number. |

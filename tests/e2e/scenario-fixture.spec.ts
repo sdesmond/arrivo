@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "./fixtures";
+import { sql } from "drizzle-orm";
 import { days, documents, events, expenses, packingTemplates, trips, users } from "../../src/db/schema";
 import { cleanupScenarioFixtureContext, createScenarioFixtureContext } from "./scenario-fixture";
 import { withE2EDb } from "./e2e-db";
@@ -12,6 +14,13 @@ import { validateUsername } from "../../src/lib/username";
 // after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
 // Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
 test.describe("E2E scenario fixtures", () => {
+  test("selects the regular worker database before scenario queries", async ({ bootstrapDatabase }) => {
+    expect(bootstrapDatabase).toBe(false);
+    const expectedName = new URL(process.env.E2E_DATABASE_URL!).pathname.slice(1);
+    expect(expectedName.endsWith("_bootstrap")).toBe(false);
+    const result = await withE2EDb((db) => db.execute(sql`select current_database() as name`));
+    expect(result[0].name).toBe(expectedName);
+  });
   test("materializes the requested instance role", async () => {
     const context = createScenarioFixtureContext(test.info());
     try {

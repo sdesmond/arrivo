@@ -69,23 +69,28 @@ export async function verifyMfaAction(_prev: MfaActionState, formData: FormData)
   redirect("/trips");
 }
 
-export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function setupAdminAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const username = normalizeUsername(String(formData.get("username") ?? ""));
-  const password = formData.get("password") as string;
-  const name = formData.get("name") as string;
+  const password = String(formData.get("password") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
   const usernameError = validateUsername(username);
   if (usernameError) return { error: usernameError };
+  if (!name) return { error: "Name is required." };
   if (!password || password.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
+
+  if (!confirmPassword) return { error: "Confirm your password." };
+  if (password !== confirmPassword) return { error: "Passwords do not match." };
 
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const currency = detectPreferredCurrency(acceptLanguage);
   const passwordHash = await bcrypt.hash(password, 10);
   try {
     const result = await bootstrapFirstAccount(db, { username, name, passwordHash, currency });
-    if (!result.ok) return { error: "Ask an admin to create your account." };
+    if (!result.ok) return { error: "Setup is already complete. Sign in to continue." };
     // Committed; recorded before the auto sign-in so creation precedes that account's first sign-in.
     recordActivity({
       type: ActivityEventType.AccountCreated,
