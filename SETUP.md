@@ -202,9 +202,39 @@ All child tables cascade-delete from `trips`.
 
 ## Resetting to a clean state
 
+Stop the dev server first. These commands **delete all data in `arrivo`**, then
+recreate it and restore the demo data. The E2E database is unchanged.
+
+Choose the commands for your database backend (see **Which database am I using?** above).
+
+### Docker PostgreSQL (port 5433)
+
+Run from the repository root:
+
 ```bash
-psql -d postgres -c "DROP DATABASE arrivo;"
-psql -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
+docker compose -f docker-compose.dev.yml up -d db
+docker compose -f docker-compose.dev.yml exec -T db psql -U arrivo -d postgres -c "DROP DATABASE arrivo WITH (FORCE);"
+docker compose -f docker-compose.dev.yml exec -T db psql -U arrivo -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
 npm run db:migrate
 npm run db:seed
 ```
+
+These commands connect inside the container as `arrivo`, so no host PostgreSQL
+password is needed. `WITH (FORCE)` disconnects any remaining connections to `arrivo`.
+
+### Local PostgreSQL (port 5432)
+
+Use your PostgreSQL administrator role (replace `postgres` if yours differs) and
+enter its database password when prompted:
+
+```bash
+psql -h localhost -p 5432 -U postgres -d postgres -c "DROP DATABASE arrivo WITH (FORCE);"
+psql -h localhost -p 5432 -U postgres -d postgres -c "CREATE DATABASE arrivo OWNER arrivo;"
+npm run db:migrate
+npm run db:seed
+```
+
+Without `-U`, `psql` defaults to your operating-system username. A password prompt
+for that username does not mean you need to reset its password: specify the
+intended PostgreSQL role instead. Bare `psql` commands also do not read the app's
+`.env`; use the Docker commands above when the app connects on port `5433`.
