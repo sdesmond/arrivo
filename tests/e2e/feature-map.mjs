@@ -37,6 +37,13 @@ export const FEATURE_MAP = [
     "src/components/arrivo/instance-users-list.tsx",
     "src/lib/activity-labels.ts",
   ]),
+  entry("unfinished-account-deletion", [
+    "src/lib/unfinished-account-deletion.ts",
+    "src/components/arrivo/delete-unfinished-account-dialog.tsx",
+    "src/app/(app)/admin/users/actions.ts",
+    "src/components/arrivo/instance-users-list.tsx",
+    "src/lib/activity-labels.ts",
+  ]),
   entry("add-user-dialog", [
     "src/components/arrivo/add-user-dialog.tsx",
     "src/app/(app)/admin/users/page.tsx",

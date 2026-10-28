@@ -134,6 +134,7 @@ describe("InstanceActivity", () => {
     ["account_created", "Accounts", "Created account"],
     ["setup_link_generated", "Accounts", "Generated setup link"],
     ["setup_link_regenerated", "Accounts", "Regenerated setup link"],
+    ["pending_account_deleted", "Accounts", "Deleted unfinished account"],
     ["setup_completed", "Accounts", "Completed account setup"],
     ["username_changed", "Accounts", "Changed username"],
     ["password_changed", "Accounts", "Changed password"],

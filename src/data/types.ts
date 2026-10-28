@@ -103,6 +103,8 @@ export const ActivityEventType = {
   AccountCreated: "account_created",
   SetupLinkGenerated: "setup_link_generated",
   SetupLinkRegenerated: "setup_link_regenerated",
+  /** The target is the deleted unfinished account; identities only. */
+  PendingAccountDeleted: "pending_account_deleted",
   /** The actor is the account that finished setup. */
   SetupCompleted: "setup_completed",
   RoleChanged: "role_changed",
@@ -253,6 +255,20 @@ export type RegenerateSetupLinkResult =
 export type RegenerateSetupLinkOutcome =
   | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
   | { ok: false; reason: Exclude<RegenerateSetupLinkFailure, "origin-unavailable"> };
+export const DeleteUnfinishedAccountFailure = {
+  Forbidden: "forbidden",
+  ChangedState: "changed-state",
+  InstanceUnavailable: "instance-unavailable",
+  Retry: "retry",
+} as const;
+export type DeleteUnfinishedAccountFailure =
+  (typeof DeleteUnfinishedAccountFailure)[keyof typeof DeleteUnfinishedAccountFailure];
+export type DeleteUnfinishedAccountResult =
+  | { ok: true; userId: string; username: string }
+  | { ok: false; reason: DeleteUnfinishedAccountFailure };
+export type DeleteUnfinishedAccountOutcome =
+  | { ok: true; userId: string; username: string; actor: ActivityIdentity }
+  | { ok: false; reason: DeleteUnfinishedAccountFailure };
 export interface SetupLinkTargetState {
   userId: string;
   state: "unfinished" | "completed" | "missing";
