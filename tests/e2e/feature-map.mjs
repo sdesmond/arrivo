@@ -37,6 +37,8 @@ export const FEATURE_MAP = [
   ]),
   entry("account-setup", [
     "src/lib/account-setup-session.ts",
+    "src/lib/account-setup-completion.ts",
+    "src/lib/password-policy.ts",
     "src/app/account-setup/**",
     "src/components/arrivo/account-setup-dialog.tsx",
   ]),

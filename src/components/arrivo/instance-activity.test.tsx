@@ -133,6 +133,7 @@ describe("InstanceActivity", () => {
     ["sign_out", "Authentication", "Sign-out"],
     ["account_created", "Accounts", "Created account"],
     ["setup_link_generated", "Accounts", "Generated setup link"],
+    ["setup_completed", "Accounts", "Completed account setup"],
     ["username_changed", "Accounts", "Changed username"],
     ["password_changed", "Accounts", "Changed password"],
     ["account_deleted", "Accounts", "Deleted own account"],

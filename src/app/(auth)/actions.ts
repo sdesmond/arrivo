@@ -17,6 +17,7 @@ import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
 import { isHttpsRequest } from "@/lib/request-origin";
 import { bootstrapFirstAccount } from "@/lib/instance-bootstrap";
 import { isUniqueViolation } from "@/lib/error-utils";
+import { PASSWORD_BCRYPT_COST, validateNewPassword } from "@/lib/password-policy";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 
 type ActionState = { error?: string } | undefined;
@@ -78,16 +79,12 @@ export async function setupAdminAction(_prev: ActionState, formData: FormData): 
   const usernameError = validateUsername(username);
   if (usernameError) return { error: usernameError };
   if (!name) return { error: "Name is required." };
-  if (!password || password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
-  }
-
-  if (!confirmPassword) return { error: "Confirm your password." };
-  if (password !== confirmPassword) return { error: "Passwords do not match." };
+  const passwordError = validateNewPassword(password, confirmPassword);
+  if (passwordError) return { error: passwordError };
 
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const currency = detectPreferredCurrency(acceptLanguage);
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   try {
     const result = await bootstrapFirstAccount(db, { username, name, passwordHash, currency });
     if (!result.ok) return { error: "Setup is already complete. Sign in to continue." };

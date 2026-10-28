@@ -77,3 +77,56 @@ Feature: Setup-only account context
       | path     |
       | /setup   |
       | /sign-up |
+
+  Scenario: Completing setup signs in only that account and consumes the link
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    When I open the setup link
+    And I complete the setup form with name "Alex Pending" and password "chosen-pass-1"
+    Then I should be redirected to the trips page
+    And the pending account has the name "Alex Pending" and password "chosen-pass-1"
+    And Activity holds a setup completed event for the pending account
+    When I open the setup link
+    Then I see the setup link unavailable page
+
+  Scenario Outline: Invalid setup input shows an error and keeps the link untouched
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    When I open the setup link
+    And I fill the setup form with name "<name>", password "<password>" and confirmation "<confirmation>"
+    And I submit the setup form
+    Then I see the setup error "<error>"
+    And the setup name field still holds "<name>"
+    And the pending account has no password
+    And the setup link is still valid with its original expiry
+
+    Examples:
+      | name | password      | confirmation  | error                                   |
+      | Alex |               |               | Password must be at least 8 characters. |
+      | Alex | short         | short         | Password must be at least 8 characters. |
+      | Alex | chosen-pass-1 | different-one | Passwords do not match.                 |
+
+  Scenario: A half-finished setup resumes with the same expiry
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    When I open the setup link
+    And I fill the setup form with name "Alex", password "chosen-pass-1" and confirmation "chosen-pass-1"
+    And I reload the page
+    Then I see the account setup dialog for the pending account
+    And the setup link is still valid with its original expiry
+
+  Scenario: Submitting after the link is replaced saves nothing
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    When I open the setup link
+    And the setup link is replaced
+    And I complete the setup form with name "Alex Pending" and password "chosen-pass-1"
+    Then I see the setup link unavailable page
+    And the pending account has no password
+
+  Scenario: Two simultaneous completions of one link produce exactly one success
+    Given the instance is already set up
+    And a pending account with a fresh setup link
+    When two browsers complete the setup link at the same time
+    Then exactly one browser completed setup
+    And Activity holds exactly one setup completed event for the pending account
