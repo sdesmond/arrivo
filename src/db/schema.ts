@@ -71,6 +71,27 @@ export const instanceState = pgTable(
   ]
 );
 
+export const credentialAuthorizations = pgTable(
+  "credential_authorizations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    digest: text("digest").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("credential_authorizations_purpose", sql`${table.purpose} in ('setup', 'reset', 'recovery')`),
+    index("credential_authorizations_user_purpose_idx").on(table.userId, table.purpose),
+  ]
+);
+
 export const accounts = pgTable(
   "accounts",
   {
