@@ -44,6 +44,43 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+export const CredentialAuthorizationPurpose = {
+  Setup: "setup",
+  Reset: "reset",
+  Recovery: "recovery",
+} as const;
+export type CredentialAuthorizationPurpose =
+  (typeof CredentialAuthorizationPurpose)[keyof typeof CredentialAuthorizationPurpose];
+
+/** Adapters authenticate admins; trusted operator context belongs exclusively to local operator tooling. */
+export type CredentialIssuanceAuthority = { kind: "admin"; actorUserId: string } | { kind: "trusted-operator" };
+export interface IssueCredentialAuthorizationInput {
+  userId: string;
+  purpose: CredentialAuthorizationPurpose;
+}
+export interface CredentialAuthorizationInput {
+  token: string;
+  purpose: CredentialAuthorizationPurpose;
+}
+export interface CredentialAuthorizationAccount {
+  userId: string;
+  username: string;
+  purpose: CredentialAuthorizationPurpose;
+  expiresAt: string;
+}
+export type CredentialAuthorizationFailure = {
+  ok: false;
+  reason: "invalid" | "forbidden" | "instance-unavailable" | "retry";
+};
+export type IssueCredentialAuthorizationResult =
+  | { ok: true; token: string; expiresAt: string }
+  | CredentialAuthorizationFailure;
+export type ValidateCredentialAuthorizationResult =
+  | { ok: true; account: CredentialAuthorizationAccount }
+  | CredentialAuthorizationFailure;
+export type ConsumeCredentialAuthorizationResult = { ok: true } | CredentialAuthorizationFailure;
+export type CredentialSecurityClock = () => Date;
+
 export interface BootstrapAccountValues {
   username: string;
   name: string;

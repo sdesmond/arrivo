@@ -30,6 +30,10 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("credential-authorizations", [
+    "src/lib/credential-authorizations.ts",
+    "tests/e2e/credential-authorization-fixture.ts",
+  ]),
   entry("activity-retention", [
     "src/lib/activity-retention.ts",
     "src/lib/activity-maintenance.ts",

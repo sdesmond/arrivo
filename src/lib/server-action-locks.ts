@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { db } from "@/db";
+import type { db } from "@/db";
 import { packingTemplates, trips, users } from "@/db/schema";
 
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
