@@ -5,6 +5,7 @@ const {
   requireAdmin,
   changeUserRole,
   addUser,
+  regenerateSetupLink,
   listInstanceUsers,
   revalidatePath,
   recordActivity,
@@ -15,6 +16,7 @@ const {
   requireAdmin: vi.fn(),
   changeUserRole: vi.fn(),
   addUser: vi.fn(),
+  regenerateSetupLink: vi.fn(),
   listInstanceUsers: vi.fn(),
   revalidatePath: vi.fn(),
   database: {},
@@ -22,13 +24,126 @@ const {
 vi.mock("@/lib/auth-helpers", () => ({ requireAdmin }));
 vi.mock("@/lib/account-role-changes", () => ({ changeUserRole }));
 vi.mock("@/lib/account-creation", () => ({ addUser }));
+vi.mock("@/lib/setup-link-regeneration", () => ({ regenerateSetupLink }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 import { RoleChangeFailure } from "@/data/types";
 vi.mock("@/lib/instance-users", () => ({ listInstanceUsers }));
-import { addUserAction, checkAddedUserAction, changeUserRoleAction } from "./actions";
+import {
+  addUserAction,
+  checkAddedUserAction,
+  changeUserRoleAction,
+  regenerateSetupLinkAction,
+  checkSetupLinkTargetAction,
+} from "./actions";
+
+describe("setup link regeneration actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    recordActivity.mockReset();
+    requireAdmin.mockResolvedValue({ id: "actor" });
+    vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example");
+    vi.stubEnv("AUTH_URL", "");
+  });
+  it("returns one link and records only committed regeneration identities", async () => {
+    regenerateSetupLink.mockResolvedValue({
+      ok: true,
+      userId: "target",
+      username: "pending",
+      token: "secret",
+      expiresAt: "expiry",
+      actor: { id: "actor", username: "admin" },
+    });
+    expect(await regenerateSetupLinkAction("target")).toEqual({
+      ok: true,
+      userId: "target",
+      username: "pending",
+      setupUrl: "https://arrivo.example/account-setup/open?token=secret",
+      expiresAt: "expiry",
+    });
+    expect(regenerateSetupLink).toHaveBeenCalledWith(database, "actor", "target");
+    expect(recordActivity.mock.calls).toEqual([
+      [
+        {
+          type: "setup_link_regenerated",
+          actor: { id: "actor", username: "admin" },
+          target: { id: "target", username: "pending" },
+        },
+      ],
+    ]);
+    expect(JSON.stringify(recordActivity.mock.calls)).not.toContain("secret");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+  it("refuses unconfigured origin without writes or events", async () => {
+    vi.stubEnv("NEXTAUTH_URL", "");
+    expect(await regenerateSetupLinkAction("target")).toMatchObject({
+      ok: false,
+      reason: "origin-unavailable",
+      message: expect.stringMatching(/NEXTAUTH_URL.*AUTH_URL/),
+    });
+    expect(regenerateSetupLink).not.toHaveBeenCalled();
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+  it.each(["forbidden", "changed-state", "instance-unavailable", "retry"])(
+    "passes %s without Activity",
+    async (reason) => {
+      regenerateSetupLink.mockResolvedValue({ ok: false, reason });
+      expect(await regenerateSetupLinkAction("target")).toEqual({ ok: false, reason });
+      expect(recordActivity).not.toHaveBeenCalled();
+    }
+  );
+  it.each(["unfinished", "completed", "missing"])(
+    "reads authoritative %s state by immutable ID without token",
+    async (state) => {
+      listInstanceUsers.mockResolvedValue(
+        state === "missing"
+          ? []
+          : [{ id: "target", username: "renamed", setupComplete: state === "completed", setupExpiresAt: "expiry" }]
+      );
+      expect(await checkSetupLinkTargetAction("target")).toEqual({
+        userId: "target",
+        state,
+        ...(state === "unfinished" ? { setupExpiresAt: "expiry" } : {}),
+      });
+      expect(regenerateSetupLink).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+    }
+  );
+  it("denies mutation and reconciliation before access", async () => {
+    requireAdmin.mockRejectedValue(new Error("404"));
+    await expect(regenerateSetupLinkAction("target")).rejects.toThrow("404");
+    await expect(checkSetupLinkTargetAction("target")).rejects.toThrow("404");
+    expect(regenerateSetupLink).not.toHaveBeenCalled();
+    expect(listInstanceUsers).not.toHaveBeenCalled();
+  });
+  it("propagates unknown mutation and read failures without recording", async () => {
+    regenerateSetupLink.mockRejectedValue(new Error("unavailable"));
+    listInstanceUsers.mockRejectedValue(new Error("unavailable"));
+    await expect(regenerateSetupLinkAction("target")).rejects.toThrow("unavailable");
+    await expect(checkSetupLinkTargetAction("target")).rejects.toThrow("unavailable");
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+  it("keeps committed link success when Activity scheduling fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const actual = await vi.importActual<typeof import("@/lib/activity")>("@/lib/activity");
+    recordActivity.mockImplementation(actual.recordActivity);
+    nextAfter.mockImplementation(() => {
+      throw new Error("outside request scope");
+    });
+    regenerateSetupLink.mockResolvedValue({
+      ok: true,
+      userId: "target",
+      username: "pending",
+      token: "secret",
+      expiresAt: "expiry",
+      actor: { id: "actor", username: "admin" },
+    });
+    await expect(regenerateSetupLinkAction("target")).resolves.toMatchObject({ ok: true, userId: "target" });
+    log.mockRestore();
+  });
+});
 
 describe("addUserAction", () => {
   const ACTOR = { id: "actor", username: "admin" };

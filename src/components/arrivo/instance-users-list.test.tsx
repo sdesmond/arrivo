@@ -39,11 +39,13 @@ describe("InstanceUsersList", () => {
     expect(screen.getByText(/Pending setup · Expires/)).toBeVisible();
     expect(document.querySelector("time")).toHaveAttribute("datetime", future);
     expect(screen.queryByRole("button", { name: /Make admin/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate new link: bob" })).toBeVisible();
   });
   it("shows setup expired once the link has lapsed", () => {
     const past = new Date(Date.now() - 3_600_000).toISOString();
     show([{ ...member, setupComplete: false, setupExpiresAt: past }]);
     expect(screen.getByText(/Setup expired/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Generate new link: bob" })).toBeVisible();
     expect(screen.queryByText(/Expires/)).not.toBeInTheDocument();
   });
   it("shows plain pending setup when no link is on record", () => {

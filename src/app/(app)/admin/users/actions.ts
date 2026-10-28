@@ -8,6 +8,8 @@ import {
   type AddUserResult,
   type ChangeUserRoleResult,
   type UserRole,
+  type RegenerateSetupLinkResult,
+  type SetupLinkTargetState,
 } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -16,6 +18,38 @@ import { changeUserRole } from "@/lib/account-role-changes";
 import { trustedLinkOrigin } from "@/lib/request-origin";
 import { listInstanceUsers } from "@/lib/instance-users";
 import { normalizeUsername } from "@/lib/username";
+import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
+
+export async function checkSetupLinkTargetAction(targetUserId: string): Promise<SetupLinkTargetState> {
+  await requireAdmin();
+  const target = (await listInstanceUsers()).find((user) => user.id === targetUserId);
+  return {
+    userId: targetUserId,
+    state: !target ? "missing" : target.setupComplete ? "completed" : "unfinished",
+    ...(!target?.setupComplete && target?.setupExpiresAt ? { setupExpiresAt: target.setupExpiresAt } : {}),
+  };
+}
+
+export async function regenerateSetupLinkAction(targetUserId: string): Promise<RegenerateSetupLinkResult> {
+  const user = await requireAdmin();
+  const origin = trustedLinkOrigin();
+  if (!origin) return { ok: false, reason: "origin-unavailable", message: ORIGIN_UNAVAILABLE_MESSAGE };
+  const outcome = await regenerateSetupLink(db, user.id!, targetUserId);
+  if (!outcome.ok) return outcome;
+  revalidatePath("/admin/users");
+  recordActivity({
+    type: ActivityEventType.SetupLinkRegenerated,
+    actor: outcome.actor,
+    target: { id: outcome.userId, username: outcome.username },
+  });
+  return {
+    ok: true,
+    userId: outcome.userId,
+    username: outcome.username,
+    expiresAt: outcome.expiresAt,
+    setupUrl: `${origin}/account-setup/open?token=${encodeURIComponent(outcome.token)}`,
+  };
+}
 
 export async function checkAddedUserAction(username: string): Promise<boolean> {
   await requireAdmin();

@@ -263,7 +263,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
   ): Promise<ScenarioUserRecord> {
     const seed = cloneUserMother(mother, overrides);
     const username = uniqueUsername(seed.user.name);
-    const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
+    const passwordHash = seed.user.setupComplete === false ? null : await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
 
     return withE2EDb(async (db) => {
       const [user] = await db

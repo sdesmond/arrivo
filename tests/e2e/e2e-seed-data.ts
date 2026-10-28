@@ -2,6 +2,7 @@ import { ExpenseCategory, TransitMode } from "../../src/data/types";
 import type { UserRole, ReservationType } from "../../src/data/types";
 
 export interface UserSeed {
+  setupComplete?: boolean;
   role?: UserRole;
   name: string;
   initials: string;

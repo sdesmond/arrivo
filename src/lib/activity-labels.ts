@@ -8,6 +8,7 @@ export const EVENT_LABELS: Record<ActivityEventType, { type: string; action: str
   [ActivityEventType.SignOut]: { type: "Authentication", action: "Sign-out" },
   [ActivityEventType.AccountCreated]: { type: "Accounts", action: "Created account" },
   [ActivityEventType.SetupLinkGenerated]: { type: "Accounts", action: "Generated setup link" },
+  [ActivityEventType.SetupLinkRegenerated]: { type: "Accounts", action: "Regenerated setup link" },
   [ActivityEventType.SetupCompleted]: { type: "Accounts", action: "Completed account setup" },
   [ActivityEventType.RoleChanged]: { type: "Accounts", action: "Changed role" },
   [ActivityEventType.UsernameChanged]: { type: "Accounts", action: "Changed username" },
