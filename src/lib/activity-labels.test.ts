@@ -26,6 +26,12 @@ describe("activity labels", () => {
       action: "Completed account setup",
     });
   });
+  it("labels unfinished account deletion", () => {
+    expect(EVENT_LABELS[ActivityEventType.PendingAccountDeleted]).toEqual({
+      type: "Accounts",
+      action: "Deleted unfinished account",
+    });
+  });
   it("labels every event type", () => {
     for (const type of Object.values(ActivityEventType)) {
       expect(EVENT_LABELS[type].action).not.toBe("");
