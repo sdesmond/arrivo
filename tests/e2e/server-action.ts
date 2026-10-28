@@ -7,6 +7,8 @@ interface WaitForServerActionOptions {
   pathIncludes: string;
   /** Long enough for a real mutation under load, short enough not to stall a no-op gesture. */
   timeoutMs?: number;
+  /** Explicit redirect status expected from an action that navigates after commit. */
+  expectedStatus?: number;
   /**
    * Whether the POST must actually happen. Default true: no response, or a non-2xx one, throws.
    * Pass false only where the gesture is legitimately allowed to be a no-op — a keyboard move that
@@ -28,7 +30,7 @@ interface WaitForServerActionOptions {
  */
 export function waitForServerActionResponse(
   page: Page,
-  { pathIncludes, timeoutMs = SERVER_ACTION_TIMEOUT_MS, required = true }: WaitForServerActionOptions
+  { pathIncludes, timeoutMs = SERVER_ACTION_TIMEOUT_MS, required = true, expectedStatus }: WaitForServerActionOptions
 ): Promise<Response | null> {
   const pending = page.waitForResponse(
     (response) => response.request().method() === "POST" && response.url().includes(pathIncludes),
@@ -38,7 +40,7 @@ export function waitForServerActionResponse(
   if (!required) return pending.catch(() => null);
 
   return pending.then((response) => {
-    if (!response.ok()) {
+    if (expectedStatus === undefined ? !response.ok() : response.status() !== expectedStatus) {
       throw new Error(`Server action POST to ${response.url()} failed with status ${response.status()}.`);
     }
     return response;
