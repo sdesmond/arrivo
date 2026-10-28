@@ -1,0 +1,122 @@
+# Approved epic breakdown; table order is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Credential-authorization schema and module"
+description = "Adds the generated migration and a hash-only purpose-bound authorization table, plus issue, validate and consume services under AD-2 locks with an injectable clock; same-purpose issuance atomically invalidates the previous link and account deletion invalidates all of them."
+verify = "Real-Postgres tests prove 256-bit hashed storage, 24-hour setup expiry, atomic replacement, single consumption under concurrent completion, expiry, and invalidation on account deletion."
+covers = ["CAP-2", "CAP-3"]
+after = []
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1)."]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Setup-only context tracer"
+description = "Adds the separate account password-setup route outside the app layout with proxy allowlist entry, link-to-limited-cookie exchange that never consumes the link, token scrubbed from the URL, no-store and no-referrer headers, per-account throttles, and a stub dialog that revalidates against the database on every request."
+verify = "On an initialized instance a valid link shows the stub dialog while the limited cookie is refused by the app layout, a server action and a storage read, and /setup and /sign-up still redirect to sign-in."
+covers = ["CAP-2"]
+after = [1, "1.8"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1).", "`/setup` is reserved for first-run admin creation; the account password-setup route is separate and must work on an initialized instance (decision 2026-10-27)."]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Add User service and action"
+description = "Adds the admin-only action that creates a passwordless account from a normalized username, refuses duplicates, refuses to issue when no trusted origin is configured, issues the 24-hour link, shows a Pending setup row with expiry in Users, and records Activity events after commit without tokens or URLs."
+verify = "Action and real-Postgres tests show one account per username under concurrency, no second account on duplicate, an actionable error without a trusted origin, admin recheck, and Activity events that survive forced recording failure."
+covers = ["CAP-2"]
+after = [1, "1.4", "2.1"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1)."]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Add User dialog and result"
+description = "Adds the Add User form and result in one dialog with Creating... state, inline username errors, Account created copy, local-time expiry line, focus on the result heading, copy action and selectable URL fallback, shown once."
+verify = "Component tests and E2E show the form-to-result flow, taken and invalid usernames, ambiguous creation checking state before retry, and the URL absent after the dialog closes."
+covers = ["CAP-2"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Setup completion"
+description = "Adds the non-dismissable dialog with read-only username and required Name, Password and Confirm password, atomically saving name and password, consuming the link and signing in only that account, with resume until original expiry and invalid, expired, replaced and deleted states."
+verify = "Tests and E2E show a new user completes setup and reaches Trips, reopening resumes without extending expiry, replaced or expired or deleted links admit no one, and concurrent completions yield one success."
+covers = ["CAP-2", "CAP-3"]
+after = [2]
+hitl = false
+risk = "high"
+unknown = "Which shared password policy applies: signup and profile changePassword rules differ."
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1)."]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Regenerate link and expired state"
+description = "Adds Generate new link on pending and expired rows, invalidating the old link and issuing a fresh 24-hour link for the same account ID, with the expired row staying visible and Activity events recorded."
+verify = "Tests and E2E show the old link refused, the new link working, the same account ID retained, an expired account visible with Generate new link, and stale rows refreshed without duplicating accounts."
+covers = ["CAP-3"]
+after = [3, 5]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Delete unfinished account"
+description = "Adds the minimal admin delete of a pending or expired account under AD-2 lock order, invalidating all its authorizations, refusing completed accounts here, with stale-list refresh and an Activity event."
+verify = "Tests show the deleted account's link admits no one, completed accounts are refused, concurrent delete and completion yield one outcome, and the Users list refreshes without restoring the account."
+covers = ["CAP-3"]
+after = [3]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1)."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Wrong signed-in account"
+description = "Adds the Sign out to continue setup state with a Sign out and continue button that keeps the link through sign-out and revalidates it before showing the dialog."
+verify = "E2E shows a signed-in user opening another account's link must sign out explicitly, then lands on that account's setup dialog, and an invalidated link is refused afterwards."
+covers = ["CAP-2"]
+after = [5]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "Cleans up duplication and deferred review findings across the onboarding entries; scope set when it starts."
+verify = "Targeted unit and affected E2E tests pass unchanged after the cleanup."
+covers = ["CAP-2", "CAP-3"]
+after = [1, 2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Integrated onboarding E2E suite"
+description = "Adds the closing suite with a pending-user mother covering setup-only isolation across routes, actions, storage reads and both live feeds, the full CAP-2 and CAP-3 scenarios, /setup and /sign-up staying closed after Add User, a feature-map entry and a producer inventory update."
+verify = "The suite passes with scenario-owned fixtures, no credential-bearing URLs in output, and every isolation surface refused with a setup context."
+covers = ["CAP-2", "CAP-3"]
+after = [9]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
