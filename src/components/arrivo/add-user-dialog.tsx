@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
-import { Copy } from "lucide-react";
 import { addUserAction, checkAddedUserAction } from "@/app/(app)/admin/users/actions";
 import { AddUserFailure, type AddUserResult } from "@/data/types";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 import { Button } from "@/components/ui/button";
+import { SetupLinkResult } from "./setup-link-result";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -30,7 +30,6 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
   const [errorMessage, setErrorMessage] = useState<string>();
   const [result, setResult] = useState<Extract<AddUserResult, { ok: true }> | null>(null);
   const [phase, setPhase] = useState<"form" | "creating" | "checking" | "found" | "absent" | "uncertain">("form");
-  const [copyMessage, setCopyMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const busy = isPending || phase === "creating" || phase === "checking";
@@ -45,7 +44,6 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
     setOpen(nextOpen);
     setResult(null);
     setErrorMessage(undefined);
-    setCopyMessage("");
     if (phase !== "uncertain") {
       setUsername("");
       setPhase("form");
@@ -104,16 +102,6 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
     });
   }
 
-  async function copyLink() {
-    if (!result) return;
-    try {
-      await navigator.clipboard.writeText(result.setupUrl);
-      setCopyMessage("Link copied.");
-    } catch {
-      setCopyMessage("Couldn't copy. Select the link and copy it manually.");
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger render={<Button className="h-11">{triggerLabel}</Button>} />
@@ -129,28 +117,7 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
           </DialogDescription>
         </DialogHeader>
         {result ? (
-          <div className="flex min-w-0 flex-col gap-3">
-            <p>
-              Username: <strong>{result.username}</strong>
-            </p>
-            <p>
-              Expires: <time dateTime={result.expiresAt}>{new Date(result.expiresAt).toLocaleString()}</time>
-            </p>
-            <p className="select-text" style={{ overflowWrap: "anywhere" }}>
-              {result.setupUrl}
-            </p>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-11"
-              title="Copy link"
-              aria-label="Copy link"
-              onClick={copyLink}
-            >
-              <Copy strokeWidth={1.5} />
-            </Button>
-            {copyMessage && <p role="status">{copyMessage}</p>}
-          </div>
+          <SetupLinkResult username={result.username} expiresAt={result.expiresAt} setupUrl={result.setupUrl} />
         ) : (
           <form
             id="add-user-form"
