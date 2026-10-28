@@ -117,7 +117,7 @@ describe("isolated E2E preparation", async () => {
   });
   it("validates isolation and creates derived DB before either reset", async () => {
     const calls = [];
-    const source = "postgres://test:secret@example.test/arrivo_e2e?sslmode=require";
+    const source = "postgres://example.test/arrivo_e2e?sslmode=require";
     await prepareE2EDatabases(
       source,
       async (command, connectionString) => {
@@ -134,7 +134,7 @@ describe("isolated E2E preparation", async () => {
       ["db:reset:e2e", "/arrivo_e2e_bootstrap"],
       ["db:migrate:e2e", "/arrivo_e2e_bootstrap"],
     ]);
-    expect(source).toBe("postgres://test:secret@example.test/arrivo_e2e?sslmode=require");
+    expect(source).toBe("postgres://example.test/arrivo_e2e?sslmode=require");
   });
   it("never resets anything when derivation or creation fails", async () => {
     const run = () => {

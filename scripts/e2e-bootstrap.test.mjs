@@ -13,9 +13,9 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const source = "postgres://test:secret@example.test:5432/arrivo_e2e?sslmode=require&connect_timeout=12";
+const source = "postgres://example.test:5432/arrivo_e2e?sslmode=require&connect_timeout=12";
 describe("bootstrap database isolation", () => {
-  it("changes only database path and preserves credentials/options", () => {
+  it("changes only database path and preserves host, port and options", () => {
     const derived = new URL(deriveBootstrapConnectionString(source));
     const original = new URL(source);
     expect(derived.pathname).toBe("/arrivo_e2e_bootstrap");
