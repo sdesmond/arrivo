@@ -21,8 +21,8 @@ Mandate plus gap for people who run Arrivo on their own server: today anyone can
 ## Capabilities
 
 - **CAP-1**
-  - **intent:** First account on a fresh install becomes admin and public signup closes permanently; an existing single-account install is promoted automatically on upgrade.
-  - **success:** Fresh DB: first signup yields an admin, second signup attempt is refused regardless of `ALLOW_SIGNUP`; concurrent first signups yield exactly one admin; upgrade of a one-account DB promotes it once; a multi-account legacy DB stops with an actionable operator error.
+  - **intent:** Fresh installs automatically present one-time admin setup; first account becomes admin and public signup closes permanently; an existing single-account install is promoted automatically on upgrade.
+  - **success:** Fresh entry reaches `/setup` with welcome copy and required Username, Name, Password and Confirm password; matching valid credentials create one admin and sign in to Trips. Concurrent first submissions yield exactly one admin. Initialized `/setup` and `/sign-up` redirect to sign-in, which has no signup link; stale forms cannot create another account. Fresh `/sign-up` redirects to `/setup`. Existing legacy-upgrade clauses are unchanged by this correction: one-account promotion once; multi-account legacy selection halts with an operator error.
 - **CAP-2**
   - **intent:** Admin can add a user by username, creating the account immediately with no password, and obtain a manually shared setup link whose recipient must set a password before reaching the app.
   - **success:** Account appears in Users as Pending setup; link opens a non-dismissable password dialog; before save, direct routes, actions, storage reads and live subscriptions are refused; save consumes the link and grants access for that same account; duplicate/taken username creates no second account.

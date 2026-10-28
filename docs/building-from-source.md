@@ -22,3 +22,5 @@ Demo data (`npm run db:seed`) is a development tool and isn't in the image; see
 [dev-seed-data.md](./dev-seed-data.md) for running it from a dev setup.
 
 Publishing releases: see [releasing.md](./releasing.md).
+
+Browser tests: see [E2E database and server isolation](./e2e-testing.md).

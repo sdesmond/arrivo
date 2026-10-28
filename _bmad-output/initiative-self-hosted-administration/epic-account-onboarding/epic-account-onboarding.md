@@ -38,6 +38,8 @@ Token module, setup routes, Add User. Not reset, CLI recovery, deletion.
 
 ## Notes
 
+- Decision: 2026-10-27 `/setup` is reserved for one-time instance admin creation. Later account password-setup links use a separate route and must remain usable after instance initialization. First-run admin setup follow-up precedes this epic.
+
 - Waits on epic-instance-foundation because: Users list and admin guard.
 - Waits on epic-activity-and-retention because: events use its recording API.
 - Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`. When slicing this epic, write this rule into every ticket entry's `notes` so it reaches the build.

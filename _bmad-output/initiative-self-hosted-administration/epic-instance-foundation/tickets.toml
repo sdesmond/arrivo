@@ -88,3 +88,16 @@ after = [6]
 hitl = false
 risk = "low"
 notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "First-run admin setup"
+description = "Replaces public signup UI with one-time admin welcome setup. Fresh entry automatically reaches /setup with Username, Name, Password and Confirm password; successful creation signs in to Trips. Initialized setup/signup routes redirect to sign-in with no signup link. Existing transactional bootstrap prevents stale or concurrent submissions from creating another admin. Retains bootstrap Activity producer delivered by 2.3."
+verify = "Fresh desktop/mobile entry shows welcome setup; valid matching fields create one admin and Activity event; missing/mismatched fields create none; initialized setup/signup URLs redirect to sign-in; stale open forms are refused; existing bootstrap concurrency tests still pass."
+covers = ["CAP-1"]
+after = [7, "2.3"]
+hitl = false
+risk = "medium"
+notes = ["Decision: 2026-10-27 approved course correction; complete before account onboarding. /setup is reserved for instance initialization, separate from later account setup links.", "Decision: 2026-10-27 historical foundation closure remains intact; this follow-up owns its cleanup and regression coverage after the completed sweep and closing suite.", "Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main.", "Implementation plan remains at _bmad-output/initiative-self-hosted-administration/plan-first-run-admin-setup.md."]
+references = ["spec-self-hosted-administration/spec-self-hosted-administration.md#capabilities", "ux-self-hosted-administration/EXPERIENCE.md#flow-1--first-run-admin-setup", "change-first-run-admin-setup/change-first-run-admin-setup.md"]

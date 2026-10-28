@@ -2,7 +2,7 @@
 name: Arrivo self-hosted administration
 description: Administration that inherits Arrivo Profile & Settings visual language and shared UI primitives.
 status: final
-updated: 2026-10-24
+updated: 2026-10-27
 sources:
   - ../brainstorm-admin-page/brainstorm-admin-page.md
   - .memlog.md
@@ -133,6 +133,8 @@ Inherit shared component radii: {rounded.lg} for actions and bounded rows, {roun
 
 ## Components
 
+First-run admin setup focuses Username on entry and omits “Already set up?” text and sign-in navigation.
+
 | Component | Visual contract |
 | --- | --- |
 | account-menu | Shared shadcn DropdownMenu anchored to account control, with minimum 44px trigger and menu targets. Settings and Log out for everyone; Manage instance for admins. Shared separators, focus, and selected/hover treatments. [Reference](mockups/key-settings-entry.html) shows role variants. |
@@ -146,7 +148,8 @@ Inherit shared component radii: {rounded.lg} for actions and bounded rows, {roun
 | status-feedback | Shared toast for transient completion; persistent inline text for field errors, unknown outcomes, loading, and empty states. Danger/warning styling accompanies exact words. Skeletons follow final row geometry. |
 | instance-summary | Section/Field rhythm for version, counts, storage usage, health, and freshness timestamp; labeled health values rather than color-only dots. |
 | activity-list | Proper shadcn Table with TableHeader, TableBody, TableRow, TableHead, and TableCell composition. Columns identify account username, type, action, timestamp/range, and allowed trip ID. Use inherited table separators and typography. Failed sign-ins with unmatched usernames carry “Unknown account” text. Routine trip-edit batches show one summary-only “Updated trip” row; no expand chevron or detail panel. Retain semantic headers and horizontal scrolling on narrow screens rather than converting rows to cards. IDs wrap; omit private titles and values. |
-| auth-card | Inherit current auth layout: centered max-w-sm card, surface background, line border, rounded-2xl, p-8, with existing brand treatment. Sign-in displays Username and Password fields; no email field. First-time setup uses mandatory-password-dialog. |
+| auth-card | Inherit current auth layout: centered max-w-sm card, surface background, line border, rounded-2xl, p-8, with existing brand treatment. Sign-in displays Username and Password fields; no email field. Instance bootstrap uses admin-setup-form; later user password setup uses mandatory-password-dialog. |
+| admin-setup-form | One-time `/setup` uses auth-card with “Welcome to Arrivo!” heading, “Let's get your admin account set up.” description, required Username, Name, Password and Confirm password in reading order, and “Create admin account” primary action. Preserve persistent labels, associated errors, 44px targets, new-password autofill, keyboard access and theme preferences. This instance bootstrap is separate from mandatory-password-dialog for later account setup links. Initialized instances show sign-in without signup navigation. |
 | registration-form | Existing auth-form language: admin creation asks username; recipient setup shows already-created account's username read-only plus new-password fields, with no old-password field. Username can be changed later in Profile. One primary completion action, inline validation and setup context; no separate admin branding. |
 | mandatory-password-dialog | Shared dialog/sheet visual language with title, fixed username displayed as identity text rather than editable input, new-password/confirmation fields, inline errors, and Save password action. Username can be changed later in Settings. No close icon, Cancel, or dismiss affordance. Background inert and contains no accessible app content before completion. Preserve 44px targets, reachable actions above mobile keyboard, and inherited theme/font preferences. |
 | recovery-form | Existing password/security-form language: labeled password fields, replacement-MFA setup/verification with QR and selectable manual key plus copy fallback, explanatory status, explicit completion action, and sign-in link. CLI uses terminal's native presentation. |
