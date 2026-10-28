@@ -35,6 +35,8 @@ export const FEATURE_MAP = [
     "src/app/account-setup/**",
     "src/components/arrivo/account-setup-dialog.tsx",
   ]),
+  // request-origin.ts stays on the `src/lib/**` full-suite tier: browserUrl redirects every auth entry point.
+  entry("account-creation", ["src/lib/account-creation.ts", "src/app/(app)/admin/users/actions.ts"]),
   entry("credential-authorizations", [
     "src/lib/credential-authorizations.ts",
     "tests/e2e/credential-authorization-fixture.ts",
@@ -51,6 +53,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/instance-users-list.tsx",
     "src/components/arrivo/change-role-dialog.tsx",
     "src/lib/instance-users.ts",
+    "src/lib/activity-labels.ts",
     "src/app/(app)/admin/users/**",
   ]),
   entry("instance-activity", [
@@ -66,6 +69,8 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/packing-actions.ts",
     "src/components/arrivo/instance-activity.tsx",
     "src/components/arrivo/instance-activity-viewer.tsx",
+    "src/components/arrivo/instance-users-list.tsx",
+    "src/lib/instance-users.ts",
     "src/components/arrivo/activity-filters.tsx",
     "src/components/ui/table.tsx",
     "src/lib/activity-dates.ts",
@@ -77,6 +82,7 @@ export const FEATURE_MAP = [
     "src/lib/authorize-credentials.ts",
     "src/lib/instance-bootstrap.ts",
     "src/lib/account-role-changes.ts",
+    "src/lib/account-creation.ts",
     "src/lib/account-deletion.ts",
     "src/app/(auth)/actions.ts",
     "src/app/(app)/profile/actions.ts",

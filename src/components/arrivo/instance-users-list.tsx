@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserRole, type InstanceUserSummary } from "@/data/types";
@@ -13,8 +14,29 @@ interface InstanceUsersListProps {
   currentUserId: string;
 }
 
+interface SetupStatusProps {
+  user: InstanceUserSummary;
+  now: Date;
+}
+
+function SetupStatus({ user, now }: SetupStatusProps) {
+  if (user.setupComplete) return <>Setup complete</>;
+  if (!user.setupExpiresAt) return <>Pending setup</>;
+  const expiresAt = new Date(user.setupExpiresAt);
+  if (expiresAt.getTime() <= now.getTime()) return <>Setup expired</>;
+  return (
+    <>
+      Pending setup · Expires{" "}
+      <time dateTime={user.setupExpiresAt} suppressHydrationWarning>
+        {expiresAt.toLocaleString()}
+      </time>
+    </>
+  );
+}
+
 export function InstanceUsersList({ users, currentUserId }: InstanceUsersListProps) {
   const router = useRouter();
+  const now = useNow();
   const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
   return (
     <ul aria-label="Instance users" className="mt-4 flex flex-col gap-3">
@@ -41,8 +63,7 @@ export function InstanceUsersList({ users, currentUserId }: InstanceUsersListPro
                 {user.username}
               </p>
               <p className="text-sm" style={{ color: "var(--fg-2)" }}>
-                {user.role === UserRole.Admin ? "Admin" : "Member"} ·{" "}
-                {user.setupComplete ? "Setup complete" : "Setup pending"}
+                {user.role === UserRole.Admin ? "Admin" : "Member"} · <SetupStatus user={user} now={now} />
               </p>
             </div>
             {user.isLastCompletedAdmin ? (
