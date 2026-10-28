@@ -1,16 +1,24 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const { nextAfter, requireAdmin, changeUserRole, addUser, revalidatePath, recordActivity, database } = vi.hoisted(
-  () => ({
-    nextAfter: vi.fn(),
-    recordActivity: vi.fn(),
-    requireAdmin: vi.fn(),
-    changeUserRole: vi.fn(),
-    addUser: vi.fn(),
-    revalidatePath: vi.fn(),
-    database: {},
-  })
-);
+const {
+  nextAfter,
+  requireAdmin,
+  changeUserRole,
+  addUser,
+  listInstanceUsers,
+  revalidatePath,
+  recordActivity,
+  database,
+} = vi.hoisted(() => ({
+  nextAfter: vi.fn(),
+  recordActivity: vi.fn(),
+  requireAdmin: vi.fn(),
+  changeUserRole: vi.fn(),
+  addUser: vi.fn(),
+  listInstanceUsers: vi.fn(),
+  revalidatePath: vi.fn(),
+  database: {},
+}));
 vi.mock("@/lib/auth-helpers", () => ({ requireAdmin }));
 vi.mock("@/lib/account-role-changes", () => ({ changeUserRole }));
 vi.mock("@/lib/account-creation", () => ({ addUser }));
@@ -19,7 +27,8 @@ vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 import { RoleChangeFailure } from "@/data/types";
-import { addUserAction, changeUserRoleAction } from "./actions";
+vi.mock("@/lib/instance-users", () => ({ listInstanceUsers }));
+import { addUserAction, checkAddedUserAction, changeUserRoleAction } from "./actions";
 
 describe("addUserAction", () => {
   const ACTOR = { id: "actor", username: "admin" };
@@ -195,5 +204,30 @@ describe("changeUserRoleAction", () => {
     expect(changeUserRole).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
     expect(recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("checkAddedUserAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAdmin.mockResolvedValue({ id: "actor" });
+  });
+  it("authorizes before reading and returns only normalized existence", async () => {
+    listInstanceUsers.mockResolvedValue([{ id: "new", username: "alex.q" }]);
+    expect(await checkAddedUserAction(" Alex.Q ")).toBe(true);
+    expect(await checkAddedUserAction("absent")).toBe(false);
+    expect(requireAdmin).toHaveBeenCalledTimes(2);
+    expect(requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(listInstanceUsers.mock.invocationCallOrder[0]);
+    expect(addUser).not.toHaveBeenCalled();
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+  it("denies reads when admin authority is lost", async () => {
+    requireAdmin.mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    await expect(checkAddedUserAction("alex.q")).rejects.toThrow("404");
+    expect(listInstanceUsers).not.toHaveBeenCalled();
+  });
+  it("propagates read failures", async () => {
+    listInstanceUsers.mockRejectedValue(new Error("unavailable"));
+    await expect(checkAddedUserAction("alex.q")).rejects.toThrow("unavailable");
   });
 });
