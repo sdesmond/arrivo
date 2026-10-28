@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PASSWORD_MIN_LENGTH, validateNewPassword } from "./password-policy";
+import { PASSWORD_MIN_LENGTH, failedPasswordField, validateNewPassword } from "./password-policy";
 
 describe("validateNewPassword", () => {
   it("accepts a matching password of minimum length", () => {
@@ -14,5 +14,12 @@ describe("validateNewPassword", () => {
   });
   it("requires matching confirmation", () => {
     expect(validateNewPassword("long-enough", "different")).toBe("Passwords do not match.");
+  });
+});
+
+describe("failedPasswordField", () => {
+  it("points at the password when too short and at the confirmation otherwise", () => {
+    expect(failedPasswordField("short")).toBe("password");
+    expect(failedPasswordField("long-enough-1")).toBe("confirmPassword");
   });
 });

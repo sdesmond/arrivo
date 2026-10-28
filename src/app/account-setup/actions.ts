@@ -10,7 +10,7 @@ import { ActivityEventType, type AccountSetupActionState } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { completeAccountSetup } from "@/lib/account-setup-completion";
 import { ACCOUNT_SETUP_COOKIE, resolveAccountSetupContext } from "@/lib/account-setup-session";
-import { PASSWORD_BCRYPT_COST, PASSWORD_MIN_LENGTH, validateNewPassword } from "@/lib/password-policy";
+import { PASSWORD_BCRYPT_COST, failedPasswordField, validateNewPassword } from "@/lib/password-policy";
 import { isHttpsRequest } from "@/lib/request-origin";
 
 async function clearSetupCookie(): Promise<void> {
@@ -41,13 +41,7 @@ export async function completeAccountSetupAction(
   // Validation first: a bad form costs no database work and no bcrypt, and leaves the link untouched.
   if (!name) return { error: "Name is required.", field: "name", name };
   const passwordError = validateNewPassword(password, confirmPassword);
-  if (passwordError) {
-    return {
-      error: passwordError,
-      field: password.length < PASSWORD_MIN_LENGTH ? "password" : "confirmPassword",
-      name,
-    };
-  }
+  if (passwordError) return { error: passwordError, field: failedPasswordField(password), name };
 
   const token = (await cookies()).get(ACCOUNT_SETUP_COOKIE)?.value;
   const context = await resolveAccountSetupContext(token, { headers: await headers() });

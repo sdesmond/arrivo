@@ -10,3 +10,9 @@ export function validateNewPassword(password: string, confirmation: string): str
   if (password !== confirmation) return "Passwords do not match.";
   return undefined;
 }
+
+/** The form field a `validateNewPassword` error belongs to. */
+export function failedPasswordField(password: string): "password" | "confirmPassword" {
+  if (password.length < PASSWORD_MIN_LENGTH) return "password";
+  return "confirmPassword";
+}
