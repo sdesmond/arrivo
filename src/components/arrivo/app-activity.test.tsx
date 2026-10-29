@@ -137,6 +137,7 @@ describe("AppActivity", () => {
     ["username_changed", "Accounts", "Changed username"],
     ["password_changed", "Accounts", "Changed password"],
     ["account_deleted", "Accounts", "Deleted own account"],
+    ["account_deleted_by_admin", "Accounts", "Deleted account"],
   ] as const)("labels %s", (type, group, action) => {
     render(<AppActivity events={[{ ...EVENT, type }]} />);
     const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");

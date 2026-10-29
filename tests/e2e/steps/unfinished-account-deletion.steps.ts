@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { and, eq, sql } from "drizzle-orm";
 import { activityEvents, credentialAuthorizations, users } from "../../../src/db/schema";
-import { deleteUnfinishedAccount } from "../../../src/lib/unfinished-account-deletion";
+import { deleteAccountAsAdmin, previewAccountDeletionAsAdmin } from "../../../src/lib/account-deletion";
 import {
   consumeCredentialAuthorization,
   issueCredentialAuthorization,
@@ -39,10 +39,28 @@ const readEvents = (scenario: ScenarioFixtureContext) =>
       )
   );
 
+// Opening the dialog is what asks the server for the review; arm the response before the click. A click that lands
+// before the page hydrates opens nothing, so retry until the dialog is up rather than waiting on a POST that never fires.
+async function openDeleteReview(page: Page, scenario: ScenarioFixtureContext) {
+  const review = waitForServerActionResponse(page, { pathIncludes: "/admin/users", timeoutMs: 15_000 });
+  const trigger = page.getByRole("button", { name: `Delete account: ${targetOf(scenario).username}`, exact: true });
+  const dialog = page.getByRole("dialog");
+  await expect(async () => {
+    if (!(await dialog.isVisible())) await trigger.click();
+    await expect(dialog).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
+  await review;
+}
+const confirmButton = (page: Page) => page.getByRole("dialog").getByRole("button", { name: /^Delete account$/ });
+
+When("I open the delete review for the account in Users", async ({ page, scenario }) => {
+  await openDeleteReview(page, scenario);
+});
 When("I delete the unfinished account in Users", async ({ page, scenario }) => {
-  await page.getByRole("button", { name: `Delete account: ${targetOf(scenario).username}`, exact: true }).click();
+  await openDeleteReview(page, scenario);
+  await expect(confirmButton(page)).toBeEnabled();
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users" });
-  await page.getByRole("dialog").getByRole("button", { name: "Delete account", exact: true }).click();
+  await confirmButton(page).click();
   await response;
 });
 Then("the unfinished account is gone after refresh", async ({ page, scenario }) => {
@@ -91,7 +109,8 @@ Then("deletion Activity identifies only the admin and target", async ({ scenario
 Then("the completed account remains with no deletion Activity", async ({ page, scenario }) => {
   await page.reload();
   await expect(targetRow(page, scenario)).toContainText("Setup complete");
-  await expect(targetRow(page, scenario).getByRole("button", { name: /Delete account/ })).toHaveCount(0);
+  // Once Users shows it as completed, the same review is offered for it.
+  await expect(targetRow(page, scenario).getByRole("button", { name: /Delete account/ })).toHaveCount(1);
   const accounts = await withE2EDb((database) =>
     database
       .select({ id: users.id })
@@ -132,28 +151,45 @@ const complete = (fixture: CredentialAuthorizationFixture, token: string, gate?:
     },
     clock
   );
-Then("deletion waiting behind completion refuses the completed account", async ({ scenario }) => {
+// The service takes the admin as the session carries them: ID plus current session version.
+async function reviewed(fixture: CredentialAuthorizationFixture, key: string) {
+  const actorId = fixture.userId("admin");
+  const sessionVersion = await fixture.database().transaction(async (transaction) => {
+    const [row] = (await transaction.execute(
+      sql`select session_version as "sessionVersion" from users where id = ${actorId}`
+    )) as unknown as { sessionVersion: number }[];
+    return row.sessionVersion;
+  });
+  const actor = { id: actorId, sessionVersion };
+  const preview = await previewAccountDeletionAsAdmin(fixture.database(), actor, fixture.userId(key));
+  if (!preview.ok) throw new Error(`Review refused: ${preview.reason}`);
+  return (gate?: ReturnType<typeof createLockGate>) =>
+    deleteAccountAsAdmin(fixture.database(gate), actor, fixture.userId(key), preview.preview.fingerprint);
+}
+Then("deletion waiting behind completion asks for a new review of the completed account", async ({ scenario }) => {
   const fixture = scenario.getValue<CredentialAuthorizationFixture>(FIXTURE_KEY)!;
   const original = await issueSetup(fixture, "pending");
+  const confirmDeletion = await reviewed(fixture, "pending");
   const gate = createLockGate();
   const completion = complete(fixture, original.token, gate);
-  let waiting: ReturnType<typeof deleteUnfinishedAccount> | undefined;
+  let waiting: ReturnType<typeof confirmDeletion> | undefined;
   try {
     await gate.reached;
-    waiting = deleteUnfinishedAccount(fixture.database(), fixture.userId("admin"), fixture.userId("pending"));
+    waiting = confirmDeletion();
     await fixture.waitForBlockedTransaction();
   } finally {
     gate.release();
   }
   expect((await completion).ok).toBe(true);
-  expect(await waiting).toEqual({ ok: false, reason: "changed-state" });
+  expect(await waiting).toMatchObject({ ok: false, reason: "changed", preview: { setupComplete: true } });
   expect(await fixture.accountExists("pending")).toBe(true);
 });
 Then("completion waiting behind deletion finds no authorization", async ({ scenario }) => {
   const fixture = scenario.getValue<CredentialAuthorizationFixture>(FIXTURE_KEY)!;
   const original = await issueSetup(fixture, "second");
+  const confirmDeletion = await reviewed(fixture, "second");
   const gate = createLockGate();
-  const deletion = deleteUnfinishedAccount(fixture.database(gate), fixture.userId("admin"), fixture.userId("second"));
+  const deletion = confirmDeletion(gate);
   let waiting: ReturnType<typeof complete> | undefined;
   try {
     await gate.reached;

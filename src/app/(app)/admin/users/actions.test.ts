@@ -7,7 +7,10 @@ const {
   addUser,
   regenerateSetupLink,
   issuePasswordReset,
-  deleteUnfinishedAccount,
+  previewAccountDeletionAsAdmin,
+  deleteAccountAsAdmin,
+  runAccountDeletionEffects,
+  signOut,
   listAppUsers,
   revalidatePath,
   recordActivity,
@@ -20,7 +23,10 @@ const {
   addUser: vi.fn(),
   regenerateSetupLink: vi.fn(),
   issuePasswordReset: vi.fn(),
-  deleteUnfinishedAccount: vi.fn(),
+  previewAccountDeletionAsAdmin: vi.fn(),
+  deleteAccountAsAdmin: vi.fn(),
+  runAccountDeletionEffects: vi.fn(),
+  signOut: vi.fn(),
   listAppUsers: vi.fn(),
   revalidatePath: vi.fn(),
   database: {},
@@ -30,7 +36,9 @@ vi.mock("@/lib/account-role-changes", () => ({ changeUserRole }));
 vi.mock("@/lib/account-creation", () => ({ addUser }));
 vi.mock("@/lib/setup-link-regeneration", () => ({ regenerateSetupLink }));
 vi.mock("@/lib/password-reset-issuance", () => ({ issuePasswordReset }));
-vi.mock("@/lib/unfinished-account-deletion", () => ({ deleteUnfinishedAccount }));
+vi.mock("@/lib/account-deletion", () => ({ previewAccountDeletionAsAdmin, deleteAccountAsAdmin }));
+vi.mock("@/lib/account-deletion-effects", () => ({ runAccountDeletionEffects }));
+vi.mock("@/auth", () => ({ signOut }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
@@ -43,7 +51,8 @@ import {
   changeUserRoleAction,
   regenerateSetupLinkAction,
   checkSetupLinkTargetAction,
-  deleteUnfinishedAccountAction,
+  previewAccountDeletionAction,
+  deleteAccountAction,
   issuePasswordResetAction,
 } from "./actions";
 
@@ -102,48 +111,188 @@ describe("issuePasswordResetAction", () => {
   });
 });
 
-describe("deleteUnfinishedAccountAction", () => {
+describe("account deletion actions", () => {
+  const ACTOR = { id: "actor", username: "admin" };
+  const PREVIEW = {
+    userId: "target",
+    username: "traveler",
+    setupComplete: true,
+    transferredTripCount: 1,
+    deletedTripCount: 2,
+    fingerprint: "opaque",
+  };
+  const summary = { account: { id: "target", username: "traveler" }, deletedTripIds: ["trip-private"] };
+  const deleted = (setupComplete: boolean) => ({ ok: true, summary, actor: ACTOR, setupComplete });
   beforeEach(() => {
     vi.clearAllMocks();
     recordActivity.mockReset();
     requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
   });
-  it("records only identities after a committed deletion", async () => {
-    deleteUnfinishedAccount.mockResolvedValue({
-      ok: true,
-      userId: "target",
-      username: "pending",
-      actor: { id: "actor", username: "admin" },
+
+  describe("previewAccountDeletionAction", () => {
+    it("authorizes first and returns the aggregate preview with the caller's session version", async () => {
+      previewAccountDeletionAsAdmin.mockResolvedValue({ ok: true, preview: PREVIEW });
+
+      expect(await previewAccountDeletionAction("target")).toEqual({ ok: true, preview: PREVIEW });
+
+      expect(previewAccountDeletionAsAdmin).toHaveBeenCalledWith(
+        database,
+        { id: "actor", sessionVersion: 2 },
+        "target"
+      );
+      expect(requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(
+        previewAccountDeletionAsAdmin.mock.invocationCallOrder[0]
+      );
+      expect(revalidatePath).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
     });
-    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: true, userId: "target", username: "pending" });
-    expect(deleteUnfinishedAccount).toHaveBeenCalledWith(database, "actor", "target");
-    expect(recordActivity.mock.calls).toEqual([
-      [
-        {
-          type: "pending_account_deleted",
-          actor: { id: "actor", username: "admin" },
-          target: { id: "target", username: "pending" },
-        },
-      ],
-    ]);
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+    it.each(["forbidden", "changed", "last-admin"])("passes %s through and refreshes Users", async (reason) => {
+      previewAccountDeletionAsAdmin.mockResolvedValue({ ok: false, reason });
+
+      expect(await previewAccountDeletionAction("target")).toEqual({ ok: false, reason });
+
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+    });
+    it.each(["app-unavailable", "retry"])("passes %s through without refreshing", async (reason) => {
+      previewAccountDeletionAsAdmin.mockResolvedValue({ ok: false, reason });
+
+      expect(await previewAccountDeletionAction("target")).toEqual({ ok: false, reason });
+
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+    it("refuses a malformed target without calling the service", async () => {
+      expect(await previewAccountDeletionAction(undefined as unknown as string)).toEqual({
+        ok: false,
+        reason: "changed",
+      });
+      expect(previewAccountDeletionAsAdmin).not.toHaveBeenCalled();
+    });
+    it("denies non-admins before any read", async () => {
+      requireAdmin.mockRejectedValue(new Error("404"));
+
+      await expect(previewAccountDeletionAction("target")).rejects.toThrow("404");
+
+      expect(previewAccountDeletionAsAdmin).not.toHaveBeenCalled();
+    });
   });
-  it.each(["changed-state", "forbidden"])("passes %s without Activity and refreshes Users", async (reason) => {
-    deleteUnfinishedAccount.mockResolvedValue({ ok: false, reason });
-    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: false, reason });
-    expect(recordActivity).not.toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
-  });
-  it.each(["app-unavailable", "retry"])("passes %s without Activity or refresh", async (reason) => {
-    deleteUnfinishedAccount.mockResolvedValue({ ok: false, reason });
-    expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: false, reason });
-    expect(recordActivity).not.toHaveBeenCalled();
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-  it("denies non-admins before any deletion", async () => {
-    requireAdmin.mockRejectedValue(new Error("404"));
-    await expect(deleteUnfinishedAccountAction("target")).rejects.toThrow("404");
-    expect(deleteUnfinishedAccount).not.toHaveBeenCalled();
+
+  describe("deleteAccountAction", () => {
+    it("deletes with the reviewed fingerprint and returns only the identity", async () => {
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      expect(await deleteAccountAction("target", "opaque")).toEqual({
+        ok: true,
+        userId: "target",
+        username: "traveler",
+      });
+
+      expect(deleteAccountAsAdmin).toHaveBeenCalledWith(
+        database,
+        { id: "actor", sessionVersion: 2 },
+        "target",
+        "opaque"
+      );
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+      expect(signOut).not.toHaveBeenCalled();
+    });
+    it("records a completed account's deletion as the admin event, with identities only", async () => {
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      await deleteAccountAction("target", "opaque");
+
+      expect(runAccountDeletionEffects).toHaveBeenCalledWith(summary, {
+        type: "account_deleted_by_admin",
+        actor: ACTOR,
+        target: { id: "target", username: "traveler" },
+      });
+    });
+    it("keeps the pending-account event for an unfinished account", async () => {
+      deleteAccountAsAdmin.mockResolvedValue(deleted(false));
+
+      await deleteAccountAction("target", "opaque");
+
+      expect(runAccountDeletionEffects).toHaveBeenCalledWith(summary, {
+        type: "pending_account_deleted",
+        actor: ACTOR,
+        target: { id: "target", username: "traveler" },
+      });
+    });
+    it("runs effects after commit and before any sign-out", async () => {
+      requireAdmin.mockResolvedValue({ id: "target", sessionVersion: 2 });
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      await deleteAccountAction("target", "opaque");
+
+      expect(deleteAccountAsAdmin.mock.invocationCallOrder[0]).toBeLessThan(
+        runAccountDeletionEffects.mock.invocationCallOrder[0]
+      );
+      expect(runAccountDeletionEffects.mock.invocationCallOrder[0]).toBeLessThan(signOut.mock.invocationCallOrder[0]);
+    });
+    it("signs out only when the admin deleted their own account", async () => {
+      requireAdmin.mockResolvedValue({ id: "target", sessionVersion: 2 });
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      await deleteAccountAction("target", "opaque");
+
+      expect(signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    });
+    it("keeps another admin signed in", async () => {
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      await deleteAccountAction("target", "opaque");
+
+      expect(signOut).not.toHaveBeenCalled();
+    });
+    it("returns the fresh preview, without Activity or effects, when the outcomes changed", async () => {
+      deleteAccountAsAdmin.mockResolvedValue({ ok: false, reason: "changed", preview: PREVIEW });
+
+      expect(await deleteAccountAction("target", "old")).toEqual({ ok: false, reason: "changed", preview: PREVIEW });
+
+      expect(runAccountDeletionEffects).not.toHaveBeenCalled();
+      expect(signOut).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+    it.each([
+      ["forbidden", true],
+      ["changed", true],
+      ["last-admin", true],
+      ["app-unavailable", false],
+      ["retry", false],
+    ])("passes %s through without effects (refresh: %s)", async (reason, refreshes) => {
+      deleteAccountAsAdmin.mockResolvedValue({ ok: false, reason });
+
+      expect(await deleteAccountAction("target", "opaque")).toEqual({ ok: false, reason });
+
+      expect(runAccountDeletionEffects).not.toHaveBeenCalled();
+      expect(revalidatePath.mock.calls.length > 0).toBe(refreshes);
+    });
+    it("never lets trip details into the response", async () => {
+      deleteAccountAsAdmin.mockResolvedValue(deleted(true));
+
+      expect(JSON.stringify(await deleteAccountAction("target", "opaque"))).not.toContain("trip-private");
+    });
+    it("refuses a malformed target or fingerprint without calling the service", async () => {
+      expect(await deleteAccountAction("target", undefined as unknown as string)).toEqual({
+        ok: false,
+        reason: "changed",
+      });
+      expect(await deleteAccountAction(42 as unknown as string, "opaque")).toEqual({ ok: false, reason: "changed" });
+      expect(deleteAccountAsAdmin).not.toHaveBeenCalled();
+    });
+    it("denies non-admins before any deletion", async () => {
+      requireAdmin.mockRejectedValue(new Error("404"));
+
+      await expect(deleteAccountAction("target", "opaque")).rejects.toThrow("404");
+
+      expect(deleteAccountAsAdmin).not.toHaveBeenCalled();
+    });
+    it("rethrows service failures without effects", async () => {
+      deleteAccountAsAdmin.mockRejectedValue(new Error("db down"));
+
+      await expect(deleteAccountAction("target", "opaque")).rejects.toThrow("db down");
+
+      expect(runAccountDeletionEffects).not.toHaveBeenCalled();
+    });
   });
 });
 

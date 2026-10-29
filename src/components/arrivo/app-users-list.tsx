@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserRole, type AppUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
-import { DeleteUnfinishedAccountDialog } from "./delete-unfinished-account-dialog";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 import { RegenerateSetupLinkDialog } from "./regenerate-setup-link-dialog";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 
@@ -37,12 +37,47 @@ function SetupStatus({ user, now }: SetupStatusProps) {
   );
 }
 
+interface LastAdminTooltipProps {
+  id: string;
+  label: string;
+  openId: string | null;
+  onOpenIdChange: (id: string | null) => void;
+  children: React.ReactElement;
+}
+
+// A disabled button swallows focus and touch, so the explanation hangs off a focusable wrapper instead.
+function LastAdminTooltip({ id, label, openId, onOpenIdChange, children }: LastAdminTooltipProps) {
+  return (
+    <Tooltip open={openId === id} onOpenChange={(open) => onOpenIdChange(open ? id : null)}>
+      <TooltipTrigger
+        closeOnClick={false}
+        onClick={() => onOpenIdChange(id)}
+        render={<span tabIndex={0} className="inline-flex" />}
+        aria-label={label}
+        aria-describedby={`admin-disabled-${id}`}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent id={`admin-disabled-${id}`} role="tooltip">
+        Make another user an admin first.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
   const router = useRouter();
   const now = useNow();
-  const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
+  const [tooltipId, setTooltipId] = useState<string | null>(null);
+  // A deleted row takes its Delete button with it, so focus lands on the list rather than on the page body.
+  const listRef = useRef<HTMLUListElement>(null);
   return (
-    <ul aria-label="App users" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <ul
+      ref={listRef}
+      tabIndex={-1}
+      aria-label="App users"
+      className="mt-4 grid grid-cols-1 gap-3 outline-none sm:grid-cols-2 xl:grid-cols-3"
+    >
       {users.map((user) => {
         const action = user.role === UserRole.Admin ? "Remove admin" : "Make admin";
         const button = (
@@ -69,33 +104,19 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 {user.role === UserRole.Admin ? "Admin" : "Member"} · <SetupStatus user={user} now={now} />
               </p>
             </div>
-            {!user.setupComplete && (
-              <>
-                <RegenerateSetupLinkDialog userId={user.id} username={user.username} />
-                <DeleteUnfinishedAccountDialog userId={user.id} username={user.username} />
-              </>
-            )}
+            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
             {user.setupComplete && user.id !== currentUserId && (
               <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
             {user.isLastCompletedAdmin ? (
-              <Tooltip
-                open={tooltipUserId === user.id}
-                onOpenChange={(open) => setTooltipUserId(open ? user.id : null)}
+              <LastAdminTooltip
+                id={`${user.id}-role`}
+                label={`Remove admin unavailable: ${user.username}`}
+                openId={tooltipId}
+                onOpenIdChange={setTooltipId}
               >
-                <TooltipTrigger
-                  closeOnClick={false}
-                  onClick={() => setTooltipUserId(user.id)}
-                  render={<span tabIndex={0} className="inline-flex" />}
-                  aria-label={`Remove admin unavailable: ${user.username}`}
-                  aria-describedby={`admin-disabled-${user.id}`}
-                >
-                  {button}
-                </TooltipTrigger>
-                <TooltipContent id={`admin-disabled-${user.id}`} role="tooltip">
-                  Make another user an admin first.
-                </TooltipContent>
-              </Tooltip>
+                {button}
+              </LastAdminTooltip>
             ) : (
               (user.setupComplete || user.role === UserRole.Admin) && (
                 <ChangeRoleDialog
@@ -109,6 +130,26 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                   {button}
                 </ChangeRoleDialog>
               )
+            )}
+            {user.isLastCompletedAdmin ? (
+              <LastAdminTooltip
+                id={`${user.id}-delete`}
+                label={`Delete account unavailable: ${user.username}`}
+                openId={tooltipId}
+                onOpenIdChange={setTooltipId}
+              >
+                <Button variant="outline" className="h-11" aria-label={`Delete account: ${user.username}`} disabled>
+                  Delete
+                </Button>
+              </LastAdminTooltip>
+            ) : (
+              <DeleteAccountDialog
+                userId={user.id}
+                username={user.username}
+                setupComplete={user.setupComplete}
+                isCurrentUser={user.id === currentUserId}
+                getFocusTargetAfterDelete={() => listRef.current}
+              />
             )}
           </li>
         );

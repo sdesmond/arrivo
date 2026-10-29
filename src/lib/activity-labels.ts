@@ -17,6 +17,7 @@ export const EVENT_LABELS: Record<ActivityEventType, { type: string; action: str
   [ActivityEventType.PasswordResetLinkGenerated]: { type: "Accounts", action: "Generated password reset link" },
   [ActivityEventType.PasswordResetCompleted]: { type: "Accounts", action: "Completed password reset" },
   [ActivityEventType.AccountDeleted]: { type: "Accounts", action: "Deleted own account" },
+  [ActivityEventType.AccountDeletedByAdmin]: { type: "Accounts", action: "Deleted account" },
   [ActivityEventType.TripCreated]: { type: "Trips", action: "Created trip" },
   [ActivityEventType.TripUpdated]: { type: "Trips", action: "Updated trip" },
   [ActivityEventType.InvitationCreated]: { type: "Trips", action: "Created invitation" },

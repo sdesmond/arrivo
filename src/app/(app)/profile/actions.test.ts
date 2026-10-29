@@ -900,6 +900,20 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     warn.mockRestore();
   });
 
+  it("keeps the committed deletion and signs out when a notification throws", async () => {
+    mockPublishTripEvent.mockImplementation(() => {
+      throw new Error("bus down");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+
+    expect(mockStorageDel).toHaveBeenCalledTimes(2);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    warn.mockRestore();
+    mockPublishTripEvent.mockReset();
+  });
+
   it("returns stale without side effects when the choices changed", async () => {
     mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Stale });
 
