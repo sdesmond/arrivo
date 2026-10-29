@@ -30,7 +30,22 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("integrated-onboarding", [
+    "src/lib/account-creation.ts",
+    "src/lib/account-setup-session.ts",
+    "src/lib/account-setup-completion.ts",
+    "src/lib/setup-link-regeneration.ts",
+    "src/lib/unfinished-account-deletion.ts",
+    "src/app/(app)/admin/users/**",
+    "src/app/account-setup/**",
+    "src/components/arrivo/add-user-dialog.tsx",
+    "src/components/arrivo/account-setup-dialog.tsx",
+    "tests/e2e/onboarding-browser.ts",
+    "tests/e2e/steps/add-user-dialog.steps.ts",
+    "tests/e2e/steps/account-setup.steps.ts",
+  ]),
   entry("setup-link-regeneration", [
+    "tests/e2e/onboarding-browser.ts",
     "src/lib/setup-link-regeneration.ts",
     "src/components/arrivo/regenerate-setup-link-dialog.tsx",
     "src/components/arrivo/setup-link-result.tsx",
@@ -39,6 +54,7 @@ export const FEATURE_MAP = [
     "src/lib/activity-labels.ts",
   ]),
   entry("unfinished-account-deletion", [
+    "tests/e2e/onboarding-browser.ts",
     "src/lib/unfinished-account-deletion.ts",
     "src/components/arrivo/delete-unfinished-account-dialog.tsx",
     "src/app/(app)/admin/users/actions.ts",
@@ -46,12 +62,14 @@ export const FEATURE_MAP = [
     "src/lib/activity-labels.ts",
   ]),
   entry("add-user-dialog", [
+    "tests/e2e/onboarding-browser.ts",
     "src/components/arrivo/add-user-dialog.tsx",
     "src/components/arrivo/setup-link-result.tsx",
     "src/app/(app)/admin/users/page.tsx",
     "src/app/(app)/admin/users/actions.ts",
   ]),
   entry("account-setup", [
+    "tests/e2e/onboarding-browser.ts",
     "src/lib/account-setup-session.ts",
     "src/lib/account-setup-completion.ts",
     "src/lib/password-policy.ts",

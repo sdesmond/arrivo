@@ -153,7 +153,7 @@ describe("AddUserDialog", () => {
     expect(screen.getByLabelText("Username")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByRole("button", { name: "Retry creation" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry creation" })).toBeEnabled());
     expect(addUserAction).toHaveBeenCalledOnce();
   });
   it.each(["Cancel", "Escape"])(
