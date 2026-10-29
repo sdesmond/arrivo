@@ -30,9 +30,9 @@ All five share the password `demo1234`.
 | `alex`   | Alex Rivera | EUR, `DD/MM/YYYY`, `defaultCoverType: "map"`, 1 loyalty number, thresholds 70/85                                               | Exercises the non-default currency, date format, cover type, and threshold paths                           |
 | `sam`    | Sam Chen    | USD, owns no trips                                                                                                             | Receives a pending invitation — exercises the invitee-side pending-invitations flow on `/trips` end to end |
 | `jordan` | Jordan Lee  | USD, owns no trips                                                                                                             | Has already declined an invitation — the share dialog's Declined row                                       |
-| `admin`  | Admin User  | USD, `MM/DD/YYYY`, instance role `admin`, owns no trips                                                                        | The instance administrator — exercises admin-only surfaces; every other seed account is a `member`         |
+| `admin`  | Admin User  | USD, `MM/DD/YYYY`, app role `admin`, owns no trips                                                                             | The app administrator — exercises admin-only surfaces; every other seed account is a `member`              |
 
-Seeding also marks the instance initialized (`instance_state.initialized_at`, kept if already set), so public sign-up is
+Seeding also marks the app initialized (`app_state.initialized_at`, kept if already set), so public sign-up is
 closed afterward and the first-account-becomes-admin bootstrap can't create a second admin.
 
 ## Trips
