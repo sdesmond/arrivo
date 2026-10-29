@@ -55,6 +55,13 @@ describe("feature-map consistency", async () => {
     expect(tags).toEqual(expectedTags);
   });
 
+  it("runs password reset coverage for shared credential authorization changes", () => {
+    const tags = FEATURE_MAP.filter((feature) =>
+      matchesAnyGlob("src/lib/credential-authorizations.ts", feature.sourceGlobs)
+    ).map((feature) => feature.tag);
+    expect(tags).toContain("@feat:password-reset");
+  });
+
   it("no arrivo component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
     const orphans = readdirSync(ARRIVO_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))

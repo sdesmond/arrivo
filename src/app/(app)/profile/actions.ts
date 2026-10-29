@@ -2,7 +2,14 @@
 
 import { requireUser } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { users, userLoyaltyNumbers, userWishlistDestinations, userCompanions } from "@/db/schema";
+import {
+  users,
+  userLoyaltyNumbers,
+  userWishlistDestinations,
+  userCompanions,
+  credentialAuthorizations,
+  trustedDevices,
+} from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
@@ -26,7 +33,7 @@ import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
-import { bumpSessionVersion } from "@/lib/session-version";
+import { lockCurrentSecurityVersion } from "@/lib/session-version";
 import type {
   UpdateUserProfilePatch,
   AddLoyaltyNumberInput,
@@ -224,40 +231,48 @@ export async function changePassword({
   const throttle = await checkThrottle(throttleTargets);
   if (throttle.locked) return { error: lockoutMessage(throttle.retryAfterSeconds) };
 
-  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId));
-
-  if (!user?.passwordHash) return { error: "No password set on this account." };
-
-  const match = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!match) {
-    await recordFailure(throttleTargets);
-    return { error: "Current password is incorrect." };
-  }
-  await clearFailures(throttleTargets);
-
   if (newPassword.length < PASSWORD_MIN_LENGTH) {
     return { error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` };
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
-  let updated: { username: string }[];
+  let outcome: { error?: string; username?: string };
   try {
-    updated = await db
-      .update(users)
-      .set({ passwordHash: hash })
-      .where(eq(users.id, userId))
-      .returning({ username: users.username });
+    outcome = await db.transaction(async (transaction) => {
+      if (!(await lockCurrentSecurityVersion(transaction, userId, session.sessionVersion)))
+        return { error: "Session expired. Sign in again." };
+      const [user] = await transaction
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, userId));
+      if (!user?.passwordHash) return { error: "No password set on this account." };
+      if (!(await bcrypt.compare(currentPassword, user.passwordHash)))
+        return { error: "Current password is incorrect." };
+      const [updated] = await transaction
+        .update(users)
+        .set({ passwordHash: hash, sessionVersion: sql`${users.sessionVersion} + 1`, totpPendingSecret: null })
+        .where(eq(users.id, userId))
+        .returning({ username: users.username });
+      if (!updated) throw new Error("Account disappeared during password change.");
+      await transaction.execute(sql`delete from ${trustedDevices} where ${trustedDevices.userId} = ${userId}`);
+      await transaction.execute(sql`update ${credentialAuthorizations} set invalidated_at = now()
+        where ${credentialAuthorizations.userId} = ${userId} and ${credentialAuthorizations.purpose} in ('reset', 'recovery')
+        and ${credentialAuthorizations.consumedAt} is null and ${credentialAuthorizations.invalidatedAt} is null`);
+      return { username: updated.username };
+    });
   } catch {
     return { error: "Something went wrong." };
   }
-
-  // Anyone holding a session from before the change (including whoever learned the old password) is out.
-  await bumpSessionVersion(userId);
+  if (outcome.error) {
+    if (outcome.error === "Current password is incorrect.") await recordFailure(throttleTargets);
+    return { error: outcome.error };
+  }
+  await clearFailures(throttleTargets);
   // Recorded before sign-out, whose redirect ends this action. No logout event: the revocation is part of this one.
-  if (updated[0]) {
+  if (outcome.username) {
     recordActivity({
       type: ActivityEventType.PasswordChanged,
-      actor: { id: userId, username: updated[0].username },
+      actor: { id: userId, username: outcome.username },
     });
   }
   await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.PasswordChanged}` });

@@ -10,6 +10,7 @@ import { UserRole, type AppUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
 import { DeleteUnfinishedAccountDialog } from "./delete-unfinished-account-dialog";
 import { RegenerateSetupLinkDialog } from "./regenerate-setup-link-dialog";
+import { ResetPasswordDialog } from "./reset-password-dialog";
 
 interface AppUsersListProps {
   users: AppUserSummary[];
@@ -73,6 +74,9 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 <RegenerateSetupLinkDialog userId={user.id} username={user.username} />
                 <DeleteUnfinishedAccountDialog userId={user.id} username={user.username} />
               </>
+            )}
+            {user.setupComplete && user.id !== currentUserId && (
+              <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
             {user.isLastCompletedAdmin ? (
               <Tooltip

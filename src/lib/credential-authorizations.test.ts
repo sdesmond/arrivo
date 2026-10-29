@@ -132,6 +132,13 @@ async function issue(
 }
 
 describe("credential authorizations", () => {
+  it("refuses an administrator resetting their own password", async () => {
+    const fixture = fake({ completed: true });
+    expect(
+      await issueCredentialAuthorization(fixture.database, authority, { userId: ADMIN, purpose: "reset" }, clock)
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(fixture.rows).toHaveLength(0);
+  });
   it.each([
     ["setup", false, "member", 1440],
     ["reset", true, "member", 60],

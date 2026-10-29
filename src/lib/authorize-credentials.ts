@@ -18,6 +18,7 @@ import { recordActivity } from "./activity";
 import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
+import { lockCurrentSecurityVersion } from "./session-version";
 import { normalizeUsername, validateUsername } from "./username";
 import {
   DEVICE_COOKIE,
@@ -181,7 +182,7 @@ async function authorizePassword(username: string, password: string, keepSignedI
 
   await clearFailures([targets[0]]);
   if (user.mfaEnabledAt && !isMfaRemembered(device)) {
-    throw new MfaRequiredError(createMfaTicket(user.id, { keepSignedIn }));
+    throw new MfaRequiredError(createMfaTicket(user.id, { keepSignedIn, sessionVersion: user.sessionVersion }));
   }
   return completeSignIn(user, request, { keepSignedIn, rememberMfa: false });
 }
@@ -193,7 +194,7 @@ async function authorizeSecondFactor(ticket: string, code: string | undefined, r
     recordRejection(undefined);
     return null;
   }
-  const { userId, keepSignedIn } = verified;
+  const { userId, keepSignedIn, sessionVersion } = verified;
 
   if (!code) {
     recordRejection(await lookupTarget(eq(users.id, userId), undefined));
@@ -207,16 +208,24 @@ async function authorizeSecondFactor(ticket: string, code: string | undefined, r
     throw new LockedOutError(throttle.retryAfterSeconds);
   }
 
-  const [user] = await db.select(userColumns).from(users).where(eq(users.id, userId));
+  const outcome = await db.transaction(async (transaction) => {
+    if (!(await lockCurrentSecurityVersion(transaction, userId, sessionVersion)))
+      return { user: undefined, accepted: false };
+    const [user] = await transaction.select(userColumns).from(users).where(eq(users.id, userId));
+    if (!user?.mfaEnabledAt) return { user, accepted: false };
+    const accepted = await verifySecondFactor(
+      { id: user.id, totpSecret: user.totpSecret, totpLastStep: user.totpLastStep },
+      code,
+      Date.now(),
+      transaction
+    );
+    return { user, accepted };
+  });
+  const { user, accepted } = outcome;
   if (!user?.mfaEnabledAt) {
     recordRejection(user ? knownTarget(user) : undefined);
     return null;
   }
-
-  const accepted = await verifySecondFactor(
-    { id: user.id, totpSecret: user.totpSecret, totpLastStep: user.totpLastStep },
-    code
-  );
   if (!accepted) {
     await recordFailure([target]);
     recordRejection(knownTarget(user));

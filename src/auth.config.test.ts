@@ -28,6 +28,14 @@ describe("authConfig (the proxy's database-free config)", () => {
     );
   });
 
+  it("carries the authenticated security version for locked action revalidation", () => {
+    const session = { user: {}, expires: "" } as SessionArgs["session"];
+    expect(
+      authConfig.callbacks.session({ session, token: { sub: "user-1", sessionVersion: 4 } } as SessionArgs).user
+        .sessionVersion
+    ).toBe(4);
+  });
+
   it("has no providers or adapter, so the proxy never loads the database", () => {
     expect(authConfig.providers).toEqual([]);
     expect("adapter" in authConfig).toBe(false);

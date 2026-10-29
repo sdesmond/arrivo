@@ -131,6 +131,7 @@ function genericSecret(text) {
   for (const match of text.matchAll(GENERIC_ASSIGNMENT)) {
     const [, name, value] = match;
     if (name === "credentials" && FETCH_CREDENTIAL_MODES.has(value)) continue;
+    if (name === "PASSWORD_RESET_COOKIE_PATH" && value === "/account-reset") continue;
     if (/^[A-Z]/.test(name) && CONSTANT_IDENTIFIER_VALUE.test(value)) continue;
     if (!PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value)) return true;
   }

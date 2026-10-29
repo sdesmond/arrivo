@@ -100,23 +100,27 @@ describe("MFA tickets", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("round-trips the user id while unexpired", () => {
-    const ticket = createMfaTicket("user-1", { keepSignedIn: false }, NOW);
-    expect(verifyMfaTicket(ticket, NOW + MFA_TICKET_TTL_MS - 1)).toEqual({ userId: "user-1", keepSignedIn: false });
+    const ticket = createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW);
+    expect(verifyMfaTicket(ticket, NOW + MFA_TICKET_TTL_MS - 1)).toEqual({
+      userId: "user-1",
+      keepSignedIn: false,
+      sessionVersion: 2,
+    });
   });
 
   it("rejects an expired ticket", () => {
-    const ticket = createMfaTicket("user-1", { keepSignedIn: false }, NOW);
+    const ticket = createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW);
     expect(verifyMfaTicket(ticket, NOW + MFA_TICKET_TTL_MS + 1)).toBeNull();
   });
 
   it("rejects a ticket whose payload was altered", () => {
-    const [, signature] = createMfaTicket("user-1", { keepSignedIn: false }, NOW).split(".");
+    const [, signature] = createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW).split(".");
     const forged = Buffer.from(JSON.stringify({ userId: "user-2", expiresAt: NOW + 60_000 })).toString("base64url");
     expect(verifyMfaTicket(`${forged}.${signature}`, NOW)).toBeNull();
   });
 
   it("rejects a ticket signed with another secret", () => {
-    const ticket = createMfaTicket("user-1", { keepSignedIn: false }, NOW);
+    const ticket = createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW);
     vi.stubEnv("NEXTAUTH_SECRET", "a-different-secret-a-different-secret");
     expect(verifyMfaTicket(ticket, NOW)).toBeNull();
   });
@@ -134,23 +138,23 @@ describe("MFA tickets", () => {
 
   it("prefers AUTH_SECRET when both secrets are set", () => {
     vi.stubEnv("AUTH_SECRET", "auth-secret-auth-secret-auth-secret");
-    const ticket = createMfaTicket("user-1", { keepSignedIn: false }, NOW);
+    const ticket = createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW);
     vi.stubEnv("NEXTAUTH_SECRET", "changed-changed-changed-changed");
-    expect(verifyMfaTicket(ticket, NOW)).toEqual({ userId: "user-1", keepSignedIn: false });
+    expect(verifyMfaTicket(ticket, NOW)).toEqual({ userId: "user-1", keepSignedIn: false, sessionVersion: 2 });
   });
 
-  it("carries Keep me signed in, defaulting to kept for tickets issued before it existed", () => {
-    const kept = createMfaTicket("user-1", { keepSignedIn: true }, NOW);
-    expect(verifyMfaTicket(kept, NOW)).toEqual({ userId: "user-1", keepSignedIn: true });
+  it("carries Keep me signed in, rejecting tickets without a security version", () => {
+    const kept = createMfaTicket("user-1", { keepSignedIn: true, sessionVersion: 2 }, NOW);
+    expect(verifyMfaTicket(kept, NOW)).toEqual({ userId: "user-1", keepSignedIn: true, sessionVersion: 2 });
 
     const sign = (payload: string) =>
       createHmac("sha256", "test-secret-test-secret-test-secret").update(payload).digest("base64url");
     const legacy = Buffer.from(JSON.stringify({ userId: "user-1", expiresAt: NOW + 60_000 })).toString("base64url");
-    expect(verifyMfaTicket(`${legacy}.${sign(legacy)}`, NOW)).toEqual({ userId: "user-1", keepSignedIn: true });
+    expect(verifyMfaTicket(`${legacy}.${sign(legacy)}`, NOW)).toBeNull();
   });
 
   it("refuses to sign without a secret", () => {
     vi.stubEnv("NEXTAUTH_SECRET", "");
-    expect(() => createMfaTicket("user-1", { keepSignedIn: false }, NOW)).toThrow("NEXTAUTH_SECRET");
+    expect(() => createMfaTicket("user-1", { keepSignedIn: false, sessionVersion: 2 }, NOW)).toThrow("NEXTAUTH_SECRET");
   });
 });

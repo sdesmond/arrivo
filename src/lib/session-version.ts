@@ -3,6 +3,19 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { trustedDevices, users } from "@/db/schema";
 import type { SessionState } from "./session-policy";
+import type { DbTransaction } from "./server-action-locks";
+
+/** Lock the account and reject a session that was revoked after requireUser(). */
+export async function lockCurrentSecurityVersion(
+  transaction: DbTransaction,
+  userId: string,
+  sessionVersion: number | undefined
+): Promise<boolean> {
+  if (sessionVersion === undefined) return false;
+  const rows = (await transaction.execute(sql`select ${users.sessionVersion} as "sessionVersion"
+    from ${users} where ${users.id} = ${userId} for update`)) as unknown as { sessionVersion: number }[];
+  return rows[0]?.sessionVersion === sessionVersion;
+}
 
 // Every sign-in token carries the user's session version (see the jwt callback in src/auth.ts); bumping it
 // invalidates every token issued before, i.e. signs the user out on all devices.

@@ -1,0 +1,18 @@
+[
+  { "query": "Run build-validator on this code change.", "should_trigger": true },
+  { "query": "Finish implementing this feature and validate it.", "should_trigger": true },
+  { "query": "Fix this bug and complete the project checks.", "should_trigger": true },
+  { "query": "Commit the code changes after checking them.", "should_trigger": true },
+  { "query": "The implementation is complete; run the required validation gate.", "should_trigger": true },
+  { "query": "Update this component and make sure the project is healthy.", "should_trigger": true },
+  { "query": "Before committing, check lint, types, coverage, build and affected E2E.", "should_trigger": true },
+  { "query": "Complete this server action and run the repository checks.", "should_trigger": true },
+  { "query": "Explain what build-validator does.", "should_trigger": false },
+  { "query": "Change the build-validator instructions to run E2E alone.", "should_trigger": false },
+  { "query": "Run this one Vitest file.", "should_trigger": false },
+  { "query": "Show me the E2E test command.", "should_trigger": false },
+  { "query": "Review this diff without changing code.", "should_trigger": false },
+  { "query": "Fix a typo in the documentation.", "should_trigger": false },
+  { "query": "What does the coverage threshold mean?", "should_trigger": false },
+  { "query": "List current Git branches.", "should_trigger": false }
+]

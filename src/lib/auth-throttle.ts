@@ -68,9 +68,12 @@ export function signInTargets(username: string, ip: string | undefined): Throttl
 // is wider than the sign-in budget: a person reopening their own link on a few devices must not lock themselves out.
 export const SETUP_MAX_ATTEMPTS = 10;
 
-export function accountTarget(kind: "pwchange" | "mfa" | "device" | "setup", id: string): ThrottleTarget {
+export function accountTarget(kind: "pwchange" | "mfa" | "device" | "setup" | "reset", id: string): ThrottleTarget {
   const policy = getAccountPolicy();
-  return { key: `${kind}:${id}`, policy: kind === "setup" ? { ...policy, maxFailures: SETUP_MAX_ATTEMPTS } : policy };
+  return {
+    key: `${kind}:${id}`,
+    policy: kind === "setup" || kind === "reset" ? { ...policy, maxFailures: SETUP_MAX_ATTEMPTS } : policy,
+  };
 }
 
 // The standalone server has no socket address to offer, so this relies on the reverse proxy's headers (the

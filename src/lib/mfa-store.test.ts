@@ -67,6 +67,14 @@ describe("verifySecondFactor", () => {
     expect(db.update).toHaveBeenCalledWith(schema.mfaRecoveryCodes);
   });
 
+  it("uses the caller's transaction when a credential mutation holds the account lock", async () => {
+    const transaction = { update: vi.fn(() => ({ set: () => ({ where: () => ({ returning }) }) })) };
+    returning.mockResolvedValueOnce([{ id: "code-1" }]);
+    await expect(verifySecondFactor(user(), "abcde-fgh2j", NOW, transaction as never)).resolves.toBe(true);
+    expect(transaction.update).toHaveBeenCalledWith(schema.mfaRecoveryCodes);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("rejects a recovery code that is unknown or already used", async () => {
     returning.mockResolvedValueOnce([]);
     await expect(verifySecondFactor(user(), "abcde-fgh2j", NOW)).resolves.toBe(false);

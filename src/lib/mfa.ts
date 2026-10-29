@@ -86,12 +86,17 @@ function sign(payload: string): string {
 export interface MfaTicket {
   userId: string;
   keepSignedIn: boolean;
+  sessionVersion: number;
 }
 
-export function createMfaTicket(userId: string, { keepSignedIn }: { keepSignedIn: boolean }, now = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ userId, keepSignedIn, expiresAt: now + MFA_TICKET_TTL_MS })).toString(
-    "base64url"
-  );
+export function createMfaTicket(
+  userId: string,
+  { keepSignedIn, sessionVersion }: { keepSignedIn: boolean; sessionVersion: number },
+  now = Date.now()
+): string {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, keepSignedIn, sessionVersion, expiresAt: now + MFA_TICKET_TTL_MS })
+  ).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -104,9 +109,17 @@ export function verifyMfaTicket(ticket: string, now = Date.now()): MfaTicket | n
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
 
   try {
-    const { userId, expiresAt, keepSignedIn } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (typeof userId !== "string" || typeof expiresAt !== "number" || expiresAt < now) return null;
-    return { userId, keepSignedIn: keepSignedIn !== false };
+    const { userId, expiresAt, keepSignedIn, sessionVersion } = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8")
+    );
+    if (
+      typeof userId !== "string" ||
+      typeof expiresAt !== "number" ||
+      expiresAt < now ||
+      !Number.isInteger(sessionVersion)
+    )
+      return null;
+    return { userId, keepSignedIn: keepSignedIn !== false, sessionVersion };
   } catch {
     return null;
   }

@@ -133,6 +133,10 @@ describe("targets", () => {
       key: "setup:user-1",
       policy: { ...getAccountPolicy(), maxFailures: 10 },
     });
+    expect(accountTarget("reset", "user-1")).toEqual({
+      ...accountTarget("setup", "user-1"),
+      key: "reset:user-1",
+    });
   });
 });
 

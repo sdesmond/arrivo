@@ -62,6 +62,8 @@ function validIssue(authority: CredentialIssuanceAuthority, input: IssueCredenti
       ? input.purpose === CredentialAuthorizationPurpose.Recovery
       : authority.kind === "admin" &&
         UUID_PATTERN.test(authority.actorUserId) &&
+        (input.purpose !== CredentialAuthorizationPurpose.Reset ||
+          authority.actorUserId.toLowerCase() !== input.userId.toLowerCase()) &&
         input.purpose !== CredentialAuthorizationPurpose.Recovery)
   );
 }
