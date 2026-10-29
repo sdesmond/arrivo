@@ -18,7 +18,7 @@ Feature: Delete unfinished accounts
     And a regeneration target with a "pending" setup link
     When I request app management at "/admin/users"
     And the regeneration target becomes "completed" after Users loaded
-    And I delete the unfinished account in Users
+    And I open the delete review for the account in Users
     Then the completed account remains with no deletion Activity
 
   Scenario: A stale already-deleted row does not reappear
@@ -26,11 +26,11 @@ Feature: Delete unfinished accounts
     And a regeneration target with a "pending" setup link
     When I request app management at "/admin/users"
     And the regeneration target becomes "deleted" after Users loaded
-    And I delete the unfinished account in Users
+    And I open the delete review for the account in Users
     Then the unfinished account is gone after refresh
     And there is no deletion Activity for the target
 
   Scenario: Deletion races with setup completion yield one outcome
     Given an isolated deletion app
-    Then deletion waiting behind completion refuses the completed account
+    Then deletion waiting behind completion asks for a new review of the completed account
     And completion waiting behind deletion finds no authorization
