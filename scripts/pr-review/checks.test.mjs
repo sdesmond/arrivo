@@ -150,6 +150,15 @@ describe("findSecrets", () => {
     }
   );
 
+  it("allows the reset cookie path without suppressing other credential assignments", () => {
+    expect(secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "/account-reset";')).toEqual([]);
+    expect(secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "Tr0ub4dor&3xyzQ9";')).toHaveLength(1);
+    expect(secretsIn('const password = "/account-reset";')).toHaveLength(1);
+    expect(
+      secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "/account-reset"; const password = "Tr0ub4dor&3xyzQ9";')
+    ).toHaveLength(1);
+  });
+
   it.each(['password: "hunter_two_words",', 'Password: "Tr0ub4dor&3xyzQ9",', 'SecretKey: "abcd1234efgh",'])(
     "still detects a constant-looking name with a credential-shaped value: %s",
     (line) => {
