@@ -245,3 +245,35 @@ Then("exactly one account remains stored", async ({ scenario }) => {
   expect(remaining.filter(Boolean)).toHaveLength(1);
   expect(await fixture.adminCount()).toBe(1);
 });
+
+When(
+  "the first admin deletes their account while the second admin demotes themselves at the same time",
+  async ({ scenario }) => {
+    const fixture = fixtureOf(scenario);
+    const gate = createLockGate();
+
+    // The deletion holds the singleton lock until the demotion is verifiably queued behind it.
+    const deletion = deleteOwnAccount(fixture.database(gate), fixture.userId("first"), []);
+    await gate.reached;
+    const demotion = changeUserRole(fixture.database(), fixture.userId("second"), {
+      targetUserId: fixture.userId("second"),
+      role: UserRole.Member,
+    });
+    try {
+      await fixture.waitForBlockedTransaction();
+    } finally {
+      gate.release();
+    }
+
+    scenario.setValue(DELETION_KEY, await deletion);
+    scenario.setValue(RESULT_KEY, await demotion);
+  }
+);
+
+Then(
+  "the first admin's deletion succeeds and the second admin's demotion is refused as last-admin",
+  async ({ scenario }) => {
+    expect(scenario.getValue<DeleteOwnAccountResult>(DELETION_KEY)).toMatchObject({ ok: true });
+    expectRefusal(scenario, RoleChangeFailure.LastAdmin);
+  }
+);

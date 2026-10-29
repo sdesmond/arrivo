@@ -191,6 +191,13 @@ export const FEATURE_MAP = [
     "src/lib/account-deletion.ts",
     "tests/e2e/role-service-fixture.ts",
   ]),
+  entry("deletion-concurrency", [
+    "src/lib/account-deletion.ts",
+    "src/lib/account-lifecycle-locks.ts",
+    "src/lib/membership-writes.ts",
+    "src/lib/invitation-resend.ts",
+    "tests/e2e/deletion-concurrency-fixture.ts",
+  ]),
   entry("mfa", [
     "src/components/arrivo/auth-forms.tsx",
     "src/components/arrivo/auth-submit-button.tsx",
