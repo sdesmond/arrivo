@@ -33,6 +33,7 @@ export const FEATURE_MAP = [
   entry("setup-link-regeneration", [
     "src/lib/setup-link-regeneration.ts",
     "src/components/arrivo/regenerate-setup-link-dialog.tsx",
+    "src/components/arrivo/setup-link-result.tsx",
     "src/app/(app)/admin/users/actions.ts",
     "src/components/arrivo/instance-users-list.tsx",
     "src/lib/activity-labels.ts",
@@ -46,6 +47,7 @@ export const FEATURE_MAP = [
   ]),
   entry("add-user-dialog", [
     "src/components/arrivo/add-user-dialog.tsx",
+    "src/components/arrivo/setup-link-result.tsx",
     "src/app/(app)/admin/users/page.tsx",
     "src/app/(app)/admin/users/actions.ts",
   ]),

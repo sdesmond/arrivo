@@ -22,6 +22,10 @@ import { normalizeUsername } from "@/lib/username";
 import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
 import { deleteUnfinishedAccount } from "@/lib/unfinished-account-deletion";
 
+function setupUrlFor(origin: string, token: string): string {
+  return `${origin}/account-setup/open?token=${encodeURIComponent(token)}`;
+}
+
 export async function checkSetupLinkTargetAction(targetUserId: string): Promise<SetupLinkTargetState> {
   await requireAdmin();
   const target = (await listInstanceUsers()).find((user) => user.id === targetUserId);
@@ -49,7 +53,7 @@ export async function regenerateSetupLinkAction(targetUserId: string): Promise<R
     userId: outcome.userId,
     username: outcome.username,
     expiresAt: outcome.expiresAt,
-    setupUrl: `${origin}/account-setup/open?token=${encodeURIComponent(outcome.token)}`,
+    setupUrl: setupUrlFor(origin, outcome.token),
   };
 }
 
@@ -94,7 +98,7 @@ export async function addUserAction(username: string): Promise<AddUserResult> {
   const target = { id: outcome.userId, username: outcome.username };
   recordActivity({ type: ActivityEventType.AccountCreated, actor: outcome.actor, target });
   recordActivity({ type: ActivityEventType.SetupLinkGenerated, actor: outcome.actor, target });
-  const setupUrl = `${origin}/account-setup/open?token=${encodeURIComponent(outcome.token)}`;
+  const setupUrl = setupUrlFor(origin, outcome.token);
   return { ok: true, userId: outcome.userId, username: outcome.username, setupUrl, expiresAt: outcome.expiresAt };
 }
 

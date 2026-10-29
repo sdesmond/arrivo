@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
-import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { checkSetupLinkTargetAction, regenerateSetupLinkAction } from "@/app/(app)/admin/users/actions";
 import type { RegenerateSetupLinkResult, SetupLinkTargetState } from "@/data/types";
 import { Button } from "@/components/ui/button";
+import { SetupLinkResult } from "./setup-link-result";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,6 @@ export function RegenerateSetupLinkDialog({ userId, username }: RegenerateSetupL
     "ready"
   );
   const [errorMessage, setErrorMessage] = useState<string>();
-  const [copyMessage, setCopyMessage] = useState("");
   const [currentState, setCurrentState] = useState<SetupLinkTargetState>();
   const [isPending, startTransition] = useTransition();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -43,7 +42,6 @@ export function RegenerateSetupLinkDialog({ userId, username }: RegenerateSetupL
     if (!nextOpen && busy) return;
     setOpen(nextOpen);
     setResult(null);
-    setCopyMessage("");
     setErrorMessage(undefined);
     // A lost result cannot be cleared by closing. Only a successful authoritative read unlocks issuance.
   }
@@ -99,15 +97,6 @@ export function RegenerateSetupLinkDialog({ userId, username }: RegenerateSetupL
       router.refresh();
     });
   }
-  async function copyLink() {
-    if (!result) return;
-    try {
-      await navigator.clipboard.writeText(result.setupUrl);
-      setCopyMessage("Link copied.");
-    } catch {
-      setCopyMessage("Couldn't copy. Select the link and copy it manually.");
-    }
-  }
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
@@ -129,28 +118,7 @@ export function RegenerateSetupLinkDialog({ userId, username }: RegenerateSetupL
           </DialogDescription>
         </DialogHeader>
         {result ? (
-          <div className="flex min-w-0 flex-col gap-3">
-            <p>
-              Username: <strong>{result.username}</strong>
-            </p>
-            <p>
-              Expires: <time dateTime={result.expiresAt}>{new Date(result.expiresAt).toLocaleString()}</time>
-            </p>
-            <p className="select-text" style={{ overflowWrap: "anywhere" }}>
-              {result.setupUrl}
-            </p>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-11"
-              title="Copy link"
-              aria-label="Copy link"
-              onClick={copyLink}
-            >
-              <Copy strokeWidth={1.5} />
-            </Button>
-            {copyMessage && <p role="status">{copyMessage}</p>}
-          </div>
+          <SetupLinkResult username={result.username} expiresAt={result.expiresAt} setupUrl={result.setupUrl} />
         ) : (
           <>
             {errorMessage && <p role="alert">{errorMessage}</p>}

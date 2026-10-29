@@ -67,7 +67,7 @@ Then("its old setup link admits no one", async ({ page, scenario }) => {
   const context = await page
     .context()
     .browser()!
-    .newContext({ baseURL: new URL(page.url()).origin });
+    .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
