@@ -7,12 +7,19 @@ import {
   assertAnotherCompletedAdmin,
   LastCompletedAdminError,
   lockAppAndUsersForUpdate,
+  lockUsersThenTripForUpdate,
 } from "./account-lifecycle-locks";
 
 const dialect = new PgDialect();
 
 function createTransaction(
-  options: { appMissing?: boolean; missingUsers?: string[]; adminRows?: unknown[]; failOn?: string } = {}
+  options: {
+    appMissing?: boolean;
+    tripMissing?: boolean;
+    missingUsers?: string[];
+    adminRows?: unknown[];
+    failOn?: string;
+  } = {}
 ) {
   const statements: { text: string; params: unknown[] }[] = [];
   const transaction = {
@@ -21,6 +28,7 @@ function createTransaction(
       statements.push({ text, params });
       if (options.failOn && text.includes(options.failOn)) throw new Error("db down");
       if (text.includes("app_state")) return options.appMissing ? [] : [{ id: true }];
+      if (text.includes('"trips"')) return options.tripMissing ? [] : [{ id: params[0] }];
       if (text.includes("for update"))
         return options.missingUsers?.includes(params[0] as string) ? [] : [{ id: params[0] }];
       return options.adminRows ?? [];
@@ -109,5 +117,42 @@ describe("assertAnotherCompletedAdmin", () => {
     const { transaction } = createTransaction({ failOn: "limit 1" });
 
     await expect(assertAnotherCompletedAdmin(transaction, "target")).rejects.toThrow("db down");
+  });
+});
+
+describe("lockUsersThenTripForUpdate", () => {
+  it("locks sorted deduplicated users first and the trip last", async () => {
+    const { statements, transaction } = createTransaction();
+
+    const result = await lockUsersThenTripForUpdate(transaction, ["b", "A", "b", "a"], "trip-1");
+
+    expect(result).toEqual({ locked: true });
+    expect(statements.map((statement) => statement.params[0])).toEqual(["a", "b", "trip-1"]);
+    expect(statements.every((statement) => statement.text.includes("for update"))).toBe(true);
+    expect(statements[2].text).toContain('"trips"');
+  });
+
+  it("reports the first missing user and takes no later lock", async () => {
+    const { statements, transaction } = createTransaction({ missingUsers: ["b"] });
+
+    const result = await lockUsersThenTripForUpdate(transaction, ["c", "b", "a"], "trip-1");
+
+    expect(result).toEqual({ locked: false, missing: "user", userId: "b" });
+    expect(statements.map((statement) => statement.params[0])).toEqual(["a", "b"]);
+  });
+
+  it("reports a missing trip after the users are locked", async () => {
+    const { transaction } = createTransaction({ tripMissing: true });
+
+    await expect(lockUsersThenTripForUpdate(transaction, ["a"], "trip-1")).resolves.toEqual({
+      locked: false,
+      missing: "trip",
+    });
+  });
+
+  it("propagates lock failures", async () => {
+    const { transaction } = createTransaction({ failOn: '"trips"' });
+
+    await expect(lockUsersThenTripForUpdate(transaction, ["a"], "trip-1")).rejects.toThrow("db down");
   });
 });

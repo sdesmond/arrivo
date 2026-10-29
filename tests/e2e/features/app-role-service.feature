@@ -49,3 +49,9 @@ Feature: App role-change service
     When both admins delete their own accounts at the same time
     Then exactly one deletion succeeds and the other is refused as last-admin
     And exactly one account remains stored
+
+  Scenario: Overlapping self-deletion and self-demotion leave one completed admin
+    Given an isolated app with two completed admins
+    When the first admin deletes their account while the second admin demotes themselves at the same time
+    Then the first admin's deletion succeeds and the second admin's demotion is refused as last-admin
+    And exactly one admin remains stored

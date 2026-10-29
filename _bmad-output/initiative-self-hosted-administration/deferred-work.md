@@ -7,3 +7,7 @@
 
 - Pre-existing sign-out-everywhere action can pass session validation before a reset, then bump the version afterward and revoke fresh sessions. Recheck the session version under the account lock.
 - Pre-existing device-removal action can pass session validation before a reset, then remove a newly created device afterward. Recheck the session version under the account lock.
+
+- source_plan: `_bmad-output/initiative-self-hosted-administration/epic-recovery-and-deletion/story-deletion-concurrency-and-self-service-plan.md`
+  summary: app-activity E2E scenarios (e.g. "Renamed and deleted accounts stay filterable...") fail on the baseline commit, with the filter option locator count 0 and intermittent other app-activity failures.
+  evidence: same scenario fails on stashed baseline 66a3ecd2 and with the change; the account-deletion code is untouched here.

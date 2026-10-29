@@ -15,6 +15,10 @@ import {
   users,
 } from "@/db/schema";
 import { headers } from "next/headers";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
+
+const dialect = new PgDialect();
 
 const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoisted(() => ({
   recordTripInvitation: vi.fn(),
@@ -253,6 +257,7 @@ interface SaveContributorChangesFixture {
     isCreator: boolean | null;
   }>;
   tripName?: string;
+  lockRows?: unknown[];
 }
 
 function setupSaveContributorChangesDb({
@@ -266,13 +271,14 @@ function setupSaveContributorChangesDb({
     },
   ],
   tripName = "Test Trip",
+  lockRows = [{ id: "trip-1" }],
 }: SaveContributorChangesFixture = {}) {
   const operations = {
     deletes: [] as Array<{ table: unknown; condition: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
   };
   const transaction = {
-    execute: async () => [{ id: "trip-1" }],
+    execute: async () => lockRows,
     select: () => ({
       from: (table: unknown) => ({
         where: async () => {
@@ -314,6 +320,20 @@ describe("saveContributorChanges", () => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue("manager");
+  });
+
+  it("returns a stale error without writing when the trip was deleted after the access check", async () => {
+    const operations = setupSaveContributorChangesDb({ lockRows: [] });
+
+    await expect(
+      saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-editor" }])
+    ).resolves.toEqual({
+      status: "error",
+      message: "One or more contributors are no longer on this trip.",
+      stale: true,
+    });
+    expect(operations.deletes).toHaveLength(0);
+    expect(publishTripEvent).not.toHaveBeenCalled();
   });
 
   it("applies a role change and a removal in one transaction and revalidates", async () => {
@@ -1894,13 +1914,20 @@ function setupInviteContributorDb({
   collaboratorRows = [],
   invitationRows = [],
   userRows = [{ id: "invitee-1" }],
-}: InvitationFixture = {}) {
+  lockResults = [],
+}: InvitationFixture & { lockResults?: unknown[][] } = {}) {
   const operations = {
+    locks: [] as string[],
     deletes: [] as unknown[],
     inserts: [] as Array<{ table: unknown; values: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown }>,
   };
+  const pendingLockResults = [...lockResults];
   const transaction = {
+    execute: async (query: SQL) => {
+      operations.locks.push(dialect.sqlToQuery(query).params.join(","));
+      return pendingLockResults.shift() ?? [{ id: "locked" }];
+    },
     delete: (table: unknown) => ({
       where: async () => {
         operations.deletes.push(table);
@@ -1951,6 +1978,40 @@ describe("inviteContributor", () => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "manager-1" });
     assertTripAccess.mockResolvedValue(undefined);
+  });
+
+  it("locks inviter and invitee in sorted order, then the trip, before reading or writing", async () => {
+    const operations = setupInviteContributorDb({ userRows: [{ id: "aaa-invitee" }] });
+
+    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({ status: "invited" });
+
+    expect(operations.locks).toEqual(["aaa-invitee", "manager-1", "trip-1"]);
+  });
+
+  it("reports the invitee's missing account when they vanish before the lock", async () => {
+    const operations = setupInviteContributorDb({ lockResults: [[]] });
+
+    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
+      status: "error",
+      message: "No account found for this username",
+      errorCode: "no-account",
+    });
+    expect(operations.inserts).toHaveLength(0);
+    expect(publishUserEvent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the inviter's account", [[{ id: "locked" }], []]],
+    ["the trip", [[{ id: "locked" }], [{ id: "locked" }], []]],
+  ])("answers not found and writes nothing when %s is gone", async (_label, lockResults) => {
+    const operations = setupInviteContributorDb({ lockResults });
+    const { notFound } = await import("next/navigation");
+
+    await inviteContributor("trip-1", "invitee");
+
+    expect(notFound).toHaveBeenCalled();
+    expect(operations.inserts).toHaveLength(0);
+    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 
   it("creates a pending viewer invitation for the account matching the normalized username", async () => {
@@ -2117,6 +2178,7 @@ describe("inviteContributor", () => {
     });
     db.transaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) =>
       callback({
+        execute: async () => [{ id: "locked" }],
         insert: () => ({
           values: async () => {
             throw new Error("Failed query", {
@@ -2154,19 +2216,28 @@ function setupAcceptDeclineDb({
   matchedRows = [],
   diagnosticRow = null,
   account = { name: "Invitee Person", username: "invitee" },
-}: AcceptDeclineFixture = {}) {
+  candidateRows = [{ tripId: "trip-1" }],
+  lockResults = [],
+}: AcceptDeclineFixture & { candidateRows?: unknown[]; lockResults?: unknown[][] } = {}) {
   const operations = {
+    locks: [] as string[],
     inserts: [] as Array<{ table: unknown; values: unknown; conflictUpdate: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
   };
 
+  const pendingLockResults = [...lockResults];
   const transaction = {
+    execute: async (query: SQL) => {
+      operations.locks.push(dialect.sqlToQuery(query).params.join(","));
+      return pendingLockResults.shift() ?? [{ id: "locked" }];
+    },
     update: vi.fn(),
     insert: vi.fn(),
     select: vi.fn(() => ({
       from: (table: unknown) => ({
         where: async () => {
           if (table === users) return [account];
+          if (table === invitations) return candidateRows;
           throw new Error("Unexpected transactional table read in accept/decline fixture.");
         },
       }),
@@ -2213,6 +2284,51 @@ describe("acceptInvitation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1", name: "Invitee Person" });
+  });
+
+  it("locks the invitee, then the invitation's trip, before updating the invitation", async () => {
+    const operations = setupAcceptDeclineDb({
+      matchedRows: [
+        {
+          id: "invite-1",
+          tripId: "trip-1",
+          role: "editor",
+          inviteeId: "user-1",
+          status: "accepted",
+          expiresAt: new Date("2026-09-10T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    await acceptInvitation("invite-1");
+
+    expect(operations.locks).toEqual(["user-1", "trip-1"]);
+  });
+
+  it.each([
+    ["the invitee's account", [[]]],
+    ["the trip", [[{ id: "locked" }], []]],
+  ])("accepts nothing and writes nothing when %s is gone", async (_label, lockResults) => {
+    const operations = setupAcceptDeclineDb({ lockResults });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+    expect(operations.updates).toHaveLength(0);
+    expect(operations.inserts).toHaveLength(0);
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+  });
+
+  it("takes no lock when the invitation does not exist for this user", async () => {
+    const operations = setupAcceptDeclineDb({ candidateRows: [] });
+
+    await expect(acceptInvitation("invite-1")).resolves.toEqual({
+      status: "error",
+      message: "Invitation not found.",
+    });
+    expect(operations.locks).toEqual([]);
+    expect(operations.updates).toHaveLength(0);
   });
 
   it("accepts a pending, unexpired invitation and creates the collaborator row", async () => {
