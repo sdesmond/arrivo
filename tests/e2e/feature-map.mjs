@@ -78,6 +78,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/account-setup-sign-out.tsx",
   ]),
   entry("password-reset", [
+    "src/lib/credential-authorizations.ts",
     "src/lib/password-reset*.ts",
     "src/app/account-reset/**",
     "src/components/arrivo/reset-password-dialog.tsx",
