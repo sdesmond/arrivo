@@ -49,7 +49,7 @@ describe("validateSeedWorld — the real dev seed", () => {
     ]);
   });
 
-  it("seeds exactly one instance admin; every other account is a member", () => {
+  it("seeds exactly one app admin; every other account is a member", () => {
     const admins = DEV_SEED.users.filter((seedUser) => seedUser.role === "admin");
     expect(admins.map((seedUser) => seedUser.username)).toEqual(["admin"]);
     for (const seedUser of DEV_SEED.users.filter((candidate) => candidate !== admins[0])) {

@@ -8,7 +8,7 @@ import type { RoleChangeDatabase } from "../../src/lib/account-role-changes";
 import type { UserRole } from "../../src/data/types";
 import { cloneUserMother } from "./e2e-seed-data";
 
-// Tables account deletion reads or writes besides users and instance_state.
+// Tables account deletion reads or writes besides users and app_state.
 const TRIP_TABLES = ["trips", "collaborators", "invitations", "documents"];
 const SCHEMA_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 const BLOCKED_POLL_MS = 25;
@@ -22,7 +22,7 @@ export interface RoleServiceUserSpec {
 }
 
 export interface LockGate {
-  /** Resolves once the gated transaction holds the instance singleton lock. */
+  /** Resolves once the gated transaction holds the app singleton lock. */
   reached: Promise<void>;
   release(): void;
 }
@@ -56,7 +56,7 @@ export interface RoleServiceFixture {
   close(): Promise<void>;
 }
 
-// Each scenario gets its own schema holding copies of the public users/instance_state tables, so the baseline
+// Each scenario gets its own schema holding copies of the public users/app_state tables, so the baseline
 // admin never masks a last-admin defect and the shared tables are never mutated. The service's search_path excludes
 // public, so a table missing from the schema fails the query instead of silently touching shared data.
 export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
@@ -82,11 +82,11 @@ export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
   try {
     await client.unsafe(`create schema "${schema}"`);
     await client.unsafe(`create table "${schema}".users (like public.users including all)`);
-    await client.unsafe(`create table "${schema}".instance_state (like public.instance_state including all)`);
+    await client.unsafe(`create table "${schema}".app_state (like public.app_state including all)`);
     for (const table of TRIP_TABLES) {
       await client.unsafe(`create table "${schema}"."${table}" (like public."${table}" including all)`);
     }
-    await client.unsafe(`insert into "${schema}".instance_state (id, initialized_at) values (true, now())`);
+    await client.unsafe(`insert into "${schema}".app_state (id, initialized_at) values (true, now())`);
   } catch (error) {
     await close();
     throw error;

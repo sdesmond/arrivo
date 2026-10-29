@@ -96,7 +96,7 @@ describe("Playwright project isolation wiring", () => {
     const { default: config } = await import("../playwright.config.ts");
     const regular = config.projects.find((project) => project.name === "chromium");
     const bootstrap = config.projects.find((project) => project.name === "bootstrap");
-    const feature = "instance-bootstrap.feature.spec.js";
+    const feature = "app-bootstrap.feature.spec.js";
     expect(regular.testIgnore.test(feature)).toBe(true);
     expect(bootstrap.testMatch.test(feature)).toBe(true);
     expect(bootstrap.dependencies).toBeUndefined();

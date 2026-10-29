@@ -3,7 +3,7 @@ import { ActivityEventType, type ActivityEventSummary } from "@/data/types";
 import { formatInstant } from "@/lib/activity-dates";
 import { EVENT_LABELS } from "@/lib/activity-labels";
 
-export interface InstanceActivityProps {
+export interface AppActivityProps {
   events: ActivityEventSummary[];
   /** IANA zone the times are shown in; UTC until the browser's zone is known. */
   timeZone?: string;
@@ -45,7 +45,7 @@ function TimeCell({ event, timeZone }: { event: ActivityEventSummary; timeZone: 
   );
 }
 
-export function InstanceActivity({ events, timeZone = "UTC" }: InstanceActivityProps) {
+export function AppActivity({ events, timeZone = "UTC" }: AppActivityProps) {
   if (events.length === 0) {
     return (
       <p className="mt-4 text-sm" style={{ color: "var(--fg-3)" }}>
@@ -62,7 +62,7 @@ export function InstanceActivity({ events, timeZone = "UTC" }: InstanceActivityP
         className: "mt-4 rounded-md",
       }}
     >
-      <TableCaption className="sr-only">Recent instance activity</TableCaption>
+      <TableCaption className="sr-only">Recent app activity</TableCaption>
       <TableHeader>
         <TableRow>
           {COLUMNS.map((column) => (

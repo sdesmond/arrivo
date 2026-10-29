@@ -56,7 +56,7 @@ test.describe("E2E scenario fixtures", () => {
     const result = await withE2EDb((db) => db.execute(sql`select current_database() as name`));
     expect(result[0].name).toBe(expectedName);
   });
-  test("materializes the requested instance role", async () => {
+  test("materializes the requested app role", async () => {
     const context = createScenarioFixtureContext(test.info());
     try {
       const result = await context.materialize({ user: { overrides: { user: { role: "admin" } } } });

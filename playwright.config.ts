@@ -26,7 +26,7 @@ const testDir = defineBddConfig({
 });
 
 const regularPort = Number(process.env.PORT ?? "3001");
-const bootstrapFeature = /instance-bootstrap\.feature\.spec\.js$/;
+const bootstrapFeature = /app-bootstrap\.feature\.spec\.js$/;
 
 function appServer(port: number, bootstrap: boolean) {
   const baseURL = "http://localhost:" + port;

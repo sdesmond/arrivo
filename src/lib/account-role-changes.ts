@@ -5,7 +5,7 @@ import { RoleChangeFailure, UserRole, type ChangeUserRoleInput, type ChangeUserR
 import {
   assertAnotherCompletedAdmin,
   LastCompletedAdminError,
-  lockInstanceAndUsersForUpdate,
+  lockAppAndUsersForUpdate,
 } from "@/lib/account-lifecycle-locks";
 
 export type RoleChangeDatabase = Pick<typeof db, "transaction">;
@@ -51,8 +51,8 @@ export async function changeUserRole(
   try {
     return await database.transaction(async (transaction): Promise<ChangeUserRoleOutcome> => {
       const ids = targetIsValidId ? [actorId, targetId] : [actorId];
-      const scope = await lockInstanceAndUsersForUpdate(transaction, ids);
-      if (!scope.instanceLocked) return fail(RoleChangeFailure.InstanceUnavailable);
+      const scope = await lockAppAndUsersForUpdate(transaction, ids);
+      if (!scope.appLocked) return fail(RoleChangeFailure.AppUnavailable);
       if (!scope.lockedUserIds.has(actorId)) return fail(RoleChangeFailure.Forbidden);
 
       const rows = (await transaction.execute(

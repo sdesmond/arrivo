@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { AdminSetupForm } from "@/components/arrivo/auth-forms";
-import { isInstanceSetupOpen } from "@/lib/instance-setup";
+import { isAppSetupOpen } from "@/lib/app-setup";
 import { setupAdminAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
-  if (!(await isInstanceSetupOpen())) return redirect("/sign-in");
+  if (!(await isAppSetupOpen())) return redirect("/sign-in");
   return (
     <>
       <h1 className="mb-2 text-xl font-semibold" tabIndex={-1}>

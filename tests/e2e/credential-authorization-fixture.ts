@@ -31,7 +31,7 @@ export async function createCredentialAuthorizationFixture(
                   const result = await target.execute(statement);
                   const queryText =
                     typeof statement === "string" ? statement : dialect.sqlToQuery(statement.getSQL()).sql;
-                  if (queryText.includes('"instance_state"')) await gate.arrive();
+                  if (queryText.includes('"app_state"')) await gate.arrive();
                   return result;
                 };
               },

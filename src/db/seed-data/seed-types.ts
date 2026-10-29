@@ -38,7 +38,7 @@ export interface SeedUser {
   initials: string;
   currency: string;
   dateFormat: "MM/DD/YYYY" | "DD/MM/YYYY";
-  /** Instance authority; omitted means "member". */
+  /** App authority; omitted means "member". */
   role?: UserRole;
   defaultCoverType?: "photo" | "map" | "graphic";
   warningThreshold?: number;

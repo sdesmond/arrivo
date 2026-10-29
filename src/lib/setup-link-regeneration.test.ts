@@ -16,7 +16,7 @@ function fake(
     completed?: boolean;
     missing?: boolean;
     noActor?: boolean;
-    noInstance?: boolean;
+    noApp?: boolean;
     error?: unknown;
   } = {}
 ) {
@@ -27,7 +27,7 @@ function fake(
     const { sql: text, params } = dialect.sqlToQuery(query);
     queries.push(text);
     if (options.error) throw options.error;
-    if (text.includes("instance_state")) return options.noInstance ? [] : [{ id: true }];
+    if (text.includes("app_state")) return options.noApp ? [] : [{ id: true }];
     if (text.includes("for update")) {
       locks.push(params[0]);
       return [{ id: params[0] }];
@@ -69,7 +69,7 @@ describe("regenerateSetupLink", () => {
     issue.mockReset();
     issue.mockResolvedValue({ ok: true, token: "secret", expiresAt: "2026-10-29T12:00:00.000Z" });
   });
-  it("uses one transaction, instance then sorted users, existing ID and setup issuer clock", async () => {
+  it("uses one transaction, app then sorted users, existing ID and setup issuer clock", async () => {
     const scope = fake();
     const clock = () => new Date("2026-10-28T12:00:00Z");
     expect(await regenerateSetupLink(scope.database, ADMIN.toUpperCase(), TARGET.toUpperCase(), clock)).toEqual({
@@ -81,7 +81,7 @@ describe("regenerateSetupLink", () => {
       actor: { id: ADMIN, username: "admin" },
     });
     expect(scope.transaction).toHaveBeenCalledOnce();
-    expect(scope.queries[0]).toContain("instance_state");
+    expect(scope.queries[0]).toContain("app_state");
     expect(scope.locks).toEqual([ADMIN, TARGET]);
     expect(scope.queries.some((query) => query.startsWith("insert"))).toBe(false);
     expect(issue).toHaveBeenCalledWith(
@@ -97,7 +97,7 @@ describe("regenerateSetupLink", () => {
     [{ noActor: true }, "forbidden"],
     [{ missing: true }, "changed-state"],
     [{ completed: true }, "changed-state"],
-    [{ noInstance: true }, "instance-unavailable"],
+    [{ noApp: true }, "app-unavailable"],
   ])("refuses current locked state %j", async (options, reason) => {
     expect(await regenerateSetupLink(fake(options).database, ADMIN, TARGET)).toEqual({ ok: false, reason });
     expect(issue).not.toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe("regenerateSetupLink", () => {
     expect(await regenerateSetupLink(scope.database, ADMIN, TARGET)).toEqual({ ok: false, reason: "retry" });
     expect(scope.rolledBack()).toBe(true);
   });
-  it.each(["forbidden", "instance-unavailable", "retry", "invalid"])("rolls back issuer refusal %s", async (reason) => {
+  it.each(["forbidden", "app-unavailable", "retry", "invalid"])("rolls back issuer refusal %s", async (reason) => {
     issue.mockResolvedValue({ ok: false, reason });
     const scope = fake();
     expect(await regenerateSetupLink(scope.database, ADMIN, TARGET)).toEqual({

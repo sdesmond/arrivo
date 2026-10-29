@@ -15,7 +15,7 @@ import { lockoutMessage } from "@/lib/auth-throttle";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
 import { isHttpsRequest } from "@/lib/request-origin";
-import { bootstrapFirstAccount } from "@/lib/instance-bootstrap";
+import { bootstrapFirstAccount } from "@/lib/app-bootstrap";
 import { isUniqueViolation } from "@/lib/error-utils";
 import { PASSWORD_BCRYPT_COST, validateNewPassword } from "@/lib/password-policy";
 import { normalizeUsername, validateUsername } from "@/lib/username";

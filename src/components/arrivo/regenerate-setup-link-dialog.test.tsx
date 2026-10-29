@@ -119,7 +119,7 @@ describe("RegenerateSetupLinkDialog", () => {
     expect(screen.queryByRole("button", { name: "Generate replacement link" })).not.toBeInTheDocument();
     expect(notify).toHaveBeenCalledWith("Account changed. Users has been refreshed.");
   });
-  it.each(["forbidden", "changed-state", "instance-unavailable", "retry", "origin-unavailable"])(
+  it.each(["forbidden", "changed-state", "app-unavailable", "retry", "origin-unavailable"])(
     "shows safe %s refusal",
     async (reason) => {
       generate.mockResolvedValue({

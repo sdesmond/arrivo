@@ -1,13 +1,13 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { instanceState } from "@/db/schema";
+import { appState } from "@/db/schema";
 
 /** Durable initialization is authoritative; a missing singleton fails closed. */
-export async function isInstanceSetupOpen(): Promise<boolean> {
+export async function isAppSetupOpen(): Promise<boolean> {
   const [state] = await db
-    .select({ initializedAt: instanceState.initializedAt })
-    .from(instanceState)
-    .where(eq(instanceState.id, true));
+    .select({ initializedAt: appState.initializedAt })
+    .from(appState)
+    .where(eq(appState.id, true));
   return state?.initializedAt === null;
 }

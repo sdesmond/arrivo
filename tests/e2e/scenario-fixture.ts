@@ -24,7 +24,7 @@ import {
   users,
 } from "../../src/db/schema";
 import { withE2EDb } from "./e2e-db";
-import { setInstanceState, type InstanceStateName } from "./instance-state";
+import { setAppState, type AppStateName } from "./app-state";
 import {
   BASELINE_E2E_USER,
   cloneTemplateMother,
@@ -108,8 +108,8 @@ export interface ScenarioFixtureContext {
   /** Plain username/password sign-in, for a session other than the scenario's own current user. */
   signInAsUser(page: Page, username: string): Promise<void>;
   signOut(): void;
-  /** Sets the singleton instance state for this scenario; cleanup restores "initialized". */
-  setInstanceState(name: InstanceStateName): Promise<void>;
+  /** Sets the singleton app state for this scenario; cleanup restores "initialized". */
+  setAppState(name: AppStateName): Promise<void>;
   gotoCurrentTrip(page: Page): Promise<void>;
   uniqueName(label: string): string;
   uniqueUsername(label?: string): string;
@@ -141,7 +141,7 @@ interface MutableScenarioState {
   counters: Record<string, number>;
   values: Map<string, unknown>;
   signedInUsername?: string;
-  instanceStateChanged?: boolean;
+  appStateChanged?: boolean;
   currentUser?: ScenarioUserRecord;
   currentTrip?: ScenarioTripRecord;
   currentTemplate?: ScenarioTemplateRecord;
@@ -597,9 +597,9 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       }
     });
 
-    if (state.instanceStateChanged) {
-      state.instanceStateChanged = false;
-      await setInstanceState("initialized");
+    if (state.appStateChanged) {
+      state.appStateChanged = false;
+      await setAppState("initialized");
     }
   }
 
@@ -647,9 +647,9 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
       result.cleanup = state.cleanup.slice(createdCleanupCount);
       return result;
     },
-    async setInstanceState(name: InstanceStateName): Promise<void> {
-      state.instanceStateChanged = true;
-      await setInstanceState(name);
+    async setAppState(name: AppStateName): Promise<void> {
+      state.appStateChanged = true;
+      await setAppState(name);
     },
     async ensureCurrentUser(overrides = {}): Promise<ScenarioUserRecord> {
       if (!state.currentUser) {

@@ -9,7 +9,7 @@ import {
   type AddUserOutcome,
   type CredentialSecurityClock,
 } from "@/data/types";
-import { lockInstanceAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
+import { lockAppAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
 import { issueCredentialAuthorizationInTransaction } from "@/lib/credential-authorizations";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 
@@ -59,8 +59,8 @@ export async function addUser(
 
   try {
     return await database.transaction(async (transaction): Promise<AddUserOutcome> => {
-      const scope = await lockInstanceAndUsersForUpdate(transaction, [actorId]);
-      if (!scope.instanceLocked) return fail(AddUserFailure.InstanceUnavailable);
+      const scope = await lockAppAndUsersForUpdate(transaction, [actorId]);
+      if (!scope.appLocked) return fail(AddUserFailure.AppUnavailable);
       if (!scope.lockedUserIds.has(actorId)) return fail(AddUserFailure.Forbidden);
 
       const actorRows = (await transaction.execute(
@@ -90,8 +90,8 @@ export async function addUser(
       );
       if (!issued.ok) {
         if (issued.reason === "forbidden") throw new RollbackWithFailure(fail(AddUserFailure.Forbidden));
-        if (issued.reason === "instance-unavailable") {
-          throw new RollbackWithFailure(fail(AddUserFailure.InstanceUnavailable));
+        if (issued.reason === "app-unavailable") {
+          throw new RollbackWithFailure(fail(AddUserFailure.AppUnavailable));
         }
         if (issued.reason === "retry") throw new RollbackWithFailure(fail(AddUserFailure.Retry));
         throw new Error("Setup authorization could not be issued for the new account.");

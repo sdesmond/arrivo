@@ -23,14 +23,14 @@ import { After, Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
 
-// Also uses "I am signed in as an instance {string}" and "instance management is not found" from
+// Also uses "I am signed in as an app {string}" and "app management is not found" from
 // account-menu.steps.ts, and the sign-in / code steps from mfa.steps.ts.
 
-Given("the current account is an instance admin", async ({ scenario }) => {
+Given("the current account is an app admin", async ({ scenario }) => {
   await scenario.ensureCurrentUser({ user: { role: "admin" } });
 });
 
-When("I open the instance Activity page", async ({ page }) => {
+When("I open the app Activity page", async ({ page }) => {
   await page.goto("/admin/activity");
   await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
 });
@@ -41,7 +41,7 @@ When("I refresh the page", async ({ page }) => {
 
 Then("the Activity table lists a Sign-in row for me", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   // The row is written after the sign-in response, so it can land just after the first load.
   await expect(async () => {
     await page.reload();
@@ -73,7 +73,7 @@ Then("my account has {int} recorded sign-ins", async ({ scenario }, count: numbe
 });
 
 Given("that member signed in and then had their account deleted", async ({ scenario }) => {
-  const member = scenario.getValue<ScenarioUserRecord>("instanceMember")!;
+  const member = scenario.getValue<ScenarioUserRecord>("appMember")!;
   const now = new Date();
   await withE2EDb(async (database) => {
     await database.insert(activityEvents).values({
@@ -88,8 +88,8 @@ Given("that member signed in and then had their account deleted", async ({ scena
 });
 
 Then("the Activity table lists a Sign-in row for that deleted member", async ({ page, scenario }) => {
-  const member = scenario.getValue<ScenarioUserRecord>("instanceMember")!;
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const member = scenario.getValue<ScenarioUserRecord>("appMember")!;
+  const table = page.getByRole("table", { name: "Recent app activity" });
   await expect(table.getByRole("row").filter({ hasText: member.username }).filter({ hasText: "Sign-in" })).toHaveCount(
     1
   );
@@ -97,8 +97,8 @@ Then("the Activity table lists a Sign-in row for that deleted member", async ({ 
 
 // ── Authentication and account events ─────────────────────────────────────────────────────────────────────────
 // Also uses "I sign out" (auth.steps.ts), "I sign in with my password" (mfa.steps.ts), "I navigate to the Identity
-// section" and "I change my username to a new one and save" (profile.steps.ts), "another completed instance member
-// exists" and "I promote the other instance member" (instance-users.steps.ts).
+// section" and "I change my username to a new one and save" (profile.steps.ts), "another completed app member
+// exists" and "I promote the other app member" (app-users.steps.ts).
 
 const ORIGINAL_IDENTITY_KEY = "activity:originalIdentity";
 const UNKNOWN_USERNAME_KEY = "activity:unknownUsername";
@@ -137,7 +137,7 @@ async function postToCredentialsCallback(page: Page, fields: Record<string, stri
 }
 
 async function expectActivityRow(page: Page, texts: string[]) {
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   // Rows are written after the response, so one can land just after the first load.
   await expect(async () => {
     await page.reload();
@@ -218,7 +218,7 @@ Then("the Activity table lists a Failed sign-in row for that unknown username", 
 });
 
 Then("the Activity table lists a Failed sign-in row with an unavailable affected account", async ({ page }) => {
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   await expect(async () => {
     await page.reload();
     const cells = table.getByRole("row").filter({ hasText: "Failed sign-in" }).first().getByRole("cell");
@@ -244,18 +244,18 @@ Then("the Activity table lists a Sign-out row for me", async ({ page, scenario }
   await expectActivityRow(page, [user.username, "Sign-out"]);
 });
 
-Then("the role change names me and the other instance member", async ({ scenario }) => {
+Then("the role change names me and the other app member", async ({ scenario }) => {
   const me = await scenario.ensureCurrentUser();
-  const member = scenario.getValue<ScenarioUserRecord>("instanceMember")!;
+  const member = scenario.getValue<ScenarioUserRecord>("appMember")!;
   const [row] = await activityRows(and(eq(activityEvents.actorId, me.id), eq(activityEvents.type, "role_changed")));
   expect(row).toMatchObject({ actorUsername: me.username, targetId: member.id, targetUsername: member.username });
 });
 
 Then(
-  "the Activity table lists a Changed role row for me affecting the other instance member",
+  "the Activity table lists a Changed role row for me affecting the other app member",
   async ({ page, scenario }) => {
     const me = await scenario.ensureCurrentUser();
-    const member = scenario.getValue<ScenarioUserRecord>("instanceMember")!;
+    const member = scenario.getValue<ScenarioUserRecord>("appMember")!;
     await expectActivityRow(page, [me.username, "Changed role", member.username]);
   }
 );
@@ -310,9 +310,9 @@ Then("the Activity table lists a Changed password row for me", async ({ page, sc
   await expectActivityRow(page, [user.username, "Changed password"]);
 });
 
-Given("another completed instance admin exists", async ({ scenario }) => {
+Given("another completed app admin exists", async ({ scenario }) => {
   const { user } = await scenario.materialize({ user: { overrides: { user: { role: "admin" } }, setCurrent: false } });
-  if (!user) throw new Error("Failed to create the other instance admin.");
+  if (!user) throw new Error("Failed to create the other app admin.");
   scenario.setValue(OTHER_ADMIN_KEY, user);
 });
 
@@ -337,7 +337,7 @@ Then("the deletion event keeps my original username and account ID", async ({ sc
   expect(remaining).toHaveLength(0);
 });
 
-When("the other instance admin opens the instance Activity page", async ({ page, scenario }) => {
+When("the other app admin opens the app Activity page", async ({ page, scenario }) => {
   const other = scenario.getValue<ScenarioUserRecord>(OTHER_ADMIN_KEY)!;
   await page.context().clearCookies();
   await scenario.signInAsUser(page, other.username);
@@ -408,7 +408,7 @@ Then("Activity lists one {string} row for that trip without its name", async ({ 
   const [event] = await activityRows(condition);
   expect(event).toMatchObject({ actorId: user.id, actorUsername: user.username, targetId: null, targetUsername: null });
   await expectActivityRow(page, [action, user.username, trip.id]);
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   await expect(table).not.toContainText(trip.name);
   await expect(table).not.toContainText("Private first itinerary detail");
   await expect(table).not.toContainText("Private second itinerary detail");
@@ -460,7 +460,7 @@ When("I add a private reservation for Activity", async ({ page, scenario }) => {
 });
 
 Then("Activity shows no expense amount or reservation provider", async ({ page }) => {
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   await expect(table).not.toContainText(PRIVATE_EXPENSE_AMOUNT);
   await expect(table).not.toContainText(PRIVATE_RESERVATION_PROVIDER);
 });
@@ -550,7 +550,7 @@ Then(
       expect(JSON.stringify(event)).not.toContain(invitee.username);
     }
     await expectActivityRow(page, [action, actor.username, trip.id]);
-    const table = page.getByRole("table", { name: "Recent instance activity" });
+    const table = page.getByRole("table", { name: "Recent app activity" });
     const row = table.getByRole("row").filter({ hasText: action }).filter({ hasText: trip.id });
     await expect(row.getByRole("cell").nth(3)).toHaveText("—");
     for (const privateValue of [trip.name, invitation.id, invitee.name, "Editor"]) {
@@ -568,7 +568,7 @@ Then("Activity has no other invitation transitions for that trip", async ({ page
   );
   expect(rows).toHaveLength(1);
   expect(rows[0].type).toBe("invitation_created");
-  const table = page.getByRole("table", { name: "Recent instance activity" });
+  const table = page.getByRole("table", { name: "Recent app activity" });
   await expect(table.getByRole("row").filter({ hasText: trip.id })).toHaveCount(1);
 });
 
@@ -594,7 +594,7 @@ const COLLECTED_KEY = "activity:collectedTripIds";
 const seedOf = (scenario: { getValue<T>(key: string): T | undefined }) =>
   scenario.getValue<ActivitySeedState>(SEED_KEY)!;
 
-const activityTable = (page: Page) => page.getByRole("table", { name: "Recent instance activity" });
+const activityTable = (page: Page) => page.getByRole("table", { name: "Recent app activity" });
 const activityResults = (page: Page) => page.getByRole("region", { name: "Activity results" });
 
 async function waitForActivityIdle(page: Page) {
@@ -981,7 +981,7 @@ Then("the stale notice is gone", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: "Could not load activity" })).toHaveCount(0);
 });
 
-When("my instance administrator role is removed", async ({ scenario }) => {
+When("my app administrator role is removed", async ({ scenario }) => {
   const user = await scenario.ensureCurrentUser();
   await withE2EDb((database) => database.update(users).set({ role: "member" }).where(eq(users.id, user.id)));
 });
@@ -1235,11 +1235,11 @@ async function filterOtherAdminToStableAccount(page: Page, scenario: ScenarioFix
   await waitForActivityIdle(session.page);
 }
 
-When("the other instance admin filters Activity to my stable account", async ({ page, scenario }) => {
+When("the other app admin filters Activity to my stable account", async ({ page, scenario }) => {
   await filterOtherAdminToStableAccount(page, scenario);
 });
 
-When("the other instance admin filters Activity to my stable account again", async ({ page, scenario }) => {
+When("the other app admin filters Activity to my stable account again", async ({ page, scenario }) => {
   await filterOtherAdminToStableAccount(page, scenario);
 });
 

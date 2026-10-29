@@ -18,7 +18,7 @@ const { signIn, signOut, auth, identityRows, db, bootstrapFirstAccount, recordAc
 
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 
-vi.mock("@/lib/instance-bootstrap", () => ({ bootstrapFirstAccount }));
+vi.mock("@/lib/app-bootstrap", () => ({ bootstrapFirstAccount }));
 
 vi.mock("@/auth", () => ({
   auth,
@@ -163,7 +163,7 @@ describe("auth actions", () => {
     await expect(setupAdminAction(undefined, signUpForm())).rejects.toThrow("db down");
   });
 
-  it("refuses sign-up once the instance is initialized", async () => {
+  it("refuses sign-up once the app is initialized", async () => {
     mockBootstrap(async () => ({ ok: false, reason: "closed" }));
 
     await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({

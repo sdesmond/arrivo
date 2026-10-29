@@ -10,7 +10,7 @@ import {
   type ActivityQuery,
 } from "@/data/types";
 import { BATCH_GAP_MS, BATCHED_TYPES } from "./activity-batches";
-import { isInstanceAdmin } from "./instance-roles";
+import { isAppAdmin } from "./app-roles";
 
 /** Takes a database handle (not the singleton) so tests can bind it to an isolated schema. */
 export type ActivityReadDatabase = Pick<typeof db, "select">;
@@ -58,7 +58,7 @@ export async function readActivityPage(
   query: ActivityQuery,
   now: Date = new Date()
 ): Promise<ActivityPageResult> {
-  if (!(await isInstanceAdmin(viewerId))) return { status: "forbidden" };
+  if (!(await isAppAdmin(viewerId))) return { status: "forbidden" };
 
   const actors = await readActors(database);
   const loadedAt = now.toISOString();

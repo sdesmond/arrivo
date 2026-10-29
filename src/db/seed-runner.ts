@@ -8,7 +8,7 @@ import {
   insertInvitations,
   insertShares,
   insertUsers,
-  markInstanceInitialized,
+  markAppInitialized,
 } from "./seed-inserts-accounts";
 import { insertTrip } from "./seed-inserts-trip";
 import type { SeedWorld } from "./seed-data/seed-types";
@@ -147,7 +147,7 @@ export async function seedDevDatabase(
 
     const usersByKey = await insertUsers(tx, world.users);
     if (world.users.some((seedUser) => seedUser.role === UserRole.Admin)) {
-      await markInstanceInitialized(tx, now);
+      await markAppInitialized(tx, now);
     }
 
     const tripIdsByKey = new Map<string, string>();

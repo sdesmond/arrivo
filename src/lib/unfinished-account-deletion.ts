@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { db } from "@/db";
 import { users } from "@/db/schema";
 import { UserRole, type DeleteUnfinishedAccountOutcome } from "@/data/types";
-import { lockInstanceAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
+import { lockAppAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
 
 export type UnfinishedAccountDeletionDatabase = Pick<typeof db, "transaction">;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,8 +28,8 @@ export async function deleteUnfinishedAccount(
   const userId = targetUserId.toLowerCase();
   try {
     return await database.transaction(async (transaction): Promise<DeleteUnfinishedAccountOutcome> => {
-      const scope = await lockInstanceAndUsersForUpdate(transaction, [actorId, userId]);
-      if (!scope.instanceLocked) return { ok: false, reason: "instance-unavailable" };
+      const scope = await lockAppAndUsersForUpdate(transaction, [actorId, userId]);
+      if (!scope.appLocked) return { ok: false, reason: "app-unavailable" };
       const accounts = (await transaction.execute(sql`select ${users.id} as "id", ${users.username} as "username",
         ${users.role} as "role", ${users.passwordHash} as "passwordHash" from ${users}
         where ${users.id} in (${actorId}, ${userId})`)) as unknown as {

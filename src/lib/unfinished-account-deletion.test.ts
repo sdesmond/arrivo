@@ -14,7 +14,7 @@ function fake(
     completed?: boolean;
     missing?: boolean;
     noActor?: boolean;
-    noInstance?: boolean;
+    noApp?: boolean;
     deleteCount?: number;
     error?: unknown;
   } = {}
@@ -26,7 +26,7 @@ function fake(
     const { sql: text, params } = dialect.sqlToQuery(query);
     queries.push(text);
     if (options.error) throw options.error;
-    if (text.includes("instance_state")) return options.noInstance ? [] : [{ id: true }];
+    if (text.includes("app_state")) return options.noApp ? [] : [{ id: true }];
     if (text.includes("for update")) {
       locks.push(params[0]);
       return [{ id: params[0] }];
@@ -65,7 +65,7 @@ function fake(
   };
 }
 describe("deleteUnfinishedAccount", () => {
-  it("deletes in one transaction after locking instance then sorted users", async () => {
+  it("deletes in one transaction after locking app then sorted users", async () => {
     const scope = fake();
     expect(await deleteUnfinishedAccount(scope.database, ADMIN.toUpperCase(), TARGET.toUpperCase())).toEqual({
       ok: true,
@@ -74,7 +74,7 @@ describe("deleteUnfinishedAccount", () => {
       actor: { id: ADMIN, username: "admin" },
     });
     expect(scope.transaction).toHaveBeenCalledOnce();
-    expect(scope.queries[0]).toContain("instance_state");
+    expect(scope.queries[0]).toContain("app_state");
     expect(scope.locks).toEqual([ADMIN, TARGET]);
     const deletes = scope.queries.filter((query) => query.startsWith("delete"));
     expect(deletes).toHaveLength(1);
@@ -86,7 +86,7 @@ describe("deleteUnfinishedAccount", () => {
     [{ noActor: true }, "forbidden"],
     [{ missing: true }, "changed-state"],
     [{ completed: true }, "changed-state"],
-    [{ noInstance: true }, "instance-unavailable"],
+    [{ noApp: true }, "app-unavailable"],
   ])("refuses current locked state %j without deleting", async (options, reason) => {
     const scope = fake(options);
     expect(await deleteUnfinishedAccount(scope.database, ADMIN, TARGET)).toEqual({ ok: false, reason });

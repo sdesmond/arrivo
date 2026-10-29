@@ -6,7 +6,7 @@ import {
   type ActivityRetentionReadResult,
   type ActivityRetentionCommitResult,
 } from "@/data/types";
-import { lockInstanceAndUsersForUpdate } from "./account-lifecycle-locks";
+import { lockAppAndUsersForUpdate } from "./account-lifecycle-locks";
 
 export type ActivityRetentionDatabase = Pick<typeof db, "execute" | "transaction">;
 
@@ -22,7 +22,7 @@ export async function readActivityRetention(
   const rows = await database.execute(sql`
     select state.activity_retention_days as days, statement_timestamp() as "checkedAt",
       exists(select 1 from activity_events where ended_at < statement_timestamp() - state.activity_retention_days * interval '1 day') as expired
-    from instance_state state
+    from app_state state
     where state.id = true and exists(select 1 from users where id = ${actorId} and role = 'admin' and password_hash is not null)
   `);
   const row = rows[0];
@@ -44,18 +44,17 @@ export async function saveActivityRetention(
 ): Promise<ActivityRetentionCommitResult> {
   if (!isRetentionDays(days) || !isRetentionDays(expectedDays)) return { status: "invalid" };
   return database.transaction(async (transaction): Promise<ActivityRetentionCommitResult> => {
-    const scope = await lockInstanceAndUsersForUpdate(transaction, [actorId]);
-    if (!scope.instanceLocked || !scope.lockedUserIds.has(actorId.toLowerCase())) return { status: "forbidden" };
+    const scope = await lockAppAndUsersForUpdate(transaction, [actorId]);
+    if (!scope.appLocked || !scope.lockedUserIds.has(actorId.toLowerCase())) return { status: "forbidden" };
     const rows = await transaction.execute(sql`
       select users.id, users.username, users.role, users.password_hash as "passwordHash", state.activity_retention_days as days
-      from users cross join instance_state state where users.id = ${actorId} and state.id = true
+      from users cross join app_state state where users.id = ${actorId} and state.id = true
     `);
     const actor = rows[0];
     if (!actor || actor.role !== "admin" || actor.passwordHash === null) return { status: "forbidden" };
     if (actor.days !== expectedDays) return { status: "stale" };
     const changed = days !== expectedDays;
-    if (changed)
-      await transaction.execute(sql`update instance_state set activity_retention_days = ${days} where id = true`);
+    if (changed) await transaction.execute(sql`update app_state set activity_retention_days = ${days} where id = true`);
     return { status: "ok", days, changed, actor: { id: actor.id as string, username: actor.username as string } };
   });
 }

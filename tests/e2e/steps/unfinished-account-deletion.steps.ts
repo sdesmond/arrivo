@@ -26,7 +26,7 @@ const clock = () => new Date("2026-10-28T12:00:00Z");
 const targetOf = (scenario: ScenarioFixtureContext) => scenario.getValue<DeletionTarget>("regenerationTarget")!;
 const targetRow = (page: Page, scenario: ScenarioFixtureContext) =>
   page
-    .getByRole("list", { name: "Instance users" })
+    .getByRole("list", { name: "App users" })
     .getByRole("listitem")
     .filter({ has: page.getByText(targetOf(scenario).username, { exact: true }) });
 const readEvents = (scenario: ScenarioFixtureContext) =>
@@ -47,7 +47,7 @@ When("I delete the unfinished account in Users", async ({ page, scenario }) => {
 });
 Then("the unfinished account is gone after refresh", async ({ page, scenario }) => {
   await page.reload();
-  await expect(page.getByRole("list", { name: "Instance users" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "App users" })).toBeVisible();
   await expect(targetRow(page, scenario)).toHaveCount(0);
   const accounts = await withE2EDb((database) =>
     database
@@ -105,7 +105,7 @@ Then("there is no deletion Activity for the target", async ({ scenario }) => {
   expect(await readEvents(scenario)).toHaveLength(0);
 });
 
-Given("an isolated deletion instance", async ({ scenario }) => {
+Given("an isolated deletion app", async ({ scenario }) => {
   const fixture = await createCredentialAuthorizationFixture((created) => scenario.setValue(FIXTURE_KEY, created));
   await fixture.seedUsers([
     { key: "admin", role: "admin", completed: true },

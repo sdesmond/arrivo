@@ -27,7 +27,7 @@ const baseUsers = (): FakeUser[] => [
 
 interface FakeOptions {
   users?: FakeUser[];
-  instanceMissing?: boolean;
+  appMissing?: boolean;
   onLockUser?: (users: FakeUser[], userId: string) => void;
   failInsertWith?: unknown;
   failLockWith?: unknown;
@@ -41,9 +41,9 @@ function createFake(options: FakeOptions = {}) {
   const transaction = {
     execute: async (query: SQL) => {
       const { sql: text, params } = dialect.sqlToQuery(query);
-      if (text.includes("instance_state")) {
+      if (text.includes("app_state")) {
         if (options.failLockWith) throw options.failLockWith;
-        return options.instanceMissing ? [] : [{ id: true }];
+        return options.appMissing ? [] : [{ id: true }];
       }
       if (text.startsWith("insert")) {
         if (options.failInsertWith) throw options.failInsertWith;
@@ -176,12 +176,12 @@ describe("addUser", () => {
     expect(names(users)).not.toContain("newbie");
   });
 
-  it("reports a missing singleton as instance-unavailable", async () => {
-    const { database } = createFake({ instanceMissing: true });
+  it("reports a missing singleton as app-unavailable", async () => {
+    const { database } = createFake({ appMissing: true });
 
     await expect(addUser(database, ADMIN, { username: "newbie" })).resolves.toEqual({
       ok: false,
-      reason: AddUserFailure.InstanceUnavailable,
+      reason: AddUserFailure.AppUnavailable,
     });
   });
 
@@ -220,7 +220,7 @@ describe("addUser", () => {
 
   it.each([
     ["forbidden", AddUserFailure.Forbidden],
-    ["instance-unavailable", AddUserFailure.InstanceUnavailable],
+    ["app-unavailable", AddUserFailure.AppUnavailable],
     ["retry", AddUserFailure.Retry],
   ])("rolls the account back when issuance refuses with %s", async (reason, expected) => {
     issue.mockResolvedValue({ ok: false, reason });

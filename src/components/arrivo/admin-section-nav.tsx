@@ -17,7 +17,7 @@ export function AdminSectionNav({ children }: AdminSectionNavProps) {
   const pathname = usePathname();
   return (
     <div className="flex w-full flex-col sm:flex-row sm:items-start sm:gap-8">
-      <nav aria-label="Instance sections" className="flex sm:w-40 sm:shrink-0 sm:flex-col">
+      <nav aria-label="App sections" className="flex sm:w-40 sm:shrink-0 sm:flex-col">
         {SECTIONS.map(({ href, label }) => {
           const current = pathname === href;
           return (

@@ -10,12 +10,12 @@ const SIGN_UP_USERNAME_KEY = "signUpUsername";
 // Sign-up requires 8+ characters, longer than the seeded E2E_PASSWORD.
 const SIGN_UP_PASSWORD = "sign-up-password";
 
-Given("the instance has not been set up yet", async ({ scenario }) => {
-  await scenario.setInstanceState("fresh");
+Given("the app has not been set up yet", async ({ scenario }) => {
+  await scenario.setAppState("fresh");
 });
 
-Given("the instance is already set up", async ({ scenario }) => {
-  await scenario.setInstanceState("initialized");
+Given("the app is already set up", async ({ scenario }) => {
+  await scenario.setAppState("initialized");
 });
 
 Given("I am on the admin setup page", async ({ page, scenario }) => {
@@ -77,7 +77,7 @@ Then("no account was created for that username", async ({ scenario }) => {
   expect(await findUser(username)).toBeUndefined();
 });
 
-Then("my new account is the instance admin", async ({ scenario }) => {
+Then("my new account is the app admin", async ({ scenario }) => {
   const username = scenario.getValue<string>(SIGN_UP_USERNAME_KEY)!;
   expect((await findUser(username))?.role).toBe(UserRole.Admin);
 });

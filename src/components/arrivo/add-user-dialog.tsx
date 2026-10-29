@@ -93,7 +93,7 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
                 ? outcome.message
                 : "Couldn't create the account. Try again."
         );
-        if (outcome.reason === AddUserFailure.Forbidden || outcome.reason === AddUserFailure.InstanceUnavailable)
+        if (outcome.reason === AddUserFailure.Forbidden || outcome.reason === AddUserFailure.AppUnavailable)
           router.refresh();
         return;
       }

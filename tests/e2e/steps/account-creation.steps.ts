@@ -30,7 +30,7 @@ After(async ({ scenario }) => {
   await scenario.getValue<CredentialAuthorizationFixture>(FIXTURE_KEY)?.close();
 });
 
-Given("an isolated account creation instance", async ({ scenario }) => {
+Given("an isolated account creation app", async ({ scenario }) => {
   const fixture = await createCredentialAuthorizationFixture((created) => scenario.setValue(FIXTURE_KEY, created));
   await fixture.seedUsers([
     { key: "admin", role: "admin", completed: true },

@@ -2,14 +2,14 @@ import "server-only";
 import { asc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { credentialAuthorizations, users } from "@/db/schema";
-import { CredentialAuthorizationPurpose, UserRole, type InstanceUserSummary } from "@/data/types";
+import { CredentialAuthorizationPurpose, UserRole, type AppUserSummary } from "@/data/types";
 
-type InstanceUserRow = Omit<InstanceUserSummary, "isLastCompletedAdmin" | "role" | "setupExpiresAt"> & {
+type AppUserRow = Omit<AppUserSummary, "isLastCompletedAdmin" | "role" | "setupExpiresAt"> & {
   role: string;
   setupExpiresAt?: Date | string | null;
 };
 
-export function toInstanceUserSummaries(rows: InstanceUserRow[]): InstanceUserSummary[] {
+export function toAppUserSummaries(rows: AppUserRow[]): AppUserSummary[] {
   const completedAdmins = rows.filter((user) => user.role === UserRole.Admin && user.setupComplete);
   return [...rows]
     .sort((left, right) => left.username.localeCompare(right.username))
@@ -25,7 +25,7 @@ export function toInstanceUserSummaries(rows: InstanceUserRow[]): InstanceUserSu
     }));
 }
 
-export async function listInstanceUsers(): Promise<InstanceUserSummary[]> {
+export async function listAppUsers(): Promise<AppUserSummary[]> {
   const rows = await db
     .select({
       id: users.id,
@@ -44,5 +44,5 @@ export async function listInstanceUsers(): Promise<InstanceUserSummary[]> {
     })
     .from(users)
     .orderBy(asc(users.username));
-  return toInstanceUserSummaries(rows);
+  return toAppUserSummaries(rows);
 }

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { isInstanceSetupOpen } from "@/lib/instance-setup";
+import { isAppSetupOpen } from "@/lib/app-setup";
 import { SignInForm } from "@/components/arrivo/auth-forms";
 import { signInAction, verifyMfaAction } from "../actions";
 
@@ -10,7 +10,7 @@ interface SignInPageProps {
 export const dynamic = "force-dynamic";
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
-  if (await isInstanceSetupOpen()) return redirect("/setup");
+  if (await isAppSetupOpen()) return redirect("/setup");
   const { notice } = await searchParams;
   return (
     <>

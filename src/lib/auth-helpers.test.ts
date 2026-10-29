@@ -80,7 +80,7 @@ describe("assertTripAccess", () => {
     expect(mockNotFound).toHaveBeenCalled();
   });
 
-  it("does not grant private trip access through instance admin authority", async () => {
+  it("does not grant private trip access through app admin authority", async () => {
     auth.mockResolvedValue({ user: { id: "admin-1", role: "admin" } });
     mockCollaboratorRole(undefined);
     await expect(assertTripAccess("private-trip", "admin-1")).rejects.toThrow("NEXT_NOT_FOUND");

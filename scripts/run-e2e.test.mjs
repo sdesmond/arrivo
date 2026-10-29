@@ -159,7 +159,7 @@ describe("runner integration", async () => {
     const ports = [];
     const commands = [];
     const ensureDatabase = vi.fn(async () => undefined);
-    await main(["--grep=@feat:auth|@feat:instance-bootstrap"], {
+    await main(["--grep=@feat:auth|@feat:app-bootstrap"], {
       prepareServer: ({ port }) => {
         ports.push(port);
       },
@@ -177,7 +177,7 @@ describe("runner integration", async () => {
       ["db:migrate:e2e", "/arrivo_e2e_bootstrap"],
     ]);
     expect(commands[4].args).toEqual(["bddgen"]);
-    expect(commands[5].args).toEqual(["playwright", "test", "--grep", "@feat:auth|@feat:instance-bootstrap"]);
+    expect(commands[5].args).toEqual(["playwright", "test", "--grep", "@feat:auth|@feat:app-bootstrap"]);
     expect(process.env.E2E_DATABASE_URL).toBe("postgres://host/arrivo_e2e");
   });
   it("rejects port collisions before preparing servers or databases", async () => {
