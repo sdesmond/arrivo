@@ -59,10 +59,14 @@ Given("a regeneration target with a {string} setup link", async ({ page, scenari
   if (!issued.ok) throw new Error(issued.reason);
   scenario.setValue<RegenerationTarget>(TARGET_KEY, { ...user, oldToken: issued.token, oldExpiry: issued.expiresAt });
   if (state === "pending") {
-    const context = await scenario.openSecondSession(page);
-    scenario.setValue("regenerationOldSetupPage", context.page);
-    await context.page.goto(new URL(`/account-setup/open?token=${issued.token}`, page.url()).toString());
-    await expect(context.page.getByRole("dialog", { name: "Set up your account" })).toBeVisible();
+    const browserContext = await page
+      .context()
+      .browser()!
+      .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
+    const setupPage = await browserContext.newPage();
+    scenario.setValue("regenerationOldSetupPage", setupPage);
+    await setupPage.goto(new URL(`/account-setup/open?token=${issued.token}`, page.url()).toString());
+    await expect(setupPage.getByRole("dialog", { name: "Set up your account" })).toBeVisible();
   }
 });
 Then("the regeneration row shows {string}", async ({ page, scenario }, label: string) => {
@@ -134,7 +138,7 @@ Then("the prior setup link is rejected and the replacement opens setup", async (
   const context = await page
     .context()
     .browser()!
-    .newContext({ baseURL: new URL(page.url()).origin });
+    .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
