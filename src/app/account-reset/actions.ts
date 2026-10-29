@@ -38,7 +38,7 @@ export async function completePasswordResetAction(
   const error = validateNewPassword(password, confirmation);
   if (error) return { error, field: failedPasswordField(password) };
   const token = (await cookies()).get(PASSWORD_RESET_COOKIE)?.value;
-  const context = await resolvePasswordResetContext(token, { headers: await headers(), countAttempt: true });
+  const context = await resolvePasswordResetContext(token, { headers: await headers(), attempt: "submit" });
   if (!token || context.status !== "ready") return unavailable();
   const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   const outcome = await completePasswordReset(db, { token, passwordHash });

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { db } from "@/db";
 import {
   CredentialAuthorizationPurpose,
@@ -51,8 +52,8 @@ interface ResolveOptions {
   headers: Headers;
   database?: CredentialAuthorizationDatabase;
   clock?: CredentialSecurityClock;
-  /** True only for a link exchange: a valid exchange spends the account's budget, a page view does not. */
-  countAttempt?: boolean;
+  /** Page views do not spend a budget; exchanges and submissions have separate budgets per link. */
+  attempt?: "exchange" | "submit";
 }
 
 // Separate key from sign-in's `ip:` so spraying reset tokens cannot lock the same address out of signing in.
@@ -68,7 +69,7 @@ function ipTargets(headers: Headers): ThrottleTarget[] {
  */
 export async function resolvePasswordResetContext(
   token: string | undefined,
-  { headers, database = db, clock = realClock, countAttempt = false }: ResolveOptions
+  { headers, database = db, clock = realClock, attempt }: ResolveOptions
 ): Promise<PasswordResetContext> {
   if (!token) return UNAVAILABLE;
 
@@ -85,8 +86,11 @@ export async function resolvePasswordResetContext(
     return UNAVAILABLE;
   }
 
-  const target = accountTarget("reset", validated.account.userId);
-  if ((await checkThrottle([target], clock())).locked) return UNAVAILABLE;
-  if (countAttempt) await recordFailure([target], clock());
+  if (attempt) {
+    const digest = createHash("sha256").update(token).digest("hex");
+    const target = { ...accountTarget("reset", digest), key: `reset-${attempt}:${digest}` };
+    if ((await checkThrottle([target], clock())).locked) return UNAVAILABLE;
+    await recordFailure([target], clock());
+  }
   return { status: "ready", account: validated.account };
 }

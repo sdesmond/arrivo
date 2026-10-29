@@ -88,9 +88,22 @@ describe("resolvePasswordResetContext", () => {
     expect(recordFailure).not.toHaveBeenCalled();
   });
 
-  it("counts a valid exchange against the account", async () => {
-    await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, countAttempt: true });
-    expect(recordFailure).toHaveBeenCalledWith([expect.objectContaining({ key: "reset:user-1" })], NOW);
+  it("uses distinct budgets for each token and attempt type", async () => {
+    await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "exchange" });
+    const exchangeKey = recordFailure.mock.calls[0][0][0].key;
+    expect(exchangeKey).toMatch(/^reset-exchange:[a-f0-9]{64}$/);
+    await resolvePasswordResetContext("b".repeat(43), { headers: headers(), clock, attempt: "exchange" });
+    expect(recordFailure.mock.calls[1][0][0].key).not.toBe(exchangeKey);
+    await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "submit" });
+    expect(recordFailure.mock.calls[2][0][0].key).not.toBe(exchangeKey);
+  });
+
+  it("allows a page view after the exchange budget locks", async () => {
+    checkThrottle.mockResolvedValueOnce({ locked: false }).mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock })).toEqual({
+      status: "ready",
+      account,
+    });
   });
 
   it("counts an invalid token against the client IP and shows the generic result", async () => {
@@ -127,7 +140,7 @@ describe("resolvePasswordResetContext", () => {
     checkThrottle
       .mockResolvedValueOnce({ locked: false })
       .mockResolvedValueOnce({ locked: true, retryAfterSeconds: 9 });
-    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, countAttempt: true })).toEqual({
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "exchange" })).toEqual({
       status: "unavailable",
     });
     expect(recordFailure).not.toHaveBeenCalled();

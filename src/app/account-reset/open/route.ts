@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     "Referrer-Policy": "no-referrer",
   });
 
-  const context = await resolvePasswordResetContext(token, { headers: request.headers, countAttempt: true });
+  const context = await resolvePasswordResetContext(token, { headers: request.headers, attempt: "exchange" });
   headers.append(
     "Set-Cookie",
     context.status === "ready" && token

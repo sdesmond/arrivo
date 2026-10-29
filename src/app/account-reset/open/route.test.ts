@@ -54,7 +54,7 @@ describe("GET /account-reset/open", () => {
     await exchange(undefined, { "x-forwarded-for": "203.0.113.9" });
     expect(resolvePasswordResetContext).toHaveBeenCalledWith(TOKEN, {
       headers: expect.any(Headers),
-      countAttempt: true,
+      attempt: "exchange",
     });
   });
 
