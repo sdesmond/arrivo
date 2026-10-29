@@ -3,7 +3,7 @@ title: "Setup-only context tracer"
 type: feature
 ticket: 2
 created: "2026-10-27"
-status: in-progress
+status: done
 baseline_revision: "97fbaa06ee959b2f0a2fa51e4f6c83a2a9f01c28"
 route: full
 route_source: auto

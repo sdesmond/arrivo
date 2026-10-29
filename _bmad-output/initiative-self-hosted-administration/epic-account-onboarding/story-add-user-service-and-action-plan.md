@@ -3,7 +3,7 @@ title: "Add User service and action"
 type: feature
 ticket: 3
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "bfe444073841577153f59af914bffd368c67ffea"
 route: full
 route_source: auto

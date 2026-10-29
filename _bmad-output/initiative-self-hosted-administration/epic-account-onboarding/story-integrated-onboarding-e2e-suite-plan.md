@@ -3,7 +3,7 @@ title: "Integrated onboarding E2E suite"
 type: "chore"
 ticket: "10"
 created: "2026-10-28"
-status: "built"
+status: done
 baseline_revision: "1d384bf526db92099ebe1a997bced75343c04a17"
 route: "full"
 route_source: "auto"

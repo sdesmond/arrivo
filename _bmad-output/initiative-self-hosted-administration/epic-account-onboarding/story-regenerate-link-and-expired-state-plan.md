@@ -3,7 +3,7 @@ title: "Regenerate link and expired state"
 type: feature
 ticket: 6
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "7cc640191f97457239d872b19d64d0f99a7001b3"
 route: full
 route_source: auto

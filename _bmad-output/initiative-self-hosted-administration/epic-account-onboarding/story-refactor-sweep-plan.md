@@ -3,7 +3,7 @@ title: "Onboarding refactor sweep"
 type: "refactor"
 ticket: "9"
 created: "2026-10-28"
-status: "built"
+status: done
 baseline_revision: "a2f79ac5e4d1fbf70a5d53f7d8f16b81e0a40790"
 route: "oneshot"
 route_source: "auto"

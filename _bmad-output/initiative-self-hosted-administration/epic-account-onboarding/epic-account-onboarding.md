@@ -6,6 +6,7 @@ covers: [CAP-2, CAP-3]
 after: []
 assignee: ""
 risk: high
+status: done
 ---
 
 # Account onboarding
