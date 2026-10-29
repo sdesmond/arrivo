@@ -14,23 +14,14 @@ import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import {
-  AccountDeletionFailure,
-  ActivityEventType,
-  CoverType,
-  LiveSyncEventType,
-  SignInNotice,
-  TransitMode,
-} from "@/data/types";
+import { AccountDeletionFailure, ActivityEventType, CoverType, SignInNotice, TransitMode } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
 import { deleteOwnAccount } from "@/lib/account-deletion";
-import { publishInvitationChanged } from "@/lib/invitations";
+import { runAccountDeletionEffects } from "@/lib/account-deletion-effects";
 import { isUniqueViolation } from "@/lib/error-utils";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { normalizeUsername, validateUsername } from "@/lib/username";
-import { getStorageAdapter } from "@/lib/storage/storage-adapter";
-import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
 import { lockCurrentSecurityVersion } from "@/lib/session-version";
@@ -389,39 +380,11 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
       ? staleResult
       : { status: "error", message: LAST_ADMIN_MESSAGE };
   }
-  const deletion = result.summary;
-  // Committed. Recorded before cleanup, which can fail or be interrupted; no logout event for the implied sign-out.
-  recordActivity({ type: ActivityEventType.AccountDeleted, actor: deletion.account });
-
-  for (const invitation of deletion.rescindedInvitations) {
-    publishInvitationChanged(invitation.inviteeId, invitation.tripId);
-  }
-  for (const tripId of deletion.deletedTripIds) {
-    publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
-  }
-  // Members watching their dashboard only hold their personal channel, mirroring deleteTrip.
-  for (const member of deletion.deletedTripMembers) {
-    publishUserEvent(member.userId, { type: LiveSyncEventType.TripDeleted, tripId: member.tripId });
-  }
-  for (const tripId of deletion.deletedTripIds) {
-    purgeTripTopic(tripId);
-  }
-  for (const tripId of new Set(deletion.remainingTripIds)) {
-    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  }
-  // The new owner's role changed; their other sessions only listen on their personal channel.
-  for (const [tripId, heirUserId] of deletion.transferredTrips) {
-    publishUserEvent(heirUserId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  }
-
-  // Best-effort: a file that won't delete must not undo or block the account deletion.
-  await Promise.all(
-    deletion.storageUrls.map((url) =>
-      getStorageAdapter()
-        .del(url)
-        .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-    )
-  );
+  // Committed. Effects run before sign-out, whose redirect ends this action; no logout event for the implied sign-out.
+  await runAccountDeletionEffects(result.summary, {
+    type: ActivityEventType.AccountDeleted,
+    actor: result.summary.account,
+  });
 
   revalidatePath("/trips");
   await signOut({ redirectTo: "/sign-in" });

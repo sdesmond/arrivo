@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserRole, type AppUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
-import { DeleteUnfinishedAccountDialog } from "./delete-unfinished-account-dialog";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 import { RegenerateSetupLinkDialog } from "./regenerate-setup-link-dialog";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 
@@ -41,8 +41,15 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
   const router = useRouter();
   const now = useNow();
   const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
+  // A deleted row takes its Delete button with it, so focus lands on the list rather than on the page body.
+  const listRef = useRef<HTMLUListElement>(null);
   return (
-    <ul aria-label="App users" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <ul
+      ref={listRef}
+      tabIndex={-1}
+      aria-label="App users"
+      className="mt-4 grid grid-cols-1 gap-3 outline-none sm:grid-cols-2 xl:grid-cols-3"
+    >
       {users.map((user) => {
         const action = user.role === UserRole.Admin ? "Remove admin" : "Make admin";
         const button = (
@@ -69,12 +76,7 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 {user.role === UserRole.Admin ? "Admin" : "Member"} · <SetupStatus user={user} now={now} />
               </p>
             </div>
-            {!user.setupComplete && (
-              <>
-                <RegenerateSetupLinkDialog userId={user.id} username={user.username} />
-                <DeleteUnfinishedAccountDialog userId={user.id} username={user.username} />
-              </>
-            )}
+            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
             {user.setupComplete && user.id !== currentUserId && (
               <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
@@ -110,6 +112,13 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 </ChangeRoleDialog>
               )
             )}
+            <DeleteAccountDialog
+              userId={user.id}
+              username={user.username}
+              setupComplete={user.setupComplete}
+              isCurrentUser={user.id === currentUserId}
+              getFocusTargetAfterDelete={() => listRef.current}
+            />
           </li>
         );
       })}

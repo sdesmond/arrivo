@@ -36,6 +36,13 @@ describe("activity labels", () => {
       action: "Deleted unfinished account",
     });
   });
+  it("labels admin and self-service account deletion separately", () => {
+    expect(EVENT_LABELS[ActivityEventType.AccountDeleted].action).toBe("Deleted own account");
+    expect(EVENT_LABELS[ActivityEventType.AccountDeletedByAdmin]).toEqual({
+      type: "Accounts",
+      action: "Deleted account",
+    });
+  });
   it("labels every event type", () => {
     for (const type of Object.values(ActivityEventType)) {
       expect(EVENT_LABELS[type].action).not.toBe("");

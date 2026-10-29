@@ -7,7 +7,9 @@ import {
   AddUserFailure,
   type AddUserResult,
   type ChangeUserRoleResult,
-  type DeleteUnfinishedAccountResult,
+  AdminDeletionFailure,
+  type AdminDeletionPreviewResult,
+  type DeleteAccountAsAdminResult,
   type UserRole,
   type RegenerateSetupLinkResult,
   type SetupLinkTargetState,
@@ -21,7 +23,9 @@ import { trustedLinkOrigin } from "@/lib/request-origin";
 import { listAppUsers } from "@/lib/app-users";
 import { normalizeUsername } from "@/lib/username";
 import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
-import { deleteUnfinishedAccount } from "@/lib/unfinished-account-deletion";
+import { deleteAccountAsAdmin, previewAccountDeletionAsAdmin } from "@/lib/account-deletion";
+import { runAccountDeletionEffects } from "@/lib/account-deletion-effects";
+import { signOut } from "@/auth";
 import { issuePasswordReset } from "@/lib/password-reset-issuance";
 
 export async function issuePasswordResetAction(targetUserId: string): Promise<PasswordResetLinkResult> {
@@ -79,21 +83,59 @@ export async function regenerateSetupLinkAction(targetUserId: string): Promise<R
   };
 }
 
-export async function deleteUnfinishedAccountAction(targetUserId: string): Promise<DeleteUnfinishedAccountResult> {
+// A refusal that says the list is out of date: show Users as it now is.
+const REFRESHES_USERS: ReadonlySet<AdminDeletionFailure> = new Set([
+  AdminDeletionFailure.Forbidden,
+  AdminDeletionFailure.Changed,
+  AdminDeletionFailure.LastAdmin,
+]);
+
+export async function previewAccountDeletionAction(targetUserId: string): Promise<AdminDeletionPreviewResult> {
   const user = await requireAdmin();
-  const outcome = await deleteUnfinishedAccount(db, user.id!, targetUserId);
+  if (typeof targetUserId !== "string") return { ok: false, reason: AdminDeletionFailure.Changed };
+  const result = await previewAccountDeletionAsAdmin(
+    db,
+    { id: user.id!, sessionVersion: user.sessionVersion },
+    targetUserId
+  );
+  if (!result.ok && REFRESHES_USERS.has(result.reason)) revalidatePath("/admin/users");
+  return result;
+}
+
+/**
+ * Deletes a pending or completed account the admin reviewed. `fingerprint` is the opaque value from the preview; the
+ * service recomputes it under locks, so anything that moved since review comes back as a new preview instead. Only a
+ * committed deletion produces Activity, notifications and file cleanup, and none of their failures can undo it.
+ */
+export async function deleteAccountAction(
+  targetUserId: string,
+  fingerprint: string
+): Promise<DeleteAccountAsAdminResult> {
+  const user = await requireAdmin();
+  if (typeof targetUserId !== "string" || typeof fingerprint !== "string") {
+    return { ok: false, reason: AdminDeletionFailure.Changed };
+  }
+  const outcome = await deleteAccountAsAdmin(
+    db,
+    { id: user.id!, sessionVersion: user.sessionVersion },
+    targetUserId,
+    fingerprint
+  );
   if (!outcome.ok) {
-    // A stale list is the usual cause: refresh so a gone or completed row is shown as it is.
-    if (outcome.reason === "changed-state" || outcome.reason === "forbidden") revalidatePath("/admin/users");
+    if (REFRESHES_USERS.has(outcome.reason) && !outcome.preview) revalidatePath("/admin/users");
     return outcome;
   }
   revalidatePath("/admin/users");
-  recordActivity({
-    type: ActivityEventType.PendingAccountDeleted,
+  const { account } = outcome.summary;
+  // Identities only: what happened to the account's trips stays out of Activity.
+  await runAccountDeletionEffects(outcome.summary, {
+    type: outcome.setupComplete ? ActivityEventType.AccountDeletedByAdmin : ActivityEventType.PendingAccountDeleted,
     actor: outcome.actor,
-    target: { id: outcome.userId, username: outcome.username },
+    target: account,
   });
-  return { ok: true, userId: outcome.userId, username: outcome.username };
+  // An admin who deleted their own account has no session left; the redirect ends this action.
+  if (account.id === user.id) await signOut({ redirectTo: "/sign-in" });
+  return { ok: true, userId: account.id, username: account.username };
 }
 
 export async function checkAddedUserAction(username: string): Promise<boolean> {

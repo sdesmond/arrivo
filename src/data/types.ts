@@ -113,6 +113,8 @@ export const ActivityEventType = {
   PasswordResetLinkGenerated: "password_reset_link_generated",
   PasswordResetCompleted: "password_reset_completed",
   AccountDeleted: "account_deleted",
+  /** The actor is the admin; the target is the deleted completed account. Identities only, no trip detail. */
+  AccountDeletedByAdmin: "account_deleted_by_admin",
   TripCreated: "trip_created",
   /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
   TripUpdated: "trip_updated",
@@ -262,20 +264,6 @@ export type PasswordResetLinkResult =
   | { ok: true; userId: string; username: string; resetUrl: string; expiresAt: string }
   | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
 export type PasswordResetActionState = { error: string; field: "password" | "confirmPassword" } | undefined;
-export const DeleteUnfinishedAccountFailure = {
-  Forbidden: "forbidden",
-  ChangedState: "changed-state",
-  AppUnavailable: "app-unavailable",
-  Retry: "retry",
-} as const;
-export type DeleteUnfinishedAccountFailure =
-  (typeof DeleteUnfinishedAccountFailure)[keyof typeof DeleteUnfinishedAccountFailure];
-export type DeleteUnfinishedAccountResult =
-  | { ok: true; userId: string; username: string }
-  | { ok: false; reason: DeleteUnfinishedAccountFailure };
-export type DeleteUnfinishedAccountOutcome =
-  | { ok: true; userId: string; username: string; actor: ActivityIdentity }
-  | { ok: false; reason: DeleteUnfinishedAccountFailure };
 export interface SetupLinkTargetState {
   userId: string;
   state: "unfinished" | "completed" | "missing";
@@ -908,6 +896,41 @@ export type DeleteOwnAccountResult =
 
 // `stale` means the shared trips changed after the dialog loaded; the client refreshes and asks again.
 export type DeleteAccountResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
+
+export const AdminDeletionFailure = {
+  Forbidden: "forbidden",
+  Changed: "changed",
+  LastAdmin: "last-admin",
+  AppUnavailable: "app-unavailable",
+  Retry: "retry",
+} as const;
+export type AdminDeletionFailure = (typeof AdminDeletionFailure)[keyof typeof AdminDeletionFailure];
+
+/**
+ * What an admin sees before deleting an account: aggregate trip outcomes only. The fingerprint is a keyed digest of the
+ * exact outcomes (trip IDs and successors included), so it proves a review without disclosing any of them.
+ */
+export interface AdminDeletionPreview {
+  userId: string;
+  username: string;
+  setupComplete: boolean;
+  transferredTripCount: number;
+  deletedTripCount: number;
+  fingerprint: string;
+}
+
+export type AdminDeletionPreviewResult =
+  | { ok: true; preview: AdminDeletionPreview }
+  | { ok: false; reason: AdminDeletionFailure };
+
+/** `preview` accompanies `changed` when the outcomes moved since review: the admin must confirm the new one. */
+export type AdminDeletionFailureResult = { ok: false; reason: AdminDeletionFailure; preview?: AdminDeletionPreview };
+
+export type AdminDeletionOutcome =
+  | { ok: true; summary: DeletedAccountSummary; actor: ActivityIdentity; setupComplete: boolean }
+  | AdminDeletionFailureResult;
+
+export type DeleteAccountAsAdminResult = { ok: true; userId: string; username: string } | AdminDeletionFailureResult;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP
