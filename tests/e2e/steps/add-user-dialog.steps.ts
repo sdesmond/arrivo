@@ -55,7 +55,7 @@ Then("the added account persists as pending after reload", async ({ page, scenar
   await rememberAddedAccount(scenario);
   await page.reload();
   const row = page
-    .getByRole("list", { name: "Instance users" })
+    .getByRole("list", { name: "App users" })
     .getByRole("listitem")
     .filter({ has: page.getByText(scenario.getValue<string>("addedUsername")!, { exact: true }) });
   await expect(row).toHaveCount(1);

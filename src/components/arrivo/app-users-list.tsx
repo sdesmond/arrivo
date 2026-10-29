@@ -6,18 +6,18 @@ import { toast } from "sonner";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { UserRole, type InstanceUserSummary } from "@/data/types";
+import { UserRole, type AppUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
 import { DeleteUnfinishedAccountDialog } from "./delete-unfinished-account-dialog";
 import { RegenerateSetupLinkDialog } from "./regenerate-setup-link-dialog";
 
-interface InstanceUsersListProps {
-  users: InstanceUserSummary[];
+interface AppUsersListProps {
+  users: AppUserSummary[];
   currentUserId: string;
 }
 
 interface SetupStatusProps {
-  user: InstanceUserSummary;
+  user: AppUserSummary;
   now: Date;
 }
 
@@ -36,12 +36,12 @@ function SetupStatus({ user, now }: SetupStatusProps) {
   );
 }
 
-export function InstanceUsersList({ users, currentUserId }: InstanceUsersListProps) {
+export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
   const router = useRouter();
   const now = useNow();
   const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
   return (
-    <ul aria-label="Instance users" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <ul aria-label="App users" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {users.map((user) => {
         const action = user.role === UserRole.Admin ? "Remove admin" : "Make admin";
         const button = (

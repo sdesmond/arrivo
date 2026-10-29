@@ -36,21 +36,21 @@ After(async ({ scenario }) => {
   await scenario.getValue<RoleServiceFixture>(FIXTURE_KEY)?.close();
 });
 
-Given("an isolated instance with a completed admin and a completed member", async ({ scenario }) => {
+Given("an isolated app with a completed admin and a completed member", async ({ scenario }) => {
   await startFixture(scenario, [
     { key: "admin", role: UserRole.Admin, completed: true },
     { key: "member", role: UserRole.Member, completed: true },
   ]);
 });
 
-Given("an isolated instance with two completed admins", async ({ scenario }) => {
+Given("an isolated app with two completed admins", async ({ scenario }) => {
   await startFixture(scenario, [
     { key: "first", role: UserRole.Admin, completed: true },
     { key: "second", role: UserRole.Admin, completed: true },
   ]);
 });
 
-Given("an isolated instance with two completed admins and a completed member", async ({ scenario }) => {
+Given("an isolated app with two completed admins and a completed member", async ({ scenario }) => {
   await startFixture(scenario, [
     { key: "first", role: UserRole.Admin, completed: true },
     { key: "second", role: UserRole.Admin, completed: true },
@@ -58,14 +58,14 @@ Given("an isolated instance with two completed admins and a completed member", a
   ]);
 });
 
-Given("an isolated instance with one completed admin and one unfinished admin", async ({ scenario }) => {
+Given("an isolated app with one completed admin and one unfinished admin", async ({ scenario }) => {
   await startFixture(scenario, [
     { key: "admin", role: UserRole.Admin, completed: true },
     { key: "unfinished", role: UserRole.Admin, completed: false },
   ]);
 });
 
-Given("an isolated instance with a completed admin and an unfinished member", async ({ scenario }) => {
+Given("an isolated app with a completed admin and an unfinished member", async ({ scenario }) => {
   await startFixture(scenario, [
     { key: "admin", role: UserRole.Admin, completed: true },
     { key: "unfinished", role: UserRole.Member, completed: false },

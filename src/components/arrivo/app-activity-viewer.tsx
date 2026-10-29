@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import type { ActivityLoadResult, ActivityPage, ActivityQuery } from "@/data/types";
 import { formatInstant } from "@/lib/activity-dates";
 import { ActivityFilters, hasActivityFilters } from "./activity-filters";
-import { InstanceActivity } from "./instance-activity";
+import { AppActivity } from "./app-activity";
 
-export interface InstanceActivityViewerProps {
+export interface AppActivityViewerProps {
   initialQuery: ActivityQuery;
   initialPage: ActivityPage;
 }
@@ -37,7 +37,7 @@ function withoutCursor(query: ActivityQuery): ActivityQuery {
   return next;
 }
 
-export function InstanceActivityViewer({ initialQuery, initialPage }: InstanceActivityViewerProps) {
+export function AppActivityViewer({ initialQuery, initialPage }: AppActivityViewerProps) {
   const timeZone = useSyncExternalStore(subscribeToZone, readBrowserZone, readServerZone);
   const [view, setView] = useState<View>({ kind: "page", query: initialQuery, page: initialPage });
   const [requested, setRequested] = useState<ActivityQuery>(initialQuery);
@@ -148,7 +148,7 @@ export function InstanceActivityViewer({ initialQuery, initialPage }: InstanceAc
             {filtered ? "No activity matches these filters." : "No activity recorded yet."}
           </p>
         ) : (
-          <InstanceActivity events={page.events} timeZone={timeZone} />
+          <AppActivity events={page.events} timeZone={timeZone} />
         )}
       </div>
       {loading ? null : (

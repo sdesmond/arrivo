@@ -4,7 +4,7 @@ import { SyncStatusIndicator } from "@/components/arrivo/sync-status-indicator";
 import { ContributorRevocationModal } from "@/components/arrivo/contributor-revocation-modal";
 import { InvitationLiveRefresh } from "@/components/arrivo/invitation-live-refresh";
 import { MapboxTokenProvider } from "@/components/providers/mapbox-token-provider";
-import { isInstanceAdmin } from "@/lib/instance-roles";
+import { isAppAdmin } from "@/lib/app-roles";
 import { requireUser } from "@/lib/auth-helpers";
 import { getBrowserMapboxToken } from "@/lib/map-helpers";
 import { getUserById } from "@/lib/queries";
@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [user, pendingInvitations, isAdmin] = await Promise.all([
     getUserById(session.id!),
     getMyPendingInvitations(session.id!),
-    isInstanceAdmin(session.id!),
+    isAppAdmin(session.id!),
   ]);
   const invitationCount = pendingInvitations.length;
 

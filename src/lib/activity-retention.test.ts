@@ -25,7 +25,7 @@ describe("activity retention", () => {
       .mockResolvedValueOnce([{ id: actor.id }])
       .mockResolvedValueOnce([{ ...actor, role, passwordHash, days }]);
   }
-  it("locks instance then account before rechecking authority and saving", async () => {
+  it("locks app then account before rechecking authority and saving", async () => {
     locked();
     execute.mockResolvedValueOnce([]);
     expect(await saveActivityRetention(database, actor.id, 30, 90)).toEqual({
@@ -48,7 +48,7 @@ describe("activity retention", () => {
     locked(90, role!, passwordHash);
     expect(await saveActivityRetention(database, actor.id, 30, 90)).toEqual({ status: "forbidden" });
   });
-  it("refuses missing instance and missing actor", async () => {
+  it("refuses missing app and missing actor", async () => {
     execute.mockResolvedValueOnce([]);
     expect(await saveActivityRetention(database, actor.id, 30, 90)).toEqual({ status: "forbidden" });
     execute.mockResolvedValueOnce([{ id: true }]).mockResolvedValueOnce([]);

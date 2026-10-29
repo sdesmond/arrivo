@@ -7,7 +7,7 @@ const {
   addUser,
   regenerateSetupLink,
   deleteUnfinishedAccount,
-  listInstanceUsers,
+  listAppUsers,
   revalidatePath,
   recordActivity,
   database,
@@ -19,7 +19,7 @@ const {
   addUser: vi.fn(),
   regenerateSetupLink: vi.fn(),
   deleteUnfinishedAccount: vi.fn(),
-  listInstanceUsers: vi.fn(),
+  listAppUsers: vi.fn(),
   revalidatePath: vi.fn(),
   database: {},
 }));
@@ -33,7 +33,7 @@ vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 import { RoleChangeFailure } from "@/data/types";
-vi.mock("@/lib/instance-users", () => ({ listInstanceUsers }));
+vi.mock("@/lib/app-users", () => ({ listAppUsers }));
 import {
   addUserAction,
   checkAddedUserAction,
@@ -75,7 +75,7 @@ describe("deleteUnfinishedAccountAction", () => {
     expect(recordActivity).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
   });
-  it.each(["instance-unavailable", "retry"])("passes %s without Activity or refresh", async (reason) => {
+  it.each(["app-unavailable", "retry"])("passes %s without Activity or refresh", async (reason) => {
     deleteUnfinishedAccount.mockResolvedValue({ ok: false, reason });
     expect(await deleteUnfinishedAccountAction("target")).toEqual({ ok: false, reason });
     expect(recordActivity).not.toHaveBeenCalled();
@@ -135,18 +135,15 @@ describe("setup link regeneration actions", () => {
     expect(regenerateSetupLink).not.toHaveBeenCalled();
     expect(recordActivity).not.toHaveBeenCalled();
   });
-  it.each(["forbidden", "changed-state", "instance-unavailable", "retry"])(
-    "passes %s without Activity",
-    async (reason) => {
-      regenerateSetupLink.mockResolvedValue({ ok: false, reason });
-      expect(await regenerateSetupLinkAction("target")).toEqual({ ok: false, reason });
-      expect(recordActivity).not.toHaveBeenCalled();
-    }
-  );
+  it.each(["forbidden", "changed-state", "app-unavailable", "retry"])("passes %s without Activity", async (reason) => {
+    regenerateSetupLink.mockResolvedValue({ ok: false, reason });
+    expect(await regenerateSetupLinkAction("target")).toEqual({ ok: false, reason });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
   it.each(["unfinished", "completed", "missing"])(
     "reads authoritative %s state by immutable ID without token",
     async (state) => {
-      listInstanceUsers.mockResolvedValue(
+      listAppUsers.mockResolvedValue(
         state === "missing"
           ? []
           : [{ id: "target", username: "renamed", setupComplete: state === "completed", setupExpiresAt: "expiry" }]
@@ -165,11 +162,11 @@ describe("setup link regeneration actions", () => {
     await expect(regenerateSetupLinkAction("target")).rejects.toThrow("404");
     await expect(checkSetupLinkTargetAction("target")).rejects.toThrow("404");
     expect(regenerateSetupLink).not.toHaveBeenCalled();
-    expect(listInstanceUsers).not.toHaveBeenCalled();
+    expect(listAppUsers).not.toHaveBeenCalled();
   });
   it("propagates unknown mutation and read failures without recording", async () => {
     regenerateSetupLink.mockRejectedValue(new Error("unavailable"));
-    listInstanceUsers.mockRejectedValue(new Error("unavailable"));
+    listAppUsers.mockRejectedValue(new Error("unavailable"));
     await expect(regenerateSetupLinkAction("target")).rejects.toThrow("unavailable");
     await expect(checkSetupLinkTargetAction("target")).rejects.toThrow("unavailable");
     expect(recordActivity).not.toHaveBeenCalled();
@@ -243,7 +240,7 @@ describe("addUserAction", () => {
     expect(recordActivity).not.toHaveBeenCalled();
   });
 
-  it.each(["invalid-username", "username-taken", "forbidden", "instance-unavailable", "retry"])(
+  it.each(["invalid-username", "username-taken", "forbidden", "app-unavailable", "retry"])(
     "passes through the %s refusal without revalidating or recording",
     async (reason) => {
       const refusal = { ok: false, reason };
@@ -377,21 +374,21 @@ describe("checkAddedUserAction", () => {
     requireAdmin.mockResolvedValue({ id: "actor" });
   });
   it("authorizes before reading and returns only normalized existence", async () => {
-    listInstanceUsers.mockResolvedValue([{ id: "new", username: "alex.q" }]);
+    listAppUsers.mockResolvedValue([{ id: "new", username: "alex.q" }]);
     expect(await checkAddedUserAction(" Alex.Q ")).toBe(true);
     expect(await checkAddedUserAction("absent")).toBe(false);
     expect(requireAdmin).toHaveBeenCalledTimes(2);
-    expect(requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(listInstanceUsers.mock.invocationCallOrder[0]);
+    expect(requireAdmin.mock.invocationCallOrder[0]).toBeLessThan(listAppUsers.mock.invocationCallOrder[0]);
     expect(addUser).not.toHaveBeenCalled();
     expect(recordActivity).not.toHaveBeenCalled();
   });
   it("denies reads when admin authority is lost", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
     await expect(checkAddedUserAction("alex.q")).rejects.toThrow("404");
-    expect(listInstanceUsers).not.toHaveBeenCalled();
+    expect(listAppUsers).not.toHaveBeenCalled();
   });
   it("propagates read failures", async () => {
-    listInstanceUsers.mockRejectedValue(new Error("unavailable"));
+    listAppUsers.mockRejectedValue(new Error("unavailable"));
     await expect(checkAddedUserAction("alex.q")).rejects.toThrow("unavailable");
   });
 });

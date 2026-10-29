@@ -26,7 +26,7 @@ export async function cleanupActivity(
       // Both candidates and deletion recheck use saved policy from this statement's snapshot. No lifecycle locks.
       await transaction.execute(sql`
         with policy as materialized (
-          select ${now.toISOString()}::timestamptz - activity_retention_days * interval '1 day' as cutoff from instance_state where id = true
+          select ${now.toISOString()}::timestamptz - activity_retention_days * interval '1 day' as cutoff from app_state where id = true
         ), candidates as materialized (
           select events.id from activity_events events, policy
           where events.ended_at < policy.cutoff

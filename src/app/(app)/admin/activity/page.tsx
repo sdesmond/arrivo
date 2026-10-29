@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { ActivityEventType, type ActivityQuery, type ActivityRetentionReadResult } from "@/data/types";
 import { readActivityPage } from "@/lib/activity-queries";
-import { InstanceActivityViewer } from "@/components/arrivo/instance-activity-viewer";
+import { AppActivityViewer } from "@/components/arrivo/app-activity-viewer";
 import { ActivityRetentionSettings } from "@/components/arrivo/activity-retention-settings";
 import { readActivityRetention } from "@/lib/activity-retention";
 
@@ -50,7 +50,7 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
         Activity
       </h2>
       <ActivityRetentionSettings initial={retention} />
-      <InstanceActivityViewer initialQuery={query} initialPage={result} />
+      <AppActivityViewer initialQuery={query} initialPage={result} />
     </section>
   );
 }

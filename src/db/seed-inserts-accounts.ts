@@ -8,7 +8,7 @@ import { encryptOptionalField } from "../lib/field-encryption";
 import type { db as liveDb } from "./index";
 import {
   collaborators,
-  instanceState,
+  appState,
   invitations,
   userCompanions,
   userLoyaltyNumbers,
@@ -92,15 +92,15 @@ export async function insertUsers(database: SeedDb, seedUsers: SeedUser[]): Prom
   return recordsByKey;
 }
 
-// Seeding an admin means the instance is set up: without this, a fresh database stays uninitialized and the next
+// Seeding an admin means the app is set up: without this, a fresh database stays uninitialized and the next
 // public sign-up would bootstrap a second admin. Keeps an existing timestamp so re-seeding doesn't move it.
-export async function markInstanceInitialized(database: SeedDb, now: Date): Promise<void> {
+export async function markAppInitialized(database: SeedDb, now: Date): Promise<void> {
   await database
-    .insert(instanceState)
+    .insert(appState)
     .values({ id: true, initializedAt: now })
     .onConflictDoUpdate({
-      target: instanceState.id,
-      set: { initializedAt: sql`coalesce(${instanceState.initializedAt}, ${now.toISOString()}::timestamptz)` },
+      target: appState.id,
+      set: { initializedAt: sql`coalesce(${appState.initializedAt}, ${now.toISOString()}::timestamptz)` },
     });
 }
 

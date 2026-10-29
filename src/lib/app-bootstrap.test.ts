@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { instanceState, users } from "@/db/schema";
+import { appState, users } from "@/db/schema";
 import type { BootstrapAccountValues, BootstrapResult } from "@/data/types";
-import { bootstrapFirstAccount, type BootstrapDatabase } from "./instance-bootstrap";
+import { bootstrapFirstAccount, type BootstrapDatabase } from "./app-bootstrap";
 
 interface FakeState {
   initializedAt: Date | null;
@@ -41,7 +41,7 @@ function createFakeDatabase(initial: Partial<FakeState> = {}, uniqueViolationFor
             };
           },
           update: (table: unknown) => {
-            if (table !== instanceState) throw new Error("Unexpected update");
+            if (table !== appState) throw new Error("Unexpected update");
             return {
               set: (values: { initializedAt: Date }) => ({
                 where: async () => {
@@ -71,7 +71,7 @@ const values = (username: string): BootstrapAccountValues => ({
 });
 
 describe("bootstrapFirstAccount", () => {
-  it("makes the first signup an admin and marks the instance initialized", async () => {
+  it("makes the first signup an admin and marks the app initialized", async () => {
     const { state, database } = createFakeDatabase();
 
     await expect(bootstrapFirstAccount(database, values("first"))).resolves.toEqual({
@@ -97,21 +97,21 @@ describe("bootstrapFirstAccount", () => {
     expect(state.rows).toHaveLength(1);
   });
 
-  it("refuses once the instance is initialized and inserts nothing", async () => {
+  it("refuses once the app is initialized and inserts nothing", async () => {
     const { state, database } = createFakeDatabase({ initializedAt: new Date() });
 
     await expect(bootstrapFirstAccount(database, values("late"))).resolves.toEqual({ ok: false, reason: "closed" });
     expect(state.rows).toEqual([]);
   });
 
-  it("treats a missing instance_state row as closed and inserts nothing", async () => {
+  it("treats a missing app_state row as closed and inserts nothing", async () => {
     const { state, database } = createFakeDatabase({}, undefined, true);
 
     await expect(bootstrapFirstAccount(database, values("orphan"))).resolves.toEqual({ ok: false, reason: "closed" });
     expect(state.rows).toEqual([]);
   });
 
-  it("rolls back and leaves the instance fresh when the username is taken", async () => {
+  it("rolls back and leaves the app fresh when the username is taken", async () => {
     const { state, database } = createFakeDatabase({}, "taken");
 
     await expect(bootstrapFirstAccount(database, values("taken"))).rejects.toThrow("Failed query");

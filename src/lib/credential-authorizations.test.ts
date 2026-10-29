@@ -32,7 +32,7 @@ function fake(
     role?: string;
     actorRole?: string;
     actorCompleted?: boolean;
-    missingInstance?: boolean;
+    missingApp?: boolean;
     missingTarget?: boolean;
     failure?: unknown;
     failInsert?: boolean;
@@ -64,9 +64,9 @@ function fake(
     const { sql: statement, params } = dialect.sqlToQuery(query);
     statements.push(statement);
     if (options.failure) throw options.failure;
-    if (statement.includes("instance_state")) {
+    if (statement.includes("app_state")) {
       options.afterLock?.();
-      return options.missingInstance ? [] : [{ id: true }];
+      return options.missingApp ? [] : [{ id: true }];
     }
     if (statement.includes("for update")) return accounts.filter((account) => account.id === params[0]);
     if (statement.startsWith("select") && statement.includes('from "users"'))
@@ -193,7 +193,7 @@ describe("credential authorizations", () => {
   it.each([
     { actorRole: "member" },
     { actorCompleted: false },
-    { missingInstance: true },
+    { missingApp: true },
     { missingTarget: true },
     { completed: true },
   ])("refuses unauthorized/ineligible issuance %j", async (options) => {
@@ -371,14 +371,14 @@ describe("credential authorizations", () => {
     ).toBe(true);
   });
   it("refuses malformed completion, missing singleton and deleted account without callback", async () => {
-    const options = { missingInstance: false };
+    const options = { missingApp: false };
     const fixture = fake(options);
     const original = await issue(fixture);
     const callback = vi.fn();
     expect(
       (await consumeCredentialAuthorization(fixture.database, { token: "bad", purpose: "setup" }, callback, clock)).ok
     ).toBe(false);
-    options.missingInstance = true;
+    options.missingApp = true;
     expect(
       (
         await consumeCredentialAuthorization(
@@ -389,7 +389,7 @@ describe("credential authorizations", () => {
         )
       ).ok
     ).toBe(false);
-    options.missingInstance = false;
+    options.missingApp = false;
     fixture.accounts.splice(1, 1);
     expect(
       (await validateCredentialAuthorization(fixture.database, { token: original.token, purpose: "setup" }, clock)).ok

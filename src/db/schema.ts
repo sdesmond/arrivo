@@ -50,7 +50,7 @@ export const users = pgTable(
     mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
     // Sign-in identifier; stored lowercased (src/lib/username.ts).
     username: text("username").notNull(),
-    // Instance authority: "admin" | "member" (UserRole in src/data/types.ts).
+    // App authority: "admin" | "member" (UserRole in src/data/types.ts).
     role: text("role").default("member").notNull(),
   },
   (table) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${table.username})`)]
@@ -58,16 +58,16 @@ export const users = pgTable(
 
 // Singleton row (id is always true). initializedAt is set once, when the first account is created or the sole
 // legacy account is promoted; after that public sign-up stays closed.
-export const instanceState = pgTable(
-  "instance_state",
+export const appState = pgTable(
+  "app_state",
   {
     id: boolean("id").primaryKey().default(true),
     initializedAt: timestamp("initialized_at", { withTimezone: true }),
     activityRetentionDays: integer("activity_retention_days").notNull().default(90),
   },
   (table) => [
-    check("instance_state_singleton", sql`${table.id}`),
-    check("instance_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
+    check("app_state_singleton", sql`${table.id}`),
+    check("app_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
   ]
 );
 

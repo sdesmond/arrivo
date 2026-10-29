@@ -78,7 +78,7 @@ Username: demo
 Password: demo1234
 ```
 
-Four more accounts exist: `alex`, `sam`, `jordan` for exercising sharing and a second profile, and `admin` (instance administrator) —
+Four more accounts exist: `alex`, `sam`, `jordan` for exercising sharing and a second profile, and `admin` (app administrator) —
 see the doc above.
 
 `db:seed` wipes and reseeds just these five seed accounts on every run — safe to run repeatedly, and it never

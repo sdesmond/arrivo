@@ -70,7 +70,7 @@ export interface CredentialAuthorizationAccount {
 }
 export type CredentialAuthorizationFailure = {
   ok: false;
-  reason: "invalid" | "forbidden" | "instance-unavailable" | "retry";
+  reason: "invalid" | "forbidden" | "app-unavailable" | "retry";
 };
 export type IssueCredentialAuthorizationResult =
   | { ok: true; token: string; expiresAt: string }
@@ -217,7 +217,7 @@ export type ActivityRetentionCommitResult =
   | { status: "ok"; days: ActivityRetentionDays; changed: boolean; actor: ActivityIdentity }
   | { status: "invalid" | "stale" | "forbidden" };
 
-export interface InstanceUserSummary {
+export interface AppUserSummary {
   id: string;
   username: string;
   role: UserRole;
@@ -232,7 +232,7 @@ export const AddUserFailure = {
   UsernameTaken: "username-taken",
   OriginUnavailable: "origin-unavailable",
   Forbidden: "forbidden",
-  InstanceUnavailable: "instance-unavailable",
+  AppUnavailable: "app-unavailable",
   Retry: "retry",
 } as const;
 export type AddUserFailure = (typeof AddUserFailure)[keyof typeof AddUserFailure];
@@ -245,7 +245,7 @@ export const RegenerateSetupLinkFailure = {
   OriginUnavailable: "origin-unavailable",
   Forbidden: "forbidden",
   ChangedState: "changed-state",
-  InstanceUnavailable: "instance-unavailable",
+  AppUnavailable: "app-unavailable",
   Retry: "retry",
 } as const;
 export type RegenerateSetupLinkFailure = (typeof RegenerateSetupLinkFailure)[keyof typeof RegenerateSetupLinkFailure];
@@ -258,7 +258,7 @@ export type RegenerateSetupLinkOutcome =
 export const DeleteUnfinishedAccountFailure = {
   Forbidden: "forbidden",
   ChangedState: "changed-state",
-  InstanceUnavailable: "instance-unavailable",
+  AppUnavailable: "app-unavailable",
   Retry: "retry",
 } as const;
 export type DeleteUnfinishedAccountFailure =
@@ -288,7 +288,7 @@ export type AddUserOutcome =
 export const RoleChangeFailure = {
   Forbidden: "forbidden",
   NotFound: "not-found",
-  InstanceUnavailable: "instance-unavailable",
+  AppUnavailable: "app-unavailable",
   LastAdmin: "last-admin",
   UnfinishedAccount: "unfinished-account",
   InvalidRole: "invalid-role",

@@ -15,7 +15,7 @@ import {
   type IssueCredentialAuthorizationResult,
   type ValidateCredentialAuthorizationResult,
 } from "@/data/types";
-import { lockInstanceAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
+import { lockAppAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
 import type { DbTransaction } from "@/lib/server-action-locks";
 
 export type CredentialAuthorizationDatabase = Pick<typeof db, "transaction">;
@@ -98,8 +98,8 @@ export async function issueCredentialAuthorizationInTransaction(
   const userId = input.userId.toLowerCase();
   const actorId = authority.kind === "admin" ? authority.actorUserId.toLowerCase() : undefined;
   const ids = actorId ? [actorId, userId] : [userId];
-  const scope = await lockInstanceAndUsersForUpdate(transaction, ids);
-  if (!scope.instanceLocked) return { ok: false, reason: "instance-unavailable" };
+  const scope = await lockAppAndUsersForUpdate(transaction, ids);
+  if (!scope.appLocked) return { ok: false, reason: "app-unavailable" };
   const accounts =
     (await transaction.execute(sql`select ${users.id} as "id", ${users.username} as "username", ${users.role} as "role", ${users.passwordHash} as "passwordHash"
     from ${users} where ${users.id} in (${sql.join(
@@ -200,8 +200,8 @@ export async function consumeCredentialAuthorization(
   return withTransaction(database, async (transaction) => {
     const initial = await readAuthorization(transaction, input);
     if (!usable(initial, clock())) return invalid();
-    const scope = await lockInstanceAndUsersForUpdate(transaction, [initial.userId]);
-    if (!scope.instanceLocked || !scope.lockedUserIds.has(initial.userId)) return invalid();
+    const scope = await lockAppAndUsersForUpdate(transaction, [initial.userId]);
+    if (!scope.appLocked || !scope.lockedUserIds.has(initial.userId)) return invalid();
     const row = await readAuthorization(transaction, input);
     const now = clock();
     if (!usable(row, now)) return invalid();

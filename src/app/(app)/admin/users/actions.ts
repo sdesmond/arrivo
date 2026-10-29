@@ -17,7 +17,7 @@ import { requireAdmin } from "@/lib/auth-helpers";
 import { addUser } from "@/lib/account-creation";
 import { changeUserRole } from "@/lib/account-role-changes";
 import { trustedLinkOrigin } from "@/lib/request-origin";
-import { listInstanceUsers } from "@/lib/instance-users";
+import { listAppUsers } from "@/lib/app-users";
 import { normalizeUsername } from "@/lib/username";
 import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
 import { deleteUnfinishedAccount } from "@/lib/unfinished-account-deletion";
@@ -28,7 +28,7 @@ function setupUrlFor(origin: string, token: string): string {
 
 export async function checkSetupLinkTargetAction(targetUserId: string): Promise<SetupLinkTargetState> {
   await requireAdmin();
-  const target = (await listInstanceUsers()).find((user) => user.id === targetUserId);
+  const target = (await listAppUsers()).find((user) => user.id === targetUserId);
   return {
     userId: targetUserId,
     state: !target ? "missing" : target.setupComplete ? "completed" : "unfinished",
@@ -77,7 +77,7 @@ export async function deleteUnfinishedAccountAction(targetUserId: string): Promi
 export async function checkAddedUserAction(username: string): Promise<boolean> {
   await requireAdmin();
   const normalized = normalizeUsername(username);
-  const users = await listInstanceUsers();
+  const users = await listAppUsers();
   return users.some((user) => user.username === normalized);
 }
 

@@ -33,7 +33,7 @@ const targetOf = (scenario: ScenarioFixtureContext) => scenario.getValue<Regener
 const fixtureOf = (scenario: ScenarioFixtureContext) => scenario.getValue<CredentialAuthorizationFixture>(FIXTURE_KEY)!;
 const targetRow = (page: Page, scenario: ScenarioFixtureContext) =>
   page
-    .getByRole("list", { name: "Instance users" })
+    .getByRole("list", { name: "App users" })
     .getByRole("listitem")
     .filter({ has: page.getByText(targetOf(scenario).username, { exact: true }) });
 async function currentAuthorizations(scenario: ScenarioFixtureContext) {
@@ -222,7 +222,7 @@ After(async ({ scenario }) => {
   await scenario.getValue<Page>("regenerationOldSetupPage")?.context().close();
   await scenario.getValue<CredentialAuthorizationFixture>(FIXTURE_KEY)?.close();
 });
-Given("an isolated regeneration instance", async ({ scenario }) => {
+Given("an isolated regeneration app", async ({ scenario }) => {
   const fixture = await createCredentialAuthorizationFixture((created) => scenario.setValue(FIXTURE_KEY, created));
   await fixture.seedUsers([
     { key: "admin", role: "admin", completed: true },

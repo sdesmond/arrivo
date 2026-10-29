@@ -6,16 +6,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 const { changeUserRoleAction, success } = vi.hoisted(() => ({ changeUserRoleAction: vi.fn(), success: vi.fn() }));
 vi.mock("@/app/(app)/admin/users/actions", () => ({ changeUserRoleAction }));
 vi.mock("sonner", () => ({ toast: { success } }));
-import { InstanceUsersList } from "./instance-users-list";
-import type { ChangeUserRoleResult, InstanceUserSummary } from "@/data/types";
-const member: InstanceUserSummary = {
+import { AppUsersList } from "./app-users-list";
+import type { ChangeUserRoleResult, AppUserSummary } from "@/data/types";
+const member: AppUserSummary = {
   id: "member",
   username: "bob",
   role: "member",
   setupComplete: true,
   isLastCompletedAdmin: false,
 };
-describe("InstanceUsersList", () => {
+describe("AppUsersList", () => {
   const push = vi.fn();
   const refresh = vi.fn();
   beforeEach(() => {
@@ -26,16 +26,16 @@ describe("InstanceUsersList", () => {
     cleanup();
     vi.restoreAllMocks();
   });
-  function show(users: InstanceUserSummary[]) {
+  function show(users: AppUserSummary[]) {
     render(
       <TooltipProvider>
-        <InstanceUsersList users={users} currentUserId="self" />
+        <AppUsersList users={users} currentUserId="self" />
       </TooltipProvider>
     );
   }
   it("groups each user's available controls in a responsive card grid", () => {
     show([member, { ...member, id: "pending", username: "alex", setupComplete: false }]);
-    const list = screen.getByRole("list", { name: "Instance users" });
+    const list = screen.getByRole("list", { name: "App users" });
     expect(list).toHaveClass("grid");
     const cards = within(list).getAllByRole("listitem");
     expect(within(cards[0]).getByRole("button", { name: "Make admin: bob" })).toBeVisible();

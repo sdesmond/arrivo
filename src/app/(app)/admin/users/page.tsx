@@ -1,12 +1,12 @@
 import { requireAdmin } from "@/lib/auth-helpers";
-import { listInstanceUsers } from "@/lib/instance-users";
-import { InstanceUsersList } from "@/components/arrivo/instance-users-list";
+import { listAppUsers } from "@/lib/app-users";
+import { AppUsersList } from "@/components/arrivo/app-users-list";
 import { AddUserDialog } from "@/components/arrivo/add-user-dialog";
 
 export default async function AdminUsersPage() {
   // The layout can be reused by client navigation; guard every page request too.
   const user = await requireAdmin();
-  const users = await listInstanceUsers();
+  const users = await listAppUsers();
   return (
     <section
       aria-labelledby="admin-users-heading"
@@ -19,7 +19,7 @@ export default async function AdminUsersPage() {
         </h2>
         <AddUserDialog />
       </div>
-      <InstanceUsersList users={users} currentUserId={user.id!} />
+      <AppUsersList users={users} currentUserId={user.id!} />
     </section>
   );
 }

@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         className="mb-6 text-2xl font-bold text-fg"
         style={{ fontFamily: "var(--font-heading-family, ui-sans-serif)" }}
       >
-        Manage instance
+        Manage app
       </h1>
       <AdminSectionNav>{children}</AdminSectionNav>
     </div>

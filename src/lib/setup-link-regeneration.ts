@@ -7,7 +7,7 @@ import {
   type CredentialSecurityClock,
   type RegenerateSetupLinkOutcome,
 } from "@/data/types";
-import { lockInstanceAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
+import { lockAppAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
 import { issueCredentialAuthorizationInTransaction } from "@/lib/credential-authorizations";
 
 export type SetupLinkRegenerationDatabase = Pick<typeof db, "transaction">;
@@ -42,8 +42,8 @@ export async function regenerateSetupLink(
   const userId = targetUserId.toLowerCase();
   try {
     return await database.transaction(async (transaction): Promise<RegenerateSetupLinkOutcome> => {
-      const scope = await lockInstanceAndUsersForUpdate(transaction, [actorId, userId]);
-      if (!scope.instanceLocked) return { ok: false, reason: "instance-unavailable" };
+      const scope = await lockAppAndUsersForUpdate(transaction, [actorId, userId]);
+      if (!scope.appLocked) return { ok: false, reason: "app-unavailable" };
       const accounts = (await transaction.execute(sql`select ${users.id} as "id", ${users.username} as "username",
         ${users.role} as "role", ${users.passwordHash} as "passwordHash" from ${users}
         where ${users.id} in (${actorId}, ${userId})`)) as unknown as {

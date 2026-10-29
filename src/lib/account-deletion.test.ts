@@ -13,7 +13,7 @@ const ME = "user-1";
 interface Fixture {
   deleter?: { username?: string; role: string; passwordHash: string | null };
   peerAdmin?: boolean;
-  instanceMissing?: boolean;
+  appMissing?: boolean;
   userMissing?: boolean;
   accountRowMissing?: boolean;
   ownedTrips?: { id: string; name: string; coverImageUrl: string | null }[];
@@ -75,9 +75,9 @@ function createDatabase(fixture: Fixture = {}) {
   const transaction = {
     execute: async (query: SQL) => {
       const { sql: text, params } = dialect.sqlToQuery(query);
-      if (text.includes("instance_state")) {
-        events.push("lock:instance");
-        return fixture.instanceMissing ? [] : [{ id: true }];
+      if (text.includes("app_state")) {
+        events.push("lock:app");
+        return fixture.appMissing ? [] : [{ id: true }];
       }
       if (text.includes("for update")) {
         const target = text.includes('"trips"') ? "trip" : "user";
@@ -144,7 +144,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
 
     await deleteOwnAccount(database, ME, []);
 
-    expect(events.slice(0, 4)).toEqual(["lock:instance", "lock:user", "lock:trip", "lock:trip"]);
+    expect(events.slice(0, 4)).toEqual(["lock:app", "lock:user", "lock:trip", "lock:trip"]);
     expect(events.findIndex((event) => event.startsWith("update:") || event.startsWith("delete:"))).toBeGreaterThan(3);
   });
 
@@ -154,7 +154,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
     await expect(deleteOwnAccount(database, ME, [])).resolves.toMatchObject({ ok: true });
 
     expect(events).not.toContain("guard");
-    expect(events.slice(0, 2)).toEqual(["lock:instance", "lock:user"]);
+    expect(events.slice(0, 2)).toEqual(["lock:app", "lock:user"]);
   });
 
   it("lets an admin delete when another completed admin remains", async () => {
@@ -197,10 +197,10 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
     await expect(deleteOwnAccount(database, "USER-1", [])).resolves.toMatchObject({ ok: true });
   });
 
-  it("throws when the instance singleton is missing", async () => {
-    const { database, writes } = createDatabase({ instanceMissing: true });
+  it("throws when the app singleton is missing", async () => {
+    const { database, writes } = createDatabase({ appMissing: true });
 
-    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("Instance state not found.");
+    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("App state not found.");
     expect(writes).toEqual([]);
   });
 

@@ -14,7 +14,7 @@ describe("AccountMenu", () => {
   it("requests current authority with an uncached authenticated GET", async () => {
     render(<AccountMenu isAdmin={false} trigger={<button>Account</button>} side="top" />);
     await waitFor(() =>
-      expect(fetchRole).toHaveBeenCalledWith("/api/users/me/instance-role", {
+      expect(fetchRole).toHaveBeenCalledWith("/api/users/me/app-role", {
         cache: "no-store",
         credentials: "same-origin",
       })
@@ -31,7 +31,7 @@ describe("AccountMenu", () => {
     render(<AccountMenu isAdmin trigger={<button>Account</button>} side="top" />);
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument());
   });
   it("ignores an older role response after navigating to a new pathname", async () => {
     const pathname = vi.spyOn(navigation, "usePathname").mockReturnValue("/trips");
@@ -52,7 +52,7 @@ describe("AccountMenu", () => {
     });
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -72,15 +72,15 @@ describe("AccountMenu", () => {
     const { rerender } = render(<AccountMenu isAdmin trigger={<button>Account</button>} side="top" />);
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    expect(screen.getByRole("menuitem", { name: "Manage instance" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Manage app" })).toBeInTheDocument();
     searchParams.mockReturnValue(new ReadonlyURLSearchParams(nextSearch));
     rerender(<AccountMenu isAdmin trigger={<button>Account</button>} side="top" />);
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
     await waitFor(() => expect(fetchRole).toHaveBeenCalledTimes(2));
     await act(async () => {
       resolveCurrentCheck(roleResponse(false));
     });
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
   });
 
   it("ignores a late admin response from the previous query on the same pathname", async () => {
@@ -103,7 +103,7 @@ describe("AccountMenu", () => {
     });
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
   });
 
   beforeEach(() => {
@@ -121,7 +121,7 @@ describe("AccountMenu", () => {
     await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("menuitem", { name: "Settings" })).toHaveAttribute("href", "/profile");
     expect(screen.getByRole("menuitem", { name: "Log out" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
   });
   it("shows management for admins and restores focus on Escape", async () => {
     fetchRole.mockResolvedValue(roleResponse(true));
@@ -129,7 +129,7 @@ describe("AccountMenu", () => {
     const trigger = screen.getByRole("button", { name: "Account" });
     trigger.focus();
     await userEvent.keyboard("{Enter}");
-    expect(await screen.findByRole("menuitem", { name: "Manage instance" })).toHaveAttribute("href", "/admin");
+    expect(await screen.findByRole("menuitem", { name: "Manage app" })).toHaveAttribute("href", "/admin");
     for (const item of screen.getAllByRole("menuitem")) {
       expect(item).toHaveClass("cursor-pointer");
     }
@@ -150,18 +150,18 @@ describe("AccountMenu", () => {
     await waitFor(() => expect(fetchRole).toHaveBeenCalledTimes(1));
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    expect(screen.getByRole("menuitem", { name: "Manage instance" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Manage app" })).toBeInTheDocument();
     pathname.mockReturnValue("/profile");
     rerender(<AccountMenu isAdmin trigger={<button>Account</button>} side="top" />);
     await waitFor(() => expect(fetchRole).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument();
   });
   it("hides management when the role check fails", async () => {
     fetchRole.mockRejectedValue(new Error("unavailable"));
     render(<AccountMenu isAdmin trigger={<button>Account</button>} side="bottom" />);
     screen.getByRole("button", { name: "Account" }).focus();
     await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Manage instance" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Manage app" })).not.toBeInTheDocument());
     expect(screen.getByRole("menuitem", { name: "Settings" })).toBeInTheDocument();
   });
   it.each([true, false])("ignores a role check that settles after unmount (success: %s)", async (success) => {

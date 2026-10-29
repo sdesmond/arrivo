@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { activityEvents, instanceState } from "../../../src/db/schema";
+import { activityEvents, appState } from "../../../src/db/schema";
 import { After, Given, When, Then } from "../fixtures";
 import {
   createActivityRetentionFixture,
@@ -124,7 +124,7 @@ When("I attempt to save Activity retention", async ({ page }) => {
 Then("retention reports failure and keeps {int} days selected", async ({ page }, days: number) => {
   await expect(page.getByRole("alert").filter({ hasText: "Could not save retention" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Activity retention" })).toContainText(`${days} days`);
-  expect((await withE2EDb((database) => database.select().from(instanceState)))[0].activityRetentionDays).toBe(90);
+  expect((await withE2EDb((database) => database.select().from(appState)))[0].activityRetentionDays).toBe(90);
 });
 Then("retention reports denied authority", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: "Admin access is required" })).toBeVisible();
@@ -231,7 +231,7 @@ Then(
   "Activity retention is still {int} days with {int} retention change events",
   async ({ scenario }, days: number, events: number) => {
     const user = await scenario.ensureCurrentUser();
-    expect((await withE2EDb((database) => database.select().from(instanceState)))[0].activityRetentionDays).toBe(days);
+    expect((await withE2EDb((database) => database.select().from(appState)))[0].activityRetentionDays).toBe(days);
     // A wrongly scheduled event lands after the response, so give it time before asserting absence.
     if (events === 0) await new Promise((resolve) => setTimeout(resolve, 500));
     expect(await retentionEventCount(user.id)).toBe(events);
@@ -247,7 +247,7 @@ Then("the aged Activity row still exists", async ({ scenario }) => {
 
 Then("Activity retention is saved as {int} days with the aged row still stored", async ({ scenario }, days: number) => {
   const id = scenario.getValue<string>("retentionExpiredId")!;
-  expect((await withE2EDb((database) => database.select().from(instanceState)))[0].activityRetentionDays).toBe(days);
+  expect((await withE2EDb((database) => database.select().from(appState)))[0].activityRetentionDays).toBe(days);
   expect(
     await withE2EDb((database) => database.select().from(activityEvents).where(eq(activityEvents.id, id)))
   ).toHaveLength(1);
@@ -259,7 +259,7 @@ Then("the aged Activity row is still readable in history", async ({ page, scenar
   await page.goto(`/admin/activity?actor=${user.id}`);
   await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
   const rows = page
-    .getByRole("table", { name: "Recent instance activity" })
+    .getByRole("table", { name: "Recent app activity" })
     .getByRole("row")
     .filter({ hasText: user.username })
     .filter({ hasText: "Sign-out" });

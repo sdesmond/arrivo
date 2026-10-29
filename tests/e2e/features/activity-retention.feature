@@ -1,18 +1,18 @@
 @feat:activity-retention
 Feature: Activity retention and physical cleanup
   Scenario: Saving retention persists and records a safe event
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose Activity retention of 180 days
     And I save Activity retention
     Then saved Activity retention is 180 days after reload
     And my retention change event contains no private metadata
 
   Scenario: Cancelled shortening does not save
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose Activity retention of 30 days
     And I request shorter Activity retention
     Then Cancel has initial retention confirmation focus
@@ -20,10 +20,10 @@ Feature: Activity retention and physical cleanup
     Then saved Activity retention is 90 days after reload
 
   Scenario: Keyboard and mobile confirmation
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
     And I am on a mobile viewport
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose shorter retention using keyboard
     And I request shorter Activity retention
     Then retention confirmation is a mobile bottom sheet
@@ -32,33 +32,33 @@ Feature: Activity retention and physical cleanup
     Then retention Save regains focus
 
   Scenario: Failed save preserves selection and saved policy
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose Activity retention of 180 days
     And retention action requests fail
     And I attempt to save Activity retention
     Then retention reports failure and keeps 180 days selected
 
   Scenario: Lost authority refuses retention save
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose Activity retention of 180 days
-    And my instance administrator role is removed
+    And my app administrator role is removed
     And I save Activity retention
     Then retention reports denied authority
     And Activity retention is still 90 days with 0 retention change events
     When I refresh cleanup status
     Then cleanup status is unavailable
-    When I request instance management at "/admin/activity"
-    Then instance management is not found
+    When I request app management at "/admin/activity"
+    Then app management is not found
 
   Scenario: Failed shortening keeps policy, history and event count
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
     And scenario-owned Activity aged 60 days exists
-    When I open the instance Activity page
+    When I open the app Activity page
     And I choose Activity retention of 30 days
     And I request shorter Activity retention
     And retention action requests fail
@@ -69,10 +69,10 @@ Feature: Activity retention and physical cleanup
 
   Scenario Outline: Saved shortening is visible before blocked cleanup deletes on <device>
     Given the Activity viewport is <width> by <height>
-    And I am signed in as an instance "admin"
+    And I am signed in as an app "admin"
     And Activity retention starts at 90 days
     And scenario-owned Activity aged 60 days exists
-    When I open the instance Activity page
+    When I open the app Activity page
     And Activity cleanup is blocked
     And I choose Activity retention of 30 days
     And I request shorter Activity retention
@@ -93,7 +93,7 @@ Feature: Activity retention and physical cleanup
       | mobile  | 375   | 812    |
 
   Scenario: Dynamic requests clean up without new Activity writes
-    Given I am signed in as an instance "admin"
+    Given I am signed in as an app "admin"
     And Activity retention starts at 90 days
     And scenario-owned expired Activity exists
     When I request the dynamic trips page

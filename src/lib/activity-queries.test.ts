@@ -3,8 +3,8 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ isInstanceAdmin: vi.fn() }));
-vi.mock("./instance-roles", () => ({ isInstanceAdmin: mocks.isInstanceAdmin }));
+const mocks = vi.hoisted(() => ({ isAppAdmin: vi.fn() }));
+vi.mock("./app-roles", () => ({ isAppAdmin: mocks.isAppAdmin }));
 
 import {
   ACTIVITY_ACTOR_LIMIT,
@@ -86,13 +86,13 @@ describe("readActivityPage", () => {
     actorLimit = undefined;
     eventRows = [ROW];
     actorRows = [{ id: ACTOR_ID, username: "alice" }];
-    mocks.isInstanceAdmin.mockResolvedValue(true);
+    mocks.isAppAdmin.mockResolvedValue(true);
   });
 
   it("rechecks current admin authority and reads nothing for anyone else", async () => {
-    mocks.isInstanceAdmin.mockResolvedValue(false);
+    mocks.isAppAdmin.mockResolvedValue(false);
     await expect(readActivityPage(database, "member-1", {}, NOW)).resolves.toEqual({ status: "forbidden" });
-    expect(mocks.isInstanceAdmin).toHaveBeenCalledWith("member-1");
+    expect(mocks.isAppAdmin).toHaveBeenCalledWith("member-1");
     expect(selectCalls).toBe(0);
   });
 

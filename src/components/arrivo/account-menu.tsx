@@ -28,9 +28,9 @@ export function AccountMenu({ isAdmin, trigger, side }: AccountMenuProps) {
     let active = true;
     // App layouts survive client navigation; do not retain their original authority.
     // A read must not enter Next's server-action queue and race client navigation.
-    void fetch("/api/users/me/instance-role", { cache: "no-store", credentials: "same-origin" })
+    void fetch("/api/users/me/app-role", { cache: "no-store", credentials: "same-origin" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Could not check instance role");
+        if (!response.ok) throw new Error("Could not check app role");
         const result: unknown = await response.json();
         if (active) {
           setAuthority({
@@ -57,7 +57,7 @@ export function AccountMenu({ isAdmin, trigger, side }: AccountMenuProps) {
           </DropdownMenuItem>
           {authority.navigationIdentity === navigationIdentity && authority.isAdmin && (
             <DropdownMenuItem className="min-h-11 cursor-pointer" render={<Link href="/admin" prefetch={false} />}>
-              Manage instance
+              Manage app
             </DropdownMenuItem>
           )}
           <form action={signOutAction}>

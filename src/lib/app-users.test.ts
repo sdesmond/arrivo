@@ -6,16 +6,16 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: { select } }));
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
-import { listInstanceUsers, toInstanceUserSummaries } from "./instance-users";
+import { listAppUsers, toAppUserSummaries } from "./app-users";
 
-describe("instance users", () => {
+describe("app users", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     select.mockReturnValue({ from: vi.fn(() => ({ orderBy })) });
   });
   it("sorts by username and marks only the sole completed admin, without exposing hashes", () => {
     expect(
-      toInstanceUserSummaries([
+      toAppUserSummaries([
         { id: "pending", username: "zoe", role: "admin", setupComplete: false },
         { id: "admin", username: "amy", role: "admin", setupComplete: true },
         { id: "member", username: "bob", role: "member", setupComplete: true },
@@ -27,15 +27,15 @@ describe("instance users", () => {
     ]);
   });
   it("allows demotion when multiple completed admins remain", () => {
-    const summaries = toInstanceUserSummaries(
+    const summaries = toAppUserSummaries(
       ["amy", "bob"].map((username) => ({ id: username, username, role: "admin", setupComplete: true }))
     );
     expect(summaries.every((user) => !user.isLastCompletedAdmin)).toBe(true);
-    expect(toInstanceUserSummaries([])).toEqual([]);
+    expect(toAppUserSummaries([])).toEqual([]);
   });
   it("carries the setup expiry only for unfinished accounts", () => {
     const expires = "2026-10-29T12:00:00.000Z";
-    const [done, pending, expired] = toInstanceUserSummaries([
+    const [done, pending, expired] = toAppUserSummaries([
       { id: "a", username: "amy", role: "member", setupComplete: true, setupExpiresAt: new Date(expires) },
       { id: "b", username: "bob", role: "member", setupComplete: false, setupExpiresAt: new Date(expires) },
       { id: "c", username: "cat", role: "member", setupComplete: false, setupExpiresAt: null },
@@ -48,7 +48,7 @@ describe("instance users", () => {
     orderBy.mockResolvedValue([
       { id: "member", username: "bob", role: "member", setupComplete: false, setupExpiresAt: null },
     ]);
-    expect(await listInstanceUsers()).toEqual([
+    expect(await listAppUsers()).toEqual([
       { id: "member", username: "bob", role: "member", setupComplete: false, isLastCompletedAdmin: false },
     ]);
     expect(Object.keys(select.mock.calls[0][0])).toEqual(["id", "username", "role", "setupComplete", "setupExpiresAt"]);
@@ -57,7 +57,7 @@ describe("instance users", () => {
 
   it("correlates the setup expiry subquery to the outer user with a qualified id", async () => {
     orderBy.mockResolvedValue([]);
-    await listInstanceUsers();
+    await listAppUsers();
     const field = select.mock.calls[0][0].setupExpiresAt as SQL;
     // Chunks as the dialect emits them for a single-table select: columns become bare identifiers.
     const text = new PgDialect().sqlToQuery(field).sql;

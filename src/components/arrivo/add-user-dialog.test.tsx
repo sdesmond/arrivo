@@ -97,7 +97,7 @@ describe("AddUserDialog", () => {
     expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
     await waitFor(() => expect(screen.getByRole("button", { name: "Create account" })).toBeEnabled());
     expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
-    expect(refresh).toHaveBeenCalledTimes(reason === "forbidden" || reason === "instance-unavailable" ? 1 : 0);
+    expect(refresh).toHaveBeenCalledTimes(reason === "forbidden" || reason === "app-unavailable" ? 1 : 0);
     if (reason === "origin-unavailable")
       expect(screen.getByRole("status")).toHaveTextContent("Configure NEXTAUTH_URL.");
   });

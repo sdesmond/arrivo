@@ -31,7 +31,7 @@ const baseUsers = (): FakeUser[] => [
 
 interface FakeOptions {
   users?: FakeUser[];
-  instanceMissing?: boolean;
+  appMissing?: boolean;
   onLockUser?: (users: FakeUser[], userId: string) => void;
   failUpdateWith?: unknown;
   failLockWith?: unknown;
@@ -47,9 +47,9 @@ function createFake(options: FakeOptions = {}) {
   const transaction = {
     execute: async (query: SQL) => {
       const { sql: text, params } = dialect.sqlToQuery(query);
-      if (text.includes("instance_state")) {
+      if (text.includes("app_state")) {
         if (options.failLockWith) throw options.failLockWith;
-        return options.instanceMissing ? [] : [{ id: true }];
+        return options.appMissing ? [] : [{ id: true }];
       }
       if (text.startsWith("update")) {
         if (options.failUpdateWith) throw options.failUpdateWith;
@@ -224,12 +224,12 @@ describe("changeUserRole", () => {
     expect(roleOf(users, MEMBER)).toBe("admin");
   });
 
-  it("reports a missing singleton as instance-unavailable", async () => {
-    const { database } = createFake({ instanceMissing: true });
+  it("reports a missing singleton as app-unavailable", async () => {
+    const { database } = createFake({ appMissing: true });
 
     await expect(changeUserRole(database, ADMIN_A, { targetUserId: MEMBER, role: UserRole.Admin })).resolves.toEqual({
       ok: false,
-      reason: RoleChangeFailure.InstanceUnavailable,
+      reason: RoleChangeFailure.AppUnavailable,
     });
   });
 

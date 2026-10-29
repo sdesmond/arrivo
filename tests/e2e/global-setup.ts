@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { instanceState, users } from "../../src/db/schema";
+import { appState, users } from "../../src/db/schema";
 import { UserRole } from "../../src/data/types";
 import { BASELINE_E2E_USER } from "./e2e-seed-data";
 import { resetE2EStorage } from "../../scripts/e2e-storage.mjs";
@@ -23,7 +23,7 @@ export default async function globalSetup() {
     TRUNCATE users, accounts, sessions, verification_tokens,
              trips, days, events, documents, collaborators, packing_items, packing_templates, packing_template_items,
              itinerary_checklists, checklist_items, itinerary_notes, user_loyalty_numbers, user_companions,
-             auth_throttle, mfa_recovery_codes, trusted_devices, instance_state
+             auth_throttle, mfa_recovery_codes, trusted_devices, app_state
     CASCADE
   `);
 
@@ -36,7 +36,7 @@ export default async function globalSetup() {
         currency: "USD",
         role: UserRole.Admin,
       });
-      await db.insert(instanceState).values({ id: true, initializedAt: new Date() });
+      await db.insert(appState).values({ id: true, initializedAt: new Date() });
     } finally {
       await client.end();
     }

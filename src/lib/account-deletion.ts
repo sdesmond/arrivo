@@ -6,7 +6,7 @@ import type { DeleteOwnAccountResult, TripDeletionChoice } from "@/data/types";
 import {
   assertAnotherCompletedAdmin,
   LastCompletedAdminError,
-  lockInstanceAndUsersForUpdate,
+  lockAppAndUsersForUpdate,
 } from "@/lib/account-lifecycle-locks";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { areDeletionChoicesValid, buildSharedOwnedTrips } from "@/lib/trip-ownership";
@@ -16,7 +16,7 @@ export type AccountDeletionDatabase = Pick<typeof db, "transaction">;
 /**
  * Deletes one account in a single transaction. `trips.ownerId` cascades, so every trip the user owns is dealt with
  * first: shared trips go to the collaborator the user picked (promoted to manager and creator) or are deleted because
- * the user chose to; trips nobody else is on are deleted. Lock order (AD-2): instance singleton, user, owned trips.
+ * the user chose to; trips nobody else is on are deleted. Lock order (AD-2): app singleton, user, owned trips.
  * Refusals (stale choices, last completed admin) write nothing. Events, file cleanup and sign-out belong to the caller.
  */
 export async function deleteOwnAccount(
@@ -27,8 +27,8 @@ export async function deleteOwnAccount(
   const accountId = userId.toLowerCase();
 
   return database.transaction(async (transaction): Promise<DeleteOwnAccountResult> => {
-    const scope = await lockInstanceAndUsersForUpdate(transaction, [accountId]);
-    if (!scope.instanceLocked) throw new Error("Instance state not found.");
+    const scope = await lockAppAndUsersForUpdate(transaction, [accountId]);
+    if (!scope.appLocked) throw new Error("App state not found.");
     if (!scope.lockedUserIds.has(accountId)) throw new Error("User not found.");
 
     const [account] = await transaction
@@ -36,7 +36,7 @@ export async function deleteOwnAccount(
       .from(users)
       .where(eq(users.id, accountId));
     if (!account) throw new Error("User not found.");
-    // Only a completed admin counts toward the guard, so an unfinished admin leaving never strands the instance.
+    // Only a completed admin counts toward the guard, so an unfinished admin leaving never strands the app.
     if (account.role === UserRole.Admin && account.passwordHash !== null) {
       try {
         await assertAnotherCompletedAdmin(transaction, accountId);

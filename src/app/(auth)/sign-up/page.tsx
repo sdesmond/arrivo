@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { isInstanceSetupOpen } from "@/lib/instance-setup";
+import { isAppSetupOpen } from "@/lib/app-setup";
 
 export const dynamic = "force-dynamic";
 
 export default async function SignUpPage() {
-  return redirect((await isInstanceSetupOpen()) ? "/setup" : "/sign-in");
+  return redirect((await isAppSetupOpen()) ? "/setup" : "/sign-in");
 }

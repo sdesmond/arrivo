@@ -71,7 +71,7 @@ describe("DeleteUnfinishedAccountDialog", () => {
     expect(info).toHaveBeenCalled();
     expect(success).not.toHaveBeenCalled();
   });
-  it.each(["retry", "instance-unavailable"])("keeps the dialog open with an error on %s", async (reason) => {
+  it.each(["retry", "app-unavailable"])("keeps the dialog open with an error on %s", async (reason) => {
     remove.mockResolvedValue({ ok: false, reason });
     const user = await open();
     await user.click(screen.getByRole("button", { name: "Delete account" }));

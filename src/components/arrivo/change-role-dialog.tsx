@@ -12,11 +12,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { RoleChangeFailure, UserRole, type InstanceUserSummary } from "@/data/types";
+import { RoleChangeFailure, UserRole, type AppUserSummary } from "@/data/types";
 import { changeUserRoleAction } from "@/app/(app)/admin/users/actions";
 
 interface ChangeRoleDialogProps {
-  user: InstanceUserSummary;
+  user: AppUserSummary;
   onSuccess: (role: UserRole) => void;
   children: ReactElement;
 }
@@ -73,8 +73,8 @@ export function ChangeRoleDialog({ user, onSuccess, children }: ChangeRoleDialog
           </DialogTitle>
           <DialogDescription>
             {demoting
-              ? `${user.username} will lose instance management authority.`
-              : `${user.username} will be able to manage this instance.`}{" "}
+              ? `${user.username} will lose app management authority.`
+              : `${user.username} will be able to manage this app.`}{" "}
             Admin authority does not grant access to private trips.
           </DialogDescription>
         </DialogHeader>

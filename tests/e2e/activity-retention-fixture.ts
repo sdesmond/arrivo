@@ -24,10 +24,10 @@ export async function createActivityRetentionFixture() {
   const actorId = randomUUID();
   const tripId = randomUUID();
   await client.unsafe(`create schema "${schema}"`);
-  for (const table of ["instance_state", "activity_events", "users"]) {
+  for (const table of ["app_state", "activity_events", "users"]) {
     await client.unsafe(`create table "${schema}".${table} (like public.${table} including all)`);
   }
-  await client`insert into instance_state (id,initialized_at) values (true,now())`;
+  await client`insert into app_state (id,initialized_at) values (true,now())`;
   await client`insert into users (id,username,role,password_hash) values (${actorId},'fixture-admin','admin','hash')`;
   const age = (days: number) => new Date(Date.now() - days * 86_400_000);
   const record = (occurredAt: Date, handle = database) =>
@@ -45,13 +45,17 @@ export async function createActivityRetentionFixture() {
   async function verify(testCase: string) {
     if (testCase === "migration") {
       // Apply actual generated migration to a populated pre-upgrade singleton.
-      await client`alter table instance_state drop constraint instance_state_activity_retention_days`;
-      await client`alter table instance_state drop column activity_retention_days`;
-      const migration = await readFile("drizzle/0006_handy_living_lightning.sql", "utf8");
+      await client`alter table app_state drop constraint app_state_activity_retention_days`;
+      await client`alter table app_state drop column activity_retention_days`;
+      // 0006 predates the instance_state -> app_state rename (0008), so point it at the renamed table.
+      const migration = (await readFile("drizzle/0006_handy_living_lightning.sql", "utf8")).replaceAll(
+        "instance_state",
+        "app_state"
+      );
       for (const statement of migration.split("--> statement-breakpoint")) await client.unsafe(statement);
-      expect((await client`select activity_retention_days from instance_state`)[0].activity_retention_days).toBe(90);
+      expect((await client`select activity_retention_days from app_state`)[0].activity_retention_days).toBe(90);
       for (const days of [0, 31, 999])
-        await expect(client`update instance_state set activity_retention_days=${days}`).rejects.toThrow();
+        await expect(client`update app_state set activity_retention_days=${days}`).rejects.toThrow();
       return;
     }
     if (testCase === "cutoff and overlapping batches") {
@@ -185,7 +189,7 @@ export async function createActivityRetentionFixture() {
     if (testCase === "stale policy and rollback") {
       expect(await saveActivityRetention(database, actorId, 30, 180)).toEqual({ status: "stale" });
       await client`create function reject_policy() returns trigger language plpgsql as 'begin raise exception ''refuse''; end'`;
-      await client`create trigger reject_policy before update on instance_state for each row execute function reject_policy()`;
+      await client`create trigger reject_policy before update on app_state for each row execute function reject_policy()`;
       await expect(saveActivityRetention(database, actorId, 30, 90)).rejects.toThrow();
       expect(await readActivityRetention(database, actorId)).toMatchObject({ status: "ok", days: 90 });
       return;
@@ -217,12 +221,12 @@ export type ActivityRetentionFixture = Awaited<ReturnType<typeof createActivityR
 export async function holdSharedRetentionPolicy(days: number) {
   const client = postgres(process.env.E2E_DATABASE_URL!, { max: 1 });
   await client`select pg_advisory_lock(hashtextextended('retention-e2e-shared-policy',0))`;
-  const original = (await client`select activity_retention_days from instance_state where id=true`)[0]
+  const original = (await client`select activity_retention_days from app_state where id=true`)[0]
     .activity_retention_days;
-  await client`update instance_state set activity_retention_days=${days} where id=true`;
+  await client`update app_state set activity_retention_days=${days} where id=true`;
   return async () => {
     try {
-      await client`update instance_state set activity_retention_days=${original} where id=true`;
+      await client`update app_state set activity_retention_days=${original} where id=true`;
       await client`select pg_advisory_unlock(hashtextextended('retention-e2e-shared-policy',0))`;
     } finally {
       await client.end();
