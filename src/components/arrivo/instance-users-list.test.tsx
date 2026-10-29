@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as navigation from "next/navigation";
@@ -33,6 +33,15 @@ describe("InstanceUsersList", () => {
       </TooltipProvider>
     );
   }
+  it("groups each user's available controls in a responsive card grid", () => {
+    show([member, { ...member, id: "pending", username: "alex", setupComplete: false }]);
+    const list = screen.getByRole("list", { name: "Instance users" });
+    expect(list).toHaveClass("grid");
+    const cards = within(list).getAllByRole("listitem");
+    expect(within(cards[0]).getByRole("button", { name: "Make admin: bob" })).toBeVisible();
+    expect(within(cards[1]).getByRole("button", { name: "Generate new link: alex" })).toBeVisible();
+    expect(within(cards[1]).getByRole("button", { name: "Delete account: alex" })).toBeVisible();
+  });
   it("shows pending setup with its expiry, without promotion", () => {
     const future = new Date(Date.now() + 3_600_000).toISOString();
     show([{ ...member, setupComplete: false, setupExpiresAt: future }]);
