@@ -38,6 +38,7 @@ Instance state, roles, menu, admin shell. Not Activity, Add User, recovery, Over
 
 ## Notes
 
+- Decision: 2026-10-29 treat story 1.8's dependency on completed story 2.3 as a resolved historical exception to epic build order; do not report it as an outstanding warning unless its prerequisite becomes unresolved.
 - Decision: 2026-10-27 approved first-run correction adds a follow-up story before account onboarding: dedicated `/setup` welcome form, required password confirmation, automatic fresh entry and initialized setup/signup redirects. Existing bootstrap transaction and completed story history remain authoritative. See `../change-first-run-admin-setup/change-first-run-admin-setup.md`.
 
 - Decision: 2026-10-24 opening epic; defines table, route and naming choices later epics adopt.

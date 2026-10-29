@@ -1,0 +1,85 @@
+# Approved epic breakdown; table order is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Password reset tracer"
+description = "Let an admin issue a one-hour reset link for another completed account and let its recipient securely replace the password while preserving MFA; use a purpose-bound limited context, trusted origin, token scrubbing, no-store and no-referrer responses, transport-aware cookies, CSRF protection, throttling and the shared password policy, and atomically revoke sessions and trusted devices, invalidate reset and recovery authorizations, and invalidate unfinished authentication proofs while serializing competing credential changes; record secret-free best-effort Activity."
+verify = "Tests and E2E show issuance changes no credentials, a recipient resets and signs in afresh, MFA remains enabled, expired or replaced links and pre-reset MFA proofs fail, concurrent completions have one winner, and Activity failure does not block the action."
+covers = ["CAP-6"]
+after = ["3.1", "3.4", "3.5"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Deletion concurrency and self-service"
+description = "Coordinate instance, stable user and stable trip locks across account deletion, trip creation, and membership and ownership writers, while sharing last-admin protection and preserving self-service's explicit transfer or delete choices and post-commit effects."
+verify = "Real-Postgres concurrency tests cover deletion against trip creation, membership and ownership changes, simultaneous admin removal, and unchanged self-service transfer and delete outcomes."
+covers = ["CAP-5"]
+after = [1, "1.5", "3.7"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Admin deletion and private succession"
+description = "Replace pending-only admin deletion with one flow for pending and completed accounts, previewing outcomes without private trip details and rechecking an opaque fingerprint under locks; transfer each trip to the earliest eligible manager or editor with user-ID tie-break, otherwise delete it, invalidate authorizations and invitations, and perform file cleanup, notifications and secret-free Activity after commit."
+verify = "Tests and E2E show deterministic succession, viewers-only deletion, pending-account deletion, last-admin refusal, renewed review after changed outcomes, no private trip details, and cleanup or Activity failures leaving committed deletion intact."
+covers = ["CAP-5"]
+after = [2]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Admin recovery issuance service"
+description = "Add request-independent trusted-operator issuance of a one-hour, purpose-bound recovery link for a completed admin using an explicit browser-facing origin and isolated operator Activity, without changing credentials or sessions."
+verify = "Service and real-Postgres tests show eligible admin issuance, replacement of prior recovery links, rejection of ineligible accounts and invalid origins, no credential changes, and Activity failure without issuance failure."
+covers = ["CAP-7"]
+after = [3, "3.1"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 5
+type = "story"
+title = "CLI recovery completion and cutover"
+description = "Complete trusted CLI recovery through a secure purpose-bound browser context with a new password and verified replacement MFA scoped to the authorization; recheck completed-admin authority under account lock and atomically replace credentials and recovery codes, revoke sessions and devices, and invalidate sibling authorizations, then show codes once with acknowledgment before fresh sign-in; package the CLI and remove the immediate MFA-reset command and its documentation."
+verify = "Tests and E2E show completed recovery and one-time codes, unchanged credentials for abandoned or expired attempts, refusal of replaced and competing open contexts, correct CLI packaging and operator Activity, and removal of the old command."
+covers = ["CAP-7", "CAP-6"]
+after = [1, 4]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Refactor sweep"
+description = "Clean up duplication and deferred review findings across the epic without adding deferred feature scope."
+verify = "Targeted tests and affected E2E pass after cleanup."
+covers = ["CAP-5", "CAP-6", "CAP-7"]
+after = [1, 2, 3, 4, 5]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Integrated recovery and deletion E2E suite"
+description = "Add the closing scenario-owned end-to-end suite across admin deletion, reset and CLI recovery, including privacy, succession, revocation and cross-purpose invalidation, with feature-map registration."
+verify = "The affected E2E suite passes with isolated fixtures and no credentials or private trip details in Activity or admin deletion surfaces."
+covers = ["CAP-5", "CAP-6", "CAP-7"]
+after = [6]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (decision 2026-10-24)."]

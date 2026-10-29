@@ -23,7 +23,7 @@ id = 4
 slug = "epic-recovery-and-deletion"
 title = "Recovery and deletion"
 covers = ["CAP-5", "CAP-6", "CAP-7"]
-after = [{ epic = 3, needs = "credential-authorization module" }]
+after = [{ epic = 1, needs = "last-admin guard on self-service deletion" }, { epic = 3, needs = "credential-authorization module" }]
 
 [[epic]]
 id = 5
