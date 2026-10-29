@@ -245,6 +245,12 @@ export const DEFAULT_USER_MOTHER: UserMother = {
   ],
 };
 
+export const PENDING_USER_MOTHER: UserMother = {
+  user: { ...DEFAULT_USER_MOTHER.user, name: "Pending Person", setupComplete: false },
+  loyaltyNumbers: [],
+  companions: [],
+};
+
 export const THREE_DAY_TRIP_MOTHER: TripMother = {
   trip: {
     name: "E2E Test Trip",
@@ -511,7 +517,7 @@ export const E2E_TEMPLATE_PULL_2_ITEMS: TemplateItemSeed[] = [
   { text: "Shampoo", isLabel: false, position: 1 },
 ];
 
-export type UserMotherName = "default";
+export type UserMotherName = "default" | "pending";
 export type TripMotherName = "threeDayTrip" | "datelessTrip" | "deleteTrip";
 export type TemplateMotherName = "emptyTemplate";
 
@@ -520,7 +526,7 @@ function cloneValue<T>(value: T): T {
 }
 
 export function cloneUserMother(name: UserMotherName = "default", overrides: UserMotherOverrides = {}): UserMother {
-  const base = cloneValue(name === "default" ? DEFAULT_USER_MOTHER : DEFAULT_USER_MOTHER);
+  const base = cloneValue(name === "pending" ? PENDING_USER_MOTHER : DEFAULT_USER_MOTHER);
 
   return {
     user: { ...base.user, ...overrides.user },

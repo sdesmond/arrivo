@@ -19,6 +19,7 @@ import {
   type CredentialAuthorizationFixture,
 } from "../credential-authorization-fixture";
 import { createLockGate } from "../role-service-fixture";
+import { openCredentialLink, recipientContext } from "../onboarding-browser";
 
 interface RegenerationTarget extends ScenarioUserRecord {
   oldToken: string;
@@ -45,7 +46,7 @@ async function currentAuthorizations(scenario: ScenarioFixtureContext) {
 }
 Given("a regeneration target with a {string} setup link", async ({ page, scenario }, state: string) => {
   const { user } = await scenario.materialize({
-    user: { setCurrent: false, overrides: { user: { setupComplete: false } } },
+    user: { mother: "pending", setCurrent: false },
   });
   if (!user || !scenario.currentUser) throw new Error("Missing scenario accounts.");
   const issued = await withE2EDb((database) =>
@@ -59,13 +60,10 @@ Given("a regeneration target with a {string} setup link", async ({ page, scenari
   if (!issued.ok) throw new Error(issued.reason);
   scenario.setValue<RegenerationTarget>(TARGET_KEY, { ...user, oldToken: issued.token, oldExpiry: issued.expiresAt });
   if (state === "pending") {
-    const browserContext = await page
-      .context()
-      .browser()!
-      .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
+    const browserContext = await recipientContext(page);
     const setupPage = await browserContext.newPage();
     scenario.setValue("regenerationOldSetupPage", setupPage);
-    await setupPage.goto(new URL(`/account-setup/open?token=${issued.token}`, page.url()).toString());
+    await openCredentialLink(setupPage, `/account-setup/open?token=${issued.token}`);
     await expect(setupPage.getByRole("dialog", { name: "Set up your account" })).toBeVisible();
   }
 });
@@ -135,10 +133,7 @@ Then("regeneration Activity identifies only the admin and target", async ({ scen
 });
 Then("the prior setup link is rejected and the replacement opens setup", async ({ page, scenario }) => {
   // Raw credentials stay in scenario memory; no assertions echo URLs or tokens. Default E2E traces/video are off.
-  const context = await page
-    .context()
-    .browser()!
-    .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
+  const context = await recipientContext(page);
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
@@ -146,9 +141,9 @@ Then("the prior setup link is rejected and the replacement opens setup", async (
       await expect(oldSetupPage.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
     }
     const recipient = await context.newPage();
-    await recipient.goto(`/account-setup/open?token=${targetOf(scenario).oldToken}`);
+    await openCredentialLink(recipient, `/account-setup/open?token=${targetOf(scenario).oldToken}`);
     await expect(recipient.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
-    await recipient.goto(scenario.getValue<string>("regeneratedUrl")!);
+    await openCredentialLink(recipient, scenario.getValue<string>("regeneratedUrl")!);
     await expect(recipient.getByRole("dialog", { name: "Set up your account" })).toBeVisible();
     expect(new URL(recipient.url()).search).toBe("");
   } finally {

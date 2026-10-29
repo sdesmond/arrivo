@@ -10,8 +10,9 @@ import {
 } from "../../../src/lib/credential-authorizations";
 import { withE2EDb } from "../e2e-db";
 import { BASELINE_E2E_USER } from "../e2e-seed-data";
-import { Given, When, Then } from "../fixtures";
+import { After, Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
+import { exchangeCredentialLink, openCredentialLink, recipientContext } from "../onboarding-browser";
 
 const LINK_KEY = "accountSetupLink";
 const SETUP_COOKIE = "arrivo_account_setup";
@@ -43,23 +44,18 @@ const linkOf = (scenario: { getValue<T>(key: string): T | undefined }) => scenar
 const openUrl = (token: string) => `/account-setup/open?token=${token}`;
 
 Given("a pending account with a fresh setup link", async ({ page, scenario }) => {
-  const username = scenario.uniqueUsername("pending");
-  const userId = await withE2EDb(async (db) => {
-    const [created] = await db
-      .insert(users)
-      .values({ username, name: "Pending Person", passwordHash: null, role: "member" })
-      .returning({ id: users.id });
-    return created.id;
-  });
-  scenario.registerCleanup({ entity: "user", id: userId });
-  scenario.setValue<SetupLink>(LINK_KEY, { userId, username, ...(await issueLink(userId)) });
+  const { user } = await scenario.materialize({ user: { mother: "pending", setCurrent: false } });
+  if (!user) throw new Error("Missing pending scenario account.");
+  scenario.setValue<SetupLink>(LINK_KEY, { userId: user.id, username: user.username, ...(await issueLink(user.id)) });
   // Recipients are not signed in: drop the baseline session so only the setup context can be in play.
   scenario.signOut();
+  // Leave the authenticated app first: in-flight session refreshes can otherwise restore its cookie.
+  await page.goto("about:blank");
   await page.context().clearCookies();
 });
 
 When("I open the setup link", async ({ page, scenario }) => {
-  await page.goto(openUrl(linkOf(scenario).token));
+  await openCredentialLink(page, openUrl(linkOf(scenario).token));
 });
 
 When("I open a setup link that is {word}", async ({ page, scenario }, kind: string) => {
@@ -74,7 +70,7 @@ When("I open a setup link that is {word}", async ({ page, scenario }, kind: stri
     },
     expired: async () => (await issueLink(link.userId, () => new Date(Date.now() - 25 * HOUR_MS))).token,
   };
-  await page.goto(openUrl(await tokens[kind]()));
+  await openCredentialLink(page, openUrl(await tokens[kind]()));
 });
 
 When("the setup link is replaced", async ({ scenario }) => {
@@ -100,7 +96,7 @@ Then("I see the account setup dialog for the pending account", async ({ page, sc
 });
 
 Then("the address has no token", async ({ page, scenario }) => {
-  expect(page.url()).not.toContain(linkOf(scenario).token);
+  expect(page.url().includes(linkOf(scenario).token)).toBe(false);
   expect(new URL(page.url()).search).toBe("");
 });
 
@@ -140,7 +136,7 @@ Then("no setup context cookie was set", async ({ page }) => {
 });
 
 Then("the setup exchange response is not cacheable and sends no referrer", async ({ page, scenario }) => {
-  const response = await page.request.get(openUrl(linkOf(scenario).token), { maxRedirects: 0 });
+  const response = await exchangeCredentialLink(page, openUrl(linkOf(scenario).token));
   expect(response.status()).toBe(303);
   expect(new URL(response.headers().location).search).toBe("");
   expect(response.headers()["cache-control"]).toContain("no-store");
@@ -232,7 +228,7 @@ Then("Activity holds a setup completed event for the pending account", async ({ 
   await expect.poll(async () => (await setupCompletedEvents(scenario)).length).toBe(1);
   const [event] = await setupCompletedEvents(scenario);
   expect(event.actorUsername).toBe(linkOf(scenario).username);
-  expect(JSON.stringify(event)).not.toContain(linkOf(scenario).token);
+  expect(JSON.stringify(event).includes(linkOf(scenario).token)).toBe(false);
 });
 
 Then("Activity holds exactly one setup completed event for the pending account", async ({ scenario }) => {
@@ -240,19 +236,18 @@ Then("Activity holds exactly one setup completed event for the pending account",
 });
 
 When("two browsers complete the setup link at the same time", async ({ page, scenario }) => {
-  const browser = page.context().browser()!;
-  const baseURL = new URL(page.url() === "about:blank" ? "http://localhost:3001" : page.url()).origin;
-  const contexts = await Promise.all([
-    browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } }),
-    browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } }),
-  ]);
+  const contexts = await Promise.all([recipientContext(page), recipientContext(page)]);
   const pages = await Promise.all(contexts.map((context) => context.newPage()));
+  scenario.setValue<Page[]>("racerPages", pages);
   for (const racer of pages) {
-    await racer.goto(openUrl(linkOf(scenario).token));
+    await openCredentialLink(racer, openUrl(linkOf(scenario).token));
     await fillSetupForm(racer, "Racer", "chosen-pass-1", "chosen-pass-1");
   }
   await Promise.all(pages.map((racer) => submitSetupForm(racer)));
-  scenario.setValue<Page[]>("racerPages", pages);
+});
+
+After(async ({ scenario }) => {
+  await Promise.all((scenario.getValue<Page[]>("racerPages") ?? []).map((racer) => racer.context().close()));
 });
 
 Then("exactly one browser completed setup", async ({ scenario }) => {

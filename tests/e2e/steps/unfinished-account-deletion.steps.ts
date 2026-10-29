@@ -15,6 +15,7 @@ import {
   type CredentialAuthorizationFixture,
 } from "../credential-authorization-fixture";
 import { createLockGate } from "../role-service-fixture";
+import { openCredentialLink, recipientContext } from "../onboarding-browser";
 
 // The target comes from the shared "a regeneration target with a {string} setup link" step.
 interface DeletionTarget extends ScenarioUserRecord {
@@ -64,10 +65,7 @@ Then("its old setup link admits no one", async ({ page, scenario }) => {
       .where(eq(credentialAuthorizations.userId, targetOf(scenario).id))
   );
   expect(authorizations).toEqual([]);
-  const context = await page
-    .context()
-    .browser()!
-    .newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } });
+  const context = await recipientContext(page);
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
@@ -75,7 +73,7 @@ Then("its old setup link admits no one", async ({ page, scenario }) => {
       await expect(oldSetupPage.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
     }
     const recipient = await context.newPage();
-    await recipient.goto(`/account-setup/open?token=${targetOf(scenario).oldToken}`);
+    await openCredentialLink(recipient, `/account-setup/open?token=${targetOf(scenario).oldToken}`);
     await expect(recipient.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
   } finally {
     await context.close();

@@ -6,6 +6,8 @@ import { BOOTSTRAP_E2E_PORT, deriveBootstrapConnectionString } from "./scripts/e
 import type { E2EWorkerOptions } from "./tests/e2e/fixtures";
 
 dotenv.config();
+// Failure page snapshots can contain one-time setup links even when screenshots/traces are disabled.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 
 // E2E assumes one local timezone, same as Vitest (vitest.config.mts): Linked Events and day bucketing use the
 // server's local date, steps compute floating "now" in the runner, and client components read browser-local time.
@@ -55,6 +57,10 @@ export default defineConfig<PlaywrightTestOptions, E2EWorkerOptions>({
   testDir,
   workers,
   use: {
+    // Setup-link scenarios handle credentials in memory; never capture their requests or UI.
+    trace: "off",
+    screenshot: "off",
+    video: "off",
     baseURL: "http://localhost:" + regularPort,
     timezoneId: E2E_TIMEZONE,
   },
