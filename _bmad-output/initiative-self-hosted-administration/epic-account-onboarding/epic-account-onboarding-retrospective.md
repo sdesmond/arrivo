@@ -45,7 +45,7 @@ Mitigation observed: I read the boundary by hand (`src/proxy.ts`, `src/lib/accou
 
 ### F2. The `authority-locking` pin did not reach the build (fix now, process)
 
-Added finding from the A1 run: `authority-locking` is not a lens in the installed `bmad-review` (its lenses are adversarial, edge-case-hunter, verification-gap, structure, prose). A pin naming it has nothing to select, which is a likely cause here.
+Verified cause (2026-10-28): `authority-locking` exists nowhere in the installed skills; it is only text in `tickets.toml` notes. `bmad-build` selects its review from one global setting, `workflow.review` (`.claude/skills/bmad-build/customize.toml:97`, default `quick`), which `step-04-review.md` writes to every plan as `review_source: 'pinned'`. So "pinned" meant the global default, not a per-ticket pin, and no ticket note can change the lens.
 
 The previous retro's A1 asked for a stronger-than-`quick` lens on high-risk locking/authority tickets, placed in entry `notes`. The notes were written (entries 1, 2, 3, 5, 7: `tickets.toml`). No plan ran it: every reviewed plan has `review: 'quick'`, `review_source: 'pinned'`, `lenses_ran: [quick]` (3.1, 3.3, 3.5, 3.7 are high risk). The plans only mention the lens in prose (`story-setup-completion-plan.md:100`, `story-credential-authorization-schema-and-module-plan.md:99`). Likely cause: the note is free text and the build reads the `review:` frontmatter pin, but I did not verify the mechanism.
 
@@ -103,7 +103,7 @@ Proposed, not applied.
 
 ## Decision records
 
-One candidate proposed, awaiting the user's approval; none written. "Setup token is held raw in an HttpOnly cookie and revalidated by digest on every request, so replacement, expiry and deletion revoke instantly." Source: `story-setup-only-context-tracer-plan.md` Design Notes, commits `74683152`, `2bd701a9`. Hard to reverse and a real trade-off (no cookie-side state versus holding the raw token); no existing ADR in `docs/decisions/` covers it. The plan gives the reason; no session log exists to add more.
+One candidate proposed and approved by the user on 2026-10-28; written to `docs/decisions/adr-setup-token-lives-in-a-scoped-cookie-and-is-revalidated-per-request.md`. Original proposal: "Setup token is held raw in an HttpOnly cookie and revalidated by digest on every request, so replacement, expiry and deletion revoke instantly." Source: `story-setup-only-context-tracer-plan.md` Design Notes, commits `74683152`, `2bd701a9`. Hard to reverse and a real trade-off (no cookie-side state versus holding the raw token); no existing ADR in `docs/decisions/` covers it. The plan gives the reason; no session log exists to add more.
 
 ## Acceptance verdict
 
