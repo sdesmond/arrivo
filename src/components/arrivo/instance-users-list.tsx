@@ -41,7 +41,7 @@ export function InstanceUsersList({ users, currentUserId }: InstanceUsersListPro
   const now = useNow();
   const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
   return (
-    <ul aria-label="Instance users" className="mt-4 flex flex-col gap-3">
+    <ul aria-label="Instance users" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {users.map((user) => {
         const action = user.role === UserRole.Admin ? "Remove admin" : "Make admin";
         const button = (
@@ -57,7 +57,7 @@ export function InstanceUsersList({ users, currentUserId }: InstanceUsersListPro
         return (
           <li
             key={user.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+            className="flex flex-col items-start gap-3 rounded-lg border p-3"
             style={{ borderColor: "var(--line)" }}
           >
             <div className="min-w-0">
