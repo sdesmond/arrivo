@@ -80,6 +80,16 @@ export type ValidateCredentialAuthorizationResult =
   | CredentialAuthorizationFailure;
 export type ConsumeCredentialAuthorizationResult = { ok: true } | CredentialAuthorizationFailure;
 export type CredentialSecurityClock = () => Date;
+export interface AdminRecoveryIssuanceInput {
+  username: string;
+  origin: string;
+}
+export type AdminRecoveryIssuanceOutcome =
+  | { ok: true; userId: string; username: string; url: string; expiresAt: string }
+  | {
+      ok: false;
+      reason: "invalid-username" | "invalid-origin" | "forbidden" | "changed-state" | "app-unavailable" | "retry";
+    };
 
 export interface BootstrapAccountValues {
   username: string;
@@ -112,6 +122,7 @@ export const ActivityEventType = {
   PasswordChanged: "password_changed",
   PasswordResetLinkGenerated: "password_reset_link_generated",
   PasswordResetCompleted: "password_reset_completed",
+  AdminRecoveryLinkGenerated: "admin_recovery_link_generated",
   AccountDeleted: "account_deleted",
   /** The actor is the admin; the target is the deleted completed account. Identities only, no trip detail. */
   AccountDeletedByAdmin: "account_deleted_by_admin",

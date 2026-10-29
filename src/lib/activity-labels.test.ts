@@ -3,6 +3,12 @@ import { ActivityEventType } from "@/data/types";
 import { ACTIVITY_TYPE_OPTIONS, EVENT_LABELS } from "./activity-labels";
 
 describe("activity labels", () => {
+  it("labels operator recovery issuance", () => {
+    expect(EVENT_LABELS[ActivityEventType.AdminRecoveryLinkGenerated]).toEqual({
+      type: "Accounts",
+      action: "Generated admin recovery link",
+    });
+  });
   it("labels password reset events", () => {
     expect(EVENT_LABELS[ActivityEventType.PasswordResetLinkGenerated].action).toBe("Generated password reset link");
     expect(EVENT_LABELS[ActivityEventType.PasswordResetCompleted].action).toBe("Completed password reset");

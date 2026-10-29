@@ -30,6 +30,13 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("admin-recovery-issuance", [
+    "src/lib/admin-recovery-issuance.ts",
+    "src/lib/credential-authorizations.ts",
+    "src/lib/activity-labels.ts",
+    "tests/e2e/admin-recovery-issuance-fixture.ts",
+    "tests/e2e/credential-authorization-fixture.ts",
+  ]),
   entry("integrated-onboarding", [
     "src/lib/account-creation.ts",
     "src/lib/account-setup-session.ts",
