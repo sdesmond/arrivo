@@ -102,3 +102,23 @@ Blocking condition: implementation verification failed. The affected E2E run rep
 Validation rerun: E2E reported 447 tests passed and no test failures with no other validation running concurrently. Playwright stalled during teardown and was stopped, so no successful process exit or final runner summary was obtained. Lint, coverage (5,351 tests), and production build passed; TypeScript failed on malformed generated `.next-e2e/dev/types/routes.d.ts`.
 
 Commit validation: lint, TypeScript and production build passed. Coverage reported 5 failing component tests (5,346 passed). Affected E2E reported 445 passes and 2 failures (mobile role change and trip deletion live refresh); its runner stalled during teardown and was stopped. Earlier isolated reset E2E passed all 7 scenarios. Review and a clean validation gate remain outstanding.
+
+## Code Review
+
+### 2026-10-29
+
+Code review complete. 0 decision-needed, 3 patch, 2 deferred, 4 rejected.
+
+- [x] [Review][Patch] Serialize MFA proof consumption with reset [src/lib/authorize-credentials.ts:210] — A reset can commit after the security-version check but before second-factor consumption, spending a recovery code or TOTP step on a revoked sign-in. Add a controlled race test.
+- [x] [Review][Patch] Keep usable reset links from exhausting their own throttle budget [src/lib/password-reset-session.ts:88] — Valid exchanges and submissions share an account budget; the tenth exchange can lock the subsequent page request, and a new link can inherit an earlier budget.
+- [x] [Review][Patch] Include reset scenarios when shared authorization code changes [tests/e2e/feature-map.mjs:80] — The shared credential authorization module maps to its own feature but not password-reset, so the affected suite can omit the reset journey.
+- [x] [Review][Defer] Recheck stale sign-out-everywhere requests [src/app/(app)/profile/security-actions.ts:181] — deferred: pre-existing action may revoke fresh sessions after an intervening reset.
+- [x] [Review][Defer] Recheck stale device-removal requests [src/app/(app)/profile/security-actions.ts:189] — deferred: pre-existing action may remove a newly created device after an intervening reset.
+
+Rejected:
+- Stale trusted-device row after reset: low; its old security version prevents authentication and hides it from device listings.
+- Invalid password inputs skip throttling: false as a credential-guessing concern; password policy is checked before expensive work and possession of the reset token is independently required.
+- Reset dialog retains changed state: low; requires authority or account state to change back while the component remains mounted, and refresh/re-entry restores the flow.
+- Validation incomplete: false as a current test result; the user reported 447 E2E passes and passing coverage (96.12% statements, 92.49% branches, 96.88% functions, 97.3% lines). Prior stalled runner exit remains a historical limitation.
+
+Review patches verified: 84 targeted tests passed. Validator: lint, TypeScript, coverage and build passed; affected E2E reported 446 passes and one timeout in unfinished-account deletion, then stalled during teardown and was interrupted.
