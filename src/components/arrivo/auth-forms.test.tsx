@@ -13,6 +13,7 @@ vi.mock("react", async (importOriginal) => {
 
 import { SignInForm, AdminSetupForm } from "./auth-forms";
 import { SignInNotice } from "@/data/types";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 
 const noopAction = vi.fn(async () => undefined);
 
@@ -103,7 +104,7 @@ describe("AdminSetupForm", () => {
     expect(username).toHaveAttribute("name", "username");
     expect(username).toHaveAttribute("minlength", "3");
     expect(username).toHaveAttribute("maxlength", "30");
-    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", String(PASSWORD_MIN_LENGTH));
   });
 
   it("renders submit button", () => {

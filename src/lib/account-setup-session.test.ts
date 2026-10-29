@@ -18,7 +18,7 @@ import {
   ACCOUNT_SETUP_COOKIE,
   accountSetupCookie,
   clearedAccountSetupCookie,
-  readAccountSetupToken,
+  ACCOUNT_SETUP_COOKIE_PATH,
   resolveAccountSetupContext,
 } from "./account-setup-session";
 
@@ -34,20 +34,14 @@ const account = {
 const headers = (init: Record<string, string> = {}) => new Headers({ "x-forwarded-for": "203.0.113.9", ...init });
 
 describe("cookie helpers", () => {
-  it("reads only the account-setup cookie", () => {
-    expect(readAccountSetupToken(`a=1; ${ACCOUNT_SETUP_COOKIE}=${TOKEN}; b=2`)).toBe(TOKEN);
-    expect(readAccountSetupToken("a=1")).toBeUndefined();
-    expect(readAccountSetupToken(`${ACCOUNT_SETUP_COOKIE}=`)).toBeUndefined();
-    expect(readAccountSetupToken(null)).toBeUndefined();
-  });
-
   it("builds a limited cookie that never outlives the link", () => {
     const cookie = accountSetupCookie(TOKEN, account.expiresAt, { https: false, now: NOW });
     expect(cookie).toContain(`${ACCOUNT_SETUP_COOKIE}=${TOKEN}`);
     expect(cookie).toContain("Max-Age=86400");
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
-    expect(cookie).toContain("Path=/");
+    expect(cookie).toContain("Path=/account-setup;");
+    expect(ACCOUNT_SETUP_COOKIE_PATH).toBe("/account-setup");
     expect(cookie).not.toContain("Secure");
   });
 
@@ -65,6 +59,7 @@ describe("cookie helpers", () => {
     const cookie = clearedAccountSetupCookie(true);
     expect(cookie).toContain(`${ACCOUNT_SETUP_COOKIE}=;`);
     expect(cookie).toContain("Max-Age=0");
+    expect(cookie).toContain("Path=/account-setup;");
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");
   });

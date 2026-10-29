@@ -3,7 +3,7 @@ title: "Wrong signed-in account"
 type: feature
 ticket: 8
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "6780010ad11e9708f723ac620103aa6f49c6dd1f"
 route: full
 route_source: auto

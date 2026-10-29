@@ -242,8 +242,11 @@ Then(
   "setup-only requests refuse app routes, the captured action, stored file and both feeds",
   async ({ page, scenario }) => {
     const cookies = await page.context().cookies();
-    expect(cookies.some((cookie) => cookie.name === "arrivo_account_setup")).toBe(true);
+    const setupCookie = cookies.find((cookie) => cookie.name === "arrivo_account_setup");
+    expect(setupCookie).toBeDefined();
     expect(cookies.some((cookie) => cookie.name.includes("session-token"))).toBe(false);
+    // The browser only sends the cookie under /account-setup; send it by hand so these requests carry the setup context.
+    const setupContext = { cookie: `arrivo_account_setup=${setupCookie!.value}` };
     const trip = scenario.currentTrip!;
     for (const path of [
       "/trips",
@@ -257,13 +260,13 @@ Then(
       "/api/users/me/events",
       `/api/trips/${trip.id}/events`,
     ]) {
-      const response = await page.request.get(path, { maxRedirects: 0 });
+      const response = await page.request.get(path, { headers: setupContext, maxRedirects: 0 });
       refusesData(response);
       expect((await response.text()).includes("Protected onboarding content")).toBe(false);
     }
     const mutation = scenario.getValue<CapturedMutation>("onboardingMutation")!;
     const response = await page.request.post(mutation.path, {
-      headers: mutation.headers,
+      headers: { ...mutation.headers, ...setupContext },
       data: mutation.body,
       maxRedirects: 0,
     });

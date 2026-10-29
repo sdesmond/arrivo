@@ -19,6 +19,8 @@ import { validateCredentialAuthorization, type CredentialAuthorizationDatabase }
 // digest in the database: replacing the link, expiry or deleting the account revokes it with no cookie-side state.
 // It is not an Auth.js session; nothing but this module reads it.
 export const ACCOUNT_SETUP_COOKIE = "arrivo_account_setup";
+// Only the setup page, its exchange route and its server actions read the cookie, so the browser sends it nowhere else.
+export const ACCOUNT_SETUP_COOKIE_PATH = "/account-setup";
 
 export type AccountSetupContext =
   | { status: "ready"; account: CredentialAuthorizationAccount }
@@ -27,16 +29,8 @@ export type AccountSetupContext =
 const UNAVAILABLE: AccountSetupContext = { status: "unavailable" };
 const realClock: CredentialSecurityClock = () => new Date();
 
-export function readAccountSetupToken(cookieHeader: string | null): string | undefined {
-  for (const part of cookieHeader?.split(";") ?? []) {
-    const [name, ...value] = part.trim().split("=");
-    if (name === ACCOUNT_SETUP_COOKIE) return value.join("=") || undefined;
-  }
-  return undefined;
-}
-
 function cookieAttributes(maxAgeSeconds: number, https: boolean): string {
-  return `Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Lax${https ? "; Secure" : ""}`;
+  return `Path=${ACCOUNT_SETUP_COOKIE_PATH}; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Lax${https ? "; Secure" : ""}`;
 }
 
 /** Set-Cookie value that never outlives the link: Max-Age is the remaining lifetime, floored to whole seconds. */

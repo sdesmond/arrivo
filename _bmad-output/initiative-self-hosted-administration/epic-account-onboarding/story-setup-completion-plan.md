@@ -3,7 +3,7 @@ title: "Setup completion"
 type: feature
 ticket: 5
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "96aed98ea7ff7fd3e9ca90148f766825755a42e2"
 route: full
 route_source: auto

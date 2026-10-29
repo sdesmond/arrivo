@@ -16,14 +16,18 @@ import {
 } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { completeAccountSetup } from "@/lib/account-setup-completion";
-import { ACCOUNT_SETUP_COOKIE, resolveAccountSetupContext } from "@/lib/account-setup-session";
+import {
+  ACCOUNT_SETUP_COOKIE,
+  ACCOUNT_SETUP_COOKIE_PATH,
+  resolveAccountSetupContext,
+} from "@/lib/account-setup-session";
 import { PASSWORD_BCRYPT_COST, failedPasswordField, validateNewPassword } from "@/lib/password-policy";
 import { isHttpsRequest } from "@/lib/request-origin";
 
 async function clearSetupCookie(): Promise<void> {
   const jar = await cookies();
   jar.set(ACCOUNT_SETUP_COOKIE, "", {
-    path: "/",
+    path: ACCOUNT_SETUP_COOKIE_PATH,
     maxAge: 0,
     httpOnly: true,
     sameSite: "lax",

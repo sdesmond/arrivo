@@ -3,7 +3,7 @@ title: "Credential-authorization schema and module"
 type: feature
 ticket: 1
 created: "2026-10-27"
-status: built
+status: done
 baseline_revision: "7efde8acfd28151feb619e1b1f7823be45223fbc"
 route: full
 route_source: auto

@@ -20,6 +20,7 @@ import { lockUserForUpdate } from "@/lib/server-action-locks";
 import { deleteOwnAccount } from "@/lib/account-deletion";
 import { publishInvitationChanged } from "@/lib/invitations";
 import { isUniqueViolation } from "@/lib/error-utils";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
@@ -234,7 +235,9 @@ export async function changePassword({
   }
   await clearFailures(throttleTargets);
 
-  if (newPassword.length < 8) return { error: "New password must be at least 8 characters." };
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    return { error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` };
+  }
 
   const hash = await bcrypt.hash(newPassword, 10);
   let updated: { username: string }[];

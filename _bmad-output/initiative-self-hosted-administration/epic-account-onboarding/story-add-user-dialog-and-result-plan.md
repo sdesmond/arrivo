@@ -3,7 +3,7 @@ title: "Add User dialog and result"
 type: feature
 ticket: 4
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "c439312b822c0dc59a8db04a9f80107ec0f05a7d"
 route: full
 route_source: auto

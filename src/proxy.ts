@@ -3,8 +3,12 @@ import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
 import { browserUrl } from "@/lib/request-origin";
 
-// `/account-setup` is listed on its own: `/setup` is a prefix match and does not cover it.
+// Each entry covers itself and its sub-paths only, so a sibling such as `/setup-link` is not public by accident.
 const PUBLIC_PATHS = ["/setup", "/account-setup", "/sign-in", "/sign-up", "/api/auth", "/api/health"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 // The database-free config: this runs on every request, so it only checks the JWT (and re-issues it, which keeps
 // "Keep me signed in" sessions sliding). Revocation is checked by requireUser() in pages and server actions.
@@ -13,7 +17,7 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isPublic =
-    PUBLIC_PATHS.some((path) => pathname.startsWith(path)) ||
+    isPublicPath(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname === "/icon.svg";

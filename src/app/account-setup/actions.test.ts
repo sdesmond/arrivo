@@ -22,6 +22,7 @@ vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("@/lib/account-setup-completion", () => ({ completeAccountSetup }));
 vi.mock("@/lib/account-setup-session", () => ({
   ACCOUNT_SETUP_COOKIE: "arrivo_account_setup",
+  ACCOUNT_SETUP_COOKIE_PATH: "/account-setup",
   resolveAccountSetupContext,
 }));
 vi.mock("bcryptjs", () => ({ default: { hash } }));
@@ -83,7 +84,11 @@ describe("completeAccountSetupAction", () => {
     await completeAccountSetupAction(undefined, form());
     expect(hash).toHaveBeenCalledWith("long-enough", 10);
     expect(completeAccountSetup).toHaveBeenCalledWith(db, { token: TOKEN, name: "Alex", passwordHash: "hashed" });
-    expect(jar.set).toHaveBeenCalledWith("arrivo_account_setup", "", expect.objectContaining({ maxAge: 0 }));
+    expect(jar.set).toHaveBeenCalledWith(
+      "arrivo_account_setup",
+      "",
+      expect.objectContaining({ maxAge: 0, path: "/account-setup" })
+    );
     expect(recordActivity).toHaveBeenCalledWith({
       type: "setup_completed",
       actor: { id: "user-1", username: "pending.one" },

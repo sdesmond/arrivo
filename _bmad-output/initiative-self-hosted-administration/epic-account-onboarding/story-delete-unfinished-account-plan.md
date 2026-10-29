@@ -3,7 +3,7 @@ title: "Delete unfinished account"
 type: feature
 ticket: 7
 created: "2026-10-28"
-status: built
+status: done
 baseline_revision: "2cc2738657c97194c68485db92b06a9cf969e622"
 route: full
 route_source: auto

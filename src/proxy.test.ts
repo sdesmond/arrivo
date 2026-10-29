@@ -55,6 +55,17 @@ describe("proxy", () => {
     }
   );
 
+  it.each(["/account-setup-admin", "/account-setupx", "/setup-link", "/sign-in-old", "/sign-upgrade"])(
+    "does not treat %s as public just because it starts with a public path",
+    (path) => {
+      expect(request(path)?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
+    }
+  );
+
+  it.each(["/account-setup/", "/sign-in/", "/api/auth/callback/credentials"])("leaves nested %s public", (path) => {
+    expect(request(path)?.headers.get("location") ?? null).toBeNull();
+  });
+
   it("lets a signed-in visitor through", () => {
     expect(request("/trips", { user: { id: "user-1" } })).toBeUndefined();
   });

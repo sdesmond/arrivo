@@ -122,6 +122,7 @@ const { mockDeleteOwnAccount } = vi.hoisted(() => ({ mockDeleteOwnAccount: vi.fn
 vi.mock("@/lib/account-deletion", () => ({ deleteOwnAccount: mockDeleteOwnAccount }));
 
 import bcrypt from "bcryptjs";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { changePassword, deleteAccount } from "./actions";
 import { AccountDeletionFailure, LiveSyncEventType, TripDeletionAction } from "@/data/types";
 import type { DeletedAccountSummary } from "@/data/types";
@@ -699,6 +700,18 @@ describe("changePassword — throttling and session revocation", () => {
   it("emits no separate logout event for the implied sign-out", async () => {
     await changePassword({ currentPassword: "old", newPassword: "new-password" });
     expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["password_changed"]);
+  });
+
+  it("refuses a new password one character under the shared minimum and accepts one at it", async () => {
+    await expect(
+      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH - 1) })
+    ).resolves.toEqual({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
+    expect(mockSet).not.toHaveBeenCalled();
+
+    await expect(
+      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH) })
+    ).resolves.toEqual({});
+    expect(mockSet).toHaveBeenCalledWith({ passwordHash: "new-hash" });
   });
 
   it("records nothing when the new password is refused, the current one is wrong, or the account is locked", async () => {

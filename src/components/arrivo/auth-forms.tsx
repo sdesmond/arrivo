@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { SignInNotice, type MfaActionState, type SignInActionState } from "@/data/types";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { MfaCodeForm } from "./mfa-code-form";
@@ -149,7 +150,13 @@ export function AdminSetupForm({ action }: AdminSetupFormProps) {
             name={field.name}
             type={field.type}
             required
-            minLength={field.name === "username" ? USERNAME_MIN_LENGTH : field.type === "password" ? 8 : undefined}
+            minLength={
+              field.name === "username"
+                ? USERNAME_MIN_LENGTH
+                : field.type === "password"
+                  ? PASSWORD_MIN_LENGTH
+                  : undefined
+            }
             maxLength={field.name === "username" ? USERNAME_MAX_LENGTH : undefined}
             autoComplete={field.autoComplete}
             autoCapitalize={field.name === "username" ? "none" : undefined}
