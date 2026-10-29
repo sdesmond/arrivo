@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { appState, users } from "@/db/schema";
+import { appState, trips, users } from "@/db/schema";
 import { UserRole } from "@/data/types";
 import type { DbTransaction } from "@/lib/server-action-locks";
 
@@ -35,6 +35,33 @@ export async function lockAppAndUsersForUpdate(
     if (rows.length > 0) lockedUserIds.add(userId);
   }
   return { appLocked: true, lockedUserIds };
+}
+
+export type UsersAndTripLock =
+  | { locked: true }
+  | { locked: false; missing: "user"; userId: string }
+  | { locked: false; missing: "trip" };
+
+// Lock order (AD-7) for writers that touch accounts and one trip without taking the app singleton: the users in
+// sorted, deduplicated ID order, then the trip. The same order account deletion uses, so a writer and a deletion
+// can wait on each other but never form a cycle. Stops at the first missing row and reports it. Runs inside the
+// caller's transaction; never opens one.
+export async function lockUsersThenTripForUpdate(
+  transaction: DbTransaction,
+  userIds: readonly string[],
+  tripId: string
+): Promise<UsersAndTripLock> {
+  for (const userId of [...new Set(userIds.map((id) => id.toLowerCase()))].sort()) {
+    const rows = await transaction.execute(
+      sql`select ${users.id} from ${users} where ${users.id} = ${userId} for update`
+    );
+    if (rows.length === 0) return { locked: false, missing: "user", userId };
+  }
+  const tripRows = await transaction.execute(
+    sql`select ${trips.id} from ${trips} where ${trips.id} = ${tripId} for update`
+  );
+  if (tripRows.length === 0) return { locked: false, missing: "trip" };
+  return { locked: true };
 }
 
 // Throws unless an admin other than `excludedUserId` has finished their account (password set). Callers must hold the
