@@ -119,6 +119,21 @@ describe("AppUsersList", () => {
     await userEvent.tab();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Make another user an admin first.");
   });
+  it("disables deleting the last admin and explains on keyboard focus", async () => {
+    show([{ ...member, role: "admin", isLastCompletedAdmin: true }]);
+    expect(screen.getByRole("button", { name: "Delete account: bob" })).toBeDisabled();
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Make another user an admin first.");
+  });
+  it("explains disabled deletion on touch without opening the dialog", async () => {
+    show([{ ...member, role: "admin", isLastCompletedAdmin: true }]);
+    await userEvent.click(screen.getByLabelText("Delete account unavailable: bob"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Make another user an admin first.");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(previewAccountDeletionAction).not.toHaveBeenCalled();
+  });
   it("explains disabled removal on touch without opening confirmation", async () => {
     show([{ ...member, role: "admin", isLastCompletedAdmin: true }]);
     await userEvent.click(screen.getByLabelText("Remove admin unavailable: bob"));

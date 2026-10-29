@@ -37,10 +37,38 @@ function SetupStatus({ user, now }: SetupStatusProps) {
   );
 }
 
+interface LastAdminTooltipProps {
+  id: string;
+  label: string;
+  openId: string | null;
+  onOpenIdChange: (id: string | null) => void;
+  children: React.ReactElement;
+}
+
+// A disabled button swallows focus and touch, so the explanation hangs off a focusable wrapper instead.
+function LastAdminTooltip({ id, label, openId, onOpenIdChange, children }: LastAdminTooltipProps) {
+  return (
+    <Tooltip open={openId === id} onOpenChange={(open) => onOpenIdChange(open ? id : null)}>
+      <TooltipTrigger
+        closeOnClick={false}
+        onClick={() => onOpenIdChange(id)}
+        render={<span tabIndex={0} className="inline-flex" />}
+        aria-label={label}
+        aria-describedby={`admin-disabled-${id}`}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent id={`admin-disabled-${id}`} role="tooltip">
+        Make another user an admin first.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
   const router = useRouter();
   const now = useNow();
-  const [tooltipUserId, setTooltipUserId] = useState<string | null>(null);
+  const [tooltipId, setTooltipId] = useState<string | null>(null);
   // A deleted row takes its Delete button with it, so focus lands on the list rather than on the page body.
   const listRef = useRef<HTMLUListElement>(null);
   return (
@@ -81,23 +109,14 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
               <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
             {user.isLastCompletedAdmin ? (
-              <Tooltip
-                open={tooltipUserId === user.id}
-                onOpenChange={(open) => setTooltipUserId(open ? user.id : null)}
+              <LastAdminTooltip
+                id={`${user.id}-role`}
+                label={`Remove admin unavailable: ${user.username}`}
+                openId={tooltipId}
+                onOpenIdChange={setTooltipId}
               >
-                <TooltipTrigger
-                  closeOnClick={false}
-                  onClick={() => setTooltipUserId(user.id)}
-                  render={<span tabIndex={0} className="inline-flex" />}
-                  aria-label={`Remove admin unavailable: ${user.username}`}
-                  aria-describedby={`admin-disabled-${user.id}`}
-                >
-                  {button}
-                </TooltipTrigger>
-                <TooltipContent id={`admin-disabled-${user.id}`} role="tooltip">
-                  Make another user an admin first.
-                </TooltipContent>
-              </Tooltip>
+                {button}
+              </LastAdminTooltip>
             ) : (
               (user.setupComplete || user.role === UserRole.Admin) && (
                 <ChangeRoleDialog
@@ -112,13 +131,26 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 </ChangeRoleDialog>
               )
             )}
-            <DeleteAccountDialog
-              userId={user.id}
-              username={user.username}
-              setupComplete={user.setupComplete}
-              isCurrentUser={user.id === currentUserId}
-              getFocusTargetAfterDelete={() => listRef.current}
-            />
+            {user.isLastCompletedAdmin ? (
+              <LastAdminTooltip
+                id={`${user.id}-delete`}
+                label={`Delete account unavailable: ${user.username}`}
+                openId={tooltipId}
+                onOpenIdChange={setTooltipId}
+              >
+                <Button variant="outline" className="h-11" aria-label={`Delete account: ${user.username}`} disabled>
+                  Delete
+                </Button>
+              </LastAdminTooltip>
+            ) : (
+              <DeleteAccountDialog
+                userId={user.id}
+                username={user.username}
+                setupComplete={user.setupComplete}
+                isCurrentUser={user.id === currentUserId}
+                getFocusTargetAfterDelete={() => listRef.current}
+              />
+            )}
           </li>
         );
       })}

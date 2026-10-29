@@ -53,6 +53,8 @@ describe("DeleteAccountDialog", () => {
     await open();
 
     expect(await screen.findByRole("status")).toHaveTextContent("Checking what deleting pat changes");
+    expect(screen.getByText("Checking what deleting pat changes…")).toHaveClass("sr-only");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Are you sure you want to delete pat? This can't be undone.");
     expect(screen.getByRole("dialog", { name: "Delete account" })).toBeVisible();
     await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
     expect(submit()).toBeDisabled();
@@ -71,11 +73,14 @@ describe("DeleteAccountDialog", () => {
     expect(preview).toHaveBeenCalledWith("target");
   });
 
-  it("says so when the account owns no trips", async () => {
+  it("adds no trip copy when the account owns no trips", async () => {
     preview.mockResolvedValue({ ok: true, preview: { ...PREVIEW, transferredTripCount: 0, deletedTripCount: 0 } });
     await open();
 
-    expect(await screen.findByText("It owns no trips.")).toBeVisible();
+    await waitFor(() => expect(submit()).toBeEnabled());
+    expect(screen.queryByText(/owns no trips/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("describes a pending account without trip detail it cannot have", async () => {
@@ -83,7 +88,7 @@ describe("DeleteAccountDialog", () => {
     await open({ setupComplete: false });
 
     expect(screen.getByRole("dialog", { name: "Delete unfinished account" })).toBeVisible();
-    expect(screen.getByText(/setup link stops working/)).toBeVisible();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Are you sure you want to delete pat? This can't be undone.");
   });
 
   it.each([

@@ -51,9 +51,7 @@ interface OutcomeSummaryProps {
 
 function OutcomeSummary({ preview }: OutcomeSummaryProps) {
   const { transferredTripCount, deletedTripCount } = preview;
-  if (transferredTripCount === 0 && deletedTripCount === 0) {
-    return <p>It owns no trips.</p>;
-  }
+  if (transferredTripCount === 0 && deletedTripCount === 0) return null;
   return (
     <ul className="list-disc pl-5">
       {transferredTripCount > 0 && (
@@ -179,24 +177,15 @@ export function DeleteAccountDialog({
       >
         <DialogHeader>
           <DialogTitle>{setupComplete ? "Delete account" : "Delete unfinished account"}</DialogTitle>
-          <DialogDescription>
-            Delete {username}?{" "}
-            {setupComplete
-              ? "They lose access, and their invitations and sign-in links stop working."
-              : "Its username is freed and its setup link stops working."}{" "}
-            This can&apos;t be undone.
-          </DialogDescription>
+          <DialogDescription>Are you sure you want to delete {username}? This can&apos;t be undone.</DialogDescription>
         </DialogHeader>
-        {/* One persistent live region, so the outcome is announced when it replaces the loading line. */}
-        <div role="status">
-          {review.status === "loading" && <p>Checking what deleting {username} changes…</p>}
-          {ready && (
-            <div className="grid gap-2" style={{ color: "var(--fg)" }}>
-              <OutcomeSummary preview={ready.preview} />
-              {isCurrentUser && <p>This is your account. You will be signed out.</p>}
-            </div>
-          )}
+        {/* One persistent live region, so the outcome is announced when it replaces the loading line. The loading
+            line is screen-reader only: sighted users would see it flash for the moment the review takes. */}
+        <div role="status" className="empty:hidden" style={{ color: "var(--fg)" }}>
+          {review.status === "loading" && <p className="sr-only">Checking what deleting {username} changes…</p>}
+          {ready && <OutcomeSummary preview={ready.preview} />}
         </div>
+        {isCurrentUser && <p style={{ color: "var(--fg)" }}>This is your account. You will be signed out.</p>}
         {review.status === "failed" && <p role="alert">Couldn&apos;t check what deleting this account changes.</p>}
         {ready?.changed && (
           <p role="alert">Trips changed since you reviewed them. Check the new outcome, then confirm again.</p>

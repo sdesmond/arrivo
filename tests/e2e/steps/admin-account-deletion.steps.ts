@@ -83,7 +83,8 @@ async function reviewDeletionOf(page: Page, scenario: Scenario, username: string
     await expect(dialog).toBeVisible({ timeout: 1_500 });
   }).toPass({ timeout: 10_000 });
   scenario.setValue(REVIEW_BODY_KEY, await (await response)!.text());
-  await expect(page.getByRole("dialog")).toContainText(/will pass|will be deleted|owns no trips/);
+  // An account with no trips has no outcome copy, so the enabled confirm button is what says the review arrived.
+  await expect(page.getByRole("dialog").getByRole("button", { name: /^Delete account$/ })).toBeEnabled();
 }
 
 When("I review deleting the completed account", async ({ page, scenario }) => {
