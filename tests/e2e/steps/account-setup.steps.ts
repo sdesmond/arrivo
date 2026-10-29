@@ -114,10 +114,15 @@ Then("the setup link is still valid with its original expiry", async ({ scenario
 });
 
 Then("requesting {string} with only the setup context redirects to sign-in", async ({ page }, path: string) => {
-  const names = (await page.context().cookies()).map((cookie) => cookie.name);
-  expect(names).toContain(SETUP_COOKIE);
-  expect(names.filter((name) => /session-token/.test(name))).toEqual([]);
-  const response = await page.request.get(path, { maxRedirects: 0 });
+  const cookies = await page.context().cookies();
+  const setupCookie = cookies.find((cookie) => cookie.name === SETUP_COOKIE);
+  expect(setupCookie).toBeDefined();
+  expect(cookies.filter((cookie) => /session-token/.test(cookie.name))).toEqual([]);
+  // The browser only sends the cookie under /account-setup; send it by hand so this still proves the proxy refuses it.
+  const response = await page.request.get(path, {
+    headers: { cookie: `${SETUP_COOKIE}=${setupCookie!.value}` },
+    maxRedirects: 0,
+  });
   expect(response.status()).toBeGreaterThanOrEqual(300);
   expect(response.status()).toBeLessThan(400);
   expect(new URL(response.headers().location, "http://localhost").pathname).toBe("/sign-in");
