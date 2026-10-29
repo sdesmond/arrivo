@@ -160,7 +160,7 @@ describe("authorizeCredentials — password step", () => {
     const attempt = authorizeCredentials({ username: "alice", password: "pw" }, request());
     await expect(attempt).rejects.toBeInstanceOf(MfaRequiredError);
     await expect(attempt).rejects.toMatchObject({ code: AuthErrorCode.MfaRequired, ticket: "signed-ticket" });
-    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: false });
+    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: false, sessionVersion: 2 });
     expect(mocks.rememberDevice).not.toHaveBeenCalled();
     expect(mocks.recordActivity).not.toHaveBeenCalled();
   });
@@ -208,7 +208,7 @@ describe("authorizeCredentials — remembering the browser and session length", 
   it("passes Keep me signed in through to the session", async () => {
     await expect(
       authorizeCredentials({ username: "alice", password: "pw", keepSignedIn: "true" }, request())
-    ).resolves.toMatchObject({ keepSignedIn: true });
+    ).resolves.toMatchObject({ keepSignedIn: true, sessionVersion: 2 });
   });
 
   it("carries Keep me signed in through the two-factor ticket", async () => {
@@ -216,7 +216,7 @@ describe("authorizeCredentials — remembering the browser and session length", 
     await expect(
       authorizeCredentials({ username: "alice", password: "pw", keepSignedIn: "true" }, request())
     ).rejects.toBeInstanceOf(MfaRequiredError);
-    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: true });
+    expect(mocks.createMfaTicket).toHaveBeenCalledWith("user-1", { keepSignedIn: true, sessionVersion: 2 });
   });
 });
 
@@ -283,7 +283,7 @@ describe("authorizeCredentials — two-factor step", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkThrottle.mockResolvedValue({ locked: false });
-    mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: true });
+    mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: true, sessionVersion: 2 });
     mocks.selectWhere.mockResolvedValue([MFA_USER]);
     mocks.verifySecondFactor.mockResolvedValue(true);
   });
@@ -299,6 +299,13 @@ describe("authorizeCredentials — two-factor step", () => {
       "123456"
     );
     expect(targetKeys(mocks.clearFailures.mock.calls[0])).toEqual(["mfa:user-1"]);
+  });
+
+  it("rejects a password proof from before a security version change", async () => {
+    mocks.selectWhere.mockResolvedValue([{ ...MFA_USER, sessionVersion: 3 }]);
+    await expect(authorizeCredentials({ mfaTicket: "t", code: "123456" }, request())).resolves.toBeNull();
+    expect(mocks.verifySecondFactor).not.toHaveBeenCalled();
+    expect(mocks.rememberDevice).not.toHaveBeenCalled();
   });
 
   it("records one sign_in event once the code is accepted", async () => {
@@ -371,7 +378,7 @@ describe("authorizeCredentials — rejection events", () => {
     mocks.selectWhere.mockResolvedValue([USER]);
     mocks.compare.mockResolvedValue(false);
     mocks.findTrustedDevice.mockResolvedValue(null);
-    mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: false });
+    mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: false, sessionVersion: 2 });
     mocks.verifySecondFactor.mockResolvedValue(false);
   });
 

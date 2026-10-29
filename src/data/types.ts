@@ -110,6 +110,8 @@ export const ActivityEventType = {
   RoleChanged: "role_changed",
   UsernameChanged: "username_changed",
   PasswordChanged: "password_changed",
+  PasswordResetLinkGenerated: "password_reset_link_generated",
+  PasswordResetCompleted: "password_reset_completed",
   AccountDeleted: "account_deleted",
   TripCreated: "trip_created",
   /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
@@ -255,6 +257,11 @@ export type RegenerateSetupLinkResult =
 export type RegenerateSetupLinkOutcome =
   | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
   | { ok: false; reason: Exclude<RegenerateSetupLinkFailure, "origin-unavailable"> };
+export type PasswordResetIssuanceOutcome = RegenerateSetupLinkOutcome;
+export type PasswordResetLinkResult =
+  | { ok: true; userId: string; username: string; resetUrl: string; expiresAt: string }
+  | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
+export type PasswordResetActionState = { error: string; field: "password" | "confirmPassword" } | undefined;
 export const DeleteUnfinishedAccountFailure = {
   Forbidden: "forbidden",
   ChangedState: "changed-state",

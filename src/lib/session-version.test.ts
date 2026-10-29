@@ -25,7 +25,7 @@ vi.mock("@/db/schema", () => ({
   trustedDevices: { id: "td.id", userId: "td.user_id", sessionVersion: "td.session_version" },
 }));
 
-import { bumpSessionVersion, getSessionState } from "./session-version";
+import { bumpSessionVersion, getSessionState, lockCurrentSecurityVersion } from "./session-version";
 
 describe("session version", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -54,5 +54,23 @@ describe("session version", () => {
   it("returns undefined for a deleted user", async () => {
     selectWhere.mockResolvedValueOnce([]);
     await expect(getSessionState("gone", "device-1")).resolves.toBeUndefined();
+  });
+
+  it("locks and rejects a session revoked before a credential write", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([{ sessionVersion: 4 }])
+      .mockResolvedValueOnce([{ sessionVersion: 4 }]);
+    const transaction = { execute } as never;
+    await expect(lockCurrentSecurityVersion(transaction, "user-1", 3)).resolves.toBe(false);
+    await expect(lockCurrentSecurityVersion(transaction, "user-1", 4)).resolves.toBe(true);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+  it("rejects missing versions and deleted users", async () => {
+    const execute = vi.fn().mockResolvedValue([]);
+    const transaction = { execute } as never;
+    await expect(lockCurrentSecurityVersion(transaction, "user-1", undefined)).resolves.toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+    await expect(lockCurrentSecurityVersion(transaction, "user-1", 1)).resolves.toBe(false);
   });
 });

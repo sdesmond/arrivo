@@ -1,0 +1,153 @@
+// @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
+const { issue } = vi.hoisted(() => ({ issue: vi.fn() }));
+vi.mock("@/lib/credential-authorizations", () => ({ issueCredentialAuthorizationInTransaction: issue }));
+import { issuePasswordReset, type CredentialAuthorizationDatabase } from "./password-reset-issuance";
+
+const ADMIN = "00000000-0000-4000-8000-00000000000a";
+const TARGET = "00000000-0000-4000-8000-00000000000b";
+const dialect = new PgDialect();
+function fake(
+  options: {
+    role?: string;
+    actorPassword?: string | null;
+    completed?: boolean;
+    missing?: boolean;
+    noActor?: boolean;
+    noApp?: boolean;
+    error?: unknown;
+  } = {}
+) {
+  const queries: string[] = [];
+  const locks: unknown[] = [];
+  let rolledBack = false;
+  const execute = vi.fn(async (query: SQL) => {
+    const { sql: text, params } = dialect.sqlToQuery(query);
+    queries.push(text);
+    if (options.error) throw options.error;
+    if (text.includes("app_state")) return options.noApp ? [] : [{ id: true }];
+    if (text.includes("for update")) {
+      locks.push(params[0]);
+      return [{ id: params[0] }];
+    }
+    return [
+      ...(!options.noActor
+        ? [
+            {
+              id: ADMIN,
+              username: "admin",
+              role: options.role ?? "admin",
+              passwordHash: options.actorPassword === undefined ? "hash" : options.actorPassword,
+              sessionVersion: 2,
+            },
+          ]
+        : []),
+      ...(!options.missing
+        ? [
+            {
+              id: TARGET,
+              username: "pending",
+              role: "member",
+              passwordHash: options.completed === false ? null : "hash",
+            },
+          ]
+        : []),
+    ];
+  });
+  const transaction = vi.fn(async (run: (transaction: unknown) => Promise<unknown>) => {
+    try {
+      return await run({ execute });
+    } catch (error) {
+      rolledBack = true;
+      throw error;
+    }
+  });
+  return {
+    database: { transaction } as unknown as CredentialAuthorizationDatabase,
+    transaction,
+    queries,
+    locks,
+    rolledBack: () => rolledBack,
+  };
+}
+describe("issuePasswordReset", () => {
+  beforeEach(() => {
+    issue.mockReset();
+    issue.mockResolvedValue({ ok: true, token: "secret", expiresAt: "2026-10-29T12:00:00.000Z" });
+  });
+  it("uses one transaction, app then sorted users, existing ID and reset issuer clock", async () => {
+    const scope = fake();
+    const clock = () => new Date("2026-10-28T12:00:00Z");
+    expect(await issuePasswordReset(scope.database, ADMIN.toUpperCase(), TARGET.toUpperCase(), 2, clock)).toEqual({
+      ok: true,
+      userId: TARGET,
+      username: "pending",
+      token: "secret",
+      expiresAt: "2026-10-29T12:00:00.000Z",
+      actor: { id: ADMIN, username: "admin" },
+    });
+    expect(scope.transaction).toHaveBeenCalledOnce();
+    expect(scope.queries[0]).toContain("app_state");
+    expect(scope.locks).toEqual([ADMIN, TARGET]);
+    expect(scope.queries.some((query) => query.startsWith("insert"))).toBe(false);
+    expect(issue).toHaveBeenCalledWith(
+      expect.anything(),
+      { kind: "admin", actorUserId: ADMIN },
+      { userId: TARGET, purpose: "reset" },
+      clock
+    );
+  });
+  it.each([
+    [{ role: "member" }, "forbidden"],
+    [{ actorPassword: null }, "forbidden"],
+    [{ noActor: true }, "forbidden"],
+    [{ missing: true }, "changed-state"],
+    [{ completed: false }, "changed-state"],
+    [{ noApp: true }, "app-unavailable"],
+  ])("refuses current locked state %j", async (options, reason) => {
+    expect(await issuePasswordReset(fake(options).database, ADMIN, TARGET, 2)).toEqual({ ok: false, reason });
+    expect(issue).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["invalid", TARGET, "forbidden"],
+    [ADMIN, "invalid", "changed-state"],
+    [ADMIN, ADMIN, "changed-state"],
+  ])("rejects invalid IDs before transaction", async (actor, target, reason) => {
+    const scope = fake();
+    expect(await issuePasswordReset(scope.database, actor, target, 2)).toEqual({ ok: false, reason });
+    expect(scope.transaction).not.toHaveBeenCalled();
+  });
+  it("rejects an admin session revoked before issuance obtains its locks", async () => {
+    expect(await issuePasswordReset(fake().database, ADMIN, TARGET, 1)).toEqual({ ok: false, reason: "forbidden" });
+    expect(issue).not.toHaveBeenCalled();
+  });
+  it.each(["40P01", "40001"])("maps nested SQLSTATE %s after rollback", async (code) => {
+    const scope = fake({ error: new Error("query", { cause: { code } }) });
+    expect(await issuePasswordReset(scope.database, ADMIN, TARGET, 2)).toEqual({ ok: false, reason: "retry" });
+    expect(scope.rolledBack()).toBe(true);
+  });
+  it.each(["forbidden", "app-unavailable", "retry", "invalid"])("rolls back issuer refusal %s", async (reason) => {
+    issue.mockResolvedValue({ ok: false, reason });
+    const scope = fake();
+    expect(await issuePasswordReset(scope.database, ADMIN, TARGET, 2)).toEqual({
+      ok: false,
+      reason: reason === "invalid" ? "changed-state" : reason,
+    });
+    expect(scope.rolledBack()).toBe(true);
+  });
+  it("propagates unexpected failure after rollback", async () => {
+    issue.mockRejectedValue(new Error("write failed"));
+    const scope = fake();
+    await expect(issuePasswordReset(scope.database, ADMIN, TARGET, 2)).rejects.toThrow("write failed");
+    expect(scope.rolledBack()).toBe(true);
+  });
+  it("defaults authorization expiry to real security time", async () => {
+    const before = Date.now();
+    await issuePasswordReset(fake().database, ADMIN, TARGET, 2);
+    const securityNow = (issue.mock.calls[0][3] as () => Date)();
+    expect(securityNow.getTime()).toBeGreaterThanOrEqual(before);
+    expect(securityNow.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+});

@@ -1,8 +1,11 @@
-import type { NextAuthConfig } from "next-auth";
+import type { DefaultSession, NextAuthConfig } from "next-auth";
 import { logAuthError } from "@/lib/auth-logger";
 import { isShortSessionExpired, type SessionTokenFields } from "@/lib/session-policy";
 
 declare module "next-auth" {
+  interface Session {
+    user: DefaultSession["user"] & { id?: string; sessionVersion?: number };
+  }
   interface User {
     sessionVersion?: number;
     deviceId?: string;
@@ -31,6 +34,7 @@ export const authConfig = {
     jwt: ({ token }) => (isShortSessionExpired(token) ? null : token),
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      session.user.sessionVersion = token.sessionVersion;
       return session;
     },
   },

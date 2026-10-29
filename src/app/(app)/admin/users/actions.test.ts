@@ -6,6 +6,7 @@ const {
   changeUserRole,
   addUser,
   regenerateSetupLink,
+  issuePasswordReset,
   deleteUnfinishedAccount,
   listAppUsers,
   revalidatePath,
@@ -18,6 +19,7 @@ const {
   changeUserRole: vi.fn(),
   addUser: vi.fn(),
   regenerateSetupLink: vi.fn(),
+  issuePasswordReset: vi.fn(),
   deleteUnfinishedAccount: vi.fn(),
   listAppUsers: vi.fn(),
   revalidatePath: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock("@/lib/auth-helpers", () => ({ requireAdmin }));
 vi.mock("@/lib/account-role-changes", () => ({ changeUserRole }));
 vi.mock("@/lib/account-creation", () => ({ addUser }));
 vi.mock("@/lib/setup-link-regeneration", () => ({ regenerateSetupLink }));
+vi.mock("@/lib/password-reset-issuance", () => ({ issuePasswordReset }));
 vi.mock("@/lib/unfinished-account-deletion", () => ({ deleteUnfinishedAccount }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/activity", () => ({ recordActivity }));
@@ -41,13 +44,69 @@ import {
   regenerateSetupLinkAction,
   checkSetupLinkTargetAction,
   deleteUnfinishedAccountAction,
+  issuePasswordResetAction,
 } from "./actions";
+
+describe("issuePasswordResetAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example");
+    vi.stubEnv("AUTH_URL", "");
+  });
+  it("returns the reset link once and records only identities", async () => {
+    issuePasswordReset.mockResolvedValue({
+      ok: true,
+      userId: "target",
+      username: "alex",
+      token: "secret",
+      expiresAt: "2026-10-29T13:00:00Z",
+      actor: { id: "actor", username: "admin" },
+    });
+    expect(await issuePasswordResetAction("target")).toEqual({
+      ok: true,
+      userId: "target",
+      username: "alex",
+      resetUrl: "https://arrivo.example/account-reset/open?token=secret",
+      expiresAt: "2026-10-29T13:00:00Z",
+    });
+    expect(JSON.stringify(recordActivity.mock.calls)).not.toContain("secret");
+  });
+  it("does not issue without a trusted origin", async () => {
+    vi.stubEnv("NEXTAUTH_URL", "");
+    expect(await issuePasswordResetAction("target")).toMatchObject({ ok: false, reason: "origin-unavailable" });
+    expect(issuePasswordReset).not.toHaveBeenCalled();
+  });
+  it("returns the committed link when Activity scheduling fails", async () => {
+    issuePasswordReset.mockResolvedValue({
+      ok: true,
+      userId: "target",
+      username: "alex",
+      token: "secret",
+      expiresAt: "2026-10-29T13:00:00Z",
+      actor: { id: "actor", username: "admin" },
+    });
+    const actual = await vi.importActual<typeof import("@/lib/activity")>("@/lib/activity");
+    recordActivity.mockImplementation(actual.recordActivity);
+    nextAfter.mockImplementation(() => {
+      throw new Error("unavailable");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await issuePasswordResetAction("target")).toMatchObject({
+      ok: true,
+      resetUrl: expect.stringContaining("secret"),
+    });
+    log.mockRestore();
+    recordActivity.mockReset();
+    nextAfter.mockReset();
+  });
+});
 
 describe("deleteUnfinishedAccountAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     recordActivity.mockReset();
-    requireAdmin.mockResolvedValue({ id: "actor" });
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
   });
   it("records only identities after a committed deletion", async () => {
     deleteUnfinishedAccount.mockResolvedValue({
@@ -92,7 +151,7 @@ describe("setup link regeneration actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     recordActivity.mockReset();
-    requireAdmin.mockResolvedValue({ id: "actor" });
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
     vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example");
     vi.stubEnv("AUTH_URL", "");
   });
@@ -206,7 +265,7 @@ describe("addUserAction", () => {
     vi.unstubAllEnvs();
     vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example.com/app");
     vi.stubEnv("AUTH_URL", "");
-    requireAdmin.mockResolvedValue({ id: "actor" });
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
     recordActivity.mockReset();
   });
 
@@ -282,7 +341,7 @@ describe("changeUserRoleAction", () => {
     vi.clearAllMocks();
     recordActivity.mockReset();
     nextAfter.mockReset();
-    requireAdmin.mockResolvedValue({ id: "actor" });
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
   });
   const ACTOR = { id: "actor", username: "admin" };
   const TARGET = { id: "target", username: "bob" };
@@ -371,7 +430,7 @@ describe("changeUserRoleAction", () => {
 describe("checkAddedUserAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAdmin.mockResolvedValue({ id: "actor" });
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
   });
   it("authorizes before reading and returns only normalized existence", async () => {
     listAppUsers.mockResolvedValue([{ id: "new", username: "alex.q" }]);

@@ -36,6 +36,8 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/db/schema", () => ({
   users: { tableName: "users" },
+  credentialAuthorizations: {},
+  trustedDevices: {},
   collaborators: { tableName: "collaborators" },
   trips: { tableName: "trips" },
   documents: { tableName: "documents" },
@@ -76,16 +78,25 @@ vi.mock("@/lib/invitations", () => ({
   publishInvitationChanged: mockPublishInvitationChanged,
 }));
 
-const { mockSignOut, mockSelectWhere, mockCheckThrottle, mockRecordFailure, mockClearFailures, mockBump } = vi.hoisted(
-  () => ({
-    mockSignOut: vi.fn(),
-    mockSelectWhere: vi.fn(),
-    mockCheckThrottle: vi.fn(),
-    mockRecordFailure: vi.fn(),
-    mockClearFailures: vi.fn(),
-    mockBump: vi.fn(),
-  })
-);
+const {
+  mockSignOut,
+  mockSelectWhere,
+  mockCheckThrottle,
+  mockRecordFailure,
+  mockClearFailures,
+  mockBump,
+  mockLockVersion,
+  mockSecurityExecute,
+} = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+  mockSelectWhere: vi.fn(),
+  mockCheckThrottle: vi.fn(),
+  mockRecordFailure: vi.fn(),
+  mockClearFailures: vi.fn(),
+  mockBump: vi.fn(),
+  mockLockVersion: vi.fn(),
+  mockSecurityExecute: vi.fn(),
+}));
 
 vi.mock("@/auth", () => ({
   signOut: mockSignOut,
@@ -102,7 +113,7 @@ vi.mock("@/lib/auth-throttle", async (importOriginal) => ({
   clearFailures: mockClearFailures,
 }));
 
-vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump }));
+vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump, lockCurrentSecurityVersion: mockLockVersion }));
 
 const { mockRecordActivity, mockAfter } = vi.hoisted(() => ({ mockRecordActivity: vi.fn(), mockAfter: vi.fn() }));
 vi.mock("@/lib/activity", () => ({ recordActivity: mockRecordActivity }));
@@ -674,12 +685,32 @@ describe("changePassword — throttling and session revocation", () => {
     mockCheckThrottle.mockResolvedValue({ locked: false });
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
+    mockLockVersion.mockResolvedValue(true);
+    mockRequireUser.mockResolvedValue({ id: "user-1", sessionVersion: 2 });
+    mockTransaction.mockImplementation(async (callback) =>
+      callback({
+        select: () => ({ from: () => ({ where: mockSelectWhere }) }),
+        update: mockUpdate,
+        execute: mockSecurityExecute.mockResolvedValue([]),
+      })
+    );
+  });
+
+  it("rejects a session revoked while the action waited for its account lock", async () => {
+    mockLockVersion.mockResolvedValue(false);
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Session expired. Sign in again.",
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 
   it("updates the hash, signs out every device and sends the user to sign in again", async () => {
     await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({});
-    expect(mockSet).toHaveBeenCalledWith({ passwordHash: "new-hash" });
-    expect(mockBump).toHaveBeenCalledWith("user-1");
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ passwordHash: "new-hash", totpPendingSecret: null })
+    );
+    expect(mockSecurityExecute).toHaveBeenCalledTimes(2);
     expect(mockClearFailures).toHaveBeenCalledWith([expect.objectContaining({ key: "pwchange:user-1" })]);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
   });
@@ -693,7 +724,7 @@ describe("changePassword — throttling and session revocation", () => {
     });
     expect(JSON.stringify(mockRecordActivity.mock.calls)).not.toMatch(/hash|new-password/i);
     const [recorded] = mockRecordActivity.mock.invocationCallOrder;
-    expect(mockBump.mock.invocationCallOrder[0]).toBeLessThan(recorded);
+    expect(mockSecurityExecute.mock.invocationCallOrder[1]).toBeLessThan(recorded);
     expect(recorded).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
   });
 
@@ -711,7 +742,7 @@ describe("changePassword — throttling and session revocation", () => {
     await expect(
       changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH) })
     ).resolves.toEqual({});
-    expect(mockSet).toHaveBeenCalledWith({ passwordHash: "new-hash" });
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ passwordHash: "new-hash" }));
   });
 
   it("records nothing when the new password is refused, the current one is wrong, or the account is locked", async () => {
@@ -727,8 +758,10 @@ describe("changePassword — throttling and session revocation", () => {
   });
 
   it("records nothing when revoking sessions fails", async () => {
-    mockBump.mockRejectedValue(new Error("db down"));
-    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).rejects.toThrow("db down");
+    mockSecurityExecute.mockRejectedValueOnce(new Error("db down"));
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Something went wrong.",
+    });
     expect(mockRecordActivity).not.toHaveBeenCalled();
   });
 
@@ -736,7 +769,7 @@ describe("changePassword — throttling and session revocation", () => {
     mockReturning.mockResolvedValue([]);
     await changePassword({ currentPassword: "old", newPassword: "new-password" });
     expect(mockRecordActivity).not.toHaveBeenCalled();
-    expect(mockSignOut).toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 
   it("keeps the outcome when the real recorder cannot schedule its write", async () => {

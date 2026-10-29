@@ -3,6 +3,10 @@ import { ActivityEventType } from "@/data/types";
 import { ACTIVITY_TYPE_OPTIONS, EVENT_LABELS } from "./activity-labels";
 
 describe("activity labels", () => {
+  it("labels password reset events", () => {
+    expect(EVENT_LABELS[ActivityEventType.PasswordResetLinkGenerated].action).toBe("Generated password reset link");
+    expect(EVENT_LABELS[ActivityEventType.PasswordResetCompleted].action).toBe("Completed password reset");
+  });
   it("labels saved retention changes without private metadata", () => {
     expect(EVENT_LABELS[ActivityEventType.RetentionChanged]).toEqual({
       type: "Administration",

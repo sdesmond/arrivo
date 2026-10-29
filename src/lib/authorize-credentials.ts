@@ -181,7 +181,7 @@ async function authorizePassword(username: string, password: string, keepSignedI
 
   await clearFailures([targets[0]]);
   if (user.mfaEnabledAt && !isMfaRemembered(device)) {
-    throw new MfaRequiredError(createMfaTicket(user.id, { keepSignedIn }));
+    throw new MfaRequiredError(createMfaTicket(user.id, { keepSignedIn, sessionVersion: user.sessionVersion }));
   }
   return completeSignIn(user, request, { keepSignedIn, rememberMfa: false });
 }
@@ -193,7 +193,7 @@ async function authorizeSecondFactor(ticket: string, code: string | undefined, r
     recordRejection(undefined);
     return null;
   }
-  const { userId, keepSignedIn } = verified;
+  const { userId, keepSignedIn, sessionVersion } = verified;
 
   if (!code) {
     recordRejection(await lookupTarget(eq(users.id, userId), undefined));
@@ -208,7 +208,7 @@ async function authorizeSecondFactor(ticket: string, code: string | undefined, r
   }
 
   const [user] = await db.select(userColumns).from(users).where(eq(users.id, userId));
-  if (!user?.mfaEnabledAt) {
+  if (!user?.mfaEnabledAt || user.sessionVersion !== sessionVersion) {
     recordRejection(user ? knownTarget(user) : undefined);
     return null;
   }

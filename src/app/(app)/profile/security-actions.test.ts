@@ -9,16 +9,19 @@ const mocks = vi.hoisted(() => {
     where: updateWhere,
   }));
   const deleteWhere = vi.fn().mockResolvedValue([]);
+  const selectWhere = vi.fn();
   const transaction = {
     update: vi.fn(() => ({ set: updateSet })),
     delete: vi.fn(() => ({ where: deleteWhere })),
+    select: vi.fn(() => ({ from: () => ({ where: selectWhere }) })),
+    execute: vi.fn().mockResolvedValue([]),
   };
   return {
     updateWhere,
     updateSet,
     deleteWhere,
     transaction,
-    selectWhere: vi.fn(),
+    selectWhere,
     requireUser: vi.fn(),
     signOut: vi.fn(),
     compare: vi.fn(),
@@ -28,6 +31,7 @@ const mocks = vi.hoisted(() => {
     verifySecondFactor: vi.fn(),
     replaceRecoveryCodes: vi.fn(),
     bumpSessionVersion: vi.fn(),
+    lockCurrentSecurityVersion: vi.fn(),
     toDataURL: vi.fn(),
     deleteTrustedDevice: vi.fn(),
     revalidatePath: vi.fn(),
@@ -46,6 +50,8 @@ vi.mock("@/db", () => ({
 vi.mock("@/db/schema", () => ({
   users: { id: "users.id", sessionVersion: "users.session_version" },
   mfaRecoveryCodes: { userId: "c.user_id" },
+  credentialAuthorizations: {},
+  trustedDevices: {},
 }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/auth", () => ({ signOut: mocks.signOut }));
@@ -61,7 +67,10 @@ vi.mock("@/lib/mfa-store", () => ({
   verifySecondFactor: mocks.verifySecondFactor,
   replaceRecoveryCodes: mocks.replaceRecoveryCodes,
 }));
-vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mocks.bumpSessionVersion }));
+vi.mock("@/lib/session-version", () => ({
+  bumpSessionVersion: mocks.bumpSessionVersion,
+  lockCurrentSecurityVersion: mocks.lockCurrentSecurityVersion,
+}));
 vi.mock("@/lib/trusted-devices", () => ({
   DEVICE_COOKIE: "arrivo_device",
   forgetTrustedDevice: mocks.deleteTrustedDevice,
@@ -91,7 +100,8 @@ function codeFor(secret: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
-  mocks.requireUser.mockResolvedValue({ id: "user-1", name: "Alice" });
+  mocks.requireUser.mockResolvedValue({ id: "user-1", name: "Alice", sessionVersion: 2 });
+  mocks.lockCurrentSecurityVersion.mockResolvedValue(true);
   mocks.checkThrottle.mockResolvedValue({ locked: false });
   mocks.replaceRecoveryCodes.mockResolvedValue(CODES);
   mocks.toDataURL.mockResolvedValue("data:image/png;base64,QR");
@@ -100,6 +110,11 @@ beforeEach(() => {
 });
 
 describe("startMfaEnrollment", () => {
+  it("rejects a session revoked before acquiring the account lock", async () => {
+    mocks.lockCurrentSecurityVersion.mockResolvedValue(false);
+    await expect(startMfaEnrollment()).resolves.toEqual({ error: "Session expired. Sign in again." });
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
   it("stores an encrypted pending secret and returns it with a QR code", async () => {
     mocks.selectWhere.mockResolvedValue([{ mfaEnabledAt: null, username: "alice" }]);
     const result = await startMfaEnrollment();
@@ -122,6 +137,12 @@ describe("startMfaEnrollment", () => {
 
 describe("confirmMfaEnrollment", () => {
   const secret = new Secret({ size: 20 }).base32;
+
+  it("rejects a revoked session before checking a pending proof", async () => {
+    mocks.lockCurrentSecurityVersion.mockResolvedValue(false);
+    await expect(confirmMfaEnrollment("123456")).resolves.toEqual({ error: "Session expired. Sign in again." });
+    expect(mocks.selectWhere).not.toHaveBeenCalled();
+  });
 
   it("turns two-factor on, revokes other sessions and returns recovery codes", async () => {
     mocks.selectWhere.mockResolvedValue([{ mfaEnabledAt: null, totpPendingSecret: encryptField(secret) }]);
@@ -169,6 +190,17 @@ describe("confirmMfaEnrollment", () => {
 describe("password + code checks", () => {
   const ENROLLED = { passwordHash: "hash", totpSecret: "enc", totpLastStep: 5, mfaEnabledAt: new Date() };
 
+  it.each([regenerateRecoveryCodes, disableMfa])(
+    "rejects a revoked session before accepting old proofs",
+    async (action) => {
+      mocks.lockCurrentSecurityVersion.mockResolvedValue(false);
+      await expect(action({ password: "pw", code: "123456" })).resolves.toEqual({
+        error: "Session expired. Sign in again.",
+      });
+      expect(mocks.verifySecondFactor).not.toHaveBeenCalled();
+    }
+  );
+
   it("regenerates recovery codes after a correct password and code", async () => {
     mocks.selectWhere.mockResolvedValue([ENROLLED]);
     await expect(regenerateRecoveryCodes({ password: "pw", code: "123456" })).resolves.toEqual({
@@ -177,7 +209,9 @@ describe("password + code checks", () => {
     expect(mocks.replaceRecoveryCodes).toHaveBeenCalledWith(mocks.transaction, "user-1");
     expect(mocks.verifySecondFactor).toHaveBeenCalledWith(
       { id: "user-1", totpSecret: "enc", totpLastStep: 5 },
-      "123456"
+      "123456",
+      expect.any(Number),
+      mocks.transaction
     );
     expect(mocks.clearFailures).toHaveBeenCalled();
   });

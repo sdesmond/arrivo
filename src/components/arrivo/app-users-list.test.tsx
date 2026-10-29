@@ -55,6 +55,16 @@ describe("AppUsersList", () => {
     show([member]);
     expect(screen.queryByRole("button", { name: /Delete account/ })).not.toBeInTheDocument();
   });
+  it("offers reset only for other completed accounts", () => {
+    show([
+      member,
+      { ...member, id: "self", username: "me" },
+      { ...member, id: "pending", username: "pending", setupComplete: false },
+    ]);
+    expect(screen.getByRole("button", { name: "Reset password: bob" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Reset password: me" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset password: pending" })).not.toBeInTheDocument();
+  });
   it("shows setup expired once the link has lapsed", () => {
     const past = new Date(Date.now() - 3_600_000).toISOString();
     show([{ ...member, setupComplete: false, setupExpiresAt: past }]);
@@ -69,6 +79,7 @@ describe("AppUsersList", () => {
   it("disables last admin removal and explains on keyboard focus", async () => {
     show([{ ...member, role: "admin", isLastCompletedAdmin: true }]);
     expect(screen.getByRole("button", { name: "Remove admin: bob" })).toBeDisabled();
+    await userEvent.tab();
     await userEvent.tab();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Make another user an admin first.");
   });

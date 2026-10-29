@@ -11,6 +11,7 @@ import {
   type UserRole,
   type RegenerateSetupLinkResult,
   type SetupLinkTargetState,
+  type PasswordResetLinkResult,
 } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { requireAdmin } from "@/lib/auth-helpers";
@@ -21,6 +22,27 @@ import { listAppUsers } from "@/lib/app-users";
 import { normalizeUsername } from "@/lib/username";
 import { regenerateSetupLink } from "@/lib/setup-link-regeneration";
 import { deleteUnfinishedAccount } from "@/lib/unfinished-account-deletion";
+import { issuePasswordReset } from "@/lib/password-reset-issuance";
+
+export async function issuePasswordResetAction(targetUserId: string): Promise<PasswordResetLinkResult> {
+  const user = await requireAdmin();
+  const origin = trustedLinkOrigin();
+  if (!origin) return { ok: false, reason: "origin-unavailable", message: ORIGIN_UNAVAILABLE_MESSAGE };
+  const outcome = await issuePasswordReset(db, user.id!, targetUserId, user.sessionVersion);
+  if (!outcome.ok) return outcome;
+  recordActivity({
+    type: ActivityEventType.PasswordResetLinkGenerated,
+    actor: outcome.actor,
+    target: { id: outcome.userId, username: outcome.username },
+  });
+  return {
+    ok: true,
+    userId: outcome.userId,
+    username: outcome.username,
+    expiresAt: outcome.expiresAt,
+    resetUrl: `${origin}/account-reset/open?token=${encodeURIComponent(outcome.token)}`,
+  };
+}
 
 function setupUrlFor(origin: string, token: string): string {
   return `${origin}/account-setup/open?token=${encodeURIComponent(token)}`;
