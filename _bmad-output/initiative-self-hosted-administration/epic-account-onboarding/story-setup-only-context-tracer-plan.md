@@ -10,7 +10,7 @@ route_source: auto
 risk: high
 review: ""
 review_source: ""
-lenses_ran: []
+lenses_ran: [adversarial, edge-case-hunter, verification-gap]
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -36,14 +36,14 @@ deferred: []
 
 ## I/O & Edge-Case Matrix
 
-| Scenario | Input / State | Expected Output / Behavior | Error Handling |
-| --- | --- | --- | --- |
-| Open link | Valid setup token, initialized instance | 303 to `/account-setup`, cookie set, stub dialog with username; link still valid | No error expected |
-| Reopen | Same link or cookie again before expiry | Dialog again; expiry unchanged | No error expected |
-| Bad link | Malformed, wrong-purpose, expired, replaced, consumed, deleted | Generic "Setup link unavailable" page, no cookie | Invalid-token failure counted per IP |
-| Revoked mid-session | Cookie held, link replaced or account deleted | Next request shows unavailable, cookie cleared | Revalidated in DB each request |
-| Throttled | Limit exceeded | Same generic unavailable page | No hint of account existence |
-| App isolation | Only limited cookie | `/trips`, `/api/storage/*`, `/api/users/me/events` redirect to sign-in | Proxy + `requireUser` refuse |
+| Scenario            | Input / State                                                  | Expected Output / Behavior                                                       | Error Handling                       |
+| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------ |
+| Open link           | Valid setup token, initialized instance                        | 303 to `/account-setup`, cookie set, stub dialog with username; link still valid | No error expected                    |
+| Reopen              | Same link or cookie again before expiry                        | Dialog again; expiry unchanged                                                   | No error expected                    |
+| Bad link            | Malformed, wrong-purpose, expired, replaced, consumed, deleted | Generic "Setup link unavailable" page, no cookie                                 | Invalid-token failure counted per IP |
+| Revoked mid-session | Cookie held, link replaced or account deleted                  | Next request shows unavailable, cookie cleared                                   | Revalidated in DB each request       |
+| Throttled           | Limit exceeded                                                 | Same generic unavailable page                                                    | No hint of account existence         |
+| App isolation       | Only limited cookie                                            | `/trips`, `/api/storage/*`, `/api/users/me/events` redirect to sign-in           | Proxy + `requireUser` refuse         |
 
 </intent-contract>
 
@@ -84,6 +84,21 @@ deferred: []
 ## Plan Change Log
 
 ## Review Triage Log
+
+### 2026-10-28 — Review pass (retrospective follow-up A1)
+
+Run after the ticket merged (PR #353), over `97fbaa06..bfe44407` (src, tests), with `authority-locking` as the focus area. `authority-locking` is not an installed `bmad-review` lens, so the adversarial, edge-case-hunter and verification-gap lenses ran inline with that focus.
+
+- Authority and locking result: no state change in this ticket needs a lock. The throttle writes serialize (`recordFailure` inserts then `SELECT ... FOR UPDATE`, `src/lib/auth-throttle.ts:131-145`). A setup-only cookie reaches no app surface: protected paths still require an Auth.js session in `src/proxy.ts`, and E2E covers `/trips`, storage and the events feed (`account-setup.feature:22-32`).
+- findings: 5 — high 0, medium 1, low 4
+  - `[medium]` `[defer]` Cookie is set with `Path=/` (`account-setup-session.ts:39`), so the raw token rides on every same-origin request, including app routes and API handlers and their logs. Only `/account-setup` and its server actions need it. Narrow to `Path=/account-setup`.
+  - `[low]` `[defer]` Each valid exchange spends the account's 10-per-window budget (`account-setup-session.ts:96`), so link scanners or prefetchers can use it up. Once locked, the page treats the held cookie as unavailable and clears it (`page.tsx` redirect to `/open`), so a person mid-setup loses their context until the window ends.
+  - `[low]` `[defer]` Per-IP throttle is skipped when no forwarded IP header exists (`ipTargets` returns `[]`, `account-setup-session.ts:65-68`). Guessing a token stays impractical, but the throttle fails open.
+  - `[low]` `[accept]` The setup link carries the token in the query string, so a reverse-proxy access log can record it before the exchange redirect. Inherent to a GET link; operators should know.
+  - `[low]` `[patch]` `readAccountSetupToken` (`account-setup-session.ts:30`) is exported and used only by tests; the page and action read the cookie through `cookies()`. Dead production code.
+  - `[low]` `[defer]` `PUBLIC_PATHS` matches by `startsWith`, so any future `/account-setup*` sibling route is public (`src/proxy.ts`). Match the path or `path + "/"`.
+
+Nothing here changes the Done-when 1 verdict. The medium finding is worth a follow-up ticket; the rest are recorded so later runs stop re-flagging them.
 
 ## Design Notes
 
