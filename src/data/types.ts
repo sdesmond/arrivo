@@ -91,6 +91,23 @@ export type AdminRecoveryIssuanceOutcome =
       reason: "invalid-username" | "invalid-origin" | "forbidden" | "changed-state" | "app-unavailable" | "retry";
     };
 
+/** Browser-side replacement-MFA enrollment of a recovery authorization; the secret is shown for QR/key entry only. */
+export type AdminRecoveryEnrollmentResult =
+  | { ok: true; secret: string; username: string }
+  | { ok: false; reason: "unavailable" | "retry" | "needs-key" };
+export interface AdminRecoveryCompletionInput {
+  token: string;
+  passwordHash: string;
+  code: string;
+}
+export type AdminRecoveryCompletionResult =
+  | { ok: true; userId: string; username: string; recoveryCodes: string[] }
+  | { ok: false; reason: "unavailable" | "retry" | "invalid-code" };
+export type AdminRecoveryActionState =
+  | { error: string; field: "password" | "confirmPassword" | "code" }
+  | { recoveryCodes: string[] }
+  | undefined;
+
 export interface BootstrapAccountValues {
   username: string;
   name: string;
@@ -123,6 +140,8 @@ export const ActivityEventType = {
   PasswordResetLinkGenerated: "password_reset_link_generated",
   PasswordResetCompleted: "password_reset_completed",
   AdminRecoveryLinkGenerated: "admin_recovery_link_generated",
+  /** The actor is the recovered admin; credentials, codes and tokens are never recorded. */
+  AdminRecoveryCompleted: "admin_recovery_completed",
   AccountDeleted: "account_deleted",
   /** The actor is the admin; the target is the deleted completed account. Identities only, no trip detail. */
   AccountDeletedByAdmin: "account_deleted_by_admin",

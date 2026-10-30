@@ -30,6 +30,17 @@ const entry = (stem, sourceGlobs) => ({
 });
 
 export const FEATURE_MAP = [
+  entry("admin-recovery-completion", [
+    "src/lib/admin-recovery-completion.ts",
+    "src/lib/admin-recovery-session.ts",
+    "src/lib/credential-authorizations.ts",
+    "src/lib/activity-labels.ts",
+    "src/app/account-recovery/**",
+    "src/db/admin-recovery-cli.ts",
+    "src/db/admin-recovery-main.ts",
+    "Dockerfile",
+    "docs/self-hosting.md",
+  ]),
   entry("admin-recovery-issuance", [
     "src/lib/admin-recovery-issuance.ts",
     "src/lib/credential-authorizations.ts",

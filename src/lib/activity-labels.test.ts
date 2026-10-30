@@ -9,6 +9,12 @@ describe("activity labels", () => {
       action: "Generated admin recovery link",
     });
   });
+  it("labels completed admin recovery", () => {
+    expect(EVENT_LABELS[ActivityEventType.AdminRecoveryCompleted]).toEqual({
+      type: "Accounts",
+      action: "Completed admin recovery",
+    });
+  });
   it("labels password reset events", () => {
     expect(EVENT_LABELS[ActivityEventType.PasswordResetLinkGenerated].action).toBe("Generated password reset link");
     expect(EVENT_LABELS[ActivityEventType.PasswordResetCompleted].action).toBe("Completed password reset");
