@@ -33,7 +33,13 @@ a real run; an unchanged tree is a no-op.
 
 ## Execution Plan
 
-Run lint, TypeScript, coverage, and build concurrently as background shell commands — no sub-agents; each is a single deterministic command. Wait for all four to finish, even if one fails. Then run affected E2E alone: ensure no other validation command is running when E2E starts, and do not start another validation command until it exits. This avoids resource contention and load-related failures. Run E2E even if an earlier worker failed.
+Run in three phases as background shell commands — no sub-agents; each is a single deterministic command:
+
+1. Lint, TypeScript, and build concurrently. Wait for all three to finish, even if one fails.
+2. Coverage alone: ensure no other validation command is running when it starts, and do not start another until it exits. Run it even if an earlier worker failed.
+3. Affected E2E alone, with the same isolation rule. Run it even if an earlier phase failed.
+
+Coverage and E2E are the load-sensitive commands (timeouts, memory pressure), so each gets the machine to itself. This avoids resource contention and load-related failures.
 
 Each command writes its full output to a log file so raw output never enters the session:
 
@@ -50,17 +56,17 @@ Each command writes its full output to a log file so raw output never enters the
    - Command: `npx tsc --noEmit > node_modules/.cache/build-validator/logs/tsc.log 2>&1`
    - Capture static type checking faults.
 
-3. **Worker 3 (Vitest Coverage):**
-   - Command: `npm run test:coverage > node_modules/.cache/build-validator/logs/coverage.log 2>&1`
-   - Capture overall test status along with precise percentages for lines, functions, and branches.
-
-4. **Worker 4 (Next.js Build Profile):**
+3. **Worker 3 (Next.js Build Profile):**
    - Command: `NEXT_DISTDIR=.next-validate npm run build > node_modules/.cache/build-validator/logs/build.log 2>&1`
    - Builds into an isolated `.next-validate` dir (never the default `.next`) so this never races or
      corrupts a concurrently running `npm run dev` session, which compiles into `.next` on every request.
    - Capture build integrity and final chunk compilation layout.
 
-5. **E2E (after workers 1–4 finish):**
+4. **Coverage (alone, after workers 1–3 finish):**
+   - Command: `npm run test:coverage > node_modules/.cache/build-validator/logs/coverage.log 2>&1`
+   - Capture overall test status along with precise percentages for lines, functions, and branches.
+
+5. **E2E (alone, after coverage finishes):**
    - Command: `npm run test:e2e:affected > node_modules/.cache/build-validator/logs/e2e.log 2>&1`
    - Runs only the E2E features impacted by the current change set (uncommitted work, or the last
      commit when the tree is clean), per `tests/e2e/feature-map.mjs`. Docs/unit-test-only changes
@@ -72,7 +78,7 @@ Each command writes its full output to a log file so raw output never enters the
 
 ## Aggregation & Reporting Rules
 
-Once both phases finish, build the report from their exit codes and targeted reads of each log. Do not paste raw log output into the session.
+Once all phases finish, build the report from their exit codes and targeted reads of each log. Do not paste raw log output into the session.
 
 Synthesize the data and print exactly this layout block for the user:
 

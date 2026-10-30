@@ -27,6 +27,7 @@ export default defineConfig({
       "src/**/*.{test,spec}.{ts,tsx}",
       "scripts/**/*.{test,spec}.mjs",
       "tests/e2e/server-action.test.ts",
+      "tests/e2e/dialog.test.ts",
       "tests/e2e/onboarding-browser.test.ts",
     ],
     setupFiles: ["./vitest.setup.mts"],

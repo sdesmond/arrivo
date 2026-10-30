@@ -1,0 +1,35 @@
+name: Unit tests
+
+# build-validator runs these before every PR, so CI skips them per push. This runs them once per merge as a backstop
+# for coverage thresholds and for PRs that skipped the local validator.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgres://arrivo:arrivo@localhost:5432/arrivo
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage

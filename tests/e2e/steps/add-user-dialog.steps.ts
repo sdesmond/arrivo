@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { users } from "../../../src/db/schema";
 import { When, Then } from "../fixtures";
 import { withE2EDb } from "../e2e-db";
+import { openDialog } from "../dialog";
 import { waitForServerActionResponse } from "../server-action";
 import type { ScenarioFixtureContext } from "../scenario-fixture";
 
@@ -19,7 +20,7 @@ async function rememberAddedAccount(scenario: ScenarioFixtureContext) {
 When("I create a fresh account through Add User", async ({ page, scenario }) => {
   const username = scenario.uniqueUsername("added");
   scenario.setValue("addedUsername", username);
-  await page.getByRole("button", { name: "Add User", exact: true }).click();
+  await openDialog(page, page.getByRole("button", { name: "Add User", exact: true }));
   await page.getByRole("textbox", { name: "Username" }).fill(username);
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users" });
   await page.getByRole("button", { name: "Create account", exact: true }).click();
@@ -64,7 +65,7 @@ Then("the added account persists as pending after reload", async ({ page, scenar
 });
 
 When("I submit an invalid Add User username", async ({ page }) => {
-  await page.getByRole("button", { name: "Add User", exact: true }).click();
+  await openDialog(page, page.getByRole("button", { name: "Add User", exact: true }));
   await page.getByRole("textbox", { name: "Username" }).fill("!");
   await page.getByRole("button", { name: "Create account", exact: true }).click();
 });
@@ -119,7 +120,7 @@ When("the Add User response is lost after account creation", async ({ page, scen
       await route.continue();
     }
   });
-  await page.getByRole("button", { name: "Add User", exact: true }).click();
+  await openDialog(page, page.getByRole("button", { name: "Add User", exact: true }));
   await page.getByRole("textbox", { name: "Username" }).fill(username);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   try {

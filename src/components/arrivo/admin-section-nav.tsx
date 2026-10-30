@@ -9,6 +9,7 @@ export interface AdminSectionNavProps {
 }
 
 const SECTIONS = [
+  { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/activity", label: "Activity" },
 ];

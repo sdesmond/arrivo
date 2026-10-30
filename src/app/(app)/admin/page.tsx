@@ -3,5 +3,5 @@ import { requireAdmin } from "@/lib/auth-helpers";
 
 export default async function AdminPage() {
   await requireAdmin();
-  redirect("/admin/users");
+  redirect("/admin/overview");
 }

@@ -16,7 +16,7 @@ Feature: Account menu and app management shell
     When I open the shared account menu
     Then the account menu includes app management
     When I choose Manage app
-    Then I see the Users-only app management shell
+    Then I see the Overview app management shell
 
   Scenario: Member has personal settings and logout without app access
     Given I am signed in as an app "member"
@@ -33,7 +33,7 @@ Feature: Account menu and app management shell
     Then the account menu includes app management
     And the Profile tab has not navigated
     When I choose Manage app
-    Then I see the Users-only app management shell
+    Then I see the Overview app management shell
 
   Scenario: Mobile Profile opens the shared menu and Settings
     Given I am signed in as an app "member"
