@@ -1,0 +1,1 @@
+ALTER TABLE "credential_authorizations" ADD COLUMN "pending_totp_secret" text;

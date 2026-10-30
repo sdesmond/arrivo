@@ -85,6 +85,8 @@ export const credentialAuthorizations = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+    /** Encrypted replacement TOTP secret of a recovery attempt; never `users.totp_pending_secret`. */
+    pendingTotpSecret: text("pending_totp_secret"),
   },
   (table) => [
     check("credential_authorizations_purpose", sql`${table.purpose} in ('setup', 'reset', 'recovery')`),
