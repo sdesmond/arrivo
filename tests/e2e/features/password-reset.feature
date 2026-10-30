@@ -74,3 +74,14 @@ Feature: Administrator password reset
     And I open the generated password reset link as a recipient
     And I submit a cross-origin password reset
     Then the other member's original password remains valid
+
+  Scenario Outline: Revocation prevents an already-authenticated queued self-deletion
+    Given I am signed in as an app "admin"
+    And another completed app member exists
+    When the member's self-deletion queues behind "<completion>"
+    Then the account, trip and fresh authentication survive the refused self-deletion
+
+    Examples:
+      | completion |
+      | reset      |
+      | recovery   |

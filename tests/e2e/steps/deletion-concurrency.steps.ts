@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import {
   AccountDeletionFailure,
@@ -51,9 +52,18 @@ After(async ({ scenario }) => {
 async function startFixture(scenario: Scenario, memberKeys: string[]) {
   const fixture = await createDeletionConcurrencyFixture();
   scenario.setValue(FIXTURE_KEY, fixture);
+  // Only scenarios with an heir pin ID order (heir lowest); every other scenario keeps random IDs.
+  const orderedIds = memberKeys.map(() => randomUUID()).sort();
+  const orderedKeys = memberKeys.includes("heir")
+    ? [...memberKeys].sort((left, right) => (left === "heir" ? -1 : right === "heir" ? 1 : left.localeCompare(right)))
+    : memberKeys;
   await fixture.seedUsers([
     { key: "admin", role: UserRole.Admin },
-    ...memberKeys.map((key) => ({ key, role: UserRole.Member })),
+    ...orderedKeys.map((key, index) => ({
+      key,
+      ...(memberKeys.includes("heir") ? { id: orderedIds[index] } : {}),
+      role: UserRole.Member,
+    })),
   ]);
 }
 
@@ -87,12 +97,21 @@ const OPERATIONS: { pattern: RegExp; build(match: RegExpMatchArray): Operation }
     // App singleton, the account, then each owned trip.
     pattern: /^deletion of (\w+)$/,
     build: ([, user]) => ({
-      locks: async (fixture) => 2 + (await fixture.ownedTripCount(user)),
-      run: (fixture, scenario, gate, locks) =>
+      locks: async (fixture, scenario) =>
+        1 +
+        new Set([
+          fixture.userId(user),
+          ...(scenario.getValue<TripDeletionChoice[]>(CHOICES_KEY) ?? []).flatMap((choice) =>
+            choice.action === TripDeletionAction.Transfer ? [choice.newOwnerUserId] : []
+          ),
+        ]).size +
+        (await fixture.ownedTripCount(user)),
+      run: async (fixture, scenario, gate, locks) =>
         deleteOwnAccount(
           fixture.database(gatedOptions(gate, locks)),
           fixture.userId(user),
-          scenario.getValue<TripDeletionChoice[]>(CHOICES_KEY) ?? []
+          scenario.getValue<TripDeletionChoice[]>(CHOICES_KEY) ?? [],
+          await fixture.sessionVersion(user)
         ),
     }),
   },
@@ -160,11 +179,12 @@ const OPERATIONS: { pattern: RegExp; build(match: RegExpMatchArray): Operation }
       run: async (fixture, _scenario, gate, locks) => {
         const database = fixture.database(gatedOptions(gate, locks));
         const collaboratorId = await fixture.collaboratorId(trip, member);
+        const membership = await fixture.membershipRole(trip, member);
         return saveContributorChangesWrite(database, {
           tripId: fixture.tripId(trip),
           actorId: fixture.userId(manager),
           changes: [
-            { type: "role", collaboratorId, fromRole: CollaboratorRole.Editor, toRole: CollaboratorRole.Viewer },
+            { type: "role", collaboratorId, fromRole: roleOf(membership!.role), toRole: CollaboratorRole.Viewer },
           ],
         });
       },
@@ -418,3 +438,43 @@ Then(
     });
   }
 );
+
+Given("heir has a lower account ID than owner", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario);
+  expect(fixture.userId("heir") < fixture.userId("owner")).toBe(true);
+});
+When("the invitation holds its first account lock while the transfer queues", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario),
+    gate = createLockGate();
+  const spec = "invite of heir to trip shared by owner";
+  const operation = operationFor(spec);
+  const invitation = settle(operation.run(fixture, scenario, gate, 1)).then((result) => {
+    outcomesOf(scenario).set(spec, result);
+    return result;
+  });
+  await Promise.race([
+    gate.reached,
+    invitation.then(() => {
+      throw new Error("Invitation never reached gate.");
+    }),
+  ]);
+  const deletion = start(scenario, "deletion of owner");
+  try {
+    await fixture.waitForBlockedTransactions();
+  } finally {
+    gate.release();
+  }
+  await Promise.all([invitation, deletion]);
+});
+When("a contributor batch waits on the trip while its actor is deleted", async ({ scenario }) => {
+  const fixture = fixtureOf(scenario),
+    held = await fixture.holdTripLock("shared");
+  const batch = start(scenario, "removal of viewer from trip shared by manager");
+  try {
+    await fixture.waitForBlockedTransactions();
+    await start(scenario, "deletion of manager");
+  } finally {
+    await held.release();
+  }
+  await batch;
+});

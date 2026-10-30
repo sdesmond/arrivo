@@ -185,3 +185,54 @@ Feature: Account deletion against concurrent writers
     And heir holds the manager role on trip kept as creator true
     And trip dropped no longer exists
     And guest is not a member of trip dropped
+
+  Scenario: Transfer locks a lower-ID heir before an invitation can hold it
+    Given an isolated app with an admin and members "owner,heir"
+    And heir has a lower account ID than owner
+    And owner owns trip shared
+    And heir is viewer on trip shared
+    And owner chooses to transfer trip shared to heir
+    When "deletion of owner" holds its locks while "invite of heir to trip shared by owner" runs
+    Then "deletion of owner" succeeded
+    And "invite of heir to trip shared by owner" reported the inviter gone
+    And neither operation hit a deadlock
+    And trip shared is owned by heir
+
+  Scenario: Transfer waits behind an invitation holding its lower-ID heir
+    Given an isolated app with an admin and members "owner,heir"
+    And heir has a lower account ID than owner
+    And owner owns trip shared
+    And heir is viewer on trip shared
+    And owner chooses to transfer trip shared to heir
+    When the invitation holds its first account lock while the transfer queues
+    Then "deletion of owner" succeeded
+    And neither operation hit a deadlock
+    And trip shared is owned by heir
+    And heir holds the manager role on trip shared as creator true
+
+  Scenario: A queued contributor batch loses authority when its manager is deleted
+    Given an isolated app with an admin and members "owner,manager,viewer"
+    And owner owns trip shared
+    And manager is manager on trip shared
+    And viewer is viewer on trip shared
+    When a contributor batch waits on the trip while its actor is deleted
+    Then "deletion of manager" succeeded
+    And "removal of viewer from trip shared by manager" was refused as stale
+    And neither operation hit a deadlock
+    And viewer holds the viewer role on trip shared as creator false
+
+  Scenario Outline: A queued contributor batch loses authority when its manager is removed or demoted
+    Given an isolated app with an admin and members "owner,manager,viewer"
+    And owner owns trip shared
+    And manager is manager on trip shared
+    And viewer is viewer on trip shared
+    When "<change>" holds its locks while "removal of viewer from trip shared by manager" runs
+    Then "<change>" succeeded
+    And "removal of viewer from trip shared by manager" was refused as stale
+    And neither operation hit a deadlock
+    And viewer holds the viewer role on trip shared as creator false
+
+    Examples:
+      | change                                          |
+      | removal of manager from trip shared by owner     |
+      | role change of manager on trip shared by owner   |

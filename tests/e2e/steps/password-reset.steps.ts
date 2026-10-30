@@ -3,13 +3,16 @@ import { expect } from "@playwright/test";
 import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { Secret, TOTP } from "otpauth";
-import { trustedDevices, users } from "../../../src/db/schema";
+import { activityEvents, trustedDevices, trips, users } from "../../../src/db/schema";
 import { CredentialAuthorizationPurpose } from "../../../src/data/types";
 import {
   issueCredentialAuthorization,
   validateCredentialAuthorization,
   type CredentialAuthorizationDatabase,
 } from "../../../src/lib/credential-authorizations";
+import { build } from "esbuild";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import { completePasswordReset } from "../../../src/lib/password-reset";
 import { lockAppAndUsersForUpdate } from "../../../src/lib/account-lifecycle-locks";
 import type { DbTransaction } from "../../../src/lib/server-action-locks";
@@ -18,6 +21,35 @@ import { Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
+
+// Bundle the real recovery service for this Node test process; Next's server-only marker has no runtime here.
+let recoveryService: Promise<typeof import("../../../src/lib/admin-recovery-completion")> | undefined;
+function loadRecoveryService() {
+  recoveryService ??= (async () => {
+    const outfile = resolve("test-results", `recovery-service-${process.pid}.cjs`);
+    await build({
+      entryPoints: ["src/lib/admin-recovery-completion.ts"],
+      outfile,
+      bundle: true,
+      platform: "node",
+      format: "cjs",
+      packages: "external",
+      plugins: [
+        {
+          name: "server-only-marker",
+          setup(builder) {
+            builder.onResolve({ filter: /^server-only$/ }, () => ({ path: "marker", namespace: "empty-marker" }));
+            builder.onLoad({ filter: /.*/, namespace: "empty-marker" }, () => ({ contents: "" }));
+          },
+        },
+      ],
+    });
+    return createRequire(resolve("package.json"))(
+      outfile
+    ) as typeof import("../../../src/lib/admin-recovery-completion");
+  })();
+  return recoveryService;
+}
 
 const member = (scenario: { getValue<T>(key: string): T | undefined }) =>
   scenario.getValue<ScenarioUserRecord>("appMember")!;
@@ -396,3 +428,105 @@ Then(
     });
   }
 );
+
+When("the member's self-deletion queues behind {string}", async ({ page, scenario }, completion: string) => {
+  const { completeAdminRecovery, startAdminRecoveryEnrollment } = await loadRecoveryService();
+  const actor = await scenario.ensureCurrentUser(),
+    target = member(scenario);
+  const { trip } = await scenario.materialize({ trip: { ownerId: target.id, setCurrent: false } });
+  if (!trip) throw new Error("Trip materialization failed.");
+  scenario.setValue("deletionRaceTrip", trip.id);
+  await withE2EDb(async (database) => {
+    if (completion === "recovery") await database.update(users).set({ role: "admin" }).where(eq(users.id, target.id));
+    const issued = await issueCredentialAuthorization(
+      database as unknown as CredentialAuthorizationDatabase,
+      completion === "recovery" ? { kind: "trusted-operator" } : { kind: "admin", actorUserId: actor.id },
+      {
+        userId: target.id,
+        purpose:
+          completion === "recovery" ? CredentialAuthorizationPurpose.Recovery : CredentialAuthorizationPurpose.Reset,
+      }
+    );
+    if (!issued.ok) throw new Error("Authorization issuance failed.");
+    const enrollment =
+      completion === "recovery"
+        ? await startAdminRecoveryEnrollment(database as unknown as CredentialAuthorizationDatabase, issued.token)
+        : undefined;
+    if (enrollment && !enrollment.ok) throw new Error("Recovery enrollment failed.");
+    await scenario.signInAsUser(page, target.username);
+    await page.goto("/profile");
+    await page.getByRole("tab", { name: "Account" }).click();
+    await page.getByRole("button", { name: "Delete account", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete account?" });
+    await expect(dialog).toBeVisible();
+    const replacementPassword = "race-lifecycle-password";
+    const passwordHash = await bcrypt.hash(replacementPassword, 10);
+    let response: Promise<unknown> | undefined;
+    await database.transaction(async (transaction) => {
+      await lockAppAndUsersForUpdate(transaction as unknown as DbTransaction, [target.id]);
+      const [connection] = (await transaction.execute(sql`select pg_backend_pid() as pid`)) as unknown as {
+        pid: number;
+      }[];
+      response = waitForServerActionResponse(page, { pathIncludes: "/profile", expectedStatus: 303, timeoutMs: 20000 });
+      await dialog.getByRole("button", { name: "Delete account", exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            withE2EDb(
+              async (observer) =>
+                (
+                  await observer.execute(
+                    sql`select pid from pg_stat_activity where ${connection.pid} = any(pg_blocking_pids(pid))`
+                  )
+                ).length
+            ),
+          { timeout: 15000 }
+        )
+        .toBeGreaterThan(0);
+      const scoped = {
+        transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+      } as unknown as CredentialAuthorizationDatabase;
+      const result = enrollment?.ok
+        ? await completeAdminRecovery(scoped, {
+            token: issued.token,
+            passwordHash,
+            code: new TOTP({
+              secret: Secret.fromBase32(enrollment.secret),
+              algorithm: "SHA1",
+              digits: 6,
+              period: 30,
+            }).generate(),
+          })
+        : await completePasswordReset(scoped, { token: issued.token, passwordHash });
+      expect(result.ok).toBe(true);
+      await transaction.insert(trustedDevices).values({
+        userId: target.id,
+        tokenHash: createHash("sha256").update(randomUUID()).digest("hex"),
+        label: "Post-completion browser",
+        sessionVersion: 1,
+      });
+    });
+    await response;
+    scenario.setValue("deletionRacePassword", replacementPassword);
+  });
+});
+Then("the account, trip and fresh authentication survive the refused self-deletion", async ({ page, scenario }) => {
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByRole("status")).not.toBeVisible();
+  await withE2EDb(async (database) => {
+    const target = member(scenario);
+    const [account] = await database.select().from(users).where(eq(users.id, target.id));
+    expect(account.sessionVersion).toBe(1);
+    expect(await bcrypt.compare(scenario.getValue<string>("deletionRacePassword")!, account.passwordHash!)).toBe(true);
+    const [trip] = await database
+      .select()
+      .from(trips)
+      .where(eq(trips.id, scenario.getValue<string>("deletionRaceTrip")!));
+    expect(trip.ownerId).toBe(target.id);
+    const devices = await database.select().from(trustedDevices).where(eq(trustedDevices.userId, target.id));
+    expect(devices).toHaveLength(1);
+    expect(devices[0].sessionVersion).toBe(1);
+    const events = await database.select().from(activityEvents).where(eq(activityEvents.actorId, target.id));
+    expect(events.some((event) => event.type === "account_deleted")).toBe(false);
+  });
+});

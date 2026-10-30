@@ -200,14 +200,17 @@ const DELETIONS_KEY = "accountDeletionResults";
 
 When("the completed admin deletes their own account", async ({ scenario }) => {
   const fixture = fixtureOf(scenario);
-  scenario.setValue(DELETION_KEY, await deleteOwnAccount(fixture.database(), fixture.userId("admin"), []));
+  scenario.setValue(
+    DELETION_KEY,
+    await deleteOwnAccount(fixture.database(), fixture.userId("admin"), [], await fixture.sessionVersion("admin"))
+  );
 });
 
 When("both admins delete their own accounts at the same time", async ({ scenario }) => {
   const fixture = fixtureOf(scenario);
   const gate = createLockGate();
-  const remove = (key: string, withGate?: typeof gate) =>
-    deleteOwnAccount(fixture.database(withGate), fixture.userId(key), []);
+  const remove = async (key: string, withGate?: typeof gate) =>
+    deleteOwnAccount(fixture.database(withGate), fixture.userId(key), [], await fixture.sessionVersion(key));
 
   // The first transaction holds the singleton lock until the second is verifiably queued behind it.
   const firstPromise = remove("first", gate);
@@ -253,7 +256,12 @@ When(
     const gate = createLockGate();
 
     // The deletion holds the singleton lock until the demotion is verifiably queued behind it.
-    const deletion = deleteOwnAccount(fixture.database(gate), fixture.userId("first"), []);
+    const deletion = deleteOwnAccount(
+      fixture.database(gate),
+      fixture.userId("first"),
+      [],
+      await fixture.sessionVersion("first")
+    );
     await gate.reached;
     const demotion = changeUserRole(fixture.database(), fixture.userId("second"), {
       targetUserId: fixture.userId("second"),

@@ -99,6 +99,8 @@ export const FEATURE_MAP = [
     "src/components/arrivo/account-setup-sign-out.tsx",
   ]),
   entry("password-reset", [
+    "src/lib/account-deletion.ts",
+    "src/app/(app)/profile/actions.ts",
     "src/app/(app)/profile/security-actions.ts",
     "src/lib/credential-authorizations.ts",
     "src/lib/password-reset*.ts",
@@ -247,6 +249,7 @@ export const FEATURE_MAP = [
     "tests/e2e/role-service-fixture.ts",
   ]),
   entry("deletion-concurrency", [
+    "src/app/(app)/trips/actions.ts",
     "src/lib/account-deletion.ts",
     "src/lib/account-lifecycle-locks.ts",
     "src/lib/membership-writes.ts",
