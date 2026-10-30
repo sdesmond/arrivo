@@ -31,7 +31,7 @@ Mandate plus gap for people who run Arrivo on their own server: today anyone can
   - **success:** Regeneration invalidates the old link, issues a fresh 24-hour link for the same account ID; expired link leaves the account visible as expired with Generate new link; reopening a valid link resumes until original expiry; deleted account's link admits no one.
 - **CAP-4**
   - **intent:** Admin can promote and demote users while at least one completed admin always remains.
-  - **success:** Demoting or deleting (admin or self-service) the last completed admin is blocked even under concurrency; unfinished accounts cannot be promoted; self-demotion returns to personal settings and removes the Manage instance entry.
+  - **success:** Demoting or deleting (admin or self-service) the last completed admin is blocked even under concurrency; unfinished accounts cannot be promoted; self-demotion returns to personal settings and removes the Manage app entry.
 - **CAP-5**
   - **intent:** Admin can delete any account, with owned trips handled by automatic succession and no access to private trip contents.
   - **success:** Owned trip goes to the earliest-added remaining manager, else editor (ties by user ID), who becomes owner/manager/creator; viewers-only trips are deleted; confirmation shows outcome without trip names or collaborators and demands renewed review if outcomes change; admin stays signed in; self-service deletion keeps explicit transfer/delete choices.
@@ -51,8 +51,8 @@ Mandate plus gap for people who run Arrivo on their own server: today anyone can
   - **intent:** Admin can see instance condition at a glance.
   - **success:** Shows version, database and document-storage health, user/admin/pending-setup counts, trip/document counts, upload-storage bytes, recent admin actions and failed logins, each with its own freshness and manual Refresh; a failed probe shows Unavailable, never zero or Healthy.
 - **CAP-11**
-  - **intent:** Everyone reaches Settings and Log out from one account menu; admins also reach Manage instance.
-  - **success:** Menu opens from desktop sidebar account control and mobile Profile tab; Manage instance is absent for non-admins and removed on lost authority; all management routes and actions recheck current admin status server-side.
+  - **intent:** Everyone reaches Settings and Log out from one account menu; admins also reach Manage app.
+  - **success:** Menu opens from desktop sidebar account control and mobile Profile tab; Manage app is absent for non-admins and removed on lost authority; all management routes and actions recheck current admin status server-side.
 
 ## Constraints
 
