@@ -3,7 +3,7 @@ title: "Password reset tracer"
 type: "feature"
 ticket: 1
 created: "2026-10-29"
-status: blocked
+status: done
 baseline_revision: "298a53dbc0580bb91cc36d879df8ee029cc2ceb7"
 route: "full"
 route_source: "auto"
@@ -16,8 +16,6 @@ followup_review_recommended: false
 context: ["_bmad-output/initiative-self-hosted-administration/spec-self-hosted-administration/spec-self-hosted-administration.md", "_bmad-output/initiative-self-hosted-administration/architecture-self-hosted-administration/architecture-self-hosted-administration.md", "_bmad-output/initiative-self-hosted-administration/ux-self-hosted-administration/EXPERIENCE.md"]
 warnings: []
 deferred: []
-blocked_at: "2026-10-29"
-blocked_reason: "Implementation verification failed: affected E2E had four failures and stalled, and coverage had two failures that passed in isolation."
 ---
 
 <intent-contract>
@@ -122,3 +120,16 @@ Rejected:
 - Validation incomplete: false as a current test result; the user reported 447 E2E passes and passing coverage (96.12% statements, 92.49% branches, 96.88% functions, 97.3% lines). Prior stalled runner exit remains a historical limitation.
 
 Review patches verified: 84 targeted tests passed. Validator: lint, TypeScript, coverage and build passed; affected E2E reported 446 passes and one timeout in unfinished-account deletion, then stalled during teardown and was interrupted.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking current implementation, tests and subsequent verification records. Implementation was merged in PR #369 (`66a3ecd2`). Issuance rechecks admin authority under locks; reset atomically replaces the password, revokes sessions, devices and sibling authorizations, and preserves MFA. The isolated browser flow and version-bound authentication proofs cover the remaining acceptance criteria. Both deferred security-action findings above were addressed in the refactor sweep (`eac1acec`).
+
+The earlier blocked Auto Run Result is historical. `story-refactor-sweep-plan.md` records a subsequent clean build-validator gate: lint, TypeScript, production build and 5,571 unit tests passed; coverage reached 97.34% lines, 96.86% functions and 92.62% branches; affected E2E passed 495 tests with a successful process exit.
+
+Fresh checks against the current tree:
+
+- Targeted Vitest: 18 files, 405 tests passed, covering reset lifecycle, issuance, context, credential authorizations, MFA, routes, admin actions, profile security actions, dialogs, Activity and session/device revocation.
+- `node scripts/run-e2e.mjs --server=kill "--grep=@feat:(password-reset|integrated-recovery-and-deletion)"`: 13 passed, including setup, all nine password-reset scenarios and all three integrated scenarios; successful process exit.
+
+No production changes were needed. Previous verification blocker is cleared.
