@@ -3,7 +3,7 @@ title: "Refactor sweep"
 type: "refactor"
 ticket: 6
 created: "2026-10-30"
-status: "built"
+status: done
 baseline_revision: "f8a41b26d15d83f8cfce87496c910948810e0e30"
 route: "full"
 route_source: "auto"
@@ -115,3 +115,7 @@ Verification:
 - Matrix audit: all three rows covered by executed passing action/helper unit tests and password-reset/MFA browser scenarios, including transaction failures, ownership restriction and stale/missing/deleted contexts.
 
 Residual limitations: no schema changes or new feature scope; unrelated prior deferred E2E intermittency remains separate historical work. Branch remains local; no push requested by workflow.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

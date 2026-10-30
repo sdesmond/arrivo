@@ -3,7 +3,7 @@ title: "Integrated recovery and deletion E2E suite"
 type: "chore"
 ticket: 7
 created: "2026-10-30"
-status: "built"
+status: done
 baseline_revision: "eac1acec2b2ccff72fbb1082b849589bc331fc69"
 route: "full"
 route_source: "auto"
@@ -111,3 +111,7 @@ Status: built
 - Review: quick lens, 10 findings, 0 patches, 0 deferred, 10 rejected (5 false, 5 low; reasons in triage log). Follow-up review recommended: false.
 - Verification: `scripts/feature-map.test.mjs` and `scripts/affected-e2e.test.mjs` 25 passed; targeted E2E (`@feat:` integrated-recovery-and-deletion, password-reset, admin-recovery-completion, admin-account-deletion) 35 passed including all 3 new scenarios. ESLint and tsc clean on the new steps file. build-validator not run by this workflow; parent owns it.
 - Residual risks: deletion scenario reads the `adminDeletionSeeded` key from existing deletion steps; reused reset/recovery steps still `page.goto` credential URLs directly.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

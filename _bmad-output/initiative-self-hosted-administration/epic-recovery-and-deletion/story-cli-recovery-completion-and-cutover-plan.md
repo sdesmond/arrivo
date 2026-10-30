@@ -3,7 +3,7 @@ title: "CLI recovery completion and cutover"
 type: "feature"
 ticket: 5
 created: "2026-10-29"
-status: "built"
+status: done
 baseline_revision: "c0d93b1f865554f70c8603c04dfeafc6c83a3b20"
 route: "full"
 route_source: "auto"
@@ -111,3 +111,7 @@ Pending secret is created once per authorization via a conditional update (null-
 - `npx vitest run` on the new/changed test files -- pass.
 - `npm run db:migrate:e2e && npm run test:e2e:affected` -- affected scenarios pass.
 - build-validator after targeted tests.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

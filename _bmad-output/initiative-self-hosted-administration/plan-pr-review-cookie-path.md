@@ -1,7 +1,6 @@
 ---
 title: "Avoid flagging cookie path metadata as a secret"
 type: "bugfix"
-ticket: ""
 created: "2026-10-29"
 status: "built"
 baseline_revision: "079e5c0fd3550cf9900d460eba4b6ab0df9b5773"
