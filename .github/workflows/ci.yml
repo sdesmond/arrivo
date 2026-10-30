@@ -1,7 +1,9 @@
 name: CI
 
-# Static checks, unit tests and the build, plus guards that keep src/db/schema.ts and the committed
-# drizzle/ migrations in lockstep. Playwright E2E stays local (build-validator, `test:e2e:affected`).
+# Static checks plus guards that keep src/db/schema.ts and the committed drizzle/ migrations in lockstep, and a
+# smoke test of the self-hosting stack. Unit tests and the production build run locally (build-validator) and the
+# unit tests again after merge (unit-tests.yml); the docker-smoke image build compiles the app. Playwright E2E
+# stays local (build-validator, `test:e2e:affected`).
 on:
   pull_request:
 
@@ -17,7 +19,7 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
-  lint:
+  static:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,19 +33,6 @@ jobs:
       - run: npm ci
 
       - run: npm run lint
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci
 
       - run: npx tsc --noEmit
 
@@ -104,39 +93,32 @@ jobs:
           dump arrivo_push > pushed.sql
           diff -u migrated.sql pushed.sql || { echo "::error::Migrations do not produce the schema in src/db/schema.ts"; exit 1; }
 
-  unit-tests:
+  # Skipped jobs count as passed for required checks, so gate docker-smoke here rather than with workflow-level
+  # path filters (which would leave a required check pending forever).
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      stack: ${{ steps.diff.outputs.stack }}
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          fetch-depth: 0
 
-      - run: npm ci
-
-      - name: Unit tests with coverage
-        run: npm run test:coverage
-
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci
-
-      - name: Production build
-        run: npm run build
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files=$(git diff --name-only "$BASE_SHA" HEAD)
+          if echo "$files" | grep -Eq '^(Dockerfile|\.dockerignore|docker/|docker-compose[^/]*\.yml|drizzle/|drizzle\.config\.ts|package(-lock)?\.json|next\.config\.ts|\.nvmrc|\.github/workflows/ci\.yml|src/(db|middleware|proxy)|src/app/api|src/lib/storage)'; then
+            echo "stack=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stack=false" >> "$GITHUB_OUTPUT"
+          fi
 
   docker-smoke:
+    needs: changes
+    if: needs.changes.outputs.stack == 'true'
     # Boots the self-hosting compose stack on this commit's image: a fresh install, then a restart.
     runs-on: ubuntu-latest
     timeout-minutes: 30
