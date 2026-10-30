@@ -102,7 +102,7 @@ describe("issueAdminRecovery", () => {
     "ftp://example.test",
     "https://%",
     "https://example.test:99999",
-    "https://user:pass@example.test",
+    "https://user:${PASSWORD}@example.test",
     "https://@example.test",
     "https://example.test/path",
     "https://example.test/?",
