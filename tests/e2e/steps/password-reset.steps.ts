@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { expect } from "@playwright/test";
+import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { Secret, TOTP } from "otpauth";
 import { trustedDevices, users } from "../../../src/db/schema";
@@ -293,3 +294,105 @@ Then("the reset password wins and the old session cannot change it", async ({ pa
   expect(await bcrypt.compare(scenario.getValue<string>("raceResetPassword")!, row.passwordHash!)).toBe(true);
   expect(await bcrypt.compare("race-profile-password", row.passwordHash!)).toBe(false);
 });
+
+When("the member's {string} races a reset", async ({ page, scenario }, action: string) => {
+  const actor = await scenario.ensureCurrentUser();
+  const target = member(scenario);
+  const resetHash = await bcrypt.hash("race-reset-password", 10);
+  await scenario.signInAsUser(page, target.username);
+  await page.goto("/profile");
+  await page.getByRole("tab", { name: "Security" }).click();
+  const deviceId = randomUUID();
+  const tokenHash = createHash("sha256").update(randomUUID()).digest("hex");
+  const deviceLabel = "Reset race browser";
+
+  await withE2EDb(async (database) => {
+    const [account] = await database
+      .select({ sessionVersion: users.sessionVersion })
+      .from(users)
+      .where(eq(users.id, target.id));
+    await database.insert(trustedDevices).values({
+      id: deviceId,
+      userId: target.id,
+      tokenHash,
+      label: deviceLabel,
+      sessionVersion: account.sessionVersion,
+    });
+    // Render the target at the old version before taking the lock.
+    await page.reload();
+    await page.getByRole("tab", { name: "Security" }).click();
+    const issued = await issueCredentialAuthorization(
+      database as unknown as CredentialAuthorizationDatabase,
+      { kind: "admin", actorUserId: actor.id },
+      { userId: target.id, purpose: CredentialAuthorizationPurpose.Reset }
+    );
+    if (!issued.ok) throw new Error(`Reset issuance failed: ${issued.reason}`);
+    let actionResponse: Promise<unknown> | undefined;
+    await database.transaction(async (transaction) => {
+      await lockAppAndUsersForUpdate(transaction as unknown as DbTransaction, [target.id]);
+      const [connection] = (await transaction.execute(sql`select pg_backend_pid() as pid`)) as unknown as {
+        pid: number;
+      }[];
+      actionResponse = waitForServerActionResponse(page, {
+        pathIncludes: "/profile",
+        expectedStatus: 303,
+        timeoutMs: 20_000,
+      });
+      await page
+        .getByRole("button", {
+          name: action === "global sign-out" ? "Sign out all devices" : `Remove ${deviceLabel}`,
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(
+          async () =>
+            withE2EDb(async (observer) => {
+              const rows = await observer.execute(
+                sql`select pid from pg_stat_activity where ${connection.pid} = any(pg_blocking_pids(pid))`
+              );
+              return rows.length;
+            }),
+          { timeout: 15_000 }
+        )
+        .toBeGreaterThan(0);
+      const scoped = { transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction) };
+      const result = await completePasswordReset(scoped as unknown as CredentialAuthorizationDatabase, {
+        token: issued.token,
+        passwordHash: resetHash,
+      });
+      expect(result.ok).toBe(true);
+      // Reuse the selected ID so an unguarded stale delete has an observable effect.
+      await transaction.insert(trustedDevices).values({
+        id: deviceId,
+        userId: target.id,
+        tokenHash,
+        label: deviceLabel,
+        sessionVersion: account.sessionVersion + 1,
+      });
+    });
+    await actionResponse;
+    scenario.setValue("securityRaceVersion", account.sessionVersion + 1);
+    scenario.setValue("securityRaceDevice", deviceId);
+  });
+});
+
+Then(
+  "fresh authentication survives and the stale browser reaches sign-in without a success notice",
+  async ({ page, scenario }) => {
+    await expect(page).toHaveURL(/\/sign-in$/);
+    await expect(page.getByRole("status")).not.toBeVisible();
+    await withE2EDb(async (database) => {
+      const [account] = await database
+        .select({ sessionVersion: users.sessionVersion })
+        .from(users)
+        .where(eq(users.id, member(scenario).id));
+      expect(account.sessionVersion).toBe(scenario.getValue<number>("securityRaceVersion"));
+      const [device] = await database
+        .select()
+        .from(trustedDevices)
+        .where(eq(trustedDevices.id, scenario.getValue<string>("securityRaceDevice")!));
+      expect(device).toMatchObject({ userId: member(scenario).id, sessionVersion: account.sessionVersion });
+    });
+  }
+);

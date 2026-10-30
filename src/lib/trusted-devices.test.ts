@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const { db, schema } = vi.hoisted(() => ({
   db: { select: vi.fn(), update: vi.fn(), insert: vi.fn(), delete: vi.fn() },
@@ -257,5 +258,22 @@ describe("listing and forgetting", () => {
   it("reports nothing current when no row matched", async () => {
     db.delete.mockReturnValue({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })) });
     await expect(forgetTrustedDevice("user-1", "missing", "token-1")).resolves.toEqual({ wasCurrent: false });
+  });
+
+  it("uses the supplied executor and retains the device ownership restriction", async () => {
+    const returning = vi.fn().mockResolvedValue([{ tokenHash: hashDeviceToken("token-1") }]);
+    const where = vi.fn((condition) => {
+      const query = new PgDialect().sqlToQuery(condition);
+      expect(query.sql).toContain(" and ");
+      expect(query.params).toEqual(["td.id", "device-1", "td.user_id", "user-1"]);
+      return { returning };
+    });
+    const transaction = { delete: vi.fn(() => ({ where })) };
+    await expect(forgetTrustedDevice("user-1", "device-1", "token-1", transaction as never)).resolves.toEqual({
+      wasCurrent: true,
+    });
+    expect(transaction.delete).toHaveBeenCalledWith(schema.trustedDevices);
+    expect(where).toHaveBeenCalledOnce();
+    expect(db.delete).not.toHaveBeenCalled();
   });
 });
