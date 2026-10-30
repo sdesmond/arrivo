@@ -13,7 +13,7 @@ Feature: First-run admin setup
     And the account creation is recorded once in Activity for my new account
     When I open the shared account menu
     And I choose Manage app
-    Then I see the Users-only app management shell
+    Then I see the Overview app management shell
     And I can sign out and sign back in with my new username
 
   Scenario: The first admin setup on a fresh app reaches Manage app from the mobile Profile tab
@@ -29,7 +29,7 @@ Feature: First-run admin setup
     Then the account menu includes app management
     And the Profile tab has not navigated
     When I choose Manage app
-    Then I see the Users-only app management shell
+    Then I see the Overview app management shell
     And I can sign out and sign back in with my new username
 
   Scenario Outline: Fresh entry resolves to welcome setup

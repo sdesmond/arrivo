@@ -123,6 +123,13 @@ export const FEATURE_MAP = [
     "tests/e2e/activity-retention-fixture.ts",
     "tests/e2e/activity-integration-fixture.ts",
   ]),
+  entry("admin-overview", [
+    "src/lib/overview-metric.ts",
+    "src/lib/overview-readers.ts",
+    "src/components/arrivo/metric-row.tsx",
+    "src/app/(app)/admin/overview/**",
+    "src/app/(app)/admin/page.tsx",
+  ]),
   entry("app-users", [
     "src/components/arrivo/app-users-list.tsx",
     "src/components/arrivo/change-role-dialog.tsx",

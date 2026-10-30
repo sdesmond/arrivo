@@ -100,13 +100,21 @@ When("I choose account Settings", async ({ page }) => {
   await expect(page).toHaveURL(/\/profile$/);
 });
 
+Then("I see the Overview app management shell", async ({ page }) => {
+  await expect(page).toHaveURL(/\/admin\/overview$/);
+  await expect(page.getByRole("heading", { name: "Manage app" })).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "App sections" });
+  await expect(navigation.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.getByRole("link")).toHaveCount(3);
+});
+
 Then("I see the Users-only app management shell", async ({ page }) => {
   await expect(page).toHaveURL(/\/admin\/users(?:\?authority-check=1)?$/);
   await expect(page.getByRole("heading", { name: "Manage app" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Users", exact: true })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "App sections" });
   await expect(navigation.getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("link")).toHaveCount(2);
+  await expect(navigation.getByRole("link")).toHaveCount(3);
   await expect(navigation.getByRole("link", { name: "Activity" })).not.toHaveAttribute("aria-current", "page");
 });
 
