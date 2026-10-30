@@ -19,8 +19,8 @@ export async function lockCurrentSecurityVersion(
 
 // Every sign-in token carries the user's session version (see the jwt callback in src/auth.ts); bumping it
 // invalidates every token issued before, i.e. signs the user out on all devices.
-export async function bumpSessionVersion(userId: string): Promise<void> {
-  await db
+export async function bumpSessionVersion(userId: string, executor: Pick<DbTransaction, "update"> = db): Promise<void> {
+  await executor
     .update(users)
     .set({ sessionVersion: sql`${users.sessionVersion} + 1` })
     .where(eq(users.id, userId));

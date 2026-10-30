@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import { db } from "@/db";
 import { credentialAuthorizations, mfaRecoveryCodes, trustedDevices, users } from "@/db/schema";
@@ -180,7 +181,12 @@ export async function disableMfa(input: SecondFactorInput): Promise<{ error?: st
 
 export async function signOutEverywhere(): Promise<void> {
   const session = await requireUser();
-  await bumpSessionVersion(session.id!);
+  const current = await db.transaction(async (transaction) => {
+    if (!(await lockCurrentSecurityVersion(transaction, session.id!, session.sessionVersion))) return false;
+    await bumpSessionVersion(session.id!, transaction);
+    return true;
+  });
+  if (!current) redirect("/sign-in");
   await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.SignedOutEverywhere}` });
 }
 
@@ -189,8 +195,12 @@ export async function signOutEverywhere(): Promise<void> {
 export async function removeTrustedDevice(deviceId: string): Promise<void> {
   const session = await requireUser();
   const cookieJar = await cookies();
-  const { wasCurrent } = await forgetTrustedDevice(session.id!, deviceId, cookieJar.get(DEVICE_COOKIE)?.value);
-  if (wasCurrent) {
+  const outcome = await db.transaction(async (transaction) => {
+    if (!(await lockCurrentSecurityVersion(transaction, session.id!, session.sessionVersion))) return null;
+    return forgetTrustedDevice(session.id!, deviceId, cookieJar.get(DEVICE_COOKIE)?.value, transaction);
+  });
+  if (!outcome) redirect("/sign-in");
+  if (outcome.wasCurrent) {
     cookieJar.delete(DEVICE_COOKIE);
     await signOut({ redirectTo: "/sign-in" });
     return;

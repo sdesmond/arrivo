@@ -79,6 +79,8 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { decryptField, encryptField, isEncryptedField } from "@/lib/field-encryption";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { db } from "@/db";
 import { SignInNotice } from "@/data/types";
 const MFA_NEEDS_KEY =
   "Two-factor authentication needs DATA_ENCRYPTION_KEY set on the server. Ask whoever runs this Arrivo install.";
@@ -264,7 +266,8 @@ describe("password + code checks", () => {
 describe("session exits", () => {
   it("signs out every device", async () => {
     await signOutEverywhere();
-    expect(mocks.bumpSessionVersion).toHaveBeenCalledWith("user-1");
+    expect(mocks.lockCurrentSecurityVersion).toHaveBeenCalledWith(mocks.transaction, "user-1", 2);
+    expect(mocks.bumpSessionVersion).toHaveBeenCalledExactlyOnceWith("user-1", mocks.transaction);
     expect(mocks.signOut).toHaveBeenCalledWith({
       redirectTo: `/sign-in?notice=${SignInNotice.SignedOutEverywhere}`,
     });
@@ -282,7 +285,8 @@ describe("removeTrustedDevice", () => {
     mockCookieJar("this-token");
     mocks.deleteTrustedDevice.mockResolvedValue({ wasCurrent: false });
     await removeTrustedDevice("device-1");
-    expect(mocks.deleteTrustedDevice).toHaveBeenCalledWith("user-1", "device-1", "this-token");
+    expect(mocks.lockCurrentSecurityVersion).toHaveBeenCalledWith(mocks.transaction, "user-1", 2);
+    expect(mocks.deleteTrustedDevice).toHaveBeenCalledWith("user-1", "device-1", "this-token", mocks.transaction);
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/profile");
     expect(mocks.signOut).not.toHaveBeenCalled();
   });
@@ -293,6 +297,57 @@ describe("removeTrustedDevice", () => {
     await removeTrustedDevice("device-1");
     expect(jar.delete).toHaveBeenCalledWith("arrivo_device");
     expect(mocks.signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+  });
+});
+
+describe("guarded session exits", () => {
+  const actions = [signOutEverywhere, () => removeTrustedDevice("device-1")];
+
+  it.each(actions)(
+    "rejects stale, missing-version and deleted-account requests without success effects",
+    async (action) => {
+      for (const session of [
+        { id: "user-1", sessionVersion: 1 },
+        { id: "user-1" },
+        { id: "deleted", sessionVersion: 2 },
+      ]) {
+        vi.clearAllMocks();
+        const jar = { get: vi.fn(), delete: vi.fn() };
+        vi.mocked(cookies).mockResolvedValue(jar as never);
+        mocks.requireUser.mockResolvedValue(session);
+        mocks.lockCurrentSecurityVersion.mockResolvedValue(false);
+        vi.mocked(redirect).mockImplementationOnce(() => {
+          throw new Error("redirect");
+        });
+        await expect(action()).rejects.toThrow("redirect");
+        expect(mocks.lockCurrentSecurityVersion).toHaveBeenCalledWith(
+          mocks.transaction,
+          session.id,
+          "sessionVersion" in session ? session.sessionVersion : undefined
+        );
+        expect(redirect).toHaveBeenCalledWith("/sign-in");
+        expect(mocks.bumpSessionVersion).not.toHaveBeenCalled();
+        expect(mocks.deleteTrustedDevice).not.toHaveBeenCalled();
+        expect(jar.delete).not.toHaveBeenCalled();
+        expect(mocks.signOut).not.toHaveBeenCalled();
+        expect(mocks.revalidatePath).not.toHaveBeenCalled();
+      }
+    }
+  );
+
+  it.each(actions)("does not run browser effects if commit fails", async (action) => {
+    const jar = { get: vi.fn(), delete: vi.fn() };
+    vi.mocked(cookies).mockResolvedValue(jar as never);
+    mocks.deleteTrustedDevice.mockResolvedValue({ wasCurrent: true });
+    vi.mocked(db.transaction).mockImplementationOnce(async (callback) => {
+      await callback(mocks.transaction as never);
+      throw new Error("commit failed");
+    });
+    await expect(action()).rejects.toThrow("commit failed");
+    expect(jar.delete).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
 

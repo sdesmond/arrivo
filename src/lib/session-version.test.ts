@@ -37,6 +37,17 @@ describe("session version", () => {
     expect(where).toHaveBeenCalled();
   });
 
+  it("increments through the supplied executor without using the singleton", async () => {
+    const transactionWhere = vi.fn().mockResolvedValue([]);
+    const transactionSet = vi.fn(() => ({ where: transactionWhere }));
+    const transaction = { update: vi.fn(() => ({ set: transactionSet })) };
+    await bumpSessionVersion("user-1", transaction as never);
+    expect(transaction.update).toHaveBeenCalledWith(users);
+    expect(transactionSet).toHaveBeenCalledWith({ sessionVersion: expect.anything() });
+    expect(transactionWhere).toHaveBeenCalledOnce();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("reads the session version alone when the token names no browser", async () => {
     selectWhere.mockResolvedValueOnce([{ sessionVersion: 3, deviceId: null }]);
     await expect(getSessionState("user-1", undefined)).resolves.toEqual({ sessionVersion: 3, deviceActive: false });

@@ -54,6 +54,18 @@ Feature: Administrator password reset
     When the other member enters their authenticator code
     Then I should be redirected to the trips page
 
+  Scenario: Global sign-out waiting for the account lock cannot revoke post-reset authentication
+    Given I am signed in as an app "admin"
+    And another completed app member exists
+    When the member's "global sign-out" races a reset
+    Then fresh authentication survives and the stale browser reaches sign-in without a success notice
+
+  Scenario: Device removal waiting for the account lock cannot remove a post-reset device
+    Given I am signed in as an app "admin"
+    And another completed app member exists
+    When the member's "device removal" races a reset
+    Then fresh authentication survives and the stale browser reaches sign-in without a success notice
+
   Scenario: A cross-origin reset submission is rejected
     Given I am signed in as an app "admin"
     And another completed app member exists
