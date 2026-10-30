@@ -1,0 +1,96 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Overview tracer"
+description = "Adds the Overview route and nav entry, makes /admin and Manage app land on it, and defines the per-metric reader contract (value or Unavailable, checkedAt) with version, DB health and user/admin/pending counts. Readers are plain functions returning that shape, rendered in a shared metric-card component that later entries reuse; keeps the Manage app heading and registers the new files under a new @feat: tag in tests/e2e/feature-map.mjs."
+verify = "An admin opens Manage app and sees version, DB health and user/admin/pending counts, each with a checked time; a non-admin gets not-found; the build confirms the package.json version reaches the running app."
+covers = ["CAP-10"]
+after = ["1.2"]
+hitl = false
+risk = "medium"
+unknown = "The Docker image must carry the package.json version (or the build must inject it); confirm the injection route before starting."
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Storage adapter health and usage"
+description = "Extends StorageAdapter and the local adapter with a health probe and upload-byte usage measurement, excluding transient probe keys, plus a test-only fault hook to force probe failure."
+verify = "Adapter unit tests show a healthy probe, a forced failure surfaced as an error, and usage counting only uploaded bytes."
+covers = ["CAP-10"]
+after = []
+hitl = false
+risk = "medium"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Storage health and upload bytes on Overview"
+description = "Shows document-storage health and upload-storage bytes on Overview as independent metrics read through the adapter."
+verify = "Overview shows storage Healthy and a byte figure matching uploaded files; a forced probe failure shows Unavailable, not zero or Healthy."
+covers = ["CAP-10"]
+after = [1, 2]
+hitl = false
+risk = "medium"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Trip and document counts"
+description = "Adds trip and document counts to Overview as independent DB-backed metrics where zero is a valid count."
+verify = "Overview counts match seeded trips and documents, and an empty instance shows zero."
+covers = ["CAP-10"]
+after = [1]
+hitl = false
+risk = "low"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Recent admin actions and failed logins"
+description = "Shows the latest 5 admin-performed events (RetentionChanged, AccountCreated, SetupLinkGenerated, SetupLinkRegenerated, PendingAccountDeleted, RoleChanged, PasswordResetLinkGenerated, AdminRecoveryLinkGenerated, AccountDeletedByAdmin) and a 24-hour failed-sign-in count on Overview from the Activity read service, by adding a type-set recent query and a count query beside readActivityPage in src/lib/activity-queries.ts, with trip rows reduced to actor, action, time and trip ID."
+verify = "Overview lists recent admin actions and the failed-login count after seeded events, and shows no trip title or collaborator detail."
+covers = ["CAP-10"]
+after = [1, "2.7"]
+hitl = false
+risk = "medium"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Per-metric Refresh, Retry and stale states"
+description = "Wraps the existing per-metric reader functions in server actions (no new contract) with manual Refresh, Unavailable with Retry, and stale values that keep their timestamps, to the accessibility floor."
+verify = "Refreshing one metric updates only its checked time; a failed refresh keeps the prior value labeled stale with Retry."
+covers = ["CAP-10"]
+after = [3, 4, 5]
+hitl = false
+risk = "medium"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Refactor sweep"
+description = "Cleans up Overview code and applies review findings deferred during the epic; cleanup only."
+verify = "Lint, typecheck, unit tests and affected E2E pass with no behavior change."
+covers = ["CAP-10"]
+after = [1, 2, 3, 4, 5, 6]
+hitl = false
+risk = "low"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Integrated Overview E2E suite"
+description = "Adds scenario-owned browser tests across Overview: all metrics, failed probe, per-metric refresh, redacted recent actions, landing route and non-admin denial."
+verify = "The new Overview feature passes end to end against the arrivo_e2e database."
+covers = ["CAP-10"]
+after = [7]
+hitl = false
+risk = "low"
+notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]

@@ -23,7 +23,7 @@ Account setup links are distinct from existing trip-sharing invitations, whose u
 
 ## Information Architecture
 
-Shared account menu contains **Settings** and **Log out** for everyone, plus admin-only **Manage instance**. No standalone logout button, settings-heading administration link, or separate global administration navigation item. Manage instance opens Overview, Users, and Activity in settings-style subsection layout. Activity uses available width; Overview and Users use padded, narrower panels. Retention is within Activity. Existing side/bottom navigation exits page; no Back to settings link.
+Shared account menu contains **Settings** and **Log out** for everyone, plus admin-only **Manage app**. No standalone logout button, settings-heading administration link, or separate global administration navigation item. Manage app opens Overview, Users, and Activity in settings-style subsection layout. Activity uses available width; Overview and Users use padded, narrower panels. Retention is within Activity. Existing side/bottom navigation exits page; no Back to settings link.
 
 Desktop menu trigger is existing sidebar username/account control. Mobile **Profile** tab opens same menu for all users. [Account-menu reference](mockups/key-settings-entry.html) shows admin and regular-user menu contents.
 
@@ -76,7 +76,7 @@ Visual contracts live in DESIGN.md.Components; token references resolve against 
 
 | Component | Behavioral delta |
 | --- | --- |
-| account-menu | Desktop account control or mobile Profile tab opens shadcn DropdownMenu. Settings navigates to personal settings; Manage instance opens admin Overview; Log out performs existing sign-out action. Enter/Space opens menu, arrow keys traverse, Escape dismisses and restores trigger focus; menu closes on selection. Recheck role before entry/actions; non-admins never see management item. |
+| account-menu | Desktop account control or mobile Profile tab opens shadcn DropdownMenu. Settings navigates to personal settings; Manage app opens admin Overview; Log out performs existing sign-out action. Enter/Space opens menu, arrow keys traverse, Escape dismisses and restores trigger focus; menu closes on selection. Recheck role before entry/actions; non-admins never see management item. |
 | settings-shell | Announce heading; retain personal theme/font preference. Exit through existing side/bottom navigation; no Back to settings link. Warn before leaving unsaved input. |
 | section-navigation | One selected panel; arrow keys and orientation match visible horizontal/vertical layout; Home/End supported; selected panel announced. |
 | section-field | Persistent label with help/error association; explicit Save; retain input after failure. Retention select uses approved options below. |
@@ -132,7 +132,7 @@ All web surfaces: resolve data/authority before exposing content; visible {color
 | --- | --- | --- | --- |
 | First-run admin setup | Resolve durable eligibility before rendering; required Username, Name, Password, Confirm password | Field validation rejects missing or mismatched values; concurrent winner closes setup; stale submission directs to sign-in; missing instance state fails closed | First account admin, signed in to Trips; initialized setup/signup URLs redirect to sign-in without signup links; later accounts admin-created |
 | Sign-in | Username/password form, then MFA if required | Invalid username/password uses generic error; email is not an alternate identifier. Preserve existing throttling and MFA timeout/retry behavior with username-based copy | Authenticated entry after required factors |
-| Account menu | Closed → open on trigger; role-filtered items | Stale authority removes Manage instance; sign-out failure preserves actionable error rather than claiming logout | Settings/Manage instance navigation, completed sign-out, or dismissal with trigger focus restored |
+| Account menu | Closed → open on trigger; role-filtered items | Stale authority removes Manage app; sign-out failure preserves actionable error rather than claiming logout | Settings/Manage app navigation, completed sign-out, or dismissal with trigger focus restored |
 | Overview | Per-value loading; zero is valid count | Partial failure labeled Unavailable, never zero/Healthy; stale values retain timestamps | Current metrics and checked times |
 | Users | Loading rows; immediately created accounts appear before password setup | Missing/deleted user reconciles list; changed authority removes actions | Simple list distinguishes “Pending setup”; admin can regenerate first-time link or delete account before first login |
 | Add User / result | Username form → Creating…; existing unfinished account uses Regenerate first-time link | Invalid/taken username inline; ambiguous creation checks account state before retry; regeneration never duplicates account; copy failure retains URL | Account exists before setup link is used; current generated link shown once, prior link invalid on regeneration; focus moves to result heading |
@@ -172,7 +172,7 @@ Target WCAG 2.2 AA and project floor of 44×44px for all targets, including clos
 1. Maya opens a fresh install on desktop or mobile. Root, protected app entry, and sign-in lead automatically to `/setup`; old `/sign-up` links also lead there.
 2. Auth card shows “Welcome to Arrivo!” and “Let's get your admin account set up.” Fields follow reading order: Username, Name, Password, Confirm password. All are required; password fields permit paste and password-manager filling.
 3. She selects “Create admin account”. Server validates fields and matching passwords before existing transactional bootstrap creates the first admin and marks initialization complete.
-4. **Climax:** Maya is signed in to Trips and can reach Manage instance from account menu.
+4. **Climax:** Maya is signed in to Trips and can reach Manage app from account menu.
 5. Setup permanently closes: `/setup` and `/sign-up` redirect to `/sign-in`, with no signup link. Later accounts are admin-created; their password-setup links use a separate route. Subsequent sign-in retains username/password and applicable MFA.
 
 Failure: invalid fields show associated errors without creating an account. Another bootstrap wins first → “Setup is already complete. Sign in to continue.” Reconcile uncertain creation before retry. Missing instance state or DB failure never opens setup. Existing legacy upgrade behavior is outside this flow change.
@@ -234,7 +234,7 @@ Failure: Cancel preserves policy; failed save preserves selection and starts no 
 
 ### Flow 8 — Instance overview
 
-1. Maya opens desktop username menu or mobile Profile menu and selects Manage instance.
+1. Maya opens desktop username menu or mobile Profile menu and selects Manage app.
 2. Overview shows version, DB/document-storage health, user/admin/pending-setup counts, trip/document counts, storage usage, recent admin actions, and failed logins.
 3. She checks freshness, refreshes, and follows Activity or Users.
 4. **Climax:** instance condition and next controls are clear in familiar settings structure.
@@ -245,7 +245,7 @@ Failure: unavailable metric stays Unavailable with Retry; successful values keep
 
 Activity fills available main-content width; Overview and Users use padded panels capped at {spacing.compact-content-width}. Use {spacing.margin-mobile} padding below 640px and {spacing.margin-desktop} above. At 640px+, vertical navigation uses {spacing.navigation-width} plus {spacing.section-gap}; below, horizontal tabs bring selection into view. Keyboard orientation matches layout. Crowded user actions move into row menu; Activity remains Table with contained horizontal scrolling.
 
-Desktop sidebar remains at 1024px and wider; existing mobile bottom navigation remains below. Its Profile tab opens shared account menu, preserving Settings and Log out plus admin-only Manage instance.
+Desktop sidebar remains at 1024px and wider; existing mobile bottom navigation remains below. Its Profile tab opens shared account menu, preserving Settings and Log out plus admin-only Manage app.
 
 Shared dialogs become bottom sheets below 640px and centered modals above. Constrain scrolling above virtual keyboard and keep actions reachable. Auth surfaces retain existing auth-card width. All sizes honor {typography.body.fontSize} and app font scale.
 
