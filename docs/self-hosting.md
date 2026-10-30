@@ -96,8 +96,11 @@ isn't reachable around it.
   authenticator app, and gets ten one-time recovery codes. Ticking **Don't ask for a code on this browser
   for 30 days** at the code prompt skips the code there; anyone with that browser and the password can then
   sign in without a code until the browser is removed or the user signs out all devices. If someone loses
-  both their phone and their codes, turn it off for them with
-  `docker exec arrivo node /app/mfa-reset.mjs user@example.com`.
+  both their phone and their codes, an admin account can be recovered from the server with
+  `docker exec arrivo node /app/admin-recovery.mjs their-username https://arrivo.example.com`, using the
+  address people open Arrivo at. It prints a one-hour link and changes nothing until that admin opens it, picks
+  a new password, scans a new authenticator code and saves new recovery codes. Finishing signs the account out
+  everywhere. Only completed admin accounts can be recovered this way.
 - **Signing out other devices**: changing a password, turning two-factor on or off, or choosing **Sign out
   all devices** under **Profile → Security** ends that user's sessions everywhere and forgets their
   browsers.
@@ -150,17 +153,17 @@ Use your own folder paths in place of `data/...` if you changed them.
 Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arrivo` as
 **Up (healthy)** and `arrivo-db` as **Up (healthy)**.
 
-| Symptom                                       | Fix                                                                                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `arrivo` keeps restarting                     | Read `docker logs arrivo`. A failed database update or wrong `DATABASE_URL` stops it before it serves pages |
-| `manifest unknown` when pulling               | The image tag names a release that doesn't exist                                                            |
-| `port is already allocated`                   | Change the left number in the `ports` line                                                                  |
-| Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                             |
-| Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                            |
-| Someone is locked out of two-factor sign-in   | `docker exec arrivo node /app/mfa-reset.mjs their-username` turns it off for that account                   |
-| Someone doesn't know their username           | `docker exec arrivo-db psql -U arrivo -d arrivo -c "select name, username from users"` lists every account  |
-| Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                |
-| `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                        |
+| Symptom                                       | Fix                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `arrivo` keeps restarting                     | Read `docker logs arrivo`. A failed database update or wrong `DATABASE_URL` stops it before it serves pages  |
+| `manifest unknown` when pulling               | The image tag names a release that doesn't exist                                                             |
+| `port is already allocated`                   | Change the left number in the `ports` line                                                                   |
+| Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                              |
+| Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                             |
+| An admin is locked out of two-factor sign-in  | `docker exec arrivo node /app/admin-recovery.mjs their-username https://your-address` prints a recovery link |
+| Someone doesn't know their username           | `docker exec arrivo-db psql -U arrivo -d arrivo -c "select name, username from users"` lists every account   |
+| Map tab is empty                              | `MAPBOX_ACCESS_TOKEN` (or `MAPBOX_PUBLIC_TOKEN`, if set) is blank or invalid                                 |
+| `EACCES` / `permission denied` when uploading | `PUID`/`PGID` don't match a user that can write the `storage` folder                                         |
 
 ## Uninstalling
 
