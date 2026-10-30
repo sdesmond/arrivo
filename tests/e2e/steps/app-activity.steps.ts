@@ -103,6 +103,7 @@ Then("the Activity table lists a Sign-in row for that deleted member", async ({ 
 const ORIGINAL_IDENTITY_KEY = "activity:originalIdentity";
 const UNKNOWN_USERNAME_KEY = "activity:unknownUsername";
 const FAILURE_WINDOW_KEY = "activity:failureWindowStart";
+const FAILURE_WINDOW_END_KEY = "activity:failureWindowEnd";
 const OTHER_ADMIN_KEY = "activity:otherAdmin";
 const NEW_PASSWORD = "a-brand-new-password";
 const WRONG_PASSWORD = "definitely-the-wrong-password";
@@ -174,6 +175,16 @@ When("wrong credentials for my account are posted directly to the sign-in callba
 When("a forged second-factor ticket is posted directly to the sign-in callback", async ({ page, scenario }) => {
   scenario.setValue(FAILURE_WINDOW_KEY, new Date());
   await postToCredentialsCallback(page, { mfaTicket: "forged.ticket", code: "123456" });
+  scenario.setValue(FAILURE_WINDOW_END_KEY, new Date());
+});
+
+When("I open Activity for failed sign-ins from that attempt", async ({ page, scenario }) => {
+  const query = new URLSearchParams({
+    type: "sign_in_failed",
+    from: scenario.getValue<Date>(FAILURE_WINDOW_KEY)!.toISOString(),
+    to: scenario.getValue<Date>(FAILURE_WINDOW_END_KEY)!.toISOString(),
+  });
+  await page.goto(`/admin/activity?${query}`);
 });
 
 Then("{int} failed sign-in is recorded against my account", async ({ scenario }, count: number) => {
@@ -219,12 +230,10 @@ Then("the Activity table lists a Failed sign-in row for that unknown username", 
 
 Then("the Activity table lists a Failed sign-in row with an unavailable affected account", async ({ page }) => {
   const table = page.getByRole("table", { name: "Recent app activity" });
-  await expect(async () => {
-    await page.reload();
-    const cells = table.getByRole("row").filter({ hasText: "Failed sign-in" }).first().getByRole("cell");
-    await expect(cells.nth(0)).toHaveText("Unavailable");
-    await expect(cells.nth(3)).toHaveText("Unavailable");
-  }).toPass();
+  // The preceding database assertion already awaited this event; another reload only delays the UI check.
+  const cells = table.getByRole("row").filter({ hasText: "Failed sign-in" }).first().getByRole("cell");
+  await expect(cells.nth(0)).toHaveText("Unavailable");
+  await expect(cells.nth(3)).toHaveText("Unavailable");
 });
 
 Then("my account has {int} recorded {string} events", async ({ scenario }, count: number, type: string) => {

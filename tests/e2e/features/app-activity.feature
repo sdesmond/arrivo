@@ -67,7 +67,7 @@ Feature: App activity
     Then 1 failed sign-in is recorded with no identity
     When I sign in with my password
     Then I should be redirected to the trips page
-    When I open the app Activity page
+    When I open Activity for failed sign-ins from that attempt
     Then the Activity table lists a Failed sign-in row with an unavailable affected account
 
   Scenario: Logging out is recorded
