@@ -46,19 +46,24 @@ describe("proxy", () => {
     }
   );
 
-  it.each(["/account-setup", "/account-setup/open", "/account-reset", "/account-reset/open"])(
-    "leaves %s public and marks it uncacheable with no referrer",
-    (path) => {
-      const response = request(path) as Response;
-      expect(response.headers.get("cache-control")).toBe("no-store");
-      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    }
-  );
+  it.each([
+    "/account-setup",
+    "/account-setup/open",
+    "/account-reset",
+    "/account-reset/open",
+    "/account-recovery",
+    "/account-recovery/open",
+  ])("leaves %s public and marks it uncacheable with no referrer", (path) => {
+    const response = request(path) as Response;
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
 
   it.each([
     "/account-setup-admin",
     "/account-setupx",
     "/account-resetx",
+    "/account-recoveryx",
     "/setup-link",
     "/sign-in-old",
     "/sign-upgrade",
