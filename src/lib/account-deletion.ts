@@ -33,26 +33,51 @@ export type AccountDeletionDatabase = Pick<typeof db, "transaction">;
 /**
  * Deletes one account in a single transaction. `trips.ownerId` cascades, so every trip the user owns is dealt with
  * first: shared trips go to the collaborator the user picked (promoted to manager and creator) or are deleted because
- * the user chose to; trips nobody else is on are deleted. Lock order (AD-2): app singleton, user, owned trips.
+ * the user chose to; trips nobody else is on are deleted. Lock order (AD-2): app singleton, sorted account/successors, sorted owned trips.
  * Refusals (stale choices, last completed admin) write nothing. Events, file cleanup and sign-out belong to the caller.
  */
 export async function deleteOwnAccount(
   database: AccountDeletionDatabase,
   userId: string,
-  choices: TripDeletionChoice[]
+  choices: TripDeletionChoice[],
+  sessionVersion: number | undefined
 ): Promise<DeleteOwnAccountResult> {
+  if (sessionVersion === undefined) return { ok: false, reason: AccountDeletionFailure.Unauthorized };
+  if (
+    !Array.isArray(choices) ||
+    choices.some(
+      (choice) =>
+        !choice ||
+        typeof choice.tripId !== "string" ||
+        (choice.action !== TripDeletionAction.Delete && choice.action !== TripDeletionAction.Transfer) ||
+        (choice.action === TripDeletionAction.Transfer &&
+          (typeof choice.newOwnerUserId !== "string" || !UUID_PATTERN.test(choice.newOwnerUserId)))
+    )
+  )
+    return { ok: false, reason: AccountDeletionFailure.Stale };
   const accountId = userId.toLowerCase();
+  const heirIds = choices.flatMap((choice) =>
+    choice.action === TripDeletionAction.Transfer ? [choice.newOwnerUserId] : []
+  );
 
   return database.transaction(async (transaction): Promise<DeleteOwnAccountResult> => {
-    const scope = await lockAppAndUsersForUpdate(transaction, [accountId]);
+    const scope = await lockAppAndUsersForUpdate(transaction, [accountId, ...heirIds]);
     if (!scope.appLocked) throw new Error("App state not found.");
-    if (!scope.lockedUserIds.has(accountId)) throw new Error("User not found.");
+    if (!scope.lockedUserIds.has(accountId)) return { ok: false, reason: AccountDeletionFailure.Unauthorized };
 
     const [account] = await transaction
-      .select({ username: users.username, role: users.role, passwordHash: users.passwordHash })
+      .select({
+        username: users.username,
+        role: users.role,
+        passwordHash: users.passwordHash,
+        sessionVersion: users.sessionVersion,
+      })
       .from(users)
       .where(eq(users.id, accountId));
-    if (!account) throw new Error("User not found.");
+    if (!account || account.sessionVersion !== sessionVersion)
+      return { ok: false, reason: AccountDeletionFailure.Unauthorized };
+    if (heirIds.some((heirId) => !scope.lockedUserIds.has(heirId.toLowerCase())))
+      return { ok: false, reason: AccountDeletionFailure.Stale };
     // Only a completed admin counts toward the guard, so an unfinished admin leaving never strands the app.
     if (account.role === UserRole.Admin && account.passwordHash !== null) {
       try {
@@ -63,9 +88,15 @@ export async function deleteOwnAccount(
       }
     }
 
-    const ownedTrips = await selectOwnedTrips(transaction, accountId);
-    for (const trip of ownedTrips) {
-      await lockTripForUpdate(transaction, trip.id);
+    const ownedTrips = (await selectOwnedTrips(transaction, accountId)).sort((left, right) =>
+      compareText(left.id, right.id)
+    );
+    try {
+      for (const trip of ownedTrips) await lockTripForUpdate(transaction, trip.id);
+    } catch (error) {
+      if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE)
+        return { ok: false, reason: AccountDeletionFailure.Stale };
+      throw error;
     }
 
     const members = await selectMembers(

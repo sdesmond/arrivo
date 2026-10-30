@@ -23,7 +23,7 @@ const dialect = new PgDialect();
 const ME = "user-1";
 
 interface Fixture {
-  deleter?: { username?: string; role: string; passwordHash: string | null };
+  deleter?: { username?: string; role: string; passwordHash: string | null; sessionVersion?: number };
   peerAdmin?: boolean;
   appMissing?: boolean;
   userMissing?: boolean;
@@ -46,6 +46,8 @@ interface Fixture {
   memberReads?: NonNullable<Fixture["members"]>[];
   missingUserIds?: string[];
   failWith?: unknown;
+  missingTrip?: boolean;
+  tripLockError?: Error;
 }
 
 interface Write {
@@ -75,7 +77,11 @@ function createDatabase(fixture: Fixture = {}) {
       fixture.accountRowMissing
         ? []
         : (fixture.accounts ?? [
-            { username: "me", ...(fixture.deleter ?? { role: UserRole.Member, passwordHash: "hash" }) },
+            {
+              username: "me",
+              sessionVersion: 0,
+              ...(fixture.deleter ?? { role: UserRole.Member, passwordHash: "hash" }),
+            },
           ]),
     ],
     [trips, fixture.ownedTrips ?? []],
@@ -105,6 +111,8 @@ function createDatabase(fixture: Fixture = {}) {
       if (text.includes("for update")) {
         const target = text.includes('"trips"') ? "trip" : "user";
         events.push(`lock:${target}`);
+        if (target === "trip" && fixture.tripLockError) throw fixture.tripLockError;
+        if (target === "trip" && fixture.missingTrip) return [];
         (target === "trip" ? lockedTrips : lockedUsers).push(String(params[0]));
         if (target === "user" && (fixture.userMissing || fixture.missingUserIds?.includes(String(params[0]))))
           return [];
@@ -155,7 +163,7 @@ const SHARED_TRIP_MEMBERS = [
   {
     id: "collab-bo",
     tripId: SHARED_TRIP.id,
-    userId: "user-bo",
+    userId: "00000000-0000-4000-8000-000000000003",
     name: "Bo",
     role: CollaboratorRole.Editor,
     addedAt: new Date("2026-02-01T00:00:00.000Z"),
@@ -163,7 +171,7 @@ const SHARED_TRIP_MEMBERS = [
   {
     id: "collab-ada",
     tripId: SHARED_TRIP.id,
-    userId: "user-ada",
+    userId: "00000000-0000-4000-8000-000000000002",
     name: "Ada",
     role: CollaboratorRole.Viewer,
     addedAt: new Date("2026-03-01T00:00:00.000Z"),
@@ -176,7 +184,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
   it("locks the singleton, then the user, then owned trips, before any write", async () => {
     const { database, events } = createDatabase({ ownedTrips: [SOLO_TRIP, SHARED_TRIP] });
 
-    await deleteOwnAccount(database, ME, []);
+    await deleteOwnAccount(database, ME, [], 0);
 
     expect(events.slice(0, 4)).toEqual(["lock:app", "lock:user", "lock:trip", "lock:trip"]);
     expect(events.findIndex((event) => event.startsWith("update:") || event.startsWith("delete:"))).toBeGreaterThan(3);
@@ -185,7 +193,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
   it("lets a member delete without consulting the guard", async () => {
     const { database, events } = createDatabase();
 
-    await expect(deleteOwnAccount(database, ME, [])).resolves.toMatchObject({ ok: true });
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toMatchObject({ ok: true });
 
     expect(events).not.toContain("guard");
     expect(events.slice(0, 2)).toEqual(["lock:app", "lock:user"]);
@@ -194,7 +202,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
   it("lets an admin delete when another completed admin remains", async () => {
     const { database, events } = createDatabase({ deleter: adminDeleter, peerAdmin: true });
 
-    await expect(deleteOwnAccount(database, ME, [])).resolves.toMatchObject({ ok: true });
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toMatchObject({ ok: true });
 
     expect(events).toContain("guard");
     expect(events.indexOf("guard")).toBeLessThan(events.indexOf("delete:users"));
@@ -208,7 +216,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
       members: SHARED_TRIP_MEMBERS,
     });
 
-    await expect(deleteOwnAccount(database, ME, [{ tripId: SHARED_TRIP.id, action: "delete" }])).resolves.toEqual({
+    await expect(deleteOwnAccount(database, ME, [{ tripId: SHARED_TRIP.id, action: "delete" }], 0)).resolves.toEqual({
       ok: false,
       reason: AccountDeletionFailure.LastAdmin,
     });
@@ -220,7 +228,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
   it("skips the guard for an unfinished admin, who is not a completed admin", async () => {
     const { database, events } = createDatabase({ deleter: { role: UserRole.Admin, passwordHash: null } });
 
-    await expect(deleteOwnAccount(database, ME, [])).resolves.toMatchObject({ ok: true });
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toMatchObject({ ok: true });
 
     expect(events).not.toContain("guard");
   });
@@ -228,27 +236,33 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
   it("lowercases the user id before locking and querying", async () => {
     const { database } = createDatabase();
 
-    await expect(deleteOwnAccount(database, "USER-1", [])).resolves.toMatchObject({ ok: true });
+    await expect(deleteOwnAccount(database, "USER-1", [], 0)).resolves.toMatchObject({ ok: true });
   });
 
   it("throws when the app singleton is missing", async () => {
     const { database, writes } = createDatabase({ appMissing: true });
 
-    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("App state not found.");
+    await expect(deleteOwnAccount(database, ME, [], 0)).rejects.toThrow("App state not found.");
     expect(writes).toEqual([]);
   });
 
-  it("throws when the user row is gone", async () => {
+  it("refuses when the user row is gone", async () => {
     const { database, writes } = createDatabase({ userMissing: true });
 
-    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("User not found.");
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toEqual({
+      ok: false,
+      reason: AccountDeletionFailure.Unauthorized,
+    });
     expect(writes).toEqual([]);
   });
 
-  it("throws when the locked account cannot be read back", async () => {
+  it("refuses when the locked account cannot be read back", async () => {
     const { database, writes } = createDatabase({ accountRowMissing: true });
 
-    await expect(deleteOwnAccount(database, ME, [])).rejects.toThrow("User not found.");
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toEqual({
+      ok: false,
+      reason: AccountDeletionFailure.Unauthorized,
+    });
     expect(writes).toEqual([]);
   });
 
@@ -259,7 +273,7 @@ describe("deleteOwnAccount — lock order and last-admin guard", () => {
       },
     } as unknown as AccountDeletionDatabase;
 
-    await expect(deleteOwnAccount(failing, ME, [])).rejects.toThrow("db down");
+    await expect(deleteOwnAccount(failing, ME, [], 0)).rejects.toThrow("db down");
   });
 });
 
@@ -271,7 +285,7 @@ describe("deleteOwnAccount — shared trip handoff", () => {
       tripDocuments: [{ url: "/api/storage/docs/ticket.pdf" }, { url: null }],
     });
 
-    const result = await deleteOwnAccount(database, ME, []);
+    const result = await deleteOwnAccount(database, ME, [], 0);
 
     expect(result).toEqual({
       ok: true,
@@ -295,21 +309,29 @@ describe("deleteOwnAccount — shared trip handoff", () => {
       departedMemberships: [{ tripId: SHARED_TRIP.id }],
     });
     const choices: TripDeletionChoice[] = [
-      { tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-ada" },
+      {
+        tripId: SHARED_TRIP.id,
+        action: TripDeletionAction.Transfer,
+        newOwnerUserId: "00000000-0000-4000-8000-000000000002",
+      },
     ];
 
-    const result = await deleteOwnAccount(database, ME, choices);
+    const result = await deleteOwnAccount(database, ME, choices, 0);
 
     expect(result).toMatchObject({
       ok: true,
       summary: {
-        transferredTrips: [[SHARED_TRIP.id, "user-ada"]],
+        transferredTrips: [[SHARED_TRIP.id, "00000000-0000-4000-8000-000000000002"]],
         deletedTripIds: [],
         remainingTripIds: [SHARED_TRIP.id],
         storageUrls: [],
       },
     });
-    expect(writes).toContainEqual({ op: "update", table: trips, set: { ownerId: "user-ada" } });
+    expect(writes).toContainEqual({
+      op: "update",
+      table: trips,
+      set: { ownerId: "00000000-0000-4000-8000-000000000002" },
+    });
     expect(writes).toContainEqual({
       op: "update",
       table: collaborators,
@@ -325,17 +347,20 @@ describe("deleteOwnAccount — shared trip handoff", () => {
       tripDocuments: [{ url: "/api/storage/docs/lisbon.pdf" }],
     });
 
-    const result = await deleteOwnAccount(database, ME, [
-      { tripId: SHARED_TRIP.id, action: TripDeletionAction.Delete },
-    ]);
+    const result = await deleteOwnAccount(
+      database,
+      ME,
+      [{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Delete }],
+      0
+    );
 
     expect(result).toMatchObject({
       ok: true,
       summary: {
         deletedTripIds: [SHARED_TRIP.id],
         deletedTripMembers: [
-          { tripId: SHARED_TRIP.id, userId: "user-bo" },
-          { tripId: SHARED_TRIP.id, userId: "user-ada" },
+          { tripId: SHARED_TRIP.id, userId: "00000000-0000-4000-8000-000000000003" },
+          { tripId: SHARED_TRIP.id, userId: "00000000-0000-4000-8000-000000000002" },
         ],
         storageUrls: ["/api/storage/docs/lisbon.pdf"],
       },
@@ -349,9 +374,18 @@ describe("deleteOwnAccount — shared trip handoff", () => {
       rescindedInvitations: [{ inviteeId: "user-grace", tripId: SHARED_TRIP.id }],
     });
 
-    const result = await deleteOwnAccount(database, ME, [
-      { tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" },
-    ]);
+    const result = await deleteOwnAccount(
+      database,
+      ME,
+      [
+        {
+          tripId: SHARED_TRIP.id,
+          action: TripDeletionAction.Transfer,
+          newOwnerUserId: "00000000-0000-4000-8000-000000000003",
+        },
+      ],
+      0
+    );
 
     expect(result).toMatchObject({
       summary: { rescindedInvitations: [{ inviteeId: "user-grace", tripId: SHARED_TRIP.id }] },
@@ -363,7 +397,7 @@ describe("deleteOwnAccount — shared trip handoff", () => {
   it("removes the user's collaborator rows and then the user last", async () => {
     const { database, events } = createDatabase();
 
-    await deleteOwnAccount(database, ME, []);
+    await deleteOwnAccount(database, ME, [], 0);
 
     expect(events.slice(-2)).toEqual(["delete:collaborators", "delete:users"]);
   });
@@ -372,12 +406,18 @@ describe("deleteOwnAccount — shared trip handoff", () => {
     ["no decision for a shared trip", []],
     [
       "a transfer to someone not on the trip",
-      [{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-stranger" }],
+      [
+        {
+          tripId: SHARED_TRIP.id,
+          action: TripDeletionAction.Transfer,
+          newOwnerUserId: "00000000-0000-4000-8000-000000000004",
+        },
+      ],
     ],
   ])("returns stale and writes nothing when the choices have %s", async (_label, choices) => {
     const { database, writes } = createDatabase({ ownedTrips: [SHARED_TRIP], members: SHARED_TRIP_MEMBERS });
 
-    await expect(deleteOwnAccount(database, ME, choices as TripDeletionChoice[])).resolves.toEqual({
+    await expect(deleteOwnAccount(database, ME, choices as TripDeletionChoice[], 0)).resolves.toEqual({
       ok: false,
       reason: AccountDeletionFailure.Stale,
     });
@@ -834,6 +874,101 @@ describe("deleteAccountAsAdmin", () => {
       reason: AdminDeletionFailure.Retry,
     });
     expect(transactionCount()).toBe(3);
+    expect(writes).toEqual([]);
+  });
+});
+
+describe("deleteOwnAccount locked authority", () => {
+  it.each([undefined, 1])("refuses missing or revoked version %s without writes", async (version) => {
+    const { database, writes } = createDatabase();
+    await expect(deleteOwnAccount(database, ME, [], version)).resolves.toEqual({
+      ok: false,
+      reason: AccountDeletionFailure.Unauthorized,
+    });
+    expect(writes).toEqual([]);
+  });
+  it.each([
+    null,
+    [null],
+    [{ tripId: SHARED_TRIP.id, action: "transfer", newOwnerUserId: "not-a-uuid" }],
+    [{ tripId: SHARED_TRIP.id, action: "guess" }],
+    [{ tripId: 12, action: "transfer", newOwnerUserId: "00000000-0000-4000-8000-000000000003" }],
+    [{ tripId: "trip-shared", action: "transfer" }],
+  ])("refuses malformed choices %j before locking", async (choices) => {
+    const { database, events, writes } = createDatabase();
+    await expect(deleteOwnAccount(database, ME, choices as unknown as TripDeletionChoice[], 0)).resolves.toEqual({
+      ok: false,
+      reason: AccountDeletionFailure.Stale,
+    });
+    expect(events).toEqual([]);
+    expect(writes).toEqual([]);
+  });
+  it("locks explicit heirs and account before sorted trips", async () => {
+    const { database, lockedUsers, lockedTrips } = createDatabase({
+      ownedTrips: [SOLO_TRIP, SHARED_TRIP],
+      members: SHARED_TRIP_MEMBERS,
+    });
+    await expect(
+      deleteOwnAccount(
+        database,
+        ME,
+        [{ tripId: SHARED_TRIP.id, action: "transfer", newOwnerUserId: "00000000-0000-4000-8000-000000000002" }],
+        0
+      )
+    ).resolves.toMatchObject({ ok: true });
+    expect(lockedUsers).toEqual(["00000000-0000-4000-8000-000000000002", ME]);
+    expect(lockedTrips).toEqual([SHARED_TRIP.id, SOLO_TRIP.id]);
+  });
+  it("refuses vanished heir without writes", async () => {
+    const { database, writes } = createDatabase({
+      missingUserIds: ["00000000-0000-4000-8000-000000000002"],
+      ownedTrips: [SHARED_TRIP],
+      members: SHARED_TRIP_MEMBERS,
+    });
+    await expect(
+      deleteOwnAccount(
+        database,
+        ME,
+        [{ tripId: SHARED_TRIP.id, action: "transfer", newOwnerUserId: "00000000-0000-4000-8000-000000000002" }],
+        0
+      )
+    ).resolves.toEqual({ ok: false, reason: AccountDeletionFailure.Stale });
+    expect(writes).toEqual([]);
+  });
+  it("propagates unexpected trip lock failures", async () => {
+    const { database, writes } = createDatabase({
+      ownedTrips: [SOLO_TRIP],
+      tripLockError: new Error("trip lock failed"),
+    });
+    await expect(deleteOwnAccount(database, ME, [], 0)).rejects.toThrow("trip lock failed");
+    expect(writes).toEqual([]);
+  });
+  it("deduplicates heirs chosen for multiple trips", async () => {
+    const otherTrip = { ...SHARED_TRIP, id: "trip-other" };
+    const { database, lockedUsers } = createDatabase({
+      ownedTrips: [SHARED_TRIP, otherTrip],
+      members: [...SHARED_TRIP_MEMBERS, ...SHARED_TRIP_MEMBERS.map((row) => ({ ...row, tripId: otherTrip.id }))],
+    });
+    await expect(
+      deleteOwnAccount(
+        database,
+        ME,
+        [SHARED_TRIP, otherTrip].map((trip) => ({
+          tripId: trip.id,
+          action: TripDeletionAction.Transfer,
+          newOwnerUserId: "00000000-0000-4000-8000-000000000002",
+        })),
+        0
+      )
+    ).resolves.toMatchObject({ ok: true });
+    expect(lockedUsers).toEqual(["00000000-0000-4000-8000-000000000002", ME]);
+  });
+  it("refuses vanished trip without writes", async () => {
+    const { database, writes } = createDatabase({ missingTrip: true, ownedTrips: [SOLO_TRIP] });
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toEqual({
+      ok: false,
+      reason: AccountDeletionFailure.Stale,
+    });
     expect(writes).toEqual([]);
   });
 });

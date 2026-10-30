@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
 import { AccountDeletionFailure, ActivityEventType, CoverType, SignInNotice, TransitMode } from "@/data/types";
@@ -374,8 +375,9 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
   const staleResult: DeleteAccountResult = { status: "error", message: ACCOUNT_DELETION_STALE_MESSAGE, stale: true };
   if (!Array.isArray(choices)) return staleResult;
 
-  const result = await deleteOwnAccount(db, userId, choices);
+  const result = await deleteOwnAccount(db, userId, choices, session.sessionVersion);
   if (!result.ok) {
+    if (result.reason === AccountDeletionFailure.Unauthorized) redirect("/sign-in");
     return result.reason === AccountDeletionFailure.Stale
       ? staleResult
       : { status: "error", message: LAST_ADMIN_MESSAGE };

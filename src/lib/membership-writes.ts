@@ -263,7 +263,10 @@ export async function saveContributorChangesWrite(
     const collaboratorById = new Map(collaboratorsOnTrip.map((collaborator) => [collaborator.id, collaborator]));
 
     const myRow = collaboratorsOnTrip.find((collaborator) => collaborator.userId === actorId);
-    const myRowId = myRow?.id;
+    if (myRow?.role !== CollaboratorRole.Manager) {
+      throw new ContributorChangeGuardError("You no longer have permission to manage contributors.", { stale: true });
+    }
+    const myRowId = myRow.id;
 
     for (const change of changes) {
       const target = collaboratorById.get(change.collaboratorId);

@@ -258,6 +258,7 @@ interface SaveContributorChangesFixture {
   }>;
   tripName?: string;
   lockRows?: unknown[];
+  actorRole?: string | null;
 }
 
 function setupSaveContributorChangesDb({
@@ -272,6 +273,7 @@ function setupSaveContributorChangesDb({
   ],
   tripName = "Test Trip",
   lockRows = [{ id: "trip-1" }],
+  actorRole = "manager",
 }: SaveContributorChangesFixture = {}) {
   const operations = {
     deletes: [] as Array<{ table: unknown; condition: unknown }>,
@@ -282,7 +284,13 @@ function setupSaveContributorChangesDb({
     select: () => ({
       from: (table: unknown) => ({
         where: async () => {
-          if (table === collaborators) return collaboratorRows;
+          if (table === collaborators)
+            return [
+              ...(actorRole && !collaboratorRows.some((row) => row.userId === "manager-1")
+                ? [{ id: "manager-seat", tripId: "trip-1", userId: "manager-1", role: actorRole, isCreator: false }]
+                : []),
+              ...collaboratorRows,
+            ];
           if (table === trips) return [{ name: tripName }];
           if (table === users) return [{ username: "manager" }];
           throw new Error("Unexpected table read in saveContributorChanges fixture.");
@@ -322,6 +330,24 @@ describe("saveContributorChanges", () => {
     assertTripAccess.mockResolvedValue("manager");
   });
 
+  it.each([null, "editor", "viewer"])(
+    "refuses actor removed or demoted to %s after precheck without effects",
+    async (actorRole) => {
+      const operations = setupSaveContributorChangesDb({ actorRole });
+      await expect(
+        saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-editor" }])
+      ).resolves.toEqual({
+        status: "error",
+        message: "You no longer have permission to manage contributors.",
+        stale: true,
+      });
+      expect(operations.updates).toEqual([]);
+      expect(operations.deletes).toEqual([]);
+      expect(publishTripEvent).not.toHaveBeenCalled();
+      expect(publishUserEvent).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
+    }
+  );
   it("returns a stale error without writing when the trip was deleted after the access check", async () => {
     const operations = setupSaveContributorChangesDb({ lockRows: [] });
 
