@@ -21,6 +21,7 @@ export type ConcurrencyDatabase = AccountDeletionDatabase & MembershipDatabase;
 export interface ConcurrencyUserSpec {
   key: string;
   role: UserRole;
+  id?: string;
 }
 
 export interface GatedDatabaseOptions {
@@ -37,6 +38,7 @@ export interface DeletionConcurrencyFixture {
   schema: string;
   seedUsers(specs: ConcurrencyUserSpec[]): Promise<void>;
   userId(key: string): string;
+  sessionVersion(key: string): Promise<number>;
   seedTrip(key: string, ownerKey: string): Promise<string>;
   tripId(key: string): string;
   addMember(tripKey: string, userKey: string, role: CollaboratorRole): Promise<void>;
@@ -59,6 +61,8 @@ export interface DeletionConcurrencyFixture {
   /** Collaborator rows whose account is gone (set null by the foreign key) — a ghost member. */
   ghostMemberCount(): Promise<number>;
   database(gated?: GatedDatabaseOptions): ConcurrencyDatabase;
+  /** Holds the trip row lock so a writer reaching the same trip queues behind it. */
+  holdTripLock(tripKey: string): Promise<HeldInsert>;
   /** Holds an uncommitted collaborator insert so a writer reaching the same (trip, user) key queues behind it. */
   holdCollaboratorInsert(tripKey: string, userKey: string): Promise<HeldInsert>;
   /** Waits until at least `count` transactions in this schema are blocked on locks held by another. */
@@ -130,13 +134,17 @@ export async function createDeletionConcurrencyFixture(): Promise<DeletionConcur
       for (const spec of specs) {
         const seed = cloneUserMother("default");
         const [row] = await client.unsafe(
-          `insert into "${schema}".users (username, name, password_hash, role) values ($1, $2, $3, $4) returning id`,
-          [`${spec.key}-${schema}`.slice(0, 63), seed.user.name, "not-a-real-hash", spec.role]
+          `insert into "${schema}".users (id, username, name, password_hash, role) values ($1, $2, $3, $4, $5) returning id`,
+          [spec.id ?? randomUUID(), `${spec.key}-${schema}`.slice(0, 63), seed.user.name, "not-a-real-hash", spec.role]
         );
         userIds.set(spec.key, row.id as string);
       }
     },
     userId,
+    async sessionVersion(key) {
+      const rows = await client.unsafe(`select session_version from "${schema}".users where id = $1`, [userId(key)]);
+      return rows[0].session_version as number;
+    },
     async seedTrip(key, ownerKey) {
       const owner = userId(ownerKey);
       const [trip] = await client.unsafe(
@@ -239,6 +247,26 @@ export async function createDeletionConcurrencyFixture(): Promise<DeletionConcur
             return run(proxied as never);
           }),
       } as unknown as ConcurrencyDatabase;
+    },
+    async holdTripLock(tripKey) {
+      const connection = await client.reserve();
+      try {
+        await connection.unsafe("begin");
+        await connection.unsafe(`select id from "${schema}".trips where id = $1 for update`, [tripId(tripKey)]);
+      } catch (error) {
+        await connection.unsafe("rollback").catch(() => undefined);
+        connection.release();
+        throw error;
+      }
+      return {
+        async release() {
+          try {
+            await connection.unsafe("rollback");
+          } finally {
+            connection.release();
+          }
+        },
+      };
     },
     async holdCollaboratorInsert(tripKey, userKey) {
       const connection = await client.reserve();

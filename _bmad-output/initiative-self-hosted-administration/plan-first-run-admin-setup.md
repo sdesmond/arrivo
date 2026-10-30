@@ -1,7 +1,6 @@
 ---
 title: First-run admin setup
 type: feature
-ticket: ""
 created: 2026-10-27
 status: built
 baseline_revision: 714ff742ff3d00141c568470f156575aa4537ce6

@@ -2,11 +2,12 @@
 - source_plan: `_bmad-output/initiative-self-hosted-administration/epic-activity-and-retention/story-concurrent-edit-batching-plan.md`
   summary: Cover an admin viewing an ongoing merged "Updated trip" row end to end on /admin/activity.
   evidence: No trip producer exists until 2.5, so 2.2 proves the label only at component level and the merge only against the real DB.
+  disposition: Closed 2026-10-30. Ongoing merged Activity browser coverage landed in tests/e2e/features/app-activity.feature and steps/app-activity.steps.ts; epic-4 retrospective F4 records evidence.
 
 ## Deferred from: code review of story-password-reset-tracer-plan (2026-10-29)
 
-- Pre-existing sign-out-everywhere action can pass session validation before a reset, then bump the version afterward and revoke fresh sessions. Recheck the session version under the account lock.
-- Pre-existing device-removal action can pass session validation before a reset, then remove a newly created device afterward. Recheck the session version under the account lock.
+- Closed 2026-10-30: Pre-existing sign-out-everywhere action could pass session validation before a reset, then bump the version afterward and revoke fresh sessions. Fixed in `eac1acec`: locked session-version recheck in `src/app/(app)/profile/security-actions.ts`, covered by password-reset browser race.
+- Closed 2026-10-30: Pre-existing device-removal action could pass session validation before a reset, then remove a newly created device afterward. Fixed in `eac1acec`: locked session-version recheck in `src/app/(app)/profile/security-actions.ts`, covered by password-reset browser race.
 
 - source_plan: `_bmad-output/initiative-self-hosted-administration/epic-recovery-and-deletion/story-deletion-concurrency-and-self-service-plan.md`
   summary: app-activity E2E scenarios (e.g. "Renamed and deleted accounts stay filterable...") fail on the baseline commit, with the filter option locator count 0 and intermittent other app-activity failures.

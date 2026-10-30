@@ -3,7 +3,7 @@ title: "Deletion concurrency and self-service"
 type: "feature"
 ticket: 2
 created: "2026-10-29"
-status: "built"
+status: done
 baseline_revision: "66a3ecd265f616ed72a8bd7f56d99dd873b470db"
 route: "full"
 route_source: "auto"
@@ -97,3 +97,7 @@ Reasoned deadlock to prove: accept updates an invitation row, then inserts a col
 | Extraction of leave/saveContributorChanges beyond scope | low | rejected | Actions cannot run outside Next, so all writers moved together; no behavior harm shown. |
 | saveContributorChanges now returns stale on vanished trip | false | rejected | Matrix row says stale returns `Stale`; change matches intent. |
 | Delete-vs-demote only one ordering | low | rejected | Both orderings serialize on the same app lock; reverse order adds no new path. |
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

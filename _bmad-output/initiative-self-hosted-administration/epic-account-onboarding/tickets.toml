@@ -58,8 +58,7 @@ covers = ["CAP-2", "CAP-3"]
 after = [2]
 hitl = false
 risk = "high"
-unknown = "Which shared password policy applies: signup and profile changePassword rules differ."
-notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1)."]
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24).", "Review: pin review: authority-locking (epic-account-onboarding decision, 2026-10-27; activity retro A1).", "Decision: 2026-10-30 status audit confirms the password-policy question was resolved by setup completion: minimum 8 characters, matching confirmation and bcrypt cost 10, using src/lib/password-policy.ts; profile retains its existing wording with the shared minimum."]
 
 [[entry]]
 id = 6

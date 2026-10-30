@@ -3,7 +3,7 @@ title: "Admin recovery issuance service"
 type: feature
 ticket: 4
 created: "2026-10-29"
-status: built
+status: done
 baseline_revision: "3e2963911a09a5b207f0fe0bb4a9422ccc75e71c"
 route: full
 route_source: auto
@@ -106,3 +106,7 @@ Full route exceeds 100 lines. Browser endpoint belongs to 4.5.
 - `npx vitest run scripts/feature-map.test.mjs` — 9 tests passed. This file imports Vitest; the original Node test-runner command does not apply.
 - `npm run test:e2e:affected` — final broad run: 483 passed, two broader failures; see Review Triage Log. Eight recovery scenarios passed. Targeted concurrent onboarding/retention/recovery/Activity run: 85 passed.
 - Parent runs build-validator after targeted tests; implementation child does not. E2E follows other validation separately.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

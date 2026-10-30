@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { collaborators, days, trips } from "@/db/schema";
-import { createTripWrite, type MembershipDatabase } from "./membership-writes";
+import { createTripWrite, saveContributorChangesWrite, type MembershipDatabase } from "./membership-writes";
 
 function createDatabase(ownerRows: unknown[]) {
   const inserts: Array<{ table: unknown; values: unknown }> = [];
@@ -63,5 +63,38 @@ describe("createTripWrite", () => {
       })
     ).rejects.toThrow("Signed-in user could not be resolved before trip creation.");
     expect(inserts).toHaveLength(0);
+  });
+});
+
+describe("saveContributorChangesWrite locked authority", () => {
+  it.each([null, "editor", "viewer"])("refuses absent or demoted actor %s before writes", async (role) => {
+    const writes: string[] = [];
+    const transaction = {
+      execute: async () => [{ id: "trip-1" }],
+      select: () => ({
+        from: () => ({
+          where: async () => [
+            ...(role ? [{ id: "actor", userId: "actor", tripId: "trip-1", role, isCreator: false }] : []),
+            { id: "target", userId: "target", tripId: "trip-1", role: "viewer", isCreator: false },
+          ],
+        }),
+      }),
+      delete: () => ({
+        where: async () => {
+          writes.push("delete");
+        },
+      }),
+    };
+    const database = {
+      transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+    } as unknown as MembershipDatabase;
+    await expect(
+      saveContributorChangesWrite(database, {
+        tripId: "trip-1",
+        actorId: "actor",
+        changes: [{ type: "remove", collaboratorId: "target" }],
+      })
+    ).rejects.toThrow("You no longer have permission to manage contributors.");
+    expect(writes).toEqual([]);
   });
 });

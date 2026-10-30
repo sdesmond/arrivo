@@ -3,7 +3,7 @@ title: "Admin deletion and private succession"
 type: "feature"
 ticket: 3
 created: "2026-10-29"
-status: "in-review"
+status: done
 baseline_revision: "c8449ab65a2cba6d7164b1c6c3a5bce21091d419"
 route: "full"
 route_source: "auto"
@@ -88,3 +88,7 @@ Use keyed digest of canonical outcomes, preventing identifier guessing from clie
 ## Verification
 
 Run matching Vitest, affected Playwright, then build-validator once after final code (E2E separate). Read version-matched Next.js mutation guide before action edits. No full suite or CHANGELOG edit.
+
+## Completion verification — 2026-10-30
+
+Marked done at the user's request after checking implementation, tests and subsequent verification records. Evidence and fresh check results are recorded in the [ticket status audit](../status-audit-2026-10-30.md). Historical execution results above remain unchanged.

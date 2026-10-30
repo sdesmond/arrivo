@@ -1,7 +1,6 @@
 ---
 title: "Manage instance layout"
 type: "feature"
-ticket: ""
 created: "2026-10-29"
 status: "in-progress"
 baseline_revision: "2916594df80115d7fe7fdf7bc78b78070c99775f"

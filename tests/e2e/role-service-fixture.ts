@@ -46,6 +46,7 @@ export interface RoleServiceFixture {
   schema: string;
   seedUsers(specs: RoleServiceUserSpec[]): Promise<void>;
   userId(key: string): string;
+  sessionVersion(key: string): Promise<number>;
   roleOf(key: string): Promise<string>;
   adminCount(): Promise<number>;
   accountExists(key: string): Promise<boolean>;
@@ -115,6 +116,10 @@ export async function createRoleServiceFixture(): Promise<RoleServiceFixture> {
       }
     },
     userId,
+    async sessionVersion(key) {
+      const rows = await client.unsafe(`select session_version from "${schema}".users where id = $1`, [userId(key)]);
+      return rows[0].session_version as number;
+    },
     async roleOf(key) {
       const id = userId(key);
       const row = (await roleRows()).find((item) => item.id === id);

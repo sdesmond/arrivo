@@ -903,6 +903,7 @@ export interface AccountDeletionTrip {
 }
 
 export const AccountDeletionFailure = {
+  Unauthorized: "unauthorized",
   Stale: "stale",
   LastAdmin: "last-admin",
 } as const;

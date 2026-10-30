@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { randomBytes } from "node:crypto";
+import { redirect } from "next/navigation";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decryptField, isEncryptedField } from "@/lib/field-encryption";
 
@@ -822,7 +823,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     vi.clearAllMocks();
     mockRecordActivity.mockReset();
     mockAfter.mockReset();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockRequireUser.mockResolvedValue({ id: "user-1", sessionVersion: 7 });
     mockStorageDel.mockResolvedValue(undefined);
     mockDeleteOwnAccount.mockResolvedValue({ ok: true, summary: SUMMARY });
   });
@@ -832,7 +833,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
 
     await expect(deleteAccount([...choices])).resolves.toEqual({ status: "success" });
 
-    expect(mockDeleteOwnAccount).toHaveBeenCalledWith(expect.anything(), "user-1", choices);
+    expect(mockDeleteOwnAccount).toHaveBeenCalledWith(expect.anything(), "user-1", choices, 7);
   });
 
   it("publishes events, cleans up files and signs out only after the deletion commits", async () => {
@@ -914,6 +915,15 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     mockPublishTripEvent.mockReset();
   });
 
+  it("redirects revoked authentication before success effects", async () => {
+    mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Unauthorized });
+    vi.mocked(redirect).mockImplementationOnce(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+    await expect(deleteAccount([])).rejects.toThrow("NEXT_REDIRECT");
+    expectNoSideEffects();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
   it("returns stale without side effects when the choices changed", async () => {
     mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Stale });
 
