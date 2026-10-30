@@ -47,10 +47,10 @@ describe("admin-recovery-main", () => {
   });
 
   it("reports only a generic message when the run throws", async () => {
-    run.mockRejectedValue(new Error("postgres://user:secret@db/arrivo refused"));
+    run.mockRejectedValue(new Error("connection to db refused with secret-value"));
     await load();
     expect(error).toHaveBeenCalledWith("Admin recovery failed.");
-    expect(JSON.stringify(error.mock.calls)).not.toContain("secret");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("secret-value");
     expect(exit).toHaveBeenCalledWith(1);
   });
 });
