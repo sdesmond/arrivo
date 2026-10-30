@@ -4,6 +4,7 @@ import { users } from "../../../src/db/schema";
 import { Given, When, Then } from "../fixtures";
 import { withE2EDb } from "../e2e-db";
 import type { ScenarioUserRecord } from "../scenario-fixture";
+import { openDialog } from "../dialog";
 import { waitForServerActionResponse } from "../server-action";
 
 Given("another completed app member exists", async ({ scenario }) => {
@@ -14,7 +15,7 @@ Given("another completed app member exists", async ({ scenario }) => {
 
 When("I promote the other app member", async ({ page, scenario }) => {
   const user = scenario.getValue<ScenarioUserRecord>("appMember")!;
-  await page.getByRole("button", { name: `Make admin: ${user.username}`, exact: true }).click();
+  await openDialog(page, page.getByRole("button", { name: `Make admin: ${user.username}`, exact: true }));
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users" });
   await page.getByRole("dialog").getByRole("button", { name: "Make admin", exact: true }).click();
   await response;
@@ -34,7 +35,7 @@ Then("the other app member is persistently an admin", async ({ page, scenario })
 
 When("I remove my own app admin role", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
-  await page.getByRole("button", { name: `Remove admin: ${user.username}`, exact: true }).click();
+  await openDialog(page, page.getByRole("button", { name: `Remove admin: ${user.username}`, exact: true }));
   const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users" });
   await page.getByRole("dialog").getByRole("button", { name: "Remove admin", exact: true }).click();
   await response;
