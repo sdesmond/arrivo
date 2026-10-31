@@ -197,7 +197,7 @@ Then("the Overview trip and document totals match the database with checked time
       const checkedAt = await row.locator("time").getAttribute("datetime");
       expect(Date.parse(checkedAt!)).toBeGreaterThanOrEqual(startedAt);
       expect(Date.parse(checkedAt!)).toBeLessThanOrEqual(Date.now());
-      await expect(row.locator("time")).toHaveText(/^Checked \d{2}:\d{2}:\d{2} UTC$/);
+      await expect(row.locator("time")).toHaveText(/^Checked \d{1,2}:\d{2}:\d{2}/);
     }
     expect(await readInstanceTotals()).toEqual(before);
   }).toPass({ timeout: 15_000, intervals: [100, 250, 500] });
@@ -246,6 +246,7 @@ Given("scenario-owned admin actions and failed sign-ins exist in Activity", asyn
 
 Then("the Overview lists the five newest seeded admin actions newest first", async ({ page, scenario }) => {
   const expected = scenario.getValue<ExpectedAdminAction[]>(expectedAdminActionsKey)!;
+  const browserZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const items = metricRow(page, "Recent admin actions").getByRole("listitem");
   await expect(items).toHaveCount(expected.length);
   for (const [index, entry] of expected.entries()) {
@@ -253,7 +254,7 @@ Then("the Overview lists the five newest seeded admin actions newest first", asy
     for (const text of [entry.actor, entry.action, entry.target]) await expect(item).toContainText(text);
     const time = item.locator("time");
     await expect(time).toHaveAttribute("datetime", entry.occurredAt);
-    await expect(time).toHaveText(formatInstant(entry.occurredAt, "UTC"));
+    await expect(time).toHaveText(formatInstant(entry.occurredAt, browserZone));
   }
 });
 
@@ -263,7 +264,7 @@ Then("the Overview failed sign-in count matches Activity for the last 24 hours",
     await page.reload();
     const row = metricRow(page, "Failed sign-ins (24 hours)");
     const checkedAt = await row.locator("time").getAttribute("datetime");
-    await expect(row.locator("time")).toHaveText(/^Checked \d{2}:\d{2}:\d{2} UTC$/);
+    await expect(row.locator("time")).toHaveText(/^Checked \d{1,2}:\d{2}:\d{2}/);
     const since = new Date(Date.parse(checkedAt!) - DAY_MS);
     const before = await countFailedSignInsSince(since);
     const display = await row.locator("dd > span").innerText();
@@ -318,6 +319,7 @@ Then("the Overview storage refresh is independent and keyboard accessible", asyn
     const response = waitForServerActionResponse(page, { pathIncludes: "/admin/overview" });
     await button.focus();
     await expect(button).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveText(/^Checked \d{1,2}:\d{2}:\d{2}/);
     expect(await button.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
     await button.press("Enter");
     await expect(button).toBeDisabled();
