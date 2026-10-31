@@ -17,6 +17,15 @@ Feature: Admin overview
     When the Overview storage probe recovers
     Then the Overview storage is healthy with readable usage and exact bytes on hover
 
+  Scenario: Admin sees recent admin actions and failed sign-ins
+    Given I am signed in as an app "admin"
+    And scenario-owned admin actions and failed sign-ins exist in Activity
+    When I request app management at "/admin"
+    Then I am on the app Overview
+    And the Overview lists the five newest seeded admin actions newest first
+    And the Overview failed sign-in count matches Activity for the last 24 hours
+    And the Overview contains no private fixture details
+
   Scenario: A member cannot open Overview
     Given I am signed in as an app "member"
     When I request app management at "/admin/overview"

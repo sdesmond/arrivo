@@ -5,16 +5,38 @@ import { join, resolve } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { After, Given, Then, When } from "../fixtures";
-import { count } from "drizzle-orm";
-import { documents, trips } from "../../../src/db/schema";
-import { ReservationType } from "../../../src/data/types";
+import { and, count, eq, gte } from "drizzle-orm";
+import { activityEvents, documents, trips } from "../../../src/db/schema";
+import { ActivityEventType, ReservationType } from "../../../src/data/types";
+import { formatInstant } from "../../../src/lib/activity-dates";
+import { EVENT_LABELS } from "../../../src/lib/activity-labels";
 import { withE2EDb } from "../e2e-db";
+import { seedActivityEvents, seedActor } from "../activity-seed";
 
 const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
 const failureMarker = join(storageRoot, ".storage-probes", "force-failure");
 const ownedUploadsKey = "overviewOwnedUploads";
 const ownedMarkerKey = "overviewOwnedMarker";
 const privateDetailsKey = "overviewPrivateDetails";
+const expectedAdminActionsKey = "overviewExpectedAdminActions";
+const DAY_MS = 86_400_000;
+
+interface ExpectedAdminAction {
+  actor: string;
+  action: string;
+  target: string;
+  occurredAt: string;
+}
+
+async function countFailedSignInsSince(since: Date) {
+  return withE2EDb(async (db) => {
+    const [row] = await db
+      .select({ total: count() })
+      .from(activityEvents)
+      .where(and(eq(activityEvents.type, ActivityEventType.SignInFailed), gte(activityEvents.endedAt, since)));
+    return row.total;
+  });
+}
 
 async function readInstanceTotals() {
   return withE2EDb(async (db) => {
@@ -178,6 +200,76 @@ Then("the Overview trip and document totals match the database with checked time
   }).toPass({ timeout: 15_000, intervals: [100, 250, 500] });
 });
 
+// Seeded rows are removed by the global `removeSeededActivity` After hook in app-activity.steps.ts.
+Given("scenario-owned admin actions and failed sign-ins exist in Activity", async ({ scenario }) => {
+  const now = Date.now();
+  const actor = seedActor(scenario.uniqueName("overview-admin"));
+  const types = [
+    ActivityEventType.RoleChanged,
+    ActivityEventType.AccountCreated,
+    ActivityEventType.SetupLinkGenerated,
+    ActivityEventType.PasswordResetLinkGenerated,
+    ActivityEventType.RetentionChanged,
+    ActivityEventType.AccountDeletedByAdmin,
+  ];
+  // Within the next hour so real admin events from parallel scenarios can't outrank them; oldest first.
+  const adminEvents = types.map((type, index) => ({
+    type,
+    actor,
+    startedAt: new Date(now + (30 + index) * 60_000),
+    target: { id: randomUUID(), username: scenario.uniqueName(`overview-target-${index}`) },
+  }));
+  const nonAdminActor = seedActor(scenario.uniqueName("overview-traveller"));
+  const tripId = randomUUID();
+  await seedActivityEvents([
+    ...adminEvents,
+    // Newer than every admin event, so only the type filter keeps it out.
+    { type: ActivityEventType.TripUpdated, actor: nonAdminActor, startedAt: new Date(now + 50 * 60_000), tripId },
+    { type: ActivityEventType.SignInFailed, actor: null, startedAt: new Date(now - DAY_MS / 24) },
+    { type: ActivityEventType.SignInFailed, actor: null, startedAt: new Date(now - DAY_MS - DAY_MS / 24) },
+  ]);
+  const expected: ExpectedAdminAction[] = adminEvents
+    .slice(1)
+    .reverse()
+    .map((event) => ({
+      actor: actor.username,
+      action: EVENT_LABELS[event.type].action,
+      target: event.target.username,
+      occurredAt: event.startedAt.toISOString(),
+    }));
+  scenario.setValue(expectedAdminActionsKey, expected);
+  scenario.setValue(privateDetailsKey, [nonAdminActor.username, adminEvents[0].target.username, tripId]);
+});
+
+Then("the Overview lists the five newest seeded admin actions newest first", async ({ page, scenario }) => {
+  const expected = scenario.getValue<ExpectedAdminAction[]>(expectedAdminActionsKey)!;
+  const items = metricRow(page, "Recent admin actions").getByRole("listitem");
+  await expect(items).toHaveCount(expected.length);
+  for (const [index, entry] of expected.entries()) {
+    const item = items.nth(index);
+    for (const text of [entry.actor, entry.action, entry.target]) await expect(item).toContainText(text);
+    const time = item.locator("time");
+    await expect(time).toHaveAttribute("datetime", entry.occurredAt);
+    await expect(time).toHaveText(formatInstant(entry.occurredAt, "UTC"));
+  }
+});
+
+Then("the Overview failed sign-in count matches Activity for the last 24 hours", async ({ page }) => {
+  // Parallel scenarios record real failures: compare against the same window, bracketed by stable counts.
+  await expect(async () => {
+    await page.reload();
+    const row = metricRow(page, "Failed sign-ins (24 hours)");
+    const checkedAt = await row.locator("time").getAttribute("datetime");
+    await expect(row.locator("time")).toHaveText(/^Checked \d{2}:\d{2}:\d{2} UTC$/);
+    const since = new Date(Date.parse(checkedAt!) - DAY_MS);
+    const before = await countFailedSignInsSince(since);
+    const display = await row.locator("dd > span").innerText();
+    expect(await countFailedSignInsSince(since)).toBe(before);
+    expect(before).toBeGreaterThanOrEqual(1);
+    expect(display).toBe(String(before));
+  }).toPass({ timeout: 15_000, intervals: [100, 250, 500] });
+});
+
 Then("the Overview contains no private fixture details", async ({ page, scenario }) => {
   const markup = await page.getByRole("region", { name: "Overview" }).innerHTML();
   for (const detail of scenario.getValue<string[]>(privateDetailsKey)!) expect(markup).not.toContain(detail);
@@ -206,7 +298,9 @@ Then("only the Overview storage health is unavailable", async ({ page }) => {
   const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
   await expect(metricRow(page, "Version").getByText(version, { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Overview" }).getByText("Unavailable", { exact: true })).toHaveCount(1);
-  await expect(page.getByRole("region", { name: "Overview" }).locator("time")).toHaveCount(9);
+  await expect(page.getByRole("region", { name: "Overview" }).locator("time", { hasText: /^Checked / })).toHaveCount(
+    11
+  );
 });
 
 Then("the Overview upload bytes still match stored files", async ({ page }) => {
@@ -244,12 +338,14 @@ Then("the Overview shows version, database health and user counts with checked t
     "Upload storage",
     "Trips",
     "Documents",
+    "Failed sign-ins (24 hours)",
+    "Recent admin actions",
   ]) {
     await expect(section.getByText(label, { exact: true })).toBeVisible();
   }
   await expect(metricRow(page, "Database").getByText("Healthy", { exact: true })).toBeVisible();
   await expect(section.getByText("Unavailable")).toHaveCount(0);
-  await expect(section.locator("time")).toHaveCount(9);
+  await expect(section.locator("time", { hasText: /^Checked / })).toHaveCount(11);
 });
 
 Then("the Overview version matches package.json", async ({ page }) => {
