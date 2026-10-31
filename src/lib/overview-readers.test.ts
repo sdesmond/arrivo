@@ -10,9 +10,12 @@ import {
   readVersion,
   readStorageHealth,
   readUploadStorageBytes,
+  readTripCount,
+  readDocumentCount,
   type OverviewDb,
 } from "./overview-readers";
 import type { StorageAdapter } from "./storage/storage-adapter";
+import { documents, trips } from "@/db/schema";
 
 const now = new Date("2026-10-30T12:00:00.000Z");
 
@@ -108,6 +111,8 @@ function fakeDb(overrides: Partial<OverviewDb> = {}): OverviewDb {
   return {
     ping: vi.fn().mockResolvedValue(undefined),
     countUsers: vi.fn().mockResolvedValue({ users: 5, admins: 2, pending: 0 }),
+    countTrips: vi.fn().mockResolvedValue(3),
+    countDocuments: vi.fn().mockResolvedValue(7),
     ...overrides,
   };
 }
@@ -162,6 +167,20 @@ describe("readUserCounts", () => {
 });
 
 describe("defaultOverviewDb", () => {
+  it.each([
+    ["trips", trips, readTripCount],
+    ["documents", documents, readDocumentCount],
+  ] as const)("counts only %s through the default database, including empty tables", async (_label, table, reader) => {
+    for (const total of [0, 8]) {
+      from.mockResolvedValueOnce([{ total }]);
+      await expect(reader(undefined, now)).resolves.toEqual({
+        status: "ok",
+        value: total,
+        checkedAt: now.toISOString(),
+      });
+      expect(from).toHaveBeenLastCalledWith(table);
+    }
+  });
   it("pings the database with execute", async () => {
     execute.mockResolvedValue([{ "?column?": 1 }]);
     await defaultOverviewDb.ping();
@@ -171,5 +190,51 @@ describe("defaultOverviewDb", () => {
   it("maps the aggregate row to user counts", async () => {
     from.mockResolvedValue([{ total: 7, admins: 2, pending: 1 }]);
     await expect(defaultOverviewDb.countUsers()).resolves.toEqual({ users: 7, admins: 2, pending: 1 });
+  });
+});
+
+describe("trip and document count readers", () => {
+  const documentTime = new Date("2026-10-30T12:00:01.000Z");
+
+  it.each([0, 12])("keeps exact count %i and each measurement time", async (total) => {
+    const db = fakeDb({
+      countTrips: vi.fn().mockResolvedValue(total),
+      countDocuments: vi.fn().mockResolvedValue(total),
+    });
+    await expect(readTripCount(db, now)).resolves.toEqual({ status: "ok", value: total, checkedAt: now.toISOString() });
+    await expect(readDocumentCount(db, documentTime)).resolves.toEqual({
+      status: "ok",
+      value: total,
+      checkedAt: documentTime.toISOString(),
+    });
+    expect(db.countTrips).toHaveBeenCalledOnce();
+    expect(db.countDocuments).toHaveBeenCalledOnce();
+    expect(db.countUsers).not.toHaveBeenCalled();
+    expect(db.ping).not.toHaveBeenCalled();
+  });
+
+  it.each(["countTrips", "countDocuments", "both"] as const)("isolates failures when %s rejects", async (failure) => {
+    const db = fakeDb({
+      ...(failure !== "countDocuments"
+        ? { countTrips: vi.fn().mockRejectedValue(new Error("private trip failure")) }
+        : {}),
+      ...(failure !== "countTrips"
+        ? { countDocuments: vi.fn().mockRejectedValue(new Error("private document failure")) }
+        : {}),
+    });
+    const [tripMetric, documentMetric] = await Promise.all([
+      readTripCount(db, now),
+      readDocumentCount(db, documentTime),
+    ]);
+    expect(tripMetric).toEqual(
+      failure === "countDocuments"
+        ? { status: "ok", value: 3, checkedAt: now.toISOString() }
+        : { status: "unavailable", checkedAt: now.toISOString() }
+    );
+    expect(documentMetric).toEqual(
+      failure === "countTrips"
+        ? { status: "ok", value: 7, checkedAt: documentTime.toISOString() }
+        : { status: "unavailable", checkedAt: documentTime.toISOString() }
+    );
   });
 });
