@@ -66,30 +66,35 @@ function RoleControl({ user, onSuccess, disabled }: RoleControlProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <Select
-        items={ROLE_ITEMS}
-        value={user.role}
-        disabled={disabled}
-        onValueChange={(role) => {
-          if (role !== user.role) setConfirmOpen(true);
-        }}
-      >
-        <SelectTrigger
-          ref={triggerRef}
-          aria-label={`Role: ${user.username}`}
-          className="h-11 min-w-32 data-[size=default]:h-11"
-          style={{ color: "var(--fg)" }}
+      <div className="flex flex-col items-start gap-1">
+        <span aria-hidden="true" className="text-xs font-medium" style={{ color: "var(--fg-2)" }}>
+          Role
+        </span>
+        <Select
+          items={ROLE_ITEMS}
+          value={user.role}
+          disabled={disabled}
+          onValueChange={(role) => {
+            if (role !== user.role) setConfirmOpen(true);
+          }}
         >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {ROLE_ITEMS.map((item) => (
-            <SelectItem key={item.value} value={item.value} className="py-1.5 pl-2">
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+          <SelectTrigger
+            ref={triggerRef}
+            aria-label={`Role: ${user.username}`}
+            className="h-11 min-w-32 data-[size=default]:h-11"
+            style={{ color: "var(--fg)" }}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLE_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value} className="py-1.5 pl-2">
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <ChangeRoleDialog
         user={user}
         open={confirmOpen}
@@ -186,10 +191,6 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 />
               )}
             </div>
-            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
-            {user.setupComplete && user.id !== currentUserId && (
-              <ResetPasswordDialog userId={user.id} username={user.username} />
-            )}
             {user.isLastCompletedAdmin ? (
               <LastAdminTooltip
                 id={`${user.id}-role`}
@@ -210,6 +211,10 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                   }}
                 />
               )
+            )}
+            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
+            {user.setupComplete && user.id !== currentUserId && (
+              <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
           </li>
         );

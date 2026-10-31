@@ -146,6 +146,14 @@ describe("AppUsersList", () => {
     await waitFor(() => expect(select).toHaveFocus());
     expect(changeUserRoleAction).not.toHaveBeenCalled();
   });
+  it("labels the role select and places it before the Reset password action", () => {
+    show([member]);
+    const [card] = screen.getAllByRole("listitem");
+    expect(within(card).getByText("Role")).toBeVisible();
+    const select = within(card).getByRole("combobox", { name: "Role: bob" });
+    const reset = within(card).getByRole("button", { name: /Reset password/ });
+    expect(select.compareDocumentPosition(reset) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it("ignores re-choosing the current role", async () => {
     show([member]);
     const user = userEvent.setup();
