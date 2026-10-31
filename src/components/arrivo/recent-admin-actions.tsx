@@ -16,10 +16,10 @@ export function RecentAdminActions({ metric, controls, stale }: RecentAdminActio
   const timeZone = useBrowserTimeZone();
   return (
     <div
-      className="col-span-full flex min-w-0 flex-col rounded-lg border p-4"
+      className="relative col-span-full flex min-w-0 flex-col rounded-lg border p-4"
       style={{ borderColor: "var(--line)", background: "var(--bg)" }}
     >
-      <dt className="text-center text-sm wrap-anywhere" style={{ color: "var(--fg-2)" }}>
+      <dt className="px-12 text-center text-lg font-bold break-words" style={{ color: "var(--fg)" }}>
         Recent admin actions
       </dt>
       <dd className="m-0 flex min-w-0 flex-col gap-2 pt-2">
@@ -50,7 +50,7 @@ export function RecentAdminActions({ metric, controls, stale }: RecentAdminActio
             Stale
           </span>
         ) : null}
-        <div className="flex justify-end">{controls}</div>
+        <div className="absolute right-1 top-1">{controls}</div>
       </dd>
     </div>
   );

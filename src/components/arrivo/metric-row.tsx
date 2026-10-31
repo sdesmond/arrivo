@@ -26,15 +26,15 @@ export function MetricRow({ label, metric, format, controls, stale }: MetricRowP
     metric.status === "ok" && format === "bytes" && typeof metric.value === "number" ? metric.value : undefined;
   return (
     <div
-      className="flex min-h-40 min-w-0 flex-col rounded-lg border p-4"
+      className="relative flex min-h-40 min-w-0 flex-col rounded-lg border p-4"
       style={{ borderColor: "var(--line)", background: "var(--bg)" }}
     >
-      <dt className="text-center text-sm wrap-anywhere" style={{ color: "var(--fg-2)" }}>
+      <dt className="px-12 text-center text-lg font-bold break-words" style={{ color: "var(--fg)" }}>
         {label}
       </dt>
-      <dd className="m-0 flex min-w-0 flex-1 flex-col items-center gap-1">
+      <dd className="m-0 flex min-w-0 flex-1 flex-col items-center justify-center gap-1">
         <span
-          className="flex flex-1 items-center justify-center py-2 text-center font-semibold tabular-nums wrap-anywhere"
+          className="py-2 text-center font-semibold tabular-nums break-words"
           title={bytes === undefined ? undefined : `${bytes} bytes`}
           style={{
             fontSize: "1.875rem",
@@ -49,7 +49,7 @@ export function MetricRow({ label, metric, format, controls, stale }: MetricRowP
             Stale
           </span>
         ) : null}
-        <div className="flex w-full justify-end">{controls}</div>
+        <div className="absolute right-1 top-1">{controls}</div>
       </dd>
     </div>
   );
