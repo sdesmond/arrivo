@@ -121,14 +121,12 @@ export async function readUserCounts(
   now?: Date
 ): Promise<{ users: Metric<number>; admins: Metric<number>; pending: Metric<number> }> {
   const checkedAt = now ?? new Date();
-  // One shared query; wrap each pick so a rejection marks all three unavailable without throwing.
-  const counts = measureMetric(() => db.countUsers(), checkedAt);
-  const pick = async (key: keyof UserCounts): Promise<Metric<number>> => {
-    const result = await counts;
-    return result.status === "ok"
-      ? { status: "ok", value: result.value[key], checkedAt: result.checkedAt }
-      : { status: "unavailable", checkedAt: result.checkedAt };
+  // Measure once so all three counts share a query outcome and checked time.
+  const counts = await measureMetric(() => db.countUsers(), checkedAt);
+  const pick = (key: keyof UserCounts): Metric<number> => {
+    return counts.status === "ok"
+      ? { status: "ok", value: counts.value[key], checkedAt: counts.checkedAt }
+      : { status: "unavailable", checkedAt: counts.checkedAt };
   };
-  const [usersMetric, admins, pending] = await Promise.all([pick("users"), pick("admins"), pick("pending")]);
-  return { users: usersMetric, admins, pending };
+  return { users: pick("users"), admins: pick("admins"), pending: pick("pending") };
 }
