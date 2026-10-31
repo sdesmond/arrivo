@@ -47,6 +47,15 @@ describe("DeleteAccountDialog", () => {
   }
   const submit = () => screen.getByRole("button", { name: /^Delete account$/ });
 
+  it("triggers from an icon-only 44px button with a titled, named label", () => {
+    render(<DeleteAccountDialog userId="target" username="pat" setupComplete isCurrentUser={false} />);
+    const trigger = screen.getByRole("button", { name: "Delete account: pat" });
+    expect(trigger).toHaveAttribute("title", "Delete account");
+    expect(trigger).toHaveClass("size-11");
+    expect(trigger).toHaveTextContent("");
+    expect(trigger.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("names the target, announces the check, and focuses Cancel first", async () => {
     let finish!: (value: unknown) => void;
     preview.mockReturnValue(new Promise((resolve) => (finish = resolve)));

@@ -254,6 +254,8 @@ export type ActivityRetentionCommitResult =
 export interface AppUserSummary {
   id: string;
   username: string;
+  /** Display name; omitted when the user has none. */
+  name?: string;
   role: UserRole;
   setupComplete: boolean;
   /** ISO 8601 UTC expiry of the open setup link; present only for an unfinished account that has one. */

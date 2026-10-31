@@ -18,12 +18,29 @@ import { changeUserRoleAction } from "@/app/(app)/admin/users/actions";
 interface ChangeRoleDialogProps {
   user: AppUserSummary;
   onSuccess: (role: UserRole) => void;
-  children: ReactElement;
+  /** Trigger for uncontrolled use. Omit it and drive the dialog with `open`/`onOpenChange`. */
+  children?: ReactElement;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Where focus goes when the dialog closes; needed when there is no `children` trigger to return to. */
+  getFocusTargetOnClose?: () => HTMLElement | null;
 }
 
-export function ChangeRoleDialog({ user, onSuccess, children }: ChangeRoleDialogProps) {
+export function ChangeRoleDialog({
+  user,
+  onSuccess,
+  children,
+  open: controlledOpen,
+  onOpenChange,
+  getFocusTargetOnClose,
+}: ChangeRoleDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  function setOpen(nextOpen: boolean) {
+    setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  }
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const demoting = user.role === UserRole.Admin;
@@ -65,8 +82,11 @@ export function ChangeRoleDialog({ user, onSuccess, children }: ChangeRoleDialog
         setErrorMessage(null);
       }}
     >
-      <DialogTrigger render={children} />
-      <DialogContent showCloseButton={false}>
+      {children && <DialogTrigger render={children} />}
+      <DialogContent
+        showCloseButton={false}
+        finalFocus={getFocusTargetOnClose ? () => getFocusTargetOnClose() ?? true : undefined}
+      >
         <DialogHeader>
           <DialogTitle>
             {action} for {user.username}?

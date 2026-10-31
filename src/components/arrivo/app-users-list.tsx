@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserRole, type AppUserSummary } from "@/data/types";
 import { ChangeRoleDialog } from "./change-role-dialog";
@@ -22,8 +24,9 @@ interface SetupStatusProps {
   now: Date;
 }
 
+// Completed accounts are the normal case and say nothing; only unusual states get a status line.
 function SetupStatus({ user, now }: SetupStatusProps) {
-  if (user.setupComplete) return <>Setup complete</>;
+  if (user.setupComplete) return null;
   if (!user.setupExpiresAt) return <>Pending setup</>;
   const expiresAt = new Date(user.setupExpiresAt);
   if (expiresAt.getTime() <= now.getTime()) return <>Setup expired</>;
@@ -43,6 +46,64 @@ interface LastAdminTooltipProps {
   openId: string | null;
   onOpenIdChange: (id: string | null) => void;
   children: React.ReactElement;
+}
+
+const ROLE_ITEMS = [
+  { value: UserRole.Member, label: "Member" },
+  { value: UserRole.Admin, label: "Admin" },
+];
+
+interface RoleControlProps {
+  user: AppUserSummary;
+  onSuccess: (role: UserRole) => void;
+  disabled?: boolean;
+}
+
+// The select always shows the persisted role; picking the other one only opens the confirmation, so cancelling or
+// failing leaves the control where it was.
+function RoleControl({ user, onSuccess, disabled }: RoleControlProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <div className="flex flex-col items-start gap-1">
+        <span aria-hidden="true" className="text-xs font-medium" style={{ color: "var(--fg-2)" }}>
+          Role
+        </span>
+        <Select
+          items={ROLE_ITEMS}
+          value={user.role}
+          disabled={disabled}
+          onValueChange={(role) => {
+            if (role !== user.role) setConfirmOpen(true);
+          }}
+        >
+          <SelectTrigger
+            ref={triggerRef}
+            aria-label={`Role: ${user.username}`}
+            className="h-11 min-w-32 data-[size=default]:h-11"
+            style={{ color: "var(--fg)" }}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLE_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value} className="py-1.5 pl-2">
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <ChangeRoleDialog
+        user={user}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        getFocusTargetOnClose={() => triggerRef.current}
+        onSuccess={onSuccess}
+      />
+    </>
+  );
 }
 
 // A disabled button swallows focus and touch, so the explanation hangs off a focusable wrapper instead.
@@ -79,77 +140,81 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
       className="mt-4 grid grid-cols-1 gap-3 outline-none sm:grid-cols-2 xl:grid-cols-3"
     >
       {users.map((user) => {
-        const action = user.role === UserRole.Admin ? "Remove admin" : "Make admin";
-        const button = (
-          <Button
-            className="h-11"
-            variant="outline"
-            aria-label={`${action}: ${user.username}`}
-            disabled={user.isLastCompletedAdmin}
-          >
-            {action}
-          </Button>
-        );
+        const statusLine = !user.setupComplete;
         return (
           <li
             key={user.id}
-            className="flex flex-col items-start gap-3 rounded-lg border p-3"
-            style={{ borderColor: "var(--line)" }}
+            className="relative flex min-w-0 flex-col items-start gap-3 rounded-lg border p-4"
+            style={{ borderColor: "var(--line)", background: "var(--bg)" }}
           >
-            <div className="min-w-0">
-              <p className="font-medium break-all" style={{ color: "var(--fg)" }}>
+            <div className="min-w-0 pr-12">
+              <p className="text-lg font-bold break-all" style={{ color: "var(--fg)" }}>
                 {user.username}
               </p>
-              <p className="text-sm" style={{ color: "var(--fg-2)" }}>
-                {user.role === UserRole.Admin ? "Admin" : "Member"} · <SetupStatus user={user} now={now} />
-              </p>
+              {user.name && (
+                <p className="text-sm break-words" style={{ color: "var(--fg-2)" }}>
+                  {user.name}
+                </p>
+              )}
+              {statusLine && (
+                <p className="text-sm" style={{ color: "var(--fg-2)" }}>
+                  <SetupStatus user={user} now={now} />
+                </p>
+              )}
             </div>
-            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
-            {user.setupComplete && user.id !== currentUserId && (
-              <ResetPasswordDialog userId={user.id} username={user.username} />
-            )}
+            <div className="absolute right-1 top-1">
+              {user.isLastCompletedAdmin ? (
+                <LastAdminTooltip
+                  id={`${user.id}-delete`}
+                  label={`Delete account unavailable: ${user.username}`}
+                  openId={tooltipId}
+                  onOpenIdChange={setTooltipId}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon-lg"
+                    title="Delete account"
+                    aria-label={`Delete account: ${user.username}`}
+                    style={{ color: "var(--fg-2)" }}
+                    disabled
+                  >
+                    <Trash2 strokeWidth={1.5} aria-hidden="true" />
+                  </Button>
+                </LastAdminTooltip>
+              ) : (
+                <DeleteAccountDialog
+                  userId={user.id}
+                  username={user.username}
+                  setupComplete={user.setupComplete}
+                  isCurrentUser={user.id === currentUserId}
+                  getFocusTargetAfterDelete={() => listRef.current}
+                />
+              )}
+            </div>
             {user.isLastCompletedAdmin ? (
               <LastAdminTooltip
                 id={`${user.id}-role`}
-                label={`Remove admin unavailable: ${user.username}`}
+                label={`Role unavailable: ${user.username}`}
                 openId={tooltipId}
                 onOpenIdChange={setTooltipId}
               >
-                {button}
+                <RoleControl user={user} disabled onSuccess={() => {}} />
               </LastAdminTooltip>
             ) : (
               (user.setupComplete || user.role === UserRole.Admin) && (
-                <ChangeRoleDialog
+                <RoleControl
                   user={user}
                   onSuccess={(role) => {
                     toast.success("Role updated.");
                     if (user.id === currentUserId && role === UserRole.Member) router.push("/profile");
                     else router.refresh();
                   }}
-                >
-                  {button}
-                </ChangeRoleDialog>
+                />
               )
             )}
-            {user.isLastCompletedAdmin ? (
-              <LastAdminTooltip
-                id={`${user.id}-delete`}
-                label={`Delete account unavailable: ${user.username}`}
-                openId={tooltipId}
-                onOpenIdChange={setTooltipId}
-              >
-                <Button variant="outline" className="h-11" aria-label={`Delete account: ${user.username}`} disabled>
-                  Delete
-                </Button>
-              </LastAdminTooltip>
-            ) : (
-              <DeleteAccountDialog
-                userId={user.id}
-                username={user.username}
-                setupComplete={user.setupComplete}
-                isCurrentUser={user.id === currentUserId}
-                getFocusTargetAfterDelete={() => listRef.current}
-              />
+            {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
+            {user.setupComplete && user.id !== currentUserId && (
+              <ResetPasswordDialog userId={user.id} username={user.username} />
             )}
           </li>
         );

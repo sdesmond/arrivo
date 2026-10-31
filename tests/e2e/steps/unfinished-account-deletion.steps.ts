@@ -108,7 +108,7 @@ Then("deletion Activity identifies only the admin and target", async ({ scenario
 });
 Then("the completed account remains with no deletion Activity", async ({ page, scenario }) => {
   await page.reload();
-  await expect(targetRow(page, scenario)).toContainText("Setup complete");
+  await expect(targetRow(page, scenario)).not.toContainText("Pending setup");
   // Once Users shows it as completed, the same review is offered for it.
   await expect(targetRow(page, scenario).getByRole("button", { name: /Delete account/ })).toHaveCount(1);
   const accounts = await withE2EDb((database) =>
