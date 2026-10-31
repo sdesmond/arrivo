@@ -67,6 +67,7 @@ describe("OverviewMetrics", () => {
     const row = screen.getByText(label, { exact: true }).parentElement!;
     expect(within(row).getByText(/^Checked/)).toHaveAttribute("datetime", later);
     expect(container.querySelectorAll(`time[datetime="${checkedAt}"]`)).toHaveLength(10);
+    expect(container.querySelector("dl")).toHaveClass("grid");
   });
   it("keeps other rows usable during a pending user count refresh", () => {
     actions.refreshUsers.mockReturnValue(new Promise(() => {}));

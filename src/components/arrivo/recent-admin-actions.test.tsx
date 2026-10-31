@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { ActivityEventType, type ActivityEventSummary } from "@/data/types";
+import { formatInstant } from "@/lib/activity-dates";
 import { RecentAdminActions } from "./recent-admin-actions";
 
 const checkedAt = "2026-10-30T12:00:00.000Z";
+const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const events: ActivityEventSummary[] = [
   {
@@ -32,7 +34,7 @@ function renderInList(metric: Parameters<typeof RecentAdminActions>[0]["metric"]
 }
 
 describe("RecentAdminActions", () => {
-  it("keeps stale redacted list and checked time with optional controls", () => {
+  it("keeps stale redacted list with optional controls", () => {
     const { container } = render(
       <RecentAdminActions
         metric={{ status: "ok", value: events, checkedAt }}
@@ -42,7 +44,7 @@ describe("RecentAdminActions", () => {
     );
     expect(screen.getByText("Stale")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByText(/^Checked/)).toHaveAttribute("datetime", checkedAt);
+    expect(screen.queryByText(/^Checked/)).not.toBeInTheDocument();
     expect(screen.getByRole("button")).toHaveTextContent("Retry Recent admin actions");
     expect(container.innerHTML).not.toContain("trip-secret-id");
     expect(container.innerHTML).not.toContain("event-1");
@@ -55,12 +57,12 @@ describe("RecentAdminActions", () => {
     expect(items[0]).toHaveTextContent("alice");
     expect(items[0]).toHaveTextContent("Deleted account");
     expect(items[0]).toHaveTextContent("deleted-bob");
-    const time = within(items[0]).getByText("2026-10-30 11:30:05 UTC");
+    const time = within(items[0]).getByText(formatInstant("2026-10-30T11:30:05.000Z", browserZone));
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("datetime", "2026-10-30T11:30:05.000Z");
     expect(items[1]).toHaveTextContent("Unknown");
     expect(items[1]).toHaveTextContent("Changed activity retention");
-    expect(items[1]).toHaveTextContent("2026-10-30 10:00:00 UTC");
+    expect(items[1]).toHaveTextContent(formatInstant("2026-10-30T10:00:00.000Z", browserZone));
   });
 
   it("shows no IDs, trip IDs or links", () => {
@@ -84,11 +86,9 @@ describe("RecentAdminActions", () => {
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
-  it.each(["ok", "unavailable"] as const)("keeps its own checked time when %s", (status) => {
-    renderInList(status === "ok" ? { status, value: events, checkedAt } : { status, checkedAt });
-    const time = screen.getByText(/^Checked /);
-    expect(time.tagName).toBe("TIME");
-    expect(time).toHaveAttribute("datetime", checkedAt);
-    expect(time).toHaveTextContent("Checked 12:00:00 UTC");
+  it("is a full-width card with no visible checked time", () => {
+    const { container } = renderInList({ status: "ok", value: events, checkedAt });
+    expect(container.querySelector("dl > div")).toHaveClass("col-span-full");
+    expect(container.querySelector(`time[datetime="${checkedAt}"]`)).toBeNull();
   });
 });

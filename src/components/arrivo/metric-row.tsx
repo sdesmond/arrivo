@@ -20,34 +20,36 @@ function formatBytes(bytes: number): string {
   return unitIndex === 0 ? `${bytes} bytes` : `${value.toFixed(2)} ${units[unitIndex]}`;
 }
 
-// Read-only settings-style row; shared by every Overview metric.
+// Read-only metric card; shared by every Overview metric except the full-width admin actions list.
 export function MetricRow({ label, metric, format, controls, stale }: MetricRowProps) {
-  const checked = metric.checkedAt.slice(11, 19);
   const bytes =
     metric.status === "ok" && format === "bytes" && typeof metric.value === "number" ? metric.value : undefined;
   return (
     <div
-      className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0"
-      style={{ borderColor: "var(--line)" }}
+      className="flex min-h-40 min-w-0 flex-col rounded-lg border p-4"
+      style={{ borderColor: "var(--line)", background: "var(--bg)" }}
     >
-      <dt className="text-sm text-fg">{label}</dt>
-      <dd className="m-0 flex min-w-0 flex-wrap items-center gap-3">
+      <dt className="text-center text-sm wrap-anywhere" style={{ color: "var(--fg-2)" }}>
+        {label}
+      </dt>
+      <dd className="m-0 flex min-w-0 flex-1 flex-col items-center gap-1">
         <span
-          className="break-words text-sm font-medium"
+          className="flex flex-1 items-center justify-center py-2 text-center font-semibold tabular-nums wrap-anywhere"
           title={bytes === undefined ? undefined : `${bytes} bytes`}
-          style={{ color: metric.status === "ok" ? "var(--fg)" : "var(--fg-3)" }}
+          style={{
+            fontSize: "1.875rem",
+            lineHeight: 1.2,
+            color: metric.status === "ok" ? "var(--fg)" : "var(--fg-3)",
+          }}
         >
           {metric.status === "ok" ? (bytes === undefined ? metric.value : formatBytes(bytes)) : "Unavailable"}
         </span>
-        <time dateTime={metric.checkedAt} className="text-xs" style={{ color: "var(--fg-3)" }}>
-          Checked {checked} UTC
-        </time>
         {stale ? (
           <span className="text-sm" style={{ color: "var(--fg-2)" }}>
             Stale
           </span>
         ) : null}
-        {controls}
+        <div className="flex w-full justify-end">{controls}</div>
       </dd>
     </div>
   );
