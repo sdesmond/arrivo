@@ -75,14 +75,20 @@ untracked), or the last commit when the tree is clean — and classifies each fi
 - **anything else** (unmapped runtime source) → contributes nothing; it does **not** force the full
   suite. Map it to its feature instead.
 
+Before the tiers, a TS/TSX edit that emits identical JavaScript (types, `import type`, comments) is
+dropped. An edit to `feature-map.mjs` runs only the entries it added or changed, or the full suite if
+it touched `SHARED_GLOBS`/`IGNORE_GLOBS`. `SHARED_GLOBS` names individual `src/lib` modules, not
+`src/lib/**`: map a new lib module to the features that reach it, and add it to `SHARED_GLOBS` only
+if every page or action runs through it.
+
 When you add a feature file, tag it `@feat:<stem>` and register the source it exercises in
 `feature-map.mjs`. Because unmapped runtime source now runs nothing (not the full suite), the map
 must stay complete — the full suite (`npm run test:e2e`) is the user-initiated backstop.
 
 `scripts/feature-map.test.mjs` enforces this contract (it runs in the coverage worker): a
 `tests/e2e/features/*.feature` without its `@feat:` tag, a dead path in the map, a
-`src/components/arrivo/*` component that no glob covers, or an `src/app/(app)/**` server action that
-no glob covers all turn the build red until you register it in `feature-map.mjs` (under a feature, or
+`src/components/arrivo/*` component that no glob covers, an `src/app/(app)/**` server action that
+no glob covers, or an unclassified `src/lib/**` / `src/app/api/**` file all turn the build red until you register it in `feature-map.mjs` (under a feature, or
 in `SHARED_GLOBS` if it's cross-cutting).
 
 ### E2E Database Setup
