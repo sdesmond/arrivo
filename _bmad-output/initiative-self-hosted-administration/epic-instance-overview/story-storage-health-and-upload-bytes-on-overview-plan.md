@@ -21,7 +21,7 @@ context: []
 
 **Problem:** Overview lacks document-storage health and upload-storage usage despite the adapter already exposing both measurements.
 
-**Approach:** Add two independent server readers and read-only Overview rows using the existing metric contract and storage adapter. Report health as Healthy and usage as an exact byte count with visible units; failed measurements become Unavailable with their own checked times.
+**Approach:** Add two independent server readers and read-only Overview rows using the existing metric contract and storage adapter. Report health as Healthy and usage with decimal KB/MB/GB/TB/PB units rounded to two places, with exact bytes on hover; failed measurements become Unavailable with their own checked times.
 
 ## Boundaries & Constraints
 
@@ -58,7 +58,7 @@ context: []
 - [x] `src/lib/overview-readers.test.ts` — first add tests for successful health/usage, exact nonzero and zero bytes, individual rejections, independent simultaneous outcomes, injected checked times, default factory delegation, and factory exceptions. Confirm expanded tests fail before production changes.
 - [x] `tests/e2e/features/admin-overview.feature`, `tests/e2e/steps/admin-overview.steps.ts` — extend admin scenario: healthy storage, seven checked times, exact bytes, forced probe failure with successful usage/DB/version, recovery on reload. Create scenario-owned upload; compare UI to independent root enumeration using bounded retries with stable before/after totals. Never assume empty root/reset storage. Keep health assertions in one scenario to avoid marker races; unconditional After cleanup removes owned file/marker after failures too. No serial tags or shared reseeding.
 - [x] `src/lib/overview-readers.ts` — implement separate health/usage readers through adapter and metric wrapper; no shared success/failure result.
-- [x] `src/app/(app)/admin/overview/page.tsx` — add parallel metrics and Document storage/Upload storage rows. Format successful usage as integer plus `bytes`; preserve unavailable union.
+- [x] `src/app/(app)/admin/overview/page.tsx` — add parallel metrics and Document storage/Upload storage rows. Pass numeric usage to MetricRow with byte formatting; preserve unavailable union. Test decimal unit boundaries and exact-byte hover text in `src/components/arrivo/metric-row.test.tsx`.
 - [x] Run targeted reader tests and affected browser coverage, then project validation through build-validator; record evidence in Implementation Notes.
 
 **Acceptance Criteria:**
@@ -79,14 +79,20 @@ context: []
 - Build-validator: lint, TypeScript, production build, and coverage passed (5,642 tests; lines 97.37%, functions 96.89%, branches 92.7%). Build generated 16 pages; bundle sizes were not reported by this Next.js build.
 - Validator E2E retry exited because port 3001 was occupied by a separate full suite. User requested cancellation of this run; no further E2E launched. Earlier affected run passed 11/11. No final PASS fingerprint recorded.
 
+- Display follow-up: 29 targeted tests passed after 9 expected failures before implementation. Lint, TypeScript, and production build passed. Coverage passed all 5,653 tests with `npm run test:coverage -- --maxWorkers=4`: lines 97.38%, functions 96.89%, branches 92.7%. Default-worker runs hit unrelated account-dialog timing failures; all 57 tests in those three files passed directly. Updated browser assertions were not run, respecting user cancellation.
+
 ## Plan Change Log
 
+- User changed display requirement after first commit: readable decimal storage units with exact bytes on hover. MetricRow owns presentation; readers retain exact numeric bytes. Browser assertions now validate rounded units plus exact title, using a scenario-owned MB-size document. User canceled further agent E2E runs while running suite separately.
+
 ## Review Triage Log
+
+- Display follow-up quick review: no findings.
 
 - Quick review: no findings; nothing deferred. Matrix audit: passing reader tests cover healthy/empty results, independent probe/usage failures, and factory exceptions; passing Overview browser scenario covers forced failure and recovery without changing uploaded contents.
 ## Design Notes
 
-Use exact bytes to avoid rounding away verification evidence. Application code never traverses files; independent filesystem enumeration belongs only to browser-test assertions. Usage is a live measurement, not an atomic filesystem snapshot.
+Keep exact bytes in native hover title to preserve verification evidence while visible usage uses readable decimal units. Application code never traverses files; independent filesystem enumeration belongs only to browser-test assertions. Usage is a live measurement, not an atomic filesystem snapshot.
 
 ## Verification
 

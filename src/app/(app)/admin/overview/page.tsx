@@ -21,8 +21,6 @@ export default async function AdminOverviewPage() {
     readStorageHealth(),
     readUploadStorageBytes(),
   ]);
-  const uploadStorage =
-    uploadBytes.status === "ok" ? { ...uploadBytes, value: `${uploadBytes.value} bytes` } : uploadBytes;
   return (
     <section
       aria-labelledby="admin-overview-heading"
@@ -36,7 +34,7 @@ export default async function AdminOverviewPage() {
         <MetricRow label="Version" metric={version} />
         <MetricRow label="Database" metric={database} />
         <MetricRow label="Document storage" metric={storage} />
-        <MetricRow label="Upload storage" metric={uploadStorage} />
+        <MetricRow label="Upload storage" metric={uploadBytes} format="bytes" />
         <MetricRow label="Users" metric={counts.users} />
         <MetricRow label="Admins" metric={counts.admins} />
         <MetricRow label="Pending setup" metric={counts.pending} />

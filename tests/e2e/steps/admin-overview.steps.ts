@@ -40,10 +40,18 @@ async function expectExactUploadBytes(page: Page) {
   await expect(async () => {
     const before = await enumerateUploadBytes();
     await page.reload();
-    const value = await metricRow(page, "Upload storage").locator("dd > span").innerText();
+    const value = metricRow(page, "Upload storage").locator("dd > span");
+    const display = await value.innerText();
+    const exactBytes = await value.getAttribute("title");
     const after = await enumerateUploadBytes();
     expect(after).toBe(before);
-    expect(value).toBe(`${before} bytes`);
+    expect(exactBytes).toBe(`${before} bytes`);
+    const match = /^(\d+\.\d{2}) (KB|MB|GB|TB|PB)$/.exec(display);
+    expect(match).not.toBeNull();
+    const divisors: Record<string, number> = { KB: 1000, MB: 1e6, GB: 1e9, TB: 1e12, PB: 1e15 };
+    const divisor = divisors[match![2]];
+    expect(Math.abs(Number(match![1]) - before / divisor)).toBeLessThanOrEqual(0.005);
+    expect(before).toBeGreaterThanOrEqual(divisor);
   }).toPass({ timeout: 15_000, intervals: [100, 250, 500] });
 }
 
@@ -66,15 +74,15 @@ Given("scenario-owned uploads exist for the Overview measurement", async ({ scen
   const uploads = [join(storageRoot, `${identifier}.pdf`), join(storageRoot, "covers", `${identifier}.jpg`)];
   scenario.setValue(ownedUploadsKey, uploads);
   await mkdir(join(storageRoot, "covers"), { recursive: true });
-  await writeFile(uploads[0], "overview document bytes");
+  await writeFile(uploads[0], Buffer.alloc(6_237_721, "d"));
   await writeFile(uploads[1], "overview cover bytes");
 });
 
-Then("the Overview storage is healthy with exact upload bytes", async ({ page, scenario }) => {
+Then("the Overview storage is healthy with readable usage and exact bytes on hover", async ({ page, scenario }) => {
   await expectExactUploadBytes(page);
   await expect(metricRow(page, "Document storage").getByText("Healthy", { exact: true })).toBeVisible();
   const uploads = scenario.getValue<string[]>(ownedUploadsKey)!;
-  expect(await readFile(uploads[0], "utf8")).toBe("overview document bytes");
+  expect(await readFile(uploads[0])).toEqual(Buffer.alloc(6_237_721, "d"));
   expect(await readFile(uploads[1], "utf8")).toBe("overview cover bytes");
 });
 
