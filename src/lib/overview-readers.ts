@@ -1,7 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db as appDb } from "@/db";
-import { users } from "@/db/schema";
+import { documents, trips, users } from "@/db/schema";
 import { UserRole } from "@/data/types";
 import { measureMetric, type Metric } from "@/lib/overview-metric";
 import { getStorageAdapter, type StorageAdapter } from "@/lib/storage/storage-adapter";
@@ -30,10 +30,20 @@ export interface UserCounts {
 export interface OverviewDb {
   ping: () => Promise<unknown>;
   countUsers: () => Promise<UserCounts>;
+  countTrips: () => Promise<number>;
+  countDocuments: () => Promise<number>;
 }
 
 export const defaultOverviewDb: OverviewDb = {
   ping: () => appDb.execute(sql`select 1`),
+  countTrips: async () => {
+    const [row] = await appDb.select({ total: sql<number>`count(*)::int` }).from(trips);
+    return row.total;
+  },
+  countDocuments: async () => {
+    const [row] = await appDb.select({ total: sql<number>`count(*)::int` }).from(documents);
+    return row.total;
+  },
   countUsers: async () => {
     // One query so the three counts are consistent. Pending setup = no password yet; admins = completed admins only.
     const [row] = await appDb
@@ -46,6 +56,14 @@ export const defaultOverviewDb: OverviewDb = {
     return { users: row.total, admins: row.admins, pending: row.pending };
   },
 };
+
+export function readTripCount(db: OverviewDb = defaultOverviewDb, now?: Date): Promise<Metric<number>> {
+  return measureMetric(() => db.countTrips(), now);
+}
+
+export function readDocumentCount(db: OverviewDb = defaultOverviewDb, now?: Date): Promise<Metric<number>> {
+  return measureMetric(() => db.countDocuments(), now);
+}
 
 export function readVersion(now?: Date): Promise<Metric<string>> {
   return measureMetric(() => {

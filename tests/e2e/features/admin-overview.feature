@@ -3,10 +3,13 @@ Feature: Admin overview
   Scenario: Admin sees instance status rows
     Given I am signed in as an app "admin"
     And scenario-owned uploads exist for the Overview measurement
+    And scenario-owned trips and documents exist across Overview accounts
     When I request app management at "/admin"
     Then I am on the app Overview
     And the Overview shows version, database health and user counts with checked times
     And the Overview version matches package.json
+    And the Overview trip and document totals match the database with checked times
+    And the Overview contains no private fixture details
     And the Overview storage is healthy with readable usage and exact bytes on hover
     When the Overview storage probe fails
     Then only the Overview storage health is unavailable

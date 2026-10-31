@@ -5,11 +5,26 @@ import { join, resolve } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { After, Given, Then, When } from "../fixtures";
+import { count } from "drizzle-orm";
+import { documents, trips } from "../../../src/db/schema";
+import { ReservationType } from "../../../src/data/types";
+import { withE2EDb } from "../e2e-db";
 
 const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
 const failureMarker = join(storageRoot, ".storage-probes", "force-failure");
 const ownedUploadsKey = "overviewOwnedUploads";
 const ownedMarkerKey = "overviewOwnedMarker";
+const privateDetailsKey = "overviewPrivateDetails";
+
+async function readInstanceTotals() {
+  return withE2EDb(async (db) => {
+    const [tripRows, documentRows] = await Promise.all([
+      db.select({ total: count() }).from(trips),
+      db.select({ total: count() }).from(documents),
+    ]);
+    return { trips: tripRows[0].total, documents: documentRows[0].total };
+  });
+}
 
 function metricRow(page: Page, label: string) {
   return page
@@ -78,6 +93,97 @@ Given("scenario-owned uploads exist for the Overview measurement", async ({ scen
   await writeFile(uploads[1], "overview cover bytes");
 });
 
+Given("scenario-owned trips and documents exist across Overview accounts", async ({ scenario }) => {
+  const admin = scenario.currentUser!;
+  const tripName = scenario.uniqueName("Private admin trip");
+  const eventName = scenario.uniqueName("Private event");
+  const provider = scenario.uniqueName("Private reservation");
+  const tripDocumentName = scenario.uniqueName("Private trip document");
+  const eventDocumentName = scenario.uniqueName("Private event document");
+  const reservationDocumentName = scenario.uniqueName("Private reservation document");
+  const tripUrl = `https://example.invalid/${randomUUID()}/trip`;
+  const eventUrl = `https://example.invalid/${randomUUID()}/event`;
+  const reservationUrl = `https://example.invalid/${randomUUID()}/reservation`;
+  await scenario.materialize({
+    trip: {
+      mother: "datelessTrip",
+      overrides: {
+        trip: { name: tripName },
+        events: [{ name: eventName, position: 0 }],
+        reservations: [{ type: ReservationType.Lodging, provider }],
+        documents: [
+          { name: tripDocumentName, kind: "link", url: tripUrl },
+          { name: eventDocumentName, kind: "link", url: eventUrl, eventName },
+          { name: reservationDocumentName, kind: "link", url: reservationUrl, reservationProvider: provider },
+        ],
+      },
+    },
+  });
+  const memberName = scenario.uniqueName("Private member");
+  const member = await scenario.materialize({
+    user: { overrides: { user: { name: memberName, role: "member" } }, setCurrent: false },
+  });
+  const memberTripName = scenario.uniqueName("Private member trip");
+  const memberDocumentName = scenario.uniqueName("Private member document");
+  const memberUrl = `https://example.invalid/${randomUUID()}/member`;
+  scenario.setCurrentUser(member.user);
+  await scenario.materialize({
+    trip: {
+      mother: "datelessTrip",
+      ownerId: member.user!.id,
+      setCurrent: false,
+      overrides: {
+        trip: { name: memberTripName },
+        documents: [{ name: memberDocumentName, kind: "link", url: memberUrl }],
+      },
+    },
+  });
+  scenario.setCurrentUser(admin);
+  scenario.setValue(privateDetailsKey, [
+    admin.username,
+    admin.name,
+    member.user!.username,
+    memberName,
+    tripName,
+    eventName,
+    provider,
+    tripDocumentName,
+    eventDocumentName,
+    reservationDocumentName,
+    tripUrl,
+    eventUrl,
+    reservationUrl,
+    memberTripName,
+    memberDocumentName,
+    memberUrl,
+  ]);
+});
+
+Then("the Overview trip and document totals match the database with checked times", async ({ page }) => {
+  await expect(async () => {
+    const before = await readInstanceTotals();
+    const startedAt = Date.now();
+    await page.reload();
+    const tripRow = metricRow(page, "Trips");
+    const documentRow = metricRow(page, "Documents");
+    await expect(tripRow.locator("dd > span")).toHaveText(String(before.trips));
+    await expect(documentRow.locator("dd > span")).toHaveText(String(before.documents));
+    for (const row of [tripRow, documentRow]) {
+      const checkedAt = await row.locator("time").getAttribute("datetime");
+      expect(Date.parse(checkedAt!)).toBeGreaterThanOrEqual(startedAt);
+      expect(Date.parse(checkedAt!)).toBeLessThanOrEqual(Date.now());
+      await expect(row.locator("time")).toHaveText(/^Checked \d{2}:\d{2}:\d{2} UTC$/);
+    }
+    expect(await readInstanceTotals()).toEqual(before);
+  }).toPass({ timeout: 15_000, intervals: [100, 250, 500] });
+});
+
+Then("the Overview contains no private fixture details", async ({ page, scenario }) => {
+  const markup = await page.getByRole("region", { name: "Overview" }).innerHTML();
+  for (const detail of scenario.getValue<string[]>(privateDetailsKey)!) expect(markup).not.toContain(detail);
+  await expect(page.getByRole("region", { name: "Overview" }).getByRole("link")).toHaveCount(0);
+});
+
 Then("the Overview storage is healthy with readable usage and exact bytes on hover", async ({ page, scenario }) => {
   await expectExactUploadBytes(page);
   await expect(metricRow(page, "Document storage").getByText("Healthy", { exact: true })).toBeVisible();
@@ -100,7 +206,7 @@ Then("only the Overview storage health is unavailable", async ({ page }) => {
   const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
   await expect(metricRow(page, "Version").getByText(version, { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Overview" }).getByText("Unavailable", { exact: true })).toHaveCount(1);
-  await expect(page.getByRole("region", { name: "Overview" }).locator("time")).toHaveCount(7);
+  await expect(page.getByRole("region", { name: "Overview" }).locator("time")).toHaveCount(9);
 });
 
 Then("the Overview upload bytes still match stored files", async ({ page }) => {
@@ -136,12 +242,14 @@ Then("the Overview shows version, database health and user counts with checked t
     "Pending setup",
     "Document storage",
     "Upload storage",
+    "Trips",
+    "Documents",
   ]) {
     await expect(section.getByText(label, { exact: true })).toBeVisible();
   }
   await expect(metricRow(page, "Database").getByText("Healthy", { exact: true })).toBeVisible();
   await expect(section.getByText("Unavailable")).toHaveCount(0);
-  await expect(section.locator("time")).toHaveCount(7);
+  await expect(section.locator("time")).toHaveCount(9);
 });
 
 Then("the Overview version matches package.json", async ({ page }) => {

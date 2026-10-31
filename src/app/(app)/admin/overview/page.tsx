@@ -6,6 +6,8 @@ import {
   readVersion,
   readStorageHealth,
   readUploadStorageBytes,
+  readTripCount,
+  readDocumentCount,
 } from "@/lib/overview-readers";
 import { MetricRow } from "@/components/arrivo/metric-row";
 
@@ -14,12 +16,14 @@ export default async function AdminOverviewPage() {
   await requireAdmin();
   // Live measurements: never prerender.
   await connection();
-  const [version, database, counts, storage, uploadBytes] = await Promise.all([
+  const [version, database, counts, storage, uploadBytes, tripCount, documentCount] = await Promise.all([
     readVersion(),
     readDatabaseHealth(),
     readUserCounts(),
     readStorageHealth(),
     readUploadStorageBytes(),
+    readTripCount(),
+    readDocumentCount(),
   ]);
   return (
     <section
@@ -38,6 +42,8 @@ export default async function AdminOverviewPage() {
         <MetricRow label="Users" metric={counts.users} />
         <MetricRow label="Admins" metric={counts.admins} />
         <MetricRow label="Pending setup" metric={counts.pending} />
+        <MetricRow label="Trips" metric={tripCount} />
+        <MetricRow label="Documents" metric={documentCount} />
       </dl>
     </section>
   );
