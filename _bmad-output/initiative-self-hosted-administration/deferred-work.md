@@ -20,7 +20,3 @@
 - source_plan: `epic-instance-overview/story-storage-adapter-health-and-usage-plan.md`
   summary: Investigate concurrent symlink substitution during local storage measurements (medium impact, unverified).
   evidence: Static symlinks are skipped or rejected, but a concurrent local filesystem writer could replace a checked directory before later path-based I/O. A deterministic directory-swap reproduction would establish whether upload-root escape occurs.
-
-- source_plan: `_bmad-output/initiative-self-hosted-administration/plan-overview-metric-cards.md`
-  summary: Verify Overview cards at 320px viewport and 200% text (one column, no horizontal scroll, 44px refresh buttons).
-  evidence: Unverified (maybe-false, would be medium): no unit or E2E check covers AC3 and the E2E database was unavailable; settle with a browser check of /admin/overview or an E2E viewport assertion.
