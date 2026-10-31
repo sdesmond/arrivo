@@ -11,11 +11,15 @@
 // If every changed file is ignored the run is skipped entirely; if the raw change set is empty
 // (git unavailable) it falls back to FULL.
 //
+// Two more filters run before the tiers: a TS/TSX edit that emits identical JavaScript (types,
+// `import type`, comments only) is dropped, and an edit to this file runs only the entries it added
+// or changed — unless it touched SHARED_GLOBS or IGNORE_GLOBS, which can move anything (FULL).
+//
 // SAFETY: unmapped runtime source now runs NOTHING in the inner loop rather than FULL, so the map
 // must stay complete. `scripts/feature-map.test.mjs` enforces that every `src/components/arrivo/*`
-// component and every `src/app/(app)/**` server action is mapped-or-shared — add new ones to a
-// feature entry (or SHARED_GLOBS if genuinely cross-cutting). The full suite (`npm run test:e2e`)
-// is the user-initiated backstop.
+// component, every `src/app/(app)/**` server action, and every `src/lib/**` / `src/app/api/**` file
+// is classified — add new ones to a feature entry (or SHARED_GLOBS if genuinely cross-cutting). The
+// full suite (`npm run test:e2e`) is the user-initiated backstop.
 //
 // When you add a feature file, tag it `@feat:<stem>` and add an entry here registering the source
 // it exercises.
@@ -29,12 +33,29 @@ const entry = (stem, sourceGlobs) => ({
   sourceGlobs: [featureFile(stem), stepFile(stem), ...sourceGlobs],
 });
 
+// Library groups shared by several entries. Each was a `src/lib/**` full-suite trigger; these are the
+// features whose scenarios actually reach them (traced through the import graph).
+// File storage: upload, serve, and delete paths (trip delete and account cleanup remove files).
+const STORAGE = ["src/lib/storage/**", "src/lib/upload-policy.ts", "src/app/api/storage/**"];
+// Credential checks behind sign-in, MFA, and the profile Security tab.
+const CREDENTIALS = [
+  "src/lib/authorize-credentials.ts",
+  "src/lib/auth-throttle.ts",
+  "src/lib/auth-logger.ts",
+  "src/lib/mfa.ts",
+  "src/lib/mfa-store.ts",
+  "src/lib/trusted-devices.ts",
+];
+
 export const FEATURE_MAP = [
   entry("admin-recovery-completion", [
     "src/lib/admin-recovery-completion.ts",
     "src/lib/admin-recovery-session.ts",
     "src/lib/credential-authorizations.ts",
     "src/lib/activity-labels.ts",
+    // Recovery completion resets the password and MFA state.
+    ...CREDENTIALS,
+    "src/lib/session-version.ts",
     "src/app/account-recovery/**",
     "src/db/admin-recovery-cli.ts",
     "src/db/admin-recovery-main.ts",
@@ -43,6 +64,7 @@ export const FEATURE_MAP = [
   ]),
   entry("admin-recovery-issuance", [
     "src/lib/admin-recovery-issuance.ts",
+    "src/lib/with-timeout.ts",
     "src/lib/credential-authorizations.ts",
     "src/lib/activity-labels.ts",
     "tests/e2e/admin-recovery-issuance-fixture.ts",
@@ -59,6 +81,7 @@ export const FEATURE_MAP = [
     "src/app/account-setup/**",
     "src/components/arrivo/add-user-dialog.tsx",
     "src/components/arrivo/account-setup-dialog.tsx",
+    ...CREDENTIALS,
     "tests/e2e/onboarding-browser.ts",
     "tests/e2e/steps/add-user-dialog.steps.ts",
     "tests/e2e/steps/account-setup.steps.ts",
@@ -77,6 +100,8 @@ export const FEATURE_MAP = [
     "tests/e2e/admin-account-deletion-fixture.ts",
     "src/lib/account-deletion.ts",
     "src/lib/account-deletion-effects.ts",
+    // Deletion effects remove the account's stored files.
+    "src/lib/storage/**",
     "src/components/arrivo/delete-account-dialog.tsx",
     "src/app/(app)/admin/users/actions.ts",
     "src/components/arrivo/app-users-list.tsx",
@@ -97,6 +122,7 @@ export const FEATURE_MAP = [
     "src/app/account-setup/**",
     "src/components/arrivo/account-setup-dialog.tsx",
     "src/components/arrivo/account-setup-sign-out.tsx",
+    ...CREDENTIALS,
   ]),
   entry("password-reset", [
     "src/lib/account-deletion.ts",
@@ -108,8 +134,11 @@ export const FEATURE_MAP = [
     "src/components/arrivo/reset-password-dialog.tsx",
     "src/components/arrivo/app-users-list.tsx",
     "src/app/(app)/admin/users/actions.ts",
+    ...CREDENTIALS,
+    "src/lib/session-version.ts",
+    "src/lib/error-utils.ts",
   ]),
-  // request-origin.ts stays on the `src/lib/**` full-suite tier: browserUrl redirects every auth entry point.
+  // request-origin.ts stays in SHARED_GLOBS (full suite): browserUrl redirects every auth entry point.
   entry("account-creation", ["src/lib/account-creation.ts", "src/app/(app)/admin/users/actions.ts"]),
   entry("credential-authorizations", [
     "src/lib/credential-authorizations.ts",
@@ -126,6 +155,8 @@ export const FEATURE_MAP = [
   entry("admin-overview", [
     "src/lib/overview-metric.ts",
     "src/lib/overview-readers.ts",
+    // Storage health and usage readers.
+    "src/lib/storage/**",
     "src/components/arrivo/metric-row.tsx",
     "src/app/(app)/admin/overview/**",
     "src/app/(app)/admin/page.tsx",
@@ -139,6 +170,8 @@ export const FEATURE_MAP = [
   ]),
   entry("app-activity", [
     "src/lib/trip-activity.ts",
+    // Bounds every trip-activity write.
+    "src/lib/with-timeout.ts",
     "src/app/(app)/trips/actions.ts",
     "src/app/(app)/trips/[tripId]/actions.ts",
     "src/app/(app)/trips/[tripId]/transit-actions.ts",
@@ -199,9 +232,12 @@ export const FEATURE_MAP = [
     "src/app/(auth)/sign-in/**",
     "src/app/(auth)/sign-up/**",
     "src/app/(auth)/actions.ts",
-    "src/lib/authorize-credentials.ts",
+    ...CREDENTIALS,
+    "src/lib/error-utils.ts",
   ]),
   entry("app-bootstrap", [
+    ...CREDENTIALS,
+    "src/lib/error-utils.ts",
     "src/lib/app-setup.ts",
     "src/app/(auth)/setup/**",
     "src/app/(auth)/sign-in/**",
@@ -214,6 +250,7 @@ export const FEATURE_MAP = [
   entry("activity-batching", [
     "src/lib/activity-batches.ts",
     "src/lib/activity.ts",
+    "src/lib/with-timeout.ts",
     "tests/e2e/activity-batch-fixture.ts",
   ]),
   entry("app-role-service", [
@@ -229,10 +266,12 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/admin-account-deletion.steps.ts",
     "src/lib/password-reset*.ts",
     "src/lib/credential-authorizations.ts",
+    ...CREDENTIALS,
     "src/lib/admin-recovery-completion.ts",
     "src/lib/admin-recovery-session.ts",
     "src/lib/account-deletion.ts",
     "src/lib/account-deletion-effects.ts",
+    "src/lib/storage/**",
     "src/lib/account-lifecycle-locks.ts",
     "src/lib/activity-labels.ts",
     "src/components/arrivo/app-activity-viewer.tsx",
@@ -246,6 +285,7 @@ export const FEATURE_MAP = [
   entry("admin-account-deletion", [
     "src/lib/account-deletion.ts",
     "src/lib/account-deletion-effects.ts",
+    "src/lib/storage/**",
     "src/lib/account-lifecycle-locks.ts",
     "src/lib/activity-labels.ts",
     "src/components/arrivo/delete-account-dialog.tsx",
@@ -269,11 +309,13 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mfa-code-form.tsx",
     "src/app/(auth)/actions.ts",
     "src/app/(auth)/sign-in/**",
-    "src/lib/authorize-credentials.ts",
     "src/app/(app)/profile/security-*",
     "src/app/(app)/profile/mfa-enrollment.tsx",
     "src/app/(app)/profile/recovery-codes-dialog.tsx",
     "src/app/(app)/profile/trusted-devices-list.tsx",
+    ...CREDENTIALS,
+    "src/lib/session-version.ts",
+    "src/lib/error-utils.ts",
     // mfa.feature reuses the Security-tab and sign-in-notice steps defined there.
     "tests/e2e/steps/profile.steps.ts",
   ]),
@@ -285,7 +327,7 @@ export const FEATURE_MAP = [
   ]),
   entry("new-trip", ["src/components/arrivo/new-trip-dialog.tsx", "src/components/arrivo/new-trip-card.tsx"]),
   // Deliberately maps no source: `src/lib/use-dashboard-live-refresh.ts` and `use-live-refresh.ts`
-  // must stay on the `src/lib/**` full-suite tier, same reasoning as use-bfcache-refresh below.
+  // must stay on the SHARED_GLOBS full-suite tier, same reasoning as use-bfcache-refresh below.
   // The dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so
   // it can move any feature — naming it here would demote it to these two scenarios. The entry
   // itself still has to exist (scripts/feature-map.test.mjs pairs every .feature with one) and
@@ -312,6 +354,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/remove-last-day-dialog.tsx",
     "src/app/(app)/trips/[tripId]/unscheduled-events-section.tsx",
     "src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts",
+    "src/lib/currencies.ts",
   ]),
   entry("documents", [
     "src/components/arrivo/add-doc-dialog.tsx",
@@ -322,8 +365,9 @@ export const FEATURE_MAP = [
     "src/components/arrivo/doc-kind-badge.tsx",
     "src/components/arrivo/trip-docs-tab.tsx",
     "src/app/(app)/trips/[tripId]/document-upload-actions.ts",
+    ...STORAGE,
   ]),
-  entry("event-docs", ["src/components/arrivo/event-doc-row.tsx"]),
+  entry("event-docs", ["src/components/arrivo/event-doc-row.tsx", ...STORAGE]),
   entry("linked-events", [
     "src/components/arrivo/active-trip-summary-events.ts",
     "src/components/arrivo/active-trip-summary-time.ts",
@@ -354,6 +398,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/delete-packing-section-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
     "src/app/(app)/trips/packing-actions.ts",
+    "src/lib/error-utils.ts",
   ]),
   entry("packing-lists", ["src/components/arrivo/packing-list*.tsx", "src/components/arrivo/packing-lists-view.tsx"]),
   entry("pending-invitations", [
@@ -364,10 +409,23 @@ export const FEATURE_MAP = [
   entry("pull-templates", ["src/components/arrivo/template-pull-dialog.tsx"]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
-  entry("profile", ["src/app/(app)/profile/**", "src/components/arrivo/avatar-stack.tsx"]),
+  entry("profile", [
+    "src/app/(app)/profile/**",
+    "src/components/arrivo/avatar-stack.tsx",
+    // Security tab: password change, MFA enrollment, trusted devices.
+    "src/lib/auth-throttle.ts",
+    "src/lib/mfa.ts",
+    "src/lib/mfa-store.ts",
+    "src/lib/trusted-devices.ts",
+    "src/lib/session-version.ts",
+    "src/lib/error-utils.ts",
+    "src/lib/currencies.ts",
+    // Profile actions delete the user's stored files.
+    ...STORAGE,
+  ]),
   // `src/lib/revocation-ticket.ts` and `src/lib/use-bfcache-refresh.ts` are deliberately NOT listed:
   // FEATURE_MAP is checked before SHARED_GLOBS, so naming them here would demote them out of
-  // `src/lib/**` (full suite) down to this one feature — and use-bfcache-refresh is mounted in
+  // SHARED_GLOBS (full suite) down to this one feature — and use-bfcache-refresh is mounted in
   // page-client.tsx, so it can move every trip-detail feature. use-live-sync.ts stays mapped to its
   // own features but is listed here too: the shared-channel registry exists for this modal.
   entry("revocation-modal", ["src/components/arrivo/contributor-revocation-modal.tsx", "src/lib/use-live-sync.ts"]),
@@ -376,6 +434,8 @@ export const FEATURE_MAP = [
     "src/components/arrivo/add-reservation-doc-dialog.tsx",
     "src/components/arrivo/delete-reservation-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/reservations/**",
+    "src/lib/currencies.ts",
+    ...STORAGE,
   ]),
   entry("save-trip-as-template", ["src/components/arrivo/save-as-template-dialog.tsx"]),
   entry("schedule-conflict", [
@@ -406,11 +466,14 @@ export const FEATURE_MAP = [
     "src/app/(app)/travel-history/page-client.tsx",
     "src/app/(app)/travel-history/page.tsx",
     "src/lib/spending.ts",
+    "src/lib/budget.ts",
+    "src/lib/currencies.ts",
   ]),
   entry("template-items", [
     "src/components/arrivo/template-editor-view.tsx",
     "src/components/arrivo/delete-packing-section-alert-dialog.tsx",
     "src/app/(app)/packing/[templateId]/**",
+    "src/lib/error-utils.ts",
   ]),
   entry("templates", [
     "src/components/arrivo/template-library.tsx",
@@ -419,20 +482,24 @@ export const FEATURE_MAP = [
     "src/app/(app)/packing/page-client.tsx",
     "src/app/(app)/packing/actions.ts",
     "src/app/(app)/packing/template-name.ts",
+    "src/lib/error-utils.ts",
   ]),
   entry("travel-history", [
     "src/components/arrivo/travel-history-list.tsx",
     "src/components/arrivo/trips-past-list.tsx",
     "src/components/arrivo/mobile-past-tab.tsx",
     "src/app/(app)/travel-history/**",
+    "src/lib/currencies.ts",
   ]),
   entry("trip-cover-overflow", [
     "src/components/arrivo/cover-*.tsx",
     "src/components/arrivo/trip-cover.tsx",
     "src/app/(app)/trips/[tripId]/cover-upload-actions.ts",
     "src/app/(app)/trips/cover-image-search-actions.ts",
+    "src/app/api/mapbox/static/**",
+    ...STORAGE,
   ]),
-  entry("trip-delete", ["src/components/arrivo/delete-trip-alert-dialog.tsx"]),
+  entry("trip-delete", ["src/components/arrivo/delete-trip-alert-dialog.tsx", ...STORAGE]),
   entry("leave-trip", [
     "src/components/arrivo/leave-trip-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/use-leave-trip.ts",
@@ -457,6 +524,7 @@ export const FEATURE_MAP = [
   entry("trip-sharing", [
     "src/app/(app)/trips/actions.ts",
     "src/lib/trip-activity.ts",
+    "src/lib/with-timeout.ts",
     "src/components/arrivo/trip-share-dialog.tsx",
     "src/components/arrivo/trip-share-*.tsx",
     "src/components/arrivo/use-trip-share-dialog-controller.ts",
@@ -486,6 +554,9 @@ export const FEATURE_MAP = [
     "src/components/arrivo/trip-detail-crumb.tsx",
     "src/app/(app)/trips/use-trips-page-handlers.ts",
     "src/app/(app)/trips/date-sync.ts",
+    "src/lib/budget.ts",
+    "src/lib/currency.ts",
+    "src/lib/currencies.ts",
   ]),
   entry("viewer-trip-access", [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
@@ -504,6 +575,7 @@ export const FEATURE_MAP = [
   entry("editor-trip-access", [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
     "src/components/arrivo/trip-edit-sheet.tsx",
+    "src/lib/budget.ts",
   ]),
 ];
 
@@ -513,7 +585,31 @@ export const SHARED_GLOBS = [
   // Data + shared library + auth/runtime wiring
   "src/db/**",
   "src/data/**",
-  "src/lib/**",
+  // Only the lib modules every page or action runs through. The rest of `src/lib/**` is mapped to its
+  // features above (feature-map.test.mjs fails on any lib file left unclassified).
+  "src/lib/auth-helpers.ts",
+  "src/lib/trip-ownership.ts",
+  "src/lib/queries.ts",
+  "src/lib/db-mappers.ts",
+  "src/lib/field-encryption.ts",
+  "src/lib/server-action-locks.ts",
+  "src/lib/session-policy.ts",
+  "src/lib/request-origin.ts",
+  "src/lib/mock-date.ts",
+  "src/lib/server-now.ts",
+  "src/lib/utils.ts",
+  // Username rules back sign-in, sign-up, sharing, and every admin user flow.
+  "src/lib/username.ts",
+  // Mounted in the trips/trip-detail page clients, shared chrome, or the Dialog primitive.
+  "src/lib/use-bfcache-refresh.ts",
+  "src/lib/use-dashboard-live-refresh.ts",
+  "src/lib/use-live-refresh.ts",
+  "src/lib/use-focus-scroll.ts",
+  "src/lib/revocation-ticket.ts",
+  "src/lib/use-is-mobile.ts",
+  "src/lib/use-viewport-clamped-panel.ts",
+  "src/lib/size-tokens.ts",
+  "src/lib/trip-tints.ts",
   "src/proxy.ts",
   "src/instrumentation.ts",
   "src/auth*",
@@ -523,7 +619,8 @@ export const SHARED_GLOBS = [
   "src/app/globals.css",
   "src/app/(app)/layout.tsx",
   "src/app/(auth)/layout.tsx",
-  "src/app/api/**",
+  // Other API routes are mapped to the features that call them.
+  "src/app/api/auth/**",
   "src/app/(app)/trips/page-client.tsx",
   "src/app/(app)/trips/actions.ts",
   "src/app/(app)/trips/[tripId]/page-client.tsx",
@@ -567,8 +664,6 @@ export const SHARED_GLOBS = [
   "package.json",
   "package-lock.json",
   "playwright.config.ts",
-  "vitest.config.mts",
-  "vitest.setup.mts",
   "tsconfig.json",
   "next.config.*",
   "drizzle*",
@@ -602,6 +697,12 @@ export const IGNORE_GLOBS = [
   "**/*.test.ts",
   "**/*.test.tsx",
   "**/*.test.mjs",
+  "vitest.config.mts",
+  "vitest.setup.mts",
+  "src/lib/live-sync-test-helpers.ts", // imported only by unit tests
+  // Runtime no E2E scenario reaches: the Docker healthcheck endpoint (covered by docker-smoke in CI).
+  "src/lib/health.ts",
+  "src/app/api/health/**",
   // Dev-only seed data (`npm run db:seed`) — E2E seeds itself via tests/e2e/global-setup.ts and never
   // runs db:seed, so this can't move E2E behavior even though it lives under src/db/** (a SHARED_GLOB).
   "src/db/seed.ts",

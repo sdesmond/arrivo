@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 describe("affected-e2e helpers", async () => {
-  const { globToRegExp, matchesAnyGlob, mapChangedFilesToTags, formatScope } = await import("./affected-e2e.mjs");
+  const {
+    globToRegExp,
+    matchesAnyGlob,
+    mapChangedFilesToTags,
+    formatScope,
+    isTypeOnlyChange,
+    scopeFeatureMapChange,
+    FEATURE_MAP_PATH,
+  } = await import("./affected-e2e.mjs");
 
   const FEATURE_MAP = [
     {
@@ -100,6 +108,112 @@ describe("affected-e2e helpers", async () => {
         mode: "tags",
         tags: ["@feat:packing-lists", "@feat:packing-tab"],
       });
+    });
+
+    describe("feature-map edits", () => {
+      const withMap = { ...maps, SHARED_GLOBS: [...SHARED_GLOBS, FEATURE_MAP_PATH] };
+      const previousMaps = { ...withMap, FEATURE_MAP: FEATURE_MAP.filter((entry) => entry.tag !== "@feat:trips") };
+
+      it("runs only the entries the edit added or changed", () => {
+        expect(mapChangedFilesToTags([FEATURE_MAP_PATH], withMap, { previousMaps })).toEqual({
+          mode: "tags",
+          tags: ["@feat:trips"],
+        });
+      });
+
+      it("unions the map-edit tags with the tags of other changed files", () => {
+        expect(mapChangedFilesToTags([FEATURE_MAP_PATH, "src/lib/spending.ts"], withMap, { previousMaps })).toEqual({
+          mode: "tags",
+          tags: ["@feat:spending", "@feat:trips"],
+        });
+      });
+
+      it("falls back to full when the previous map could not be loaded", () => {
+        expect(mapChangedFilesToTags([FEATURE_MAP_PATH], withMap, { previousMaps: null })).toEqual({ mode: "full" });
+        expect(mapChangedFilesToTags([FEATURE_MAP_PATH], withMap)).toEqual({ mode: "full" });
+      });
+    });
+  });
+
+  describe("scopeFeatureMapChange", () => {
+    const previous = { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS };
+
+    it("returns no tags when nothing in the map changed", () => {
+      expect(scopeFeatureMapChange(previous, previous)).toEqual({ mode: "tags", tags: [] });
+    });
+
+    it("tags a newly added entry", () => {
+      const current = { ...previous, FEATURE_MAP: [...FEATURE_MAP, { tag: "@feat:new", sourceGlobs: ["src/x.ts"] }] };
+      expect(scopeFeatureMapChange(previous, current)).toEqual({ mode: "tags", tags: ["@feat:new"] });
+    });
+
+    it("tags an entry whose globs changed, regardless of glob order", () => {
+      const current = {
+        ...previous,
+        FEATURE_MAP: FEATURE_MAP.map((entry) =>
+          entry.tag === "@feat:packing-tab" ? { ...entry, sourceGlobs: [...entry.sourceGlobs].reverse() } : entry
+        ).map((entry) =>
+          entry.tag === "@feat:trips" ? { ...entry, sourceGlobs: [...entry.sourceGlobs, "src/y.ts"] } : entry
+        ),
+      };
+      expect(scopeFeatureMapChange(previous, current)).toEqual({ mode: "tags", tags: ["@feat:trips"] });
+    });
+
+    it("runs nothing for a removed entry", () => {
+      const current = { ...previous, FEATURE_MAP: FEATURE_MAP.filter((entry) => entry.tag !== "@feat:trips") };
+      expect(scopeFeatureMapChange(previous, current)).toEqual({ mode: "tags", tags: [] });
+    });
+
+    it("returns full when SHARED_GLOBS or IGNORE_GLOBS changed", () => {
+      expect(scopeFeatureMapChange(previous, { ...previous, SHARED_GLOBS: ["src/db/**"] })).toEqual({ mode: "full" });
+      expect(scopeFeatureMapChange(previous, { ...previous, IGNORE_GLOBS: [...IGNORE_GLOBS, "src/**"] })).toEqual({
+        mode: "full",
+      });
+    });
+  });
+
+  describe("isTypeOnlyChange", () => {
+    const before = `export interface Trip { id: string }\nexport const TripStatus = { Active: "active" } as const;\n`;
+
+    it("is true when only type declarations changed", async () => {
+      const after = `export interface Trip { id: string; name?: string }\nexport type Id = string;\nexport const TripStatus = { Active: "active" } as const;\n`;
+      expect(await isTypeOnlyChange("src/data/types.ts", before, after)).toBe(true);
+    });
+
+    it("is true for a comment-only change", async () => {
+      expect(await isTypeOnlyChange("src/data/types.ts", before, `// trips\n${before}`)).toBe(true);
+    });
+
+    it("is true when an import becomes a type-only import of a name used only as a type", async () => {
+      const valueImport = `import { Trip } from "./types";\nexport const id = (trip: Trip) => trip.id;\n`;
+      const typeImport = `import type { Trip } from "./types";\nexport const id = (trip: Trip) => trip.id;\n`;
+      expect(await isTypeOnlyChange("src/lib/x.ts", valueImport, typeImport)).toBe(true);
+    });
+
+    it("is false when emitted runtime code changed", async () => {
+      const after = before.replace(`"active"`, `"ongoing"`);
+      expect(await isTypeOnlyChange("src/data/types.ts", before, after)).toBe(false);
+    });
+
+    it("handles TSX", async () => {
+      const component = (props) =>
+        `interface Props { ${props} }\nexport function Badge({ label }: Props) { return <span>{label}</span>; }\n`;
+      expect(
+        await isTypeOnlyChange("src/x.tsx", component("label: string"), component("label: string; id?: string"))
+      ).toBe(true);
+      expect(
+        await isTypeOnlyChange(
+          "src/x.tsx",
+          component("label: string"),
+          component("label: string").replace("span", "em")
+        )
+      ).toBe(false);
+    });
+
+    it("is false for added, deleted, or non-TypeScript files", async () => {
+      expect(await isTypeOnlyChange("src/data/types.ts", null, before)).toBe(false);
+      expect(await isTypeOnlyChange("src/data/types.ts", before, null)).toBe(false);
+      expect(await isTypeOnlyChange("src/app/globals.css", "a{}", "a{}\n")).toBe(false);
     });
   });
 
