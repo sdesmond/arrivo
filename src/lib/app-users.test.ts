@@ -44,6 +44,16 @@ describe("app users", () => {
     expect(pending.setupExpiresAt).toBe(expires);
     expect(expired).not.toHaveProperty("setupExpiresAt");
   });
+  it("maps a trimmed display name and omits blank or null names", () => {
+    const [named, blank, missing] = toAppUserSummaries([
+      { id: "a", username: "amy", name: " Amy A ", role: "member", setupComplete: true },
+      { id: "b", username: "bob", name: "  ", role: "member", setupComplete: true },
+      { id: "c", username: "cat", name: null, role: "member", setupComplete: true },
+    ]);
+    expect(named.name).toBe("Amy A");
+    expect(blank).not.toHaveProperty("name");
+    expect(missing).not.toHaveProperty("name");
+  });
   it("queries a safe projection and maps results", async () => {
     orderBy.mockResolvedValue([
       { id: "member", username: "bob", role: "member", setupComplete: false, setupExpiresAt: null },
@@ -51,7 +61,14 @@ describe("app users", () => {
     expect(await listAppUsers()).toEqual([
       { id: "member", username: "bob", role: "member", setupComplete: false, isLastCompletedAdmin: false },
     ]);
-    expect(Object.keys(select.mock.calls[0][0])).toEqual(["id", "username", "role", "setupComplete", "setupExpiresAt"]);
+    expect(Object.keys(select.mock.calls[0][0])).toEqual([
+      "id",
+      "username",
+      "name",
+      "role",
+      "setupComplete",
+      "setupExpiresAt",
+    ]);
     expect(orderBy).toHaveBeenCalledOnce();
   });
 

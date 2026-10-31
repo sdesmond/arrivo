@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { credentialAuthorizations, users } from "@/db/schema";
 import { CredentialAuthorizationPurpose, UserRole, type AppUserSummary } from "@/data/types";
 
-type AppUserRow = Omit<AppUserSummary, "isLastCompletedAdmin" | "role" | "setupExpiresAt"> & {
+type AppUserRow = Omit<AppUserSummary, "isLastCompletedAdmin" | "role" | "setupExpiresAt" | "name"> & {
+  name?: string | null;
   role: string;
   setupExpiresAt?: Date | string | null;
 };
@@ -16,6 +17,7 @@ export function toAppUserSummaries(rows: AppUserRow[]): AppUserSummary[] {
     .map((user) => ({
       id: user.id,
       username: user.username,
+      ...(user.name?.trim() ? { name: user.name.trim() } : {}),
       role: user.role === UserRole.Admin ? UserRole.Admin : UserRole.Member,
       setupComplete: user.setupComplete,
       ...(!user.setupComplete && user.setupExpiresAt
@@ -30,6 +32,7 @@ export async function listAppUsers(): Promise<AppUserSummary[]> {
     .select({
       id: users.id,
       username: users.username,
+      name: users.name,
       role: users.role,
       setupComplete: sql<boolean>`${users.passwordHash} is not null`,
       // Derived, never stored: the open (unconsumed, uninvalidated) setup authorization's expiry. Expired links stay
