@@ -69,7 +69,7 @@ verify = "Tests and E2E show the old link refused, the new link working, the sam
 covers = ["CAP-3"]
 after = [3, 5]
 hitl = false
-risk = "medium"
+risk = "high"
 notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-account-onboarding decision, 2026-10-24)."]
 
 [[entry]]
