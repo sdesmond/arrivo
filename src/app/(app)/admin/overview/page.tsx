@@ -1,6 +1,12 @@
 import { connection } from "next/server";
 import { requireAdmin } from "@/lib/auth-helpers";
-import { readDatabaseHealth, readUserCounts, readVersion } from "@/lib/overview-readers";
+import {
+  readDatabaseHealth,
+  readUserCounts,
+  readVersion,
+  readStorageHealth,
+  readUploadStorageBytes,
+} from "@/lib/overview-readers";
 import { MetricRow } from "@/components/arrivo/metric-row";
 
 export default async function AdminOverviewPage() {
@@ -8,7 +14,13 @@ export default async function AdminOverviewPage() {
   await requireAdmin();
   // Live measurements: never prerender.
   await connection();
-  const [version, database, counts] = await Promise.all([readVersion(), readDatabaseHealth(), readUserCounts()]);
+  const [version, database, counts, storage, uploadBytes] = await Promise.all([
+    readVersion(),
+    readDatabaseHealth(),
+    readUserCounts(),
+    readStorageHealth(),
+    readUploadStorageBytes(),
+  ]);
   return (
     <section
       aria-labelledby="admin-overview-heading"
@@ -21,6 +33,8 @@ export default async function AdminOverviewPage() {
       <dl className="m-0 mt-2">
         <MetricRow label="Version" metric={version} />
         <MetricRow label="Database" metric={database} />
+        <MetricRow label="Document storage" metric={storage} />
+        <MetricRow label="Upload storage" metric={uploadBytes} format="bytes" />
         <MetricRow label="Users" metric={counts.users} />
         <MetricRow label="Admins" metric={counts.admins} />
         <MetricRow label="Pending setup" metric={counts.pending} />

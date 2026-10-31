@@ -3,6 +3,49 @@ import { render, screen } from "@testing-library/react";
 import { MetricRow } from "./metric-row";
 
 describe("MetricRow", () => {
+  it.each([
+    [0, "0 bytes"],
+    [999, "999 bytes"],
+    [1000, "1.00 KB"],
+    [1000000, "1.00 MB"],
+    [6237721, "6.24 MB"],
+    [1000000000, "1.00 GB"],
+    [2345678901, "2.35 GB"],
+    [1000000000000, "1.00 TB"],
+    [1000000000000000, "1.00 PB"],
+  ])("formats %i bytes as %s with exact bytes on hover", (bytes, display) => {
+    render(
+      <MetricRow
+        label="Upload storage"
+        format="bytes"
+        metric={{ status: "ok", value: bytes, checkedAt: "2026-10-30T12:00:00.000Z" }}
+      />
+    );
+    expect(screen.getByText(display)).toHaveAttribute("title", `${bytes} bytes`);
+  });
+
+  it("does not expose a byte value when usage is unavailable", () => {
+    render(
+      <MetricRow
+        label="Upload storage"
+        format="bytes"
+        metric={{ status: "unavailable", checkedAt: "2026-10-30T12:00:00.000Z" }}
+      />
+    );
+    expect(screen.getByText("Unavailable")).not.toHaveAttribute("title");
+  });
+
+  it("preserves string metrics when byte formatting is requested", () => {
+    render(
+      <MetricRow
+        label="Version"
+        format="bytes"
+        metric={{ status: "ok", value: "1.0.0", checkedAt: "2026-10-30T12:00:00.000Z" }}
+      />
+    );
+    expect(screen.getByText("1.0.0")).not.toHaveAttribute("title");
+  });
+
   it("shows label, value and a checked time", () => {
     render(<MetricRow label="Users" metric={{ status: "ok", value: 4, checkedAt: "2026-10-30T12:00:00.000Z" }} />);
     expect(screen.getByText("Users")).toBeInTheDocument();
