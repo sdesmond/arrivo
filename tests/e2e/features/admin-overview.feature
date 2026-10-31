@@ -11,11 +11,18 @@ Feature: Admin overview
     And the Overview trip and document totals match the database with checked times
     And the Overview contains no private fixture details
     And the Overview storage is healthy with readable usage and exact bytes on hover
+    And the Overview storage refresh is independent and keyboard accessible
     When the Overview storage probe fails
+    Then the Overview storage refresh retains its stale value through repeated failures
+    When the Overview storage probe recovers
+    Then the Overview storage Retry recovers its value
+    When the Overview storage probe fails
+    And I reload the Overview under the storage fault
     Then only the Overview storage health is unavailable
     And the Overview upload bytes still match stored files
     When the Overview storage probe recovers
-    Then the Overview storage is healthy with readable usage and exact bytes on hover
+    Then the Overview storage Retry recovers its value
+    And the Overview storage is healthy with readable usage and exact bytes on hover
 
   Scenario: Admin sees recent admin actions and failed sign-ins
     Given I am signed in as an app "admin"

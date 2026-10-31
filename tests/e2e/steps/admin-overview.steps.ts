@@ -12,6 +12,7 @@ import { formatInstant } from "../../../src/lib/activity-dates";
 import { EVENT_LABELS } from "../../../src/lib/activity-labels";
 import { withE2EDb } from "../e2e-db";
 import { seedActivityEvents, seedActor } from "../activity-seed";
+import { waitForServerActionResponse } from "../server-action";
 
 const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
 const failureMarker = join(storageRoot, ".storage-probes", "force-failure");
@@ -106,7 +107,9 @@ After(async ({ scenario }) => {
   );
 });
 
-Given("scenario-owned uploads exist for the Overview measurement", async ({ scenario }) => {
+Given("scenario-owned uploads exist for the Overview measurement", async ({ scenario, $testInfo }) => {
+  // This scenario exercises independent refresh plus two full probe failure/recovery cycles.
+  $testInfo.setTimeout(60_000);
   const identifier = randomUUID();
   const uploads = [join(storageRoot, `${identifier}.pdf`), join(storageRoot, "covers", `${identifier}.jpg`)];
   scenario.setValue(ownedUploadsKey, uploads);
@@ -284,16 +287,104 @@ Then("the Overview storage is healthy with readable usage and exact bytes on hov
   expect(await readFile(uploads[1], "utf8")).toBe("overview cover bytes");
 });
 
-When("the Overview storage probe fails", async ({ page, scenario }) => {
+When("the Overview storage probe fails", async ({ scenario }) => {
   await mkdir(join(storageRoot, ".storage-probes"), { recursive: true });
   await writeFile(failureMarker, "forced overview probe failure", { flag: "wx" });
   // Only own a marker this scenario created; cleanup remains armed through subsequent failures.
   scenario.setValue(ownedMarkerKey, true);
+});
+
+When("I reload the Overview under the storage fault", async ({ page }) => {
   await page.reload();
+});
+
+Then("the Overview storage refresh is independent and keyboard accessible", async ({ page }) => {
+  const row = metricRow(page, "Document storage");
+  const checkedTimes = page.getByRole("region", { name: "Overview" }).locator("time", { hasText: /^Checked / });
+  const before = await checkedTimes.evaluateAll((times) => times.map((time) => time.getAttribute("datetime")));
+  const button = row.getByRole("button", { name: "Refresh Document storage" });
+  const dimensions = await button.boundingBox();
+  expect(dimensions!.width).toBeGreaterThanOrEqual(44);
+  expect(dimensions!.height).toBeGreaterThanOrEqual(44);
+  let releaseRequest!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseRequest = resolve;
+  });
+  await page.route("**/admin/overview", async (route) => {
+    if (route.request().method() === "POST") await gate;
+    await route.continue();
+  });
+  try {
+    const response = waitForServerActionResponse(page, { pathIncludes: "/admin/overview" });
+    await button.focus();
+    await expect(button).toBeFocused();
+    expect(await button.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+    await button.press("Enter");
+    await expect(button).toBeDisabled();
+    await expect(row.getByRole("status")).toHaveText("Refreshing Document storage…");
+    await expect(metricRow(page, "Users").getByRole("button")).toBeEnabled();
+    releaseRequest();
+    await response;
+    await expect(row.getByRole("status")).toHaveText("Document storage refreshed.");
+    await expect(button).toBeFocused();
+    const after = await checkedTimes.evaluateAll((times) => times.map((time) => time.getAttribute("datetime")));
+    expect(Date.parse(after[2]!)).toBeGreaterThan(Date.parse(before[2]!));
+    expect(after.filter((_, index) => index !== 2)).toEqual(before.filter((_, index) => index !== 2));
+  } finally {
+    releaseRequest();
+    await page.unroute("**/admin/overview");
+  }
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  try {
+    await expect(button).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    const narrowDimensions = await button.boundingBox();
+    expect(narrowDimensions!.width).toBeGreaterThanOrEqual(44);
+    expect(narrowDimensions!.height).toBeGreaterThanOrEqual(44);
+  } finally {
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "";
+    });
+    await page.setViewportSize(viewport);
+  }
+});
+
+Then("the Overview storage refresh retains its stale value through repeated failures", async ({ page }) => {
+  const row = metricRow(page, "Document storage");
+  const checkedAt = await row.locator("time", { hasText: /^Checked / }).getAttribute("datetime");
+  for (const action of ["Refresh", "Retry"]) {
+    const response = waitForServerActionResponse(page, { pathIncludes: "/admin/overview" });
+    await row.getByRole("button", { name: `${action} Document storage` }).click();
+    await response;
+    await expect(row.getByText("Stale", { exact: true })).toBeVisible();
+    await expect(row.getByText("Healthy", { exact: true })).toBeVisible();
+    await expect(row.locator("time", { hasText: /^Checked / })).toHaveAttribute("datetime", checkedAt!);
+    await expect(row.getByRole("button", { name: "Retry Document storage" })).toBeEnabled();
+  }
+});
+
+Then("the Overview storage Retry recovers its value", async ({ page }) => {
+  const row = metricRow(page, "Document storage");
+  const before = await row.locator("time", { hasText: /^Checked / }).getAttribute("datetime");
+  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/overview" });
+  await row.getByRole("button", { name: "Retry Document storage" }).press("Enter");
+  await response;
+  await expect(row.getByText("Healthy", { exact: true })).toBeVisible();
+  await expect(row.getByText("Stale", { exact: true })).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Refresh Document storage" })).toBeEnabled();
+  const after = await row.locator("time", { hasText: /^Checked / }).getAttribute("datetime");
+  expect(Date.parse(after!)).toBeGreaterThan(Date.parse(before!));
 });
 
 Then("only the Overview storage health is unavailable", async ({ page }) => {
   await expect(metricRow(page, "Document storage").getByText("Unavailable", { exact: true })).toBeVisible();
+  await expect(
+    metricRow(page, "Document storage").getByRole("button", { name: "Retry Document storage" })
+  ).toBeEnabled();
   await expect(metricRow(page, "Database").getByText("Healthy", { exact: true })).toBeVisible();
   const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
   await expect(metricRow(page, "Version").getByText(version, { exact: true })).toBeVisible();
@@ -308,10 +399,9 @@ Then("the Overview upload bytes still match stored files", async ({ page }) => {
   await expect(metricRow(page, "Document storage").getByText("Unavailable", { exact: true })).toBeVisible();
 });
 
-When("the Overview storage probe recovers", async ({ page, scenario }) => {
+When("the Overview storage probe recovers", async ({ scenario }) => {
   await unlink(failureMarker);
   scenario.clearValue(ownedMarkerKey);
-  await page.reload();
 });
 
 // Also uses "I am signed in as an app {string}", "I request app management at {string}" and

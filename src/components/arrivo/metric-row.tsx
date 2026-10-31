@@ -1,9 +1,12 @@
+import type { ReactNode } from "react";
 import type { Metric } from "@/lib/overview-metric";
 
 export interface MetricRowProps {
   label: string;
   metric: Metric<string | number>;
   format?: "bytes";
+  controls?: ReactNode;
+  stale?: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -18,7 +21,7 @@ function formatBytes(bytes: number): string {
 }
 
 // Read-only settings-style row; shared by every Overview metric.
-export function MetricRow({ label, metric, format }: MetricRowProps) {
+export function MetricRow({ label, metric, format, controls, stale }: MetricRowProps) {
   const checked = metric.checkedAt.slice(11, 19);
   const bytes =
     metric.status === "ok" && format === "bytes" && typeof metric.value === "number" ? metric.value : undefined;
@@ -28,9 +31,9 @@ export function MetricRow({ label, metric, format }: MetricRowProps) {
       style={{ borderColor: "var(--line)" }}
     >
       <dt className="text-sm text-fg">{label}</dt>
-      <dd className="m-0 flex items-baseline gap-3">
+      <dd className="m-0 flex min-w-0 flex-wrap items-center gap-3">
         <span
-          className="text-sm font-medium"
+          className="break-words text-sm font-medium"
           title={bytes === undefined ? undefined : `${bytes} bytes`}
           style={{ color: metric.status === "ok" ? "var(--fg)" : "var(--fg-3)" }}
         >
@@ -39,6 +42,12 @@ export function MetricRow({ label, metric, format }: MetricRowProps) {
         <time dateTime={metric.checkedAt} className="text-xs" style={{ color: "var(--fg-3)" }}>
           Checked {checked} UTC
         </time>
+        {stale ? (
+          <span className="text-sm" style={{ color: "var(--fg-2)" }}>
+            Stale
+          </span>
+        ) : null}
+        {controls}
       </dd>
     </div>
   );

@@ -32,6 +32,21 @@ function renderInList(metric: Parameters<typeof RecentAdminActions>[0]["metric"]
 }
 
 describe("RecentAdminActions", () => {
+  it("keeps stale redacted list and checked time with optional controls", () => {
+    const { container } = render(
+      <RecentAdminActions
+        metric={{ status: "ok", value: events, checkedAt }}
+        stale
+        controls={<button>Retry Recent admin actions</button>}
+      />
+    );
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText(/^Checked/)).toHaveAttribute("datetime", checkedAt);
+    expect(screen.getByRole("button")).toHaveTextContent("Retry Recent admin actions");
+    expect(container.innerHTML).not.toContain("trip-secret-id");
+    expect(container.innerHTML).not.toContain("event-1");
+  });
   it("lists entries in order with actor, action, affected account and time", () => {
     renderInList({ status: "ok", value: events, checkedAt });
     expect(screen.getByText("Recent admin actions").tagName).toBe("DT");
