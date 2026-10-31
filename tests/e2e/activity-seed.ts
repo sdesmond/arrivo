@@ -20,7 +20,9 @@ export interface SeedActivityEvent {
 }
 
 // Rows are scenario-owned: every seeded row is deleted after the scenario, and scenarios scope their assertions with
-// the actor filter or a one-minute date range so rows from parallel scenarios never mix in.
+// the actor filter or a one-minute date range so rows from parallel scenarios never mix in. Exception: admin-overview's
+// recent-actions scenario seeds rows up to an hour ahead so they outrank real parallel events; while it runs they sit
+// on top of the unfiltered Activity first page, which is why other scenarios must keep scoping their assertions.
 const seededIds: string[] = [];
 
 export function seedActor(username: string): SeedActor {

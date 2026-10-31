@@ -2,7 +2,8 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { db as appDb } from "@/db";
 import { documents, trips, users } from "@/db/schema";
-import { UserRole } from "@/data/types";
+import { ActivityEventType, UserRole, type ActivityEventSummary } from "@/data/types";
+import { countActivitySince, readRecentActivity } from "@/lib/activity-queries";
 import { measureMetric, type Metric } from "@/lib/overview-metric";
 import { getStorageAdapter, type StorageAdapter } from "@/lib/storage/storage-adapter";
 
@@ -27,15 +28,34 @@ export interface UserCounts {
   pending: number;
 }
 
+/** Activity types that record an admin acting on the instance or another account. */
+export const ADMIN_ACTION_TYPES: readonly ActivityEventType[] = [
+  ActivityEventType.RetentionChanged,
+  ActivityEventType.AccountCreated,
+  ActivityEventType.SetupLinkGenerated,
+  ActivityEventType.SetupLinkRegenerated,
+  ActivityEventType.PendingAccountDeleted,
+  ActivityEventType.RoleChanged,
+  ActivityEventType.PasswordResetLinkGenerated,
+  ActivityEventType.AdminRecoveryLinkGenerated,
+  ActivityEventType.AccountDeletedByAdmin,
+];
+export const RECENT_ADMIN_ACTION_LIMIT = 5;
+export const FAILED_SIGN_IN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export interface OverviewDb {
   ping: () => Promise<unknown>;
   countUsers: () => Promise<UserCounts>;
   countTrips: () => Promise<number>;
   countDocuments: () => Promise<number>;
+  recentAdminActions: () => Promise<ActivityEventSummary[]>;
+  countFailedSignIns: (since: Date) => Promise<number>;
 }
 
 export const defaultOverviewDb: OverviewDb = {
   ping: () => appDb.execute(sql`select 1`),
+  recentAdminActions: () => readRecentActivity(appDb, ADMIN_ACTION_TYPES, RECENT_ADMIN_ACTION_LIMIT),
+  countFailedSignIns: (since) => countActivitySince(appDb, ActivityEventType.SignInFailed, since),
   countTrips: async () => {
     const [row] = await appDb.select({ total: sql<number>`count(*)::int` }).from(trips);
     return row.total;
@@ -63,6 +83,22 @@ export function readTripCount(db: OverviewDb = defaultOverviewDb, now?: Date): P
 
 export function readDocumentCount(db: OverviewDb = defaultOverviewDb, now?: Date): Promise<Metric<number>> {
   return measureMetric(() => db.countDocuments(), now);
+}
+
+export function readRecentAdminActions(
+  db: OverviewDb = defaultOverviewDb,
+  now?: Date
+): Promise<Metric<ActivityEventSummary[]>> {
+  return measureMetric(() => db.recentAdminActions(), now);
+}
+
+/** Failed sign-ins in the 24 hours up to the check, inclusive; the window uses the real clock, not `getNow()`. */
+export function readFailedSignIns(db: OverviewDb = defaultOverviewDb, now?: Date): Promise<Metric<number>> {
+  const checkedAt = now ?? new Date();
+  return measureMetric(
+    () => db.countFailedSignIns(new Date(checkedAt.getTime() - FAILED_SIGN_IN_WINDOW_MS)),
+    checkedAt
+  );
 }
 
 export function readVersion(now?: Date): Promise<Metric<string>> {

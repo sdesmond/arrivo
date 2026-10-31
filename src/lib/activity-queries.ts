@@ -40,6 +40,78 @@ export function decodeActivityCursor(cursor: string | undefined): Cursor | undef
   return { endedAt, id };
 }
 
+const SUMMARY_COLUMNS = {
+  id: activityEvents.id,
+  type: activityEvents.type,
+  actorUsername: activityEvents.actorUsername,
+  targetId: activityEvents.targetId,
+  targetUsername: activityEvents.targetUsername,
+  startedAt: activityEvents.startedAt,
+  endedAt: activityEvents.endedAt,
+  tripId: activityEvents.tripId,
+};
+
+interface SummaryRow {
+  id: string;
+  type: string;
+  actorUsername: string | null;
+  targetId: string | null;
+  targetUsername: string | null;
+  startedAt: Date;
+  endedAt: Date;
+  tripId: string | null;
+}
+
+/** Row -> summary mapping shared by every Activity read: actor, action, target username, time and trip ID only. */
+function toSummary(row: SummaryRow, now: Date): ActivityEventSummary {
+  const batched = BATCHED_TYPES.has(row.type);
+  return {
+    id: row.id,
+    type: row.type as ActivityEventType,
+    actorUsername: row.actorUsername,
+    // Only the username leaves the server; the ID just says whether it named a real account.
+    ...(row.targetUsername ? { targetUsername: row.targetUsername, targetKnown: row.targetId !== null } : {}),
+    occurredAt: row.endedAt.toISOString(),
+    // "Ongoing" uses the real clock: the dev date picker must not change whether a burst is still open.
+    ...(batched
+      ? { startedAt: row.startedAt.toISOString(), ongoing: now.getTime() - row.endedAt.getTime() < BATCH_GAP_MS }
+      : {}),
+    ...(row.tripId ? { tripId: row.tripId } : {}),
+  };
+}
+
+/**
+ * The latest `limit` rows of the given types, newest first (`endedAt desc, id desc`). No admin recheck: callers sit
+ * behind a page-level admin guard.
+ */
+export async function readRecentActivity(
+  database: ActivityReadDatabase,
+  types: readonly ActivityEventType[],
+  limit: number,
+  now: Date = new Date()
+): Promise<ActivityEventSummary[]> {
+  const rows = await database
+    .select(SUMMARY_COLUMNS)
+    .from(activityEvents)
+    .where(inArray(activityEvents.type, [...types]))
+    .orderBy(desc(activityEvents.endedAt), desc(activityEvents.id))
+    .limit(limit);
+  return rows.map((row) => toSummary(row, now));
+}
+
+/** How many rows of one type ended at or after `since` (inclusive). No admin recheck, as for `readRecentActivity`. */
+export async function countActivitySince(
+  database: ActivityReadDatabase,
+  type: ActivityEventType,
+  since: Date
+): Promise<number> {
+  const [row] = await database
+    .select({ total: sql<number>`count(*)::int` })
+    .from(activityEvents)
+    .where(and(eq(activityEvents.type, type), gte(activityEvents.endedAt, since)));
+  return row.total;
+}
+
 function parseInstant(value: string | undefined): Date | undefined | "invalid" {
   if (value === undefined || value === "") return undefined;
   const date = new Date(value);
@@ -92,16 +164,7 @@ export async function readActivityPage(
   }
 
   const rows = await database
-    .select({
-      id: activityEvents.id,
-      type: activityEvents.type,
-      actorUsername: activityEvents.actorUsername,
-      targetId: activityEvents.targetId,
-      targetUsername: activityEvents.targetUsername,
-      startedAt: activityEvents.startedAt,
-      endedAt: activityEvents.endedAt,
-      tripId: activityEvents.tripId,
-    })
+    .select(SUMMARY_COLUMNS)
     .from(activityEvents)
     .where(and(...conditions))
     .orderBy(desc(activityEvents.endedAt), desc(activityEvents.id))
@@ -109,22 +172,7 @@ export async function readActivityPage(
 
   const page = rows.slice(0, ACTIVITY_PAGE_SIZE);
   const last = page[page.length - 1];
-  const events: ActivityEventSummary[] = page.map((row) => {
-    const batched = BATCHED_TYPES.has(row.type);
-    return {
-      id: row.id,
-      type: row.type as ActivityEventType,
-      actorUsername: row.actorUsername,
-      // Only the username leaves the server; the ID just says whether it named a real account.
-      ...(row.targetUsername ? { targetUsername: row.targetUsername, targetKnown: row.targetId !== null } : {}),
-      occurredAt: row.endedAt.toISOString(),
-      // "Ongoing" uses the real clock: the dev date picker must not change whether a burst is still open.
-      ...(batched
-        ? { startedAt: row.startedAt.toISOString(), ongoing: now.getTime() - row.endedAt.getTime() < BATCH_GAP_MS }
-        : {}),
-      ...(row.tripId ? { tripId: row.tripId } : {}),
-    };
-  });
+  const events = page.map((row) => toSummary(row, now));
 
   return {
     status: "ok",

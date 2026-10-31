@@ -158,6 +158,12 @@ export const FEATURE_MAP = [
     // Storage health and usage readers.
     "src/lib/storage/**",
     "src/components/arrivo/metric-row.tsx",
+    // Recent admin actions and failed sign-ins read Activity.
+    "src/components/arrivo/recent-admin-actions.tsx",
+    "src/lib/activity-queries.ts",
+    "src/lib/activity-dates.ts",
+    "src/lib/activity-labels.ts",
+    "tests/e2e/activity-seed.ts",
     "src/app/(app)/admin/overview/**",
     "src/app/(app)/admin/page.tsx",
   ]),
