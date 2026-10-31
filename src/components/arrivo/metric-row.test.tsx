@@ -3,6 +3,20 @@ import { render, screen } from "@testing-library/react";
 import { MetricRow } from "./metric-row";
 
 describe("MetricRow", () => {
+  it("keeps stale value and checked time alongside optional controls", () => {
+    render(
+      <MetricRow
+        label="Database"
+        metric={{ status: "ok", value: "Healthy", checkedAt: "2026-10-30T12:00:00.000Z" }}
+        stale
+        controls={<button>Retry Database</button>}
+      />
+    );
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByText("Healthy")).toBeInTheDocument();
+    expect(screen.getByText(/^Checked/)).toHaveAttribute("datetime", "2026-10-30T12:00:00.000Z");
+    expect(screen.getByRole("button", { name: "Retry Database" })).toBeInTheDocument();
+  });
   it.each([
     [0, "0 bytes"],
     [999, "999 bytes"],

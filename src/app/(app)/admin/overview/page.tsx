@@ -11,8 +11,7 @@ import {
   readFailedSignIns,
   readRecentAdminActions,
 } from "@/lib/overview-readers";
-import { MetricRow } from "@/components/arrivo/metric-row";
-import { RecentAdminActions } from "@/components/arrivo/recent-admin-actions";
+import { OverviewMetrics } from "@/components/arrivo/overview-metrics";
 
 export default async function AdminOverviewPage() {
   // The layout can be reused by client navigation; guard every page request too.
@@ -40,19 +39,19 @@ export default async function AdminOverviewPage() {
       <h2 id="admin-overview-heading" className="font-semibold text-fg">
         Overview
       </h2>
-      <dl className="m-0 mt-2">
-        <MetricRow label="Version" metric={version} />
-        <MetricRow label="Database" metric={database} />
-        <MetricRow label="Document storage" metric={storage} />
-        <MetricRow label="Upload storage" metric={uploadBytes} format="bytes" />
-        <MetricRow label="Users" metric={counts.users} />
-        <MetricRow label="Admins" metric={counts.admins} />
-        <MetricRow label="Pending setup" metric={counts.pending} />
-        <MetricRow label="Trips" metric={tripCount} />
-        <MetricRow label="Documents" metric={documentCount} />
-        <MetricRow label="Failed sign-ins (24 hours)" metric={failedSignIns} />
-        <RecentAdminActions metric={adminActions} />
-      </dl>
+      <OverviewMetrics
+        version={version}
+        database={database}
+        storage={storage}
+        uploadBytes={uploadBytes}
+        users={counts.users}
+        admins={counts.admins}
+        pending={counts.pending}
+        trips={tripCount}
+        documents={documentCount}
+        failedSignIns={failedSignIns}
+        adminActions={adminActions}
+      />
     </section>
   );
 }
