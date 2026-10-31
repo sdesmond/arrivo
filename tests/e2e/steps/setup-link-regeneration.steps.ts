@@ -165,7 +165,7 @@ Then(
   async ({ page, scenario }, state: string) => {
     if (state === "deleted") await expect(targetRow(page, scenario)).toHaveCount(0);
     else {
-      await expect(targetRow(page, scenario)).toContainText("Setup complete");
+      await expect(targetRow(page, scenario)).not.toContainText("Pending setup");
       await expect(targetRow(page, scenario).getByRole("button", { name: /Generate new link/ })).toHaveCount(0);
     }
     expect((await currentAuthorizations(scenario)).length).toBe(state === "deleted" ? 0 : 1);

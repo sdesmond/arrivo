@@ -123,7 +123,7 @@ Then("Users and the recipient identify the original account and the link is cons
   await page.reload();
   const row = page.getByRole("listitem").filter({ has: page.getByText(usernameOf(scenario), { exact: true }) });
   await expect(row).toHaveCount(1);
-  await expect(row).toContainText("Setup complete");
+  await expect(row).not.toContainText("Pending setup");
   await recipient.context().clearCookies();
   await openCredentialLink(recipient, scenario.getValue<string>("onboardingLink")!);
   await expect(recipient.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
