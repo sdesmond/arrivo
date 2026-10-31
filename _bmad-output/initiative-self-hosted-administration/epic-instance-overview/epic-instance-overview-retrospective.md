@@ -56,15 +56,16 @@ Exercised: `node scripts/run-e2e.mjs --server=kill "--grep=@feat:admin-overview"
 
 ## Previous-retro follow-through
 
-Previous retro: `epic-recovery-and-deletion/epic-recovery-and-deletion-retrospective.md` (verdict rejected; six proposed actions).
+Previous retro: `epic-recovery-and-deletion/epic-recovery-and-deletion-retrospective.md` (verdict rejected; six proposed actions). Re-checked on 2026-10-31 against the code and ledgers; this replaces an earlier version of this section that found no evidence for A1–A3, which was wrong.
 
-- **A1** (account-security developer, pass session version into self-deletion): `plan-epic-4-lifecycle-race-fixes.md` exists with `status: built`, committed in `4dd00772`; no ticket, no merged-PR evidence found for it. No evidence found that it landed.
-- **A2, A3** (trip-collaboration and account-lifecycle developers, lock ordering and manager check): same plan; no evidence found that either landed.
-- **A4** (reconcile `deferred-work.md`): `d4103aac` removed one resolved Overview item; no evidence found of the epic-4 reconciliation.
-- **A5** (reconcile review metadata and selector): no evidence found.
-- **A6** (server-only boundary for activity maintenance): no evidence found.
+- **A1** (account-security developer, pass session version into self-deletion): landed. `src/lib/account-deletion.ts:39-45` takes `sessionVersion` and returns `Unauthorized` when it is `undefined`; `AccountDeletionFailure.Unauthorized` is in `src/data/types.ts:908`; commit `4188b3ff`; plan `plan-epic-4-lifecycle-race-fixes.md` has all tasks checked. Only the plan's own frontmatter (`status: built`, `ticket: ""`) and Implementation Notes ("implementation ... pending") are stale. The fix's tests were not re-run here.
+- **A2** (trip-collaboration developer, manager check under trip lock): landed. `src/lib/membership-writes.ts:266` checks `myRow?.role !== CollaboratorRole.Manager`; commit `4188b3ff`.
+- **A3** (account-lifecycle developer, sorted heir locks): landed per the same commit and plan task ("lock heirs with departing user", sorted order); not re-read line by line here.
+- **A4** (maintainer, reconcile `deferred-work.md`): landed. The Activity browser-coverage item and both reset-race items are marked "Closed 2026-10-30" with evidence; commit `4dd00772`.
+- **A5** (ticket/build maintainer, review metadata and selector): not landed. `story-password-reset-tracer-plan.md:11-13` still has empty `review`, `review_source` and `lenses_ran`; `.agents/skills/bmad-build/customize.toml:97` still sets `review = "quick"`, and all eight plans in this epic carry `review: quick`, `review_source: pinned`. The 3.6 risk mismatch also remains: `story-regenerate-link-and-expired-state-plan.md` says `risk: high`, `epic-account-onboarding/tickets.toml` entry 6 says `medium`.
+- **A6** (Activity maintainer, `server-only` boundary for `activity-maintenance.ts` / `activity-retention.ts`): not landed. Neither file imports `server-only`. Importers found are all server code (`(app)/layout.tsx:12`, `admin/activity/page.tsx:8`, the page's `actions.ts`); the client component `activity-retention-settings.tsx` imports neither, so no boundary violation exists today, only the missing guard.
 
-The epic-4 rejection therefore still stands in the record.
+Epic 4's verdict was rejected on F1–F3; their fixes are in the code, so its acceptance now depends on the validator gate and a verdict update, neither of which was checked here.
 
 ## Action items
 
@@ -74,7 +75,7 @@ All proposed, none applied. Owners are roles.
 2. **Plan-writer maintainer:** write plan files as UTF-8 (P2); commit the already-repaired 5.8 plan file.
 3. **Ticket maintainer:** give `plan-overview-metric-cards`, `plan-admin-users-card-redesign` and `plan-epic-4-lifecycle-race-fixes` a ticket or an epic Notes line so `status` stops reporting them (P1).
 4. **Epic owner:** add a `Decision:` line to the epic Notes recording that per-row Refresh is browser-proven for storage only (S1).
-5. **Account-security and lifecycle owners:** land or ticket epic 4's A1–A3 remediation; the epic-4 verdict is still rejected.
+5. **Epic 4 owner:** confirm the validator gate passed for commit `4188b3ff` and update the epic-4 retro verdict; close or ticket `plan-epic-4-lifecycle-race-fixes.md` (its frontmatter and notes are stale). Landed: A1–A4. Still open from epic 4: A5 (review metadata and 3.6 risk mismatch) and A6 (`server-only` on `activity-maintenance.ts` and `activity-retention.ts`).
 6. **Next epic planner:** pin review above `quick` for work the epic rates `risk: high` (C2).
 
 ## Decision records
@@ -94,4 +95,4 @@ The test-only fault hook decision is already in the epic Notes and easily revers
 
 - Is a production-container check of the version row (Done when 1) needed before release? Only the dev build was run.
 - Does the React "script tag" console warning on the member-denied page predate this epic?
-- Should epic 4's lifecycle-race plan become a ticket, and should this epic's closure wait on it? Answer changes whether epic 5 can be called done independently.
+- Did the validator gate pass for epic 4's remediation, and should the epic-4 retro verdict change? Answer decides whether epic 4 is accepted, not this epic.
