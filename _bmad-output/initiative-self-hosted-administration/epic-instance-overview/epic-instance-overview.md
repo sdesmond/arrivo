@@ -53,3 +53,4 @@ Overview and adapter extension. Not new infrastructure.
 - Tracer bullet: entry 1 (route, nav, reader contract, version, DB health, user counts). Entry 2 runs beside it; entries 3 to 5 reuse the shared metric card.
 - CAP-11 is a touch point owned by epic-instance-foundation; entry 1 only changes where Manage app lands.
 - Decision: 2026-10-30 the product term is "Manage app", not "Manage instance": "app" names app-wide things. The admin heading and account-menu item keep that name; the spec, EXPERIENCE and DESIGN were corrected to match the same day.
+- Decision: 2026-10-31 per-row Refresh is proven in the browser for storage only (Refresh, stale value, Retry, forced probe failure); the other rows' Refresh is covered by unit tests, because anything a unit test can cover does not become an extra E2E test. Done when 1 and 6 are read that way.

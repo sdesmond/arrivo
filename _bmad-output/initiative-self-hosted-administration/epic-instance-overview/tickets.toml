@@ -8,7 +8,6 @@ covers = ["CAP-10"]
 after = ["1.2"]
 hitl = false
 risk = "medium"
-unknown = "The Docker image must carry the package.json version (or the build must inject it); confirm the injection route before starting."
 notes = ["Branching: integration branch is feat/self-hosted-administration and accepts no direct pushes. Branch this ticket off it as ticket/<slug> and open a PR into it, never into main."]
 
 [[entry]]
