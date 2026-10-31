@@ -3,7 +3,7 @@ title: "Storage adapter health and usage"
 type: "feature"
 ticket: "2"
 created: "2026-10-30"
-status: "built"
+status: done
 baseline_revision: "5bb73ad54cce8680fbabf4888dea153d88e57760"
 route: "full"
 route_source: "auto"

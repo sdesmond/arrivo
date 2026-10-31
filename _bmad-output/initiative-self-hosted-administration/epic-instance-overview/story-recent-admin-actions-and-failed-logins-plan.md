@@ -3,7 +3,7 @@ title: "Recent admin actions and failed logins"
 type: "feature"
 ticket: "5"
 created: "2026-10-31"
-status: "built"
+status: done
 baseline_revision: "beef94f0cda364769bcfb9e620a601bc8f08faf1"
 route: "full"
 route_source: "auto"
