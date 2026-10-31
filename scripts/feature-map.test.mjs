@@ -80,6 +80,40 @@ describe("feature-map consistency", async () => {
     ).toEqual([]);
   });
 
+  // `src/lib/**` and `src/app/api/**` used to be blanket full-suite globs. Now each file is
+  // classified on its own (a feature, the explicit SHARED list, or IGNORE when no E2E can observe
+  // it), so a new lib module or route can't silently run nothing.
+  it.each([
+    ["src/lib", join(ROOT, "src", "lib")],
+    ["src/app/api", join(ROOT, "src", "app", "api")],
+  ])("no %s runtime file is unclassified — each is mapped, shared, or ignored", (prefix, dir) => {
+    const orphans = readdirSync(dir, { recursive: true })
+      .map((name) => `${prefix}/${String(name).replace(/\\/g, "/")}`)
+      .filter((path) => /\.(ts|tsx)$/.test(path) && !/\.test\.(ts|tsx)$/.test(path))
+      .filter((path) => !matchesAnyGlob(path, [...mappedOrSharedGlobs, ...IGNORE_GLOBS]));
+    expect(
+      orphans,
+      `Unclassified files — add each to a feature entry, SHARED_GLOBS, or IGNORE_GLOBS in tests/e2e/feature-map.mjs: ${orphans.join(", ")}`
+    ).toEqual([]);
+  });
+
+  it("scopes storage changes to the features that upload, serve, or delete files", () => {
+    const tags = FEATURE_MAP.filter((feature) =>
+      matchesAnyGlob("src/lib/storage/storage-adapter.ts", feature.sourceGlobs)
+    )
+      .map((feature) => feature.tag)
+      .sort();
+
+    expect(tags).toEqual([
+      "@feat:documents",
+      "@feat:event-docs",
+      "@feat:profile",
+      "@feat:reservations",
+      "@feat:trip-cover-overflow",
+      "@feat:trip-delete",
+    ]);
+  });
+
   // Footgun guard: IGNORE_GLOBS must only swallow non-runtime files (docs, unit tests). If an ignore
   // pattern ever matched a real mapped component, that component's edits would silently skip E2E.
   it("IGNORE_GLOBS never swallows a mapped (non-test) arrivo component", () => {
