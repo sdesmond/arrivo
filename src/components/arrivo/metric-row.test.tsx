@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MetricRow } from "./metric-row";
 
 describe("MetricRow", () => {
-  it("keeps stale value and checked time alongside optional controls", () => {
+  it("keeps stale value alongside optional controls", () => {
     render(
       <MetricRow
         label="Database"
@@ -14,7 +14,7 @@ describe("MetricRow", () => {
     );
     expect(screen.getByText("Stale")).toBeInTheDocument();
     expect(screen.getByText("Healthy")).toBeInTheDocument();
-    expect(screen.getByText(/^Checked/)).toHaveAttribute("datetime", "2026-10-30T12:00:00.000Z");
+    expect(screen.queryByText(/Checked/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry Database" })).toBeInTheDocument();
   });
   it.each([
@@ -60,14 +60,13 @@ describe("MetricRow", () => {
     expect(screen.getByText("1.0.0")).not.toHaveAttribute("title");
   });
 
-  it("shows label, value and a checked time", () => {
-    render(<MetricRow label="Users" metric={{ status: "ok", value: 4, checkedAt: "2026-10-30T12:00:00.000Z" }} />);
-    expect(screen.getByText("Users")).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
-    const time = screen.getByText(/Checked/);
-    expect(time.tagName).toBe("TIME");
-    expect(time).toHaveAttribute("datetime", "2026-10-30T12:00:00.000Z");
-    expect(time).toHaveTextContent("Checked 12:00:00 UTC");
+  it("shows the title as dt and the value as the dd hero without a visible time", () => {
+    const { container } = render(
+      <MetricRow label="Users" metric={{ status: "ok", value: 4, checkedAt: "2026-10-30T12:00:00.000Z" }} />
+    );
+    expect(screen.getByText("Users").tagName).toBe("DT");
+    expect(container.querySelector("dd > span")).toHaveTextContent("4");
+    expect(container.querySelector("time")).toBeNull();
   });
 
   it("renders 0 as a valid value", () => {
@@ -78,10 +77,10 @@ describe("MetricRow", () => {
     expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
   });
 
-  it("shows Unavailable with its checked time and no value", () => {
+  it("shows Unavailable and no value", () => {
     render(<MetricRow label="Database" metric={{ status: "unavailable", checkedAt: "2026-10-30T12:00:00.000Z" }} />);
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Healthy")).not.toBeInTheDocument();
-    expect(screen.getByText(/Checked/)).toHaveAttribute("datetime", "2026-10-30T12:00:00.000Z");
+    expect(screen.getByText("Unavailable")).toHaveStyle({ color: "var(--fg-3)" });
   });
 });

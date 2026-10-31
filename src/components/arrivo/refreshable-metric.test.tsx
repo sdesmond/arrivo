@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Metric } from "@/lib/overview-metric";
 import { RefreshableMetric } from "./refreshable-metric";
@@ -6,6 +6,7 @@ import { MetricRow } from "./metric-row";
 
 const checkedAt = "2026-10-31T12:00:00.000Z";
 const later = "2026-10-31T12:01:00.000Z";
+const checkedText = (iso: string) => `Checked ${new Date(iso).toLocaleTimeString(navigator.language)}`;
 function mount(initialMetric: Metric<string | number>, refresh: () => Promise<Metric<string | number>>) {
   return render(
     <dl>
@@ -16,6 +17,35 @@ function mount(initialMetric: Metric<string | number>, refresh: () => Promise<Me
   );
 }
 describe("RefreshableMetric", () => {
+  it("describes the icon button with a hidden local checked time and shows it in a tooltip", async () => {
+    mount({ status: "ok", value: 4, checkedAt }, vi.fn());
+    const button = screen.getByRole("button", { name: "Refresh Users" });
+    const time = screen.getByText(checkedText(checkedAt));
+    expect(time.tagName).toBe("TIME");
+    expect(time).toHaveAttribute("datetime", checkedAt);
+    expect(time).toHaveClass("sr-only");
+    expect(button).toHaveAttribute("aria-describedby", time.id);
+    expect(button).not.toHaveAttribute("title");
+    expect(button.querySelector("svg")).not.toHaveClass("animate-spin");
+    act(() => button.focus());
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(checkedText(checkedAt));
+  });
+  it("spins the icon while pending", async () => {
+    let finish!: (metric: Metric<string | number>) => void;
+    mount(
+      { status: "ok", value: 4, checkedAt },
+      () =>
+        new Promise<Metric<string | number>>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const button = screen.getByRole("button", { name: "Refresh Users" });
+    fireEvent.click(button);
+    expect(button.querySelector("svg")).toHaveClass("animate-spin");
+    await act(async () => finish({ status: "ok", value: 5, checkedAt: later }));
+    await waitFor(() => expect(button.querySelector("svg")).not.toHaveClass("animate-spin"));
+    expect(screen.getByText(checkedText(later))).toHaveAttribute("datetime", later);
+  });
   it("retains last success through unavailable and transport failures, then recovers with zero", async () => {
     const refresh = vi
       .fn()

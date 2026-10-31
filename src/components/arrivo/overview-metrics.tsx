@@ -64,7 +64,10 @@ export function OverviewMetrics({
     { label: "Failed sign-ins (24 hours)", initialMetric: failedSignIns, refresh: refreshFailedSignIns },
   ];
   return (
-    <dl className="m-0 mt-2">
+    <dl
+      className="m-0 mt-2 grid gap-3"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 16rem), 1fr))" }}
+    >
       {rows.map(({ label, initialMetric, refresh, format }) => (
         <RefreshableMetric key={label} label={label} initialMetric={initialMetric} refresh={refresh}>
           {(metric, controls, stale) => (

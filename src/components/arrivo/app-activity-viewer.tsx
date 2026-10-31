@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadActivityPage } from "@/app/(app)/admin/activity/actions";
 import { Button } from "@/components/ui/button";
 import type { ActivityLoadResult, ActivityPage, ActivityQuery } from "@/data/types";
 import { formatInstant } from "@/lib/activity-dates";
+import { useBrowserTimeZone } from "@/lib/browser-time-zone";
 import { ActivityFilters, hasActivityFilters } from "./activity-filters";
 import { AppActivity } from "./app-activity";
 
@@ -14,11 +15,6 @@ export interface AppActivityViewerProps {
 }
 
 type View = { kind: "page"; query: ActivityQuery; page: ActivityPage } | { kind: "forbidden" };
-
-const SERVER_ZONE = "UTC";
-const subscribeToZone = () => () => {};
-const readBrowserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || SERVER_ZONE;
-const readServerZone = () => SERVER_ZONE;
 
 function toSearch(query: ActivityQuery): string {
   const params = new URLSearchParams();
@@ -38,7 +34,7 @@ function withoutCursor(query: ActivityQuery): ActivityQuery {
 }
 
 export function AppActivityViewer({ initialQuery, initialPage }: AppActivityViewerProps) {
-  const timeZone = useSyncExternalStore(subscribeToZone, readBrowserZone, readServerZone);
+  const timeZone = useBrowserTimeZone();
   const [view, setView] = useState<View>({ kind: "page", query: initialQuery, page: initialPage });
   const [requested, setRequested] = useState<ActivityQuery>(initialQuery);
   // The cursor stack that belongs to `requested`, so Retry after a failed page change replays both together.
