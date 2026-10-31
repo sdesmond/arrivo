@@ -3,7 +3,7 @@ title: "Per-metric Refresh, Retry and stale states"
 type: "feature"
 ticket: "6"
 created: "2026-10-31"
-status: "built"
+status: done
 baseline_revision: "ef00776940302979841ae6d74e59eaa58ad593e2"
 route: "full"
 route_source: "auto"

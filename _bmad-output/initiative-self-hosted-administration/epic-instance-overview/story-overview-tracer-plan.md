@@ -3,7 +3,7 @@ title: "Overview tracer"
 type: "feature"
 ticket: "1"
 created: "2026-10-30"
-status: "built"
+status: done
 baseline_revision: "138a174a2fa80f6ab96b658d907bd585728c415b"
 route: "full"
 route_source: "auto"

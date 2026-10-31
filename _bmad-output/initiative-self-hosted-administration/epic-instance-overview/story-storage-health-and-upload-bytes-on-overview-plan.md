@@ -3,7 +3,7 @@ title: "Storage health and upload bytes on Overview"
 type: "feature"
 ticket: "3"
 created: "2026-10-30"
-status: "built"
+status: done
 baseline_revision: "954305778b889fa104ee4b0ecb213450003e0a6b"
 route: "full"
 route_source: "auto"

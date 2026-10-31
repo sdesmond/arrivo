@@ -3,7 +3,7 @@ title: "Trip and document counts"
 type: "feature"
 ticket: "4"
 created: "2026-10-31"
-status: "built"
+status: done
 baseline_revision: "26dba38e247fdb4940985ac866e5de2bc9b03768"
 route: "full"
 route_source: "auto"
