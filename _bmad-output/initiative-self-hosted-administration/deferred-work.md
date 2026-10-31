@@ -16,3 +16,7 @@
 - source_plan: `epic-recovery-and-deletion/story-admin-recovery-issuance-service-plan.md`
   summary: Investigate broader E2E intermittency under full affected scope before treating that gate as reliable.
   evidence: Final story 4.4 run passed 483 tests but failed existing rename/self-deletion Activity at the 30-second limit and trip transit-mode persistence (Walk remained unselected). Both passed unchanged in an isolated rerun (3 tests including auth setup) and earlier broad runs. An earlier cover-search timeout also passed unchanged in isolation. Recovery issuance scenarios passed throughout; no runtime code in the failing flows changed. Reproduce with four-worker full affected scope and capture timing/persistence evidence; do not mask with ordering or shared reseeding.
+
+- source_plan: `epic-instance-overview/story-storage-adapter-health-and-usage-plan.md`
+  summary: Investigate concurrent symlink substitution during local storage measurements (medium impact, unverified).
+  evidence: Static symlinks are skipped or rejected, but a concurrent local filesystem writer could replace a checked directory before later path-based I/O. A deterministic directory-swap reproduction would establish whether upload-root escape occurs.
