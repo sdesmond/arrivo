@@ -8,23 +8,29 @@ import {
   readUploadStorageBytes,
   readTripCount,
   readDocumentCount,
+  readFailedSignIns,
+  readRecentAdminActions,
 } from "@/lib/overview-readers";
 import { MetricRow } from "@/components/arrivo/metric-row";
+import { RecentAdminActions } from "@/components/arrivo/recent-admin-actions";
 
 export default async function AdminOverviewPage() {
   // The layout can be reused by client navigation; guard every page request too.
   await requireAdmin();
   // Live measurements: never prerender.
   await connection();
-  const [version, database, counts, storage, uploadBytes, tripCount, documentCount] = await Promise.all([
-    readVersion(),
-    readDatabaseHealth(),
-    readUserCounts(),
-    readStorageHealth(),
-    readUploadStorageBytes(),
-    readTripCount(),
-    readDocumentCount(),
-  ]);
+  const [version, database, counts, storage, uploadBytes, tripCount, documentCount, failedSignIns, adminActions] =
+    await Promise.all([
+      readVersion(),
+      readDatabaseHealth(),
+      readUserCounts(),
+      readStorageHealth(),
+      readUploadStorageBytes(),
+      readTripCount(),
+      readDocumentCount(),
+      readFailedSignIns(),
+      readRecentAdminActions(),
+    ]);
   return (
     <section
       aria-labelledby="admin-overview-heading"
@@ -44,6 +50,8 @@ export default async function AdminOverviewPage() {
         <MetricRow label="Pending setup" metric={counts.pending} />
         <MetricRow label="Trips" metric={tripCount} />
         <MetricRow label="Documents" metric={documentCount} />
+        <MetricRow label="Failed sign-ins (24 hours)" metric={failedSignIns} />
+        <RecentAdminActions metric={adminActions} />
       </dl>
     </section>
   );

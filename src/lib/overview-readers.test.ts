@@ -3,8 +3,18 @@ const { execute, from } = vi.hoisted(() => ({ execute: vi.fn(), from: vi.fn() })
 const { getStorageAdapter } = vi.hoisted(() => ({ getStorageAdapter: vi.fn() }));
 vi.mock("@/db", () => ({ db: { execute, select: () => ({ from }) } }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter }));
+const { readRecentActivity, countActivitySince } = vi.hoisted(() => ({
+  readRecentActivity: vi.fn(),
+  countActivitySince: vi.fn(),
+}));
+vi.mock("@/lib/activity-queries", () => ({ readRecentActivity, countActivitySince }));
+import { db as appDb } from "@/db";
+import { ActivityEventType, type ActivityEventSummary } from "@/data/types";
 import {
+  ADMIN_ACTION_TYPES,
   defaultOverviewDb,
+  readFailedSignIns,
+  readRecentAdminActions,
   readDatabaseHealth,
   readUserCounts,
   readVersion,
@@ -113,9 +123,87 @@ function fakeDb(overrides: Partial<OverviewDb> = {}): OverviewDb {
     countUsers: vi.fn().mockResolvedValue({ users: 5, admins: 2, pending: 0 }),
     countTrips: vi.fn().mockResolvedValue(3),
     countDocuments: vi.fn().mockResolvedValue(7),
+    recentAdminActions: vi.fn().mockResolvedValue([]),
+    countFailedSignIns: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }
+
+describe("recent admin actions and failed sign-ins", () => {
+  const event: ActivityEventSummary = {
+    id: "e1",
+    type: ActivityEventType.RoleChanged,
+    actorUsername: "alice",
+    targetUsername: "bob",
+    targetKnown: true,
+    occurredAt: "2026-10-30T11:00:00.000Z",
+  };
+
+  it("names exactly the nine admin action types", () => {
+    expect([...ADMIN_ACTION_TYPES].sort()).toEqual(
+      [
+        ActivityEventType.RetentionChanged,
+        ActivityEventType.AccountCreated,
+        ActivityEventType.SetupLinkGenerated,
+        ActivityEventType.SetupLinkRegenerated,
+        ActivityEventType.PendingAccountDeleted,
+        ActivityEventType.RoleChanged,
+        ActivityEventType.PasswordResetLinkGenerated,
+        ActivityEventType.AdminRecoveryLinkGenerated,
+        ActivityEventType.AccountDeletedByAdmin,
+      ].sort()
+    );
+  });
+
+  it("returns the recent admin actions with their checked time", async () => {
+    const db = fakeDb({ recentAdminActions: vi.fn().mockResolvedValue([event]) });
+    await expect(readRecentAdminActions(db, now)).resolves.toEqual({
+      status: "ok",
+      value: [event],
+      checkedAt: now.toISOString(),
+    });
+  });
+
+  it("counts failed sign-ins since exactly 24 hours before the check, keeping 0 as ok", async () => {
+    const db = fakeDb();
+    await expect(readFailedSignIns(db, now)).resolves.toEqual({ status: "ok", value: 0, checkedAt: now.toISOString() });
+    expect(db.countFailedSignIns).toHaveBeenCalledWith(new Date("2026-10-29T12:00:00.000Z"));
+  });
+
+  it("measures the window from the real clock when no time is given", async () => {
+    const db = fakeDb({ countFailedSignIns: vi.fn().mockResolvedValue(4) });
+    const metric = await readFailedSignIns(db);
+    expect(metric).toMatchObject({ status: "ok", value: 4 });
+    const since = vi.mocked(db.countFailedSignIns).mock.calls[0][0];
+    expect(Date.parse(metric.checkedAt) - since.getTime()).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("isolates each failure as unavailable, never 0 or an empty list", async () => {
+    const db = fakeDb({
+      recentAdminActions: vi.fn().mockRejectedValue(new Error("private failure")),
+      countFailedSignIns: vi.fn().mockRejectedValue(new Error("private failure")),
+    });
+    await expect(readRecentAdminActions(db, now)).resolves.toEqual({
+      status: "unavailable",
+      checkedAt: now.toISOString(),
+    });
+    await expect(readFailedSignIns(db, now)).resolves.toEqual({ status: "unavailable", checkedAt: now.toISOString() });
+    await expect(readTripCount(db, now)).resolves.toMatchObject({ status: "ok", value: 3 });
+  });
+
+  it("reads the latest five admin actions and failed sign-ins through the default database", async () => {
+    readRecentActivity.mockResolvedValue([event]);
+    countActivitySince.mockResolvedValue(2);
+    await expect(readRecentAdminActions(undefined, now)).resolves.toMatchObject({ status: "ok", value: [event] });
+    expect(readRecentActivity).toHaveBeenCalledWith(appDb, ADMIN_ACTION_TYPES, 5);
+    await expect(readFailedSignIns(undefined, now)).resolves.toMatchObject({ status: "ok", value: 2 });
+    expect(countActivitySince).toHaveBeenCalledWith(
+      appDb,
+      ActivityEventType.SignInFailed,
+      new Date("2026-10-29T12:00:00.000Z")
+    );
+  });
+});
 
 describe("readVersion", () => {
   it("returns the injected APP_VERSION", async () => {

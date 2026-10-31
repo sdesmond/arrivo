@@ -9,11 +9,14 @@ vi.mock("./app-roles", () => ({ isAppAdmin: mocks.isAppAdmin }));
 import {
   ACTIVITY_ACTOR_LIMIT,
   ACTIVITY_PAGE_SIZE,
+  countActivitySince,
   decodeActivityCursor,
   encodeActivityCursor,
   readActivityPage,
+  readRecentActivity,
   type ActivityReadDatabase,
 } from "./activity-queries";
+import { activityEvents } from "@/db/schema";
 
 const dialect = new PgDialect();
 const NOW = new Date("2026-10-26T12:00:00.000Z");
@@ -210,6 +213,102 @@ describe("readActivityPage", () => {
     expect(whereText().sql).not.toContain('"started_at" <=');
     await read({ from: "", to: "2026-10-26T10:00:00.000Z" });
     expect(whereText().sql).not.toContain('"ended_at" >=');
+  });
+});
+
+describe("readRecentActivity", () => {
+  let recentWhere: SQL | undefined;
+  let recentLimit: number | undefined;
+  let recentOrder: unknown[] = [];
+  let recentRows: (typeof ROW)[] = [];
+  const recentDatabase = {
+    select: () => ({
+      from: () => ({
+        where: (condition: SQL) => {
+          recentWhere = condition;
+          return {
+            orderBy: (...order: unknown[]) => {
+              recentOrder = order;
+              return {
+                limit: async (limit: number) => {
+                  recentLimit = limit;
+                  return recentRows;
+                },
+              };
+            },
+          };
+        },
+      }),
+    }),
+  } as unknown as ActivityReadDatabase;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    recentWhere = undefined;
+    recentLimit = undefined;
+    recentOrder = [];
+    recentRows = [];
+  });
+
+  it("filters to the given types, newest first by endedAt then id, with the limit", async () => {
+    await readRecentActivity(recentDatabase, ["role_changed", "account_created"], 5, NOW);
+    const { sql: text, params } = dialect.sqlToQuery(recentWhere!);
+    expect(text).toContain('"type" in ($1, $2)');
+    expect(params).toEqual(["role_changed", "account_created"]);
+    expect(recentLimit).toBe(5);
+    const orderText = recentOrder.map((part) => dialect.sqlToQuery(part as SQL).sql);
+    expect(orderText).toEqual(['"activity_events"."ended_at" desc', '"activity_events"."id" desc']);
+    expect(mocks.isAppAdmin).not.toHaveBeenCalled();
+  });
+
+  it("returns the same safe summary shape as the Activity page", async () => {
+    recentRows = [
+      { ...ROW, type: "account_deleted_by_admin", targetId: "user-2", targetUsername: "bob", tripId: "trip-1" },
+      { ...ROW, id: "e2", type: "role_changed", actorUsername: null },
+    ];
+    const events = await readRecentActivity(recentDatabase, ["account_deleted_by_admin", "role_changed"], 5, NOW);
+    expect(events).toEqual([
+      {
+        id: ID,
+        type: "account_deleted_by_admin",
+        actorUsername: "alice",
+        targetUsername: "bob",
+        targetKnown: true,
+        occurredAt: "2026-10-25T12:00:00.000Z",
+        tripId: "trip-1",
+      },
+      { id: "e2", type: "role_changed", actorUsername: null, occurredAt: "2026-10-25T12:00:00.000Z" },
+    ]);
+    expect(JSON.stringify(events)).not.toContain("user-2");
+  });
+});
+
+describe("countActivitySince", () => {
+  let countWhere: SQL | undefined;
+  let countTable: unknown;
+  const countDatabase = {
+    select: () => ({
+      from: (table: unknown) => {
+        countTable = table;
+        return {
+          where: async (condition: SQL) => {
+            countWhere = condition;
+            return [{ total: 3 }];
+          },
+        };
+      },
+    }),
+  } as unknown as ActivityReadDatabase;
+
+  it("counts one type at or after the given instant", async () => {
+    const since = new Date("2026-10-25T12:00:00.000Z");
+    await expect(countActivitySince(countDatabase, "sign_in_failed", since)).resolves.toBe(3);
+    expect(countTable).toBe(activityEvents);
+    const { sql: text, params } = dialect.sqlToQuery(countWhere!);
+    expect(text).toContain('"type" = $1');
+    expect(text).toContain('"ended_at" >= $2');
+    expect(params[0]).toBe("sign_in_failed");
+    expect(String(params[1])).toContain("2026-10-25T12:00:00.000Z");
   });
 });
 
