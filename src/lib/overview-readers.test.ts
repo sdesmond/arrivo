@@ -239,18 +239,48 @@ describe("readDatabaseHealth", () => {
 
 describe("readUserCounts", () => {
   it("returns an independent metric per count, keeping 0 as ok", async () => {
-    const result = await readUserCounts(fakeDb(), now);
-    expect(result.users).toMatchObject({ status: "ok", value: 5 });
-    expect(result.admins).toMatchObject({ status: "ok", value: 2 });
-    expect(result.pending).toMatchObject({ status: "ok", value: 0 });
+    const db = fakeDb();
+    const result = await readUserCounts(db, now);
+    expect(db.countUsers).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      users: { status: "ok", value: 5, checkedAt: now.toISOString() },
+      admins: { status: "ok", value: 2, checkedAt: now.toISOString() },
+      pending: { status: "ok", value: 0, checkedAt: now.toISOString() },
+    });
+    expect(new Set(Object.values(result)).size).toBe(3);
   });
 
-  it("marks every count unavailable when the query rejects", async () => {
-    const db = fakeDb({ countUsers: vi.fn().mockRejectedValue(new Error("down")) });
+  it.each(["throws", "rejects"])("marks every count unavailable when the query %s", async (failure) => {
+    const countUsers = vi.fn<OverviewDb["countUsers"]>();
+    if (failure === "throws") {
+      countUsers.mockImplementation(() => {
+        throw new Error("private failure");
+      });
+    } else {
+      countUsers.mockRejectedValue(new Error("private failure"));
+    }
+    const db = fakeDb({ countUsers });
     const result = await readUserCounts(db, now);
-    expect(result.users.status).toBe("unavailable");
-    expect(result.admins.status).toBe("unavailable");
-    expect(result.pending.status).toBe("unavailable");
+    expect(countUsers).toHaveBeenCalledOnce();
+    for (const metric of Object.values(result)) {
+      expect(metric).toEqual({ status: "unavailable", checkedAt: now.toISOString() });
+    }
+    expect(new Set(Object.values(result)).size).toBe(3);
+  });
+
+  it("uses one shared check time when no time is supplied", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(now);
+      const result = await readUserCounts(fakeDb());
+      expect(Object.values(result).map((metric) => metric.checkedAt)).toEqual([
+        now.toISOString(),
+        now.toISOString(),
+        now.toISOString(),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
