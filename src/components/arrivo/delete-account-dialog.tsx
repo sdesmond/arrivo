@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { unstable_rethrow, useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteAccountAction, previewAccountDeletionAction } from "@/app/(app)/admin/users/actions";
 import { Button } from "@/components/ui/button";
@@ -166,8 +167,14 @@ export function DeleteAccountDialog({
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" className="h-11" aria-label={`Delete account: ${username}`}>
-            Delete
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            title="Delete account"
+            aria-label={`Delete account: ${username}`}
+            style={{ color: "var(--fg-2)" }}
+          >
+            <Trash2 strokeWidth={1.5} aria-hidden="true" />
           </Button>
         }
       />

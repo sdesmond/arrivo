@@ -108,6 +108,51 @@ describe("ChangeRoleDialog", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(changeUserRoleAction).not.toHaveBeenCalled();
   });
+  it("opens without a trigger when controlled, reports close on Cancel, and returns focus to the given target", async () => {
+    const onOpenChange = vi.fn();
+    const onSuccess = vi.fn();
+    changeUserRoleAction.mockResolvedValue({ ok: true, userId: "target", role: "member", changed: true });
+    const target = document.createElement("button");
+    document.body.appendChild(target);
+    const view = render(
+      <ChangeRoleDialog
+        user={account}
+        onSuccess={onSuccess}
+        open={false}
+        onOpenChange={onOpenChange}
+        getFocusTargetOnClose={() => target}
+      />
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.rerender(
+      <ChangeRoleDialog
+        user={account}
+        onSuccess={onSuccess}
+        open
+        onOpenChange={onOpenChange}
+        getFocusTargetOnClose={() => target}
+      />
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(changeUserRoleAction).not.toHaveBeenCalled();
+    view.rerender(
+      <ChangeRoleDialog
+        user={account}
+        onSuccess={onSuccess}
+        open={false}
+        onOpenChange={onOpenChange}
+        getFocusTargetOnClose={() => target}
+      />
+    );
+    await waitFor(() => expect(target).toHaveFocus());
+    view.rerender(<ChangeRoleDialog user={account} onSuccess={onSuccess} open onOpenChange={onOpenChange} />);
+    await user.click(await screen.findByRole("button", { name: "Remove admin" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("member"));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    target.remove();
+  });
   it.each(Object.values(RoleChangeFailure))("keeps dialog open for %s with safe copy", async (reason) => {
     changeUserRoleAction.mockResolvedValue({ ok: false, reason });
     show();
