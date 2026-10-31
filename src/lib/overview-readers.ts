@@ -4,6 +4,22 @@ import { db as appDb } from "@/db";
 import { users } from "@/db/schema";
 import { UserRole } from "@/data/types";
 import { measureMetric, type Metric } from "@/lib/overview-metric";
+import { getStorageAdapter, type StorageAdapter } from "@/lib/storage/storage-adapter";
+
+export function readStorageHealth(storage?: Pick<StorageAdapter, "probe">, now?: Date): Promise<Metric<"Healthy">> {
+  return measureMetric(async () => {
+    const adapter = storage ?? getStorageAdapter();
+    await adapter.probe();
+    return "Healthy" as const;
+  }, now);
+}
+
+export function readUploadStorageBytes(
+  storage?: Pick<StorageAdapter, "getUsageBytes">,
+  now?: Date
+): Promise<Metric<number>> {
+  return measureMetric(() => (storage ?? getStorageAdapter()).getUsageBytes(), now);
+}
 
 export interface UserCounts {
   users: number;
