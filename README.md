@@ -77,3 +77,13 @@ Implement the `StorageAdapter` interface (`put`/`del`/`read`) in a new file unde
 - [PostgreSQL](https://www.postgresql.org) — primary database
 - [Tailwind CSS v4](https://tailwindcss.com) — utility-first styling
 - [Base UI](https://base-ui.com) / [shadcn](https://ui.shadcn.com) — unstyled UI primitives
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](./SECURITY.md). Please don't open a public issue.
+
+## License
+
+Arrivo is licensed under the [GNU Affero General Public License v3.0](./LICENSE). You may self-host, modify and
+redistribute it. If you run a modified version as a network service, you must make your modified source available to
+its users.
