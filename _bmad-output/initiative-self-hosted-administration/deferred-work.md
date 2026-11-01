@@ -20,3 +20,8 @@
 - source_plan: `epic-instance-overview/story-storage-adapter-health-and-usage-plan.md`
   summary: Investigate concurrent symlink substitution during local storage measurements (medium impact, unverified).
   evidence: Static symlinks are skipped or rejected, but a concurrent local filesystem writer could replace a checked directory before later path-based I/O. A deterministic directory-swap reproduction would establish whether upload-root escape occurs.
+
+- source_plan: `epic-recovery-and-deletion/epic-recovery-and-deletion-retrospective.md` (A6; inherited from epic-2 A3 and epic-3 A5)
+  summary: `server-only` boundary for `src/lib/activity-maintenance.ts` and `src/lib/activity-retention.ts`.
+  evidence: Importers are server code only (`(app)/layout.tsx`, `admin/activity/page.tsx`, the page's `actions.ts`); the client component `activity-retention-settings.tsx` imports neither. Playwright fixtures `tests/e2e/activity-integration-fixture.ts` and `tests/e2e/activity-retention-fixture.ts` import both in plain Node, where `server-only` throws.
+  disposition: Closed 2026-10-31 without a guard. Decision: 2026-10-31 no `server-only` import, because no client consumer exists and the guard would break the two fixtures without a bundling workaround. Revisit if a client component starts importing either module.

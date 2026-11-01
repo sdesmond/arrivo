@@ -6,6 +6,7 @@ covers: [CAP-5, CAP-6, CAP-7]
 after: []
 assignee: ""
 risk: high
+status: done
 ---
 
 # Recovery and deletion

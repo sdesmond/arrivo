@@ -6,6 +6,7 @@ covers: [CAP-1, CAP-4, CAP-11]
 after: []
 assignee: ""
 risk: high
+status: done
 ---
 
 # Instance foundation
@@ -53,3 +54,4 @@ Instance state, roles, menu, admin shell. Not Activity, Add User, recovery, Over
 - Decision: 2026-10-24 story 2 owns the shell and section navigation with only Users enabled; epics 2 and 5 add their sections.
 - Decision: 2026-10-24 story 1 stays one story.
 - Decision: 2026-10-24 branching: integration branch is `feat/self-hosted-administration`, which accepts no direct pushes. Branch each ticket off it as `ticket/<slug>` and open a PR into it, never into `main`. When slicing this epic, write this rule into every ticket entry's `notes` so it reaches the build.
+- Decision: 2026-10-31 closure check: Done when 1's legacy multi-account halt and sole-account promotion are implemented in `drizzle/0004_instance_state_roles.sql` and asserted by `scripts/migrations.test.mjs`; the retrospective did not judge them. Epic closed with its retro verdict accepted-with-open-items.

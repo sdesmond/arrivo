@@ -77,6 +77,8 @@ deferred: []
 
 ## Implementation Notes
 
+A code review ran on 2026-10-29 (3 patches, 2 deferrals, 4 rejections; see Code Review below), but this plan did not record which review lens ran, so `review`, `review_source` and `lenses_ran` stay empty rather than reconstructed. Noted 2026-10-31 for epic 4 retro action A5.
+
 ## Plan Change Log
 
 ## Review Triage Log
