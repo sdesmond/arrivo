@@ -6,6 +6,7 @@ covers: [CAP-1, CAP-2, CAP-3, CAP-4, CAP-5, CAP-6, CAP-7, CAP-8, CAP-9, CAP-10, 
 after: []
 assignee: ""
 risk: high
+status: done
 ---
 
 # Self-hosted administration
@@ -47,3 +48,4 @@ Account lifecycle, admin authority, recovery, Activity and Overview inside the e
 - Decision: 2026-10-24 recovery and deletion stay one epic (shared lock rules).
 - Decision: 2026-10-24 architecture review findings (`architecture-self-hosted-administration/reviews/`) checked against the final spine; all five applied (AD-3, AD-10, AD-11, Credential validation convention).
 - Unknown: exact table, route and event-type names; chosen in epic 1 and 2 inception, then adopted by later epics.
+- Decision: 2026-10-31 closure check: all 43 tickets and 5 epics are done and every CAP-1 to CAP-11 is covered. Initiative closed with open items: the spec's Success signal is covered by each epic's own integrated suite, not by one browser journey across epics; production cache headers for reset and recovery documents are unverified outside the dev build; E2E intermittency and the storage symlink race stay in `deferred-work.md`.
