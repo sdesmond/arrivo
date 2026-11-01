@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-31
+
 ### Upgrading
 
 - **Docker:** the container now listens on port 4850 instead of 3550. If your compose file maps `3550:3550`, change
@@ -9,6 +11,39 @@
   `8080:3550`, change the container side to `8080:4850`. Anything else that connects to port 3550, such as a
   reverse proxy upstream, needs the same change.
 - **Running from source:** run `npm run db:migrate`. Docker applies migrations on start.
+- **Existing accounts:** migration `0004` refuses to run if more than one account exists. Back up your database
+  and uploaded files before updating. Upgrading currently requires reducing the instance to the single account
+  that should become admin; preserve other users' trips and files before deleting any accounts. The remaining
+  account becomes admin automatically. There is no automatic upgrade path that preserves multiple accounts.
+- **Usernames replace email addresses:** tell users to sign in with their migrated username. It comes from the
+  part of their email before `@`, lowercased and sanitized, with a numeric suffix for collisions. List usernames
+  with `docker exec arrivo-db psql -U arrivo -d arrivo -c "select name, username from users"`. Invitations with
+  no matching account are removed during migration.
+- **Registration:** remove `ALLOW_SIGNUP` from your configuration. Registration closes after the first account;
+  admins add further users through Admin → Users and share setup links manually.
+- **Account recovery:** replace scripts calling `mfa-reset.mjs` with
+  `docker exec arrivo node /app/admin-recovery.mjs <username> <public-url>` for admin accounts. It prints a
+  one-hour recovery link; completion requires a new password and authenticator setup. Regular users' password
+  resets keep two-factor enabled, and users who lose both their authenticator and recovery codes currently
+  have no recovery path.
+- **Development:** replace `E2E_EMAIL` with `E2E_USERNAME=e2e` in `.env`.
+
+### Added
+
+- First-run setup creates and signs in the instance's first admin.
+- Admin → Users lets admins add users, share or regenerate setup links, change admin roles, reset passwords,
+  and delete accounts while handing owned trips to successors without exposing private trip contents.
+  The last admin cannot be removed or demoted.
+- Admin → Activity records authentication, account, trip, itinerary and invitation events, with filters and
+  configurable retention of 30, 90, 180 or 365 days (90 by default).
+- Admin → Overview shows user, trip and document counts, storage health and upload usage, plus recent admin
+  actions and failed sign-ins. Metrics can be refreshed individually.
+- AGPL-3.0 license and a security policy directing vulnerability reports to GitHub's private reporting channel.
+
+### Changed
+
+- Sign-in and trip sharing use usernames instead of email addresses. Users can change their username under
+  Profile → Identity.
 
 ### Fixed
 
@@ -18,6 +53,7 @@
   first, who becomes a manager. Pending invitations you sent are cancelled, and the people you invited are
   notified.
 - Files belonging to trips deleted with an account are now removed from storage.
+- Newly created checklists and checklists inserted from packing lists stay expanded when a refresh is slow.
 
 ## [0.5.1] - 2026-10-22
 
@@ -66,6 +102,7 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/sdesmond/arrivo/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/sdesmond/arrivo/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/sdesmond/arrivo/compare/v0.4.1...v0.5.0
