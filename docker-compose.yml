@@ -35,7 +35,8 @@ services:
       MAPBOX_PUBLIC_TOKEN: ""
       # Optional. Unsplash access key for trip cover-image search.
       UNSPLASH_ACCESS_KEY: ""
-      # Optional. Only if sign-in redirects go to the wrong address (e.g. behind some proxies).
+      # Required for account setup and password reset links; also controls sign-in redirects.
+      # Use the address users open, including https:// and any nonstandard port (the public URL behind a proxy).
       # NEXTAUTH_URL: https://arrivo.example.com
     volumes:
       # Uploads, plus the generated sign-in secret and data encryption key in .arrivo/. Back it up with the database.
