@@ -176,7 +176,7 @@ Open items carried with the verdict:
 
 - **A5** (review metadata): partly addressed in PR #392 (default review set to `auto`, ticket 3.6 risk corrected, 4.1's unrecorded lens noted). The 4.1 frontmatter stays empty on purpose.
 - **A6** (`server-only` on the Activity modules): closed without a guard, decision recorded in `deferred-work.md` (PR #392).
-- **Production cache headers** for reset and recovery documents: still unverified outside the development build.
+- **Production cache headers** for reset and recovery documents: closed 2026-10-31. Against an isolated `next build` + `next start`, `/account-setup`, `/account-reset`, `/account-recovery` and each `/open` route (with and without a token) returned `cache-control: no-store` and `referrer-policy: no-referrer`.
 - **E2E intermittency** under full affected scope: still tracked in `deferred-work.md`; one more environment flake was seen on 2026-10-31.
 
 Not re-done for this update: the F1–F3 races were not re-reproduced, and unit-test coverage was not re-run. The update relies on the fix commit, its recorded tests, CI on #376 and the E2E runs above.
