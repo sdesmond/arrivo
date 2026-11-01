@@ -43,19 +43,25 @@ container app built into a NAS.
 All settings are environment variables on the `app` service. After you change one, run
 `docker compose up -d`, or redeploy the stack in your container manager.
 
-| Variable              | Default          | Purpose                                                                                                                                  |
-| --------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                       |
-| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                 |
-| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab          |
-| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                      |
-| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                            |
-| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                        |
-| `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key` |
-| `NEXTAUTH_URL`        | from the request | Only needed if sign-in redirects go to the wrong address, e.g. behind a proxy that rewrites `Host`                                       |
+| Variable              | Default          | Purpose                                                                                                                                      |
+| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                           |
+| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                     |
+| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab              |
+| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                          |
+| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                                |
+| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                            |
+| `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key`     |
+| `NEXTAUTH_URL`        | unset            | Address users open Arrivo at. Required for account setup and password reset links; also controls sign-in redirects. `AUTH_URL` is a fallback |
 
 Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
+
+Before adding users or generating password reset links, set `NEXTAUTH_URL` to the address those users
+will open, including `http://` or `https://` and any nonstandard port. For a reverse proxy, use its
+public address, not the app's internal IP or container address. `NEXTAUTH_URL` takes priority over
+`AUTH_URL` when both are set. Account links use this configured address rather than request or proxy
+headers; without a valid configured address, Arrivo refuses to generate them.
 
 To use a different host port, change the left number in `"4850:4850"`, e.g. `"8080:4850"`. To run a
 fixed release instead of the newest, change the image tag, e.g. `ghcr.io/sdesmond/arrivo:0.4.1`. Then
@@ -79,6 +85,16 @@ arrivo.example.com {
 
 If the proxy runs on the same host, change the port line to `"127.0.0.1:4850:4850"` so the app
 isn't reachable around it.
+
+Set the public address under `app.environment` in your Compose file:
+
+```yaml
+NEXTAUTH_URL: https://arrivo.example.com
+```
+
+Apply the change with `docker compose up -d --force-recreate app`, or redeploy the stack in your
+container manager. Restarting an existing container alone does not update its environment. Generate
+a fresh account setup or password reset link afterward; previously copied URLs keep their old address.
 
 ## Account security
 
