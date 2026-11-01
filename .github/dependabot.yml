@@ -1,0 +1,77 @@
+# Majors land as individual PRs; minor/patch bumps are grouped. The cooldown keeps freshly published releases
+# (the window in which compromised packages are usually caught) out of the lockfile. Security updates ignore
+# both the schedule and the cooldown.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    ignore:
+      # Runtime is Node 22 (.nvmrc, Dockerfile); move @types/node with the runtime, not ahead of it.
+      - dependency-name: "@types/node"
+        versions: [">=23"]
+    # A dependency joins the first group that matches it, so the coupled sets come before the catch-alls.
+    groups:
+      # Exact-pinned and versioned in lockstep.
+      next:
+        patterns: ["next", "eslint-config-next"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      drizzle:
+        patterns: ["drizzle-orm", "drizzle-kit", "@auth/drizzle-adapter"]
+      test-tooling:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@vitejs/*"
+          - "@testing-library/*"
+          - "jsdom"
+          - "@playwright/*"
+          - "playwright-bdd"
+      tailwind:
+        patterns: ["tailwindcss", "@tailwindcss/*"]
+      prod-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      dev-minor-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      # A Node major moves deliberately, together with .nvmrc and @types/node.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      # A Postgres major needs a dump/restore on self-hosted installs; never propose one automatically.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
