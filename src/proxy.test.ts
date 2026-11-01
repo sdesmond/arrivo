@@ -32,12 +32,56 @@ describe("proxy", () => {
     expect(request("/trips")?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
   });
 
+  it.each(["/trips", "/api/storage/x.jpg", "/api/users/me/events", "/account-settings"])(
+    "keeps %s closed to a visitor holding only the account-setup cookie",
+    (path) => {
+      const url = `http://localhost:4850${path}`;
+      const req = {
+        url,
+        headers: new Headers({ host: "192.168.1.50:4850", cookie: "arrivo_account_setup=token" }),
+        nextUrl: new URL(url),
+        auth: null,
+      };
+      expect((proxy as unknown as ProxyHandler)(req)?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
+    }
+  );
+
+  it.each([
+    "/account-setup",
+    "/account-setup/open",
+    "/account-reset",
+    "/account-reset/open",
+    "/account-recovery",
+    "/account-recovery/open",
+  ])("leaves %s public and marks it uncacheable with no referrer", (path) => {
+    const response = request(path) as Response;
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it.each([
+    "/account-setup-admin",
+    "/account-setupx",
+    "/account-resetx",
+    "/account-recoveryx",
+    "/setup-link",
+    "/sign-in-old",
+    "/sign-upgrade",
+  ])("does not treat %s as public just because it starts with a public path", (path) => {
+    expect(request(path)?.headers.get("location")).toBe("http://192.168.1.50:4850/sign-in");
+  });
+
+  it.each(["/account-setup/", "/sign-in/", "/api/auth/callback/credentials"])("leaves nested %s public", (path) => {
+    expect(request(path)?.headers.get("location") ?? null).toBeNull();
+  });
+
   it("lets a signed-in visitor through", () => {
     expect(request("/trips", { user: { id: "user-1" } })).toBeUndefined();
   });
 
   it.each([
     "/sign-in",
+    "/setup",
     "/sign-up",
     "/api/auth/session",
     "/api/health",

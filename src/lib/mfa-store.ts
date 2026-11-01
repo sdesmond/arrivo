@@ -14,11 +14,16 @@ export interface SecondFactorUser {
 }
 
 // Both paths are single conditional UPDATEs, so two concurrent sign-ins can't spend the same code twice.
-async function consumeTotpCode(user: SecondFactorUser & { totpSecret: string }, code: string, now: number) {
+async function consumeTotpCode(
+  user: SecondFactorUser & { totpSecret: string },
+  code: string,
+  now: number,
+  executor: DbTransaction | typeof db
+) {
   const result = verifyTotp(decryptField(user.totpSecret), code, user.totpLastStep, now);
   if (!result.ok) return false;
 
-  const updated = await db
+  const updated = await executor
     .update(users)
     .set({ totpLastStep: result.step })
     .where(and(eq(users.id, user.id), or(isNull(users.totpLastStep), lt(users.totpLastStep, result.step))))
@@ -26,8 +31,8 @@ async function consumeTotpCode(user: SecondFactorUser & { totpSecret: string }, 
   return updated.length > 0;
 }
 
-async function consumeRecoveryCode(userId: string, code: string) {
-  const updated = await db
+async function consumeRecoveryCode(userId: string, code: string, executor: DbTransaction | typeof db) {
+  const updated = await executor
     .update(mfaRecoveryCodes)
     .set({ usedAt: new Date() })
     .where(
@@ -42,10 +47,15 @@ async function consumeRecoveryCode(userId: string, code: string) {
 }
 
 // Accepts either a 6-digit authenticator code or a one-time recovery code.
-export async function verifySecondFactor(user: SecondFactorUser, code: string, now = Date.now()): Promise<boolean> {
+export async function verifySecondFactor(
+  user: SecondFactorUser,
+  code: string,
+  now = Date.now(),
+  executor: DbTransaction | typeof db = db
+): Promise<boolean> {
   if (!user.totpSecret) return false;
-  if (isRecoveryCodeFormat(code)) return consumeRecoveryCode(user.id, code);
-  return consumeTotpCode({ ...user, totpSecret: user.totpSecret }, code, now);
+  if (isRecoveryCodeFormat(code)) return consumeRecoveryCode(user.id, code, executor);
+  return consumeTotpCode({ ...user, totpSecret: user.totpSecret }, code, now, executor);
 }
 
 // Returns the plaintext codes for one-time display; only their hashes are stored.

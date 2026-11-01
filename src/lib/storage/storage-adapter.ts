@@ -11,6 +11,10 @@ export interface StorageAdapter {
   put(key: string, file: File): Promise<string>;
   del(url: string): Promise<void>;
   read(key: string): Promise<ReadableStream<Uint8Array>>;
+  /** Verify storage write/read/delete health; reject if any operation or cleanup fails. */
+  probe(): Promise<void>;
+  /** Sum actual upload file bytes, excluding transient probes and symbolic links. */
+  getUsageBytes(): Promise<number>;
 }
 
 declare global {

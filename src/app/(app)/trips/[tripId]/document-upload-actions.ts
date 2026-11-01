@@ -6,6 +6,7 @@ import { documents } from "@/db/schema";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { publishTripEvent } from "@/lib/trip-events";
 import { formatFileSize, inferDocKind } from "@/lib/utils";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
@@ -27,6 +28,7 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   const url = await getStorageAdapter().put(storageName, file);
 
   await db.insert(documents).values({ tripId, name, kind, size, url });
+  recordTripUpdated(user.id!, tripId);
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
   revalidatePath(`/trips/${tripId}`);
 }
@@ -49,6 +51,7 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
   const url = await getStorageAdapter().put(storageName, file);
 
   await db.insert(documents).values({ tripId, eventId, name, kind, size, url });
+  recordTripUpdated(user.id!, tripId);
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
   revalidatePath(`/trips/${tripId}`);
 }

@@ -55,6 +55,13 @@ describe("feature-map consistency", async () => {
     expect(tags).toEqual(expectedTags);
   });
 
+  it("runs password reset coverage for shared credential authorization changes", () => {
+    const tags = FEATURE_MAP.filter((feature) =>
+      matchesAnyGlob("src/lib/credential-authorizations.ts", feature.sourceGlobs)
+    ).map((feature) => feature.tag);
+    expect(tags).toContain("@feat:password-reset");
+  });
+
   it("no arrivo component is unmapped — each matches a feature glob or SHARED_GLOBS", () => {
     const orphans = readdirSync(ARRIVO_DIR)
       .filter((name) => /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name))
@@ -97,7 +104,7 @@ describe("feature-map consistency", async () => {
     ).toEqual([]);
   });
 
-  it("scopes storage changes to the features that upload, serve, or delete files", () => {
+  it("scopes storage changes to the features that upload, serve, delete, or report on files", () => {
     const tags = FEATURE_MAP.filter((feature) =>
       matchesAnyGlob("src/lib/storage/storage-adapter.ts", feature.sourceGlobs)
     )
@@ -105,12 +112,29 @@ describe("feature-map consistency", async () => {
       .sort();
 
     expect(tags).toEqual([
+      "@feat:admin-account-deletion",
+      "@feat:admin-overview",
       "@feat:documents",
       "@feat:event-docs",
+      "@feat:integrated-recovery-and-deletion",
       "@feat:profile",
       "@feat:reservations",
       "@feat:trip-cover-overflow",
       "@feat:trip-delete",
+      "@feat:unfinished-account-deletion",
+    ]);
+  });
+
+  it("runs the activity-write features when the shared timeout helper changes", () => {
+    const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob("src/lib/with-timeout.ts", feature.sourceGlobs))
+      .map((feature) => feature.tag)
+      .sort();
+
+    expect(tags).toEqual([
+      "@feat:activity-batching",
+      "@feat:admin-recovery-issuance",
+      "@feat:app-activity",
+      "@feat:trip-sharing",
     ]);
   });
 

@@ -9,6 +9,7 @@ import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { REQUIRES_END_AT } from "@/components/arrivo/reservation-type-badge";
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { extendTripDateRange } from "./reservation-date-range";
 
 export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {
@@ -78,6 +79,7 @@ export async function createReservation(tripId: string, input: CreateReservation
     });
   });
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -188,6 +190,7 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
     await transaction.update(reservations).set(updates).where(eq(reservations.id, reservationId));
   });
 
+  recordTripUpdated(user.id!, existingReservation.tripId);
   revalidatePath(`/trips/${existingReservation.tripId}`);
 }
 
@@ -211,5 +214,6 @@ export async function deleteReservation(reservationId: string): Promise<void> {
 
   await db.delete(reservations).where(eq(reservations.id, reservationId));
 
+  recordTripUpdated(user.id!, existing.tripId);
   revalidatePath(`/trips/${existing.tripId}`);
 }

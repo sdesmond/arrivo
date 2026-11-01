@@ -1,0 +1,2 @@
+ALTER TABLE "instance_state" ADD COLUMN "activity_retention_days" integer DEFAULT 90 NOT NULL;--> statement-breakpoint
+ALTER TABLE "instance_state" ADD CONSTRAINT "instance_state_activity_retention_days" CHECK ("instance_state"."activity_retention_days" in (30, 90, 180, 365));

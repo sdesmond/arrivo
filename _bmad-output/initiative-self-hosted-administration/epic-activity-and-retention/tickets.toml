@@ -1,0 +1,121 @@
+# Approved epic breakdown; table order is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Sign-in to Activity tracer"
+description = "Delivers generated Activity storage migration, safe historical identity and event contracts, bounded caught post-response recording, admin-only read service and /admin/activity table/navigation, and one completed sign-in event through the credentials gate including MFA, with a producer inventory and shared names for subsequent stories."
+verify = "Unit/component and scenario-owned E2E tests show completed sign-in appears after refresh, MFA challenge alone produces no login, non-admin reads are denied, deleted identities retain history, and scheduling or persistence failure cannot change sign-in success."
+covers = ["CAP-8"]
+after = ["1.2"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Concurrent edit batching"
+description = "Adds summary-only Updated trip persistence partitioned by actor account ID, trip ID and event-time username, atomically merging captured occurrence-time intervals connected by at most ten minutes including delayed arrivals and concurrent bridging."
+verify = "Real-database and unit tests prove inclusive ten-minute boundaries, delayed bridging, concurrent updates, distinct actors/trips/snapshots, rename-back merging and ongoing readable rows without underlying edit records."
+covers = ["CAP-8"]
+after = [1]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Authentication and account events"
+description = "Extends tracer recording to credential-gate failures including direct callback requests, logout, bootstrap account creation, role changes, username/password changes and self-deletion, preserving pre-change identities and distinguishing failed-sign-in target from authenticated actor and unknown or unavailable identity."
+verify = "Targeted auth/profile/admin tests and producer E2E scenarios show each successful action emits once after commit, failed primary mutations emit no success, direct callback failures retain only safe identity, MFA challenges are not completed logins, and rename/deletion preserves history despite forced Activity failure."
+covers = ["CAP-8"]
+after = [2, "1.4", "1.5"]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Trip and itinerary events"
+description = "Instruments inventoried core trip creation and successful trip/day/event/route/transit modifications at their mutation owners, recording individual trip creation and batching routine modifications with captured minimal actor/trip context after commit."
+verify = "Matching action tests and trip E2E scenarios cover inventoried mutation paths, refusals and rollback, one emission per mutation and no private trip payloads, with forced Activity failure leaving primary state and response intact."
+covers = ["CAP-8"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Other trip edit events"
+description = "Completes inventoried routine trip-edit producers for documents, covers, reservations, budget and trip packing through the shared batching API, excluding standalone packing templates and emitting once at the actual mutation owner rather than delegation wrappers."
+verify = "Matching action tests and affected E2E scenarios show successful actual trip changes update safe summaries once, standalone template writes do not, failed mutations produce no success event, and Activity failure leaves changes committed."
+covers = ["CAP-8"]
+after = [4]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Trip invitation events"
+description = "Records trip invitation creation, acceptance and rescinding as individual events after successful mutation using the shared contract, with trip-event metadata limited to actor, action, timestamps and trip ID."
+verify = "Trip-sharing action tests and feature scenarios prove one safe event per successful invitation transition, no event on refusal, no invitation secret or collaborator payload, and unchanged invitation results when Activity fails."
+covers = ["CAP-8"]
+after = [5]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Activity filters and reader states"
+description = "Completes actor/type/date filters, interval-overlap dates, latest-time plus stable-ID pagination, historical identities, ongoing summaries, refresh and loading/empty/error/stale/lost-authority states with local timezone display and accessible responsive Table."
+verify = "Read-service/component and desktop/mobile E2E tests prove stable filtering/pagination across equal timestamps and overlapping batches, preserved filters/page, explicit unknown/unavailable identity, keyboard-scrollable narrow table and no private content in DOM or errors."
+covers = ["CAP-8"]
+after = [6]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Retention policy and cleanup"
+description = "Adds generated instance-policy migration with default 90 and allowed 30/90/180/365 days, explicit save and shortening confirmation, post-commit retention-change event, truthful saved versus cleanup status, and bounded dynamic-app-activity/save-triggered physical cleanup under an independent nonwaiting maintenance lock using saved policy and latest-event cutoff."
+verify = "Real-database, action/component and E2E tests prove cancel or failed save starts no cleanup under unsaved policy, cleanup runs without new Activity writes, contention never waits, overlapping batches remain whole, expired rows remain visible until deleted, and scheduling/cleanup failure cannot alter primary outcomes or claim completion."
+covers = ["CAP-8", "CAP-9"]
+after = [7]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "Cleans up this epic's code using its plans and deferred review findings, setting cleanup-only scope when started and leaving additional behavior to separate tickets."
+verify = "Targeted regression tests and project validation pass with no behavior change and no unresolved cleanup accepted into this sweep."
+covers = ["CAP-8", "CAP-9"]
+after = [1, 2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Integrated Activity and retention E2E suite"
+description = "Completes integrated desktop/mobile scenarios across existing producers, privacy, failure isolation, batching, filters, retention and current admin authority after the sweep, building on tests already shipped with each story."
+verify = "Affected Playwright features pass against scenario-owned fixtures with actual results recorded, including safe historical identities after rename/deletion and policy-save versus physical-cleanup outcomes."
+covers = ["CAP-8", "CAP-9"]
+after = [9]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-activity-and-retention decision, 2026-10-24)."]

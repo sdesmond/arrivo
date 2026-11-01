@@ -1,0 +1,148 @@
+// @vitest-environment node
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { validate, checkThrottle, recordFailure, database } = vi.hoisted(() => ({
+  validate: vi.fn(),
+  checkThrottle: vi.fn(),
+  recordFailure: vi.fn(),
+  database: { transaction: vi.fn() },
+}));
+vi.mock("@/db", () => ({ db: database }));
+vi.mock("@/lib/credential-authorizations", () => ({ validateCredentialAuthorization: validate }));
+vi.mock("@/lib/auth-throttle", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/auth-throttle")>("@/lib/auth-throttle");
+  return { ...actual, checkThrottle, recordFailure };
+});
+
+import {
+  PASSWORD_RESET_COOKIE,
+  passwordResetCookie,
+  clearedPasswordResetCookie,
+  PASSWORD_RESET_COOKIE_PATH,
+  resolvePasswordResetContext,
+} from "./password-reset-session";
+
+const NOW = new Date("2026-10-27T12:00:00Z");
+const clock = () => NOW;
+const TOKEN = "a".repeat(43);
+const account = {
+  userId: "user-1",
+  username: "pending",
+  purpose: "reset",
+  expiresAt: "2026-10-28T12:00:00.000Z",
+};
+const headers = (init: Record<string, string> = {}) => new Headers({ "x-forwarded-for": "203.0.113.9", ...init });
+
+describe("cookie helpers", () => {
+  it("builds a limited cookie that never outlives the link", () => {
+    const cookie = passwordResetCookie(TOKEN, account.expiresAt, { https: false, now: NOW });
+    expect(cookie).toContain(`${PASSWORD_RESET_COOKIE}=${TOKEN}`);
+    expect(cookie).toContain("Max-Age=86400");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Path=/account-reset;");
+    expect(PASSWORD_RESET_COOKIE_PATH).toBe("/account-reset");
+    expect(cookie).not.toContain("Secure");
+  });
+
+  it("marks the cookie Secure over HTTPS and clamps Max-Age to the remaining lifetime", () => {
+    const cookie = passwordResetCookie(TOKEN, "2026-10-27T12:00:30.900Z", { https: true, now: NOW });
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("Max-Age=30");
+  });
+
+  it("expires immediately when the link is already past expiry", () => {
+    expect(passwordResetCookie(TOKEN, "2026-10-27T11:00:00Z", { https: false, now: NOW })).toContain("Max-Age=0");
+  });
+
+  it("clears the cookie with the same attributes", () => {
+    const cookie = clearedPasswordResetCookie(true);
+    expect(cookie).toContain(`${PASSWORD_RESET_COOKIE}=;`);
+    expect(cookie).toContain("Max-Age=0");
+    expect(cookie).toContain("Path=/account-reset;");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+  });
+});
+
+describe("resolvePasswordResetContext", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    checkThrottle.mockResolvedValue({ locked: false });
+    recordFailure.mockResolvedValue(undefined);
+    validate.mockResolvedValue({ ok: true, account });
+  });
+
+  it("is unavailable without a token and touches nothing", async () => {
+    expect(await resolvePasswordResetContext(undefined, { headers: headers(), clock })).toEqual({
+      status: "unavailable",
+    });
+    expect(validate).not.toHaveBeenCalled();
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("validates a reset-purpose token against the database without counting a page view", async () => {
+    const result = await resolvePasswordResetContext(TOKEN, { headers: headers(), clock });
+    expect(result).toEqual({ status: "ready", account });
+    expect(validate).toHaveBeenCalledWith(database, { token: TOKEN, purpose: "reset" }, clock);
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("uses distinct budgets for each token and attempt type", async () => {
+    await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "exchange" });
+    const exchangeKey = recordFailure.mock.calls[0][0][0].key;
+    expect(exchangeKey).toMatch(/^reset-exchange:[a-f0-9]{64}$/);
+    await resolvePasswordResetContext("b".repeat(43), { headers: headers(), clock, attempt: "exchange" });
+    expect(recordFailure.mock.calls[1][0][0].key).not.toBe(exchangeKey);
+    await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "submit" });
+    expect(recordFailure.mock.calls[2][0][0].key).not.toBe(exchangeKey);
+  });
+
+  it("allows a page view after the exchange budget locks", async () => {
+    checkThrottle.mockResolvedValueOnce({ locked: false }).mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock })).toEqual({
+      status: "ready",
+      account,
+    });
+  });
+
+  it("counts an invalid token against the client IP and shows the generic result", async () => {
+    validate.mockResolvedValue({ ok: false, reason: "invalid" });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock })).toEqual({
+      status: "unavailable",
+    });
+    expect(recordFailure).toHaveBeenCalledWith([expect.objectContaining({ key: "reset-ip:203.0.113.9" })], NOW);
+  });
+
+  it("skips IP accounting when no proxy header identifies the client", async () => {
+    validate.mockResolvedValue({ ok: false, reason: "invalid" });
+    await resolvePasswordResetContext(TOKEN, { headers: new Headers(), clock });
+    expect(recordFailure).toHaveBeenCalledWith([], NOW);
+  });
+
+  it("does not count transient validation failures against the IP", async () => {
+    validate.mockResolvedValue({ ok: false, reason: "retry" });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock })).toEqual({
+      status: "unavailable",
+    });
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("refuses an IP that is locked out before validating", async () => {
+    checkThrottle.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 60 });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock })).toEqual({
+      status: "unavailable",
+    });
+    expect(validate).not.toHaveBeenCalled();
+  });
+
+  it("gives the same generic result for a locked account", async () => {
+    checkThrottle
+      .mockResolvedValueOnce({ locked: false })
+      .mockResolvedValueOnce({ locked: true, retryAfterSeconds: 9 });
+    expect(await resolvePasswordResetContext(TOKEN, { headers: headers(), clock, attempt: "exchange" })).toEqual({
+      status: "unavailable",
+    });
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+});

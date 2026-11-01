@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX Design Validation: Arrivo administration</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --muted: #78716c;
+
+    --verdict-strong: #16a34a;
+    --verdict-adequate: #65a30d;
+    --verdict-thin: #d97706;
+    --verdict-broken: #dc2626;
+
+    --sev-low: #64748b;
+    --sev-medium: #ca8a04;
+    --sev-high: #ea580c;
+    --sev-critical: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .title h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .title .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .synthesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 15.5px;
+  }
+  .synthesis p { margin: 0 0 10px; }
+  .synthesis p:last-child { margin-bottom: 0; }
+
+  .dimension-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .dim-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dim-card .dim-name { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .dim-card .dim-verdict { font-size: 14px; font-weight: 600; }
+
+  section.dimension, section.reviewer-section { margin-bottom: 14px; }
+  section.dimension details, section.reviewer-section details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  section summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section summary::-webkit-details-marker { display: none; }
+  section summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  section details[open] summary::before { transform: rotate(90deg); }
+  section summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    flex: 1;
+  }
+  .verdict-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: white;
+  }
+  .verdict-strong { background: var(--verdict-strong); }
+  .verdict-adequate { background: var(--verdict-adequate); }
+  .verdict-thin { background: var(--verdict-thin); }
+  .verdict-broken { background: var(--verdict-broken); }
+
+  .dim-body { padding: 4px 20px 18px; }
+  .dim-judgment { color: var(--text); font-size: 14.5px; }
+  .dim-judgment p { margin: 0 0 10px; }
+
+  .findings-list { padding: 0 20px 4px; }
+  article.finding {
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  article.finding:first-child { border-top: none; }
+  article.finding header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .badge-sev-low { background: rgba(100, 116, 139, 0.12); color: var(--sev-low); }
+  .badge-sev-medium { background: rgba(202, 138, 4, 0.14); color: var(--sev-medium); }
+  .badge-sev-high { background: rgba(234, 88, 12, 0.14); color: var(--sev-high); }
+  .badge-sev-critical { background: rgba(220, 38, 38, 0.14); color: var(--sev-critical); }
+  .finding-title { margin: 0; font-size: 15px; font-weight: 500; flex: 1; min-width: 200px; }
+  .finding-location { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .finding-note, .finding-fix { margin-top: 6px; font-size: 14px; }
+  .finding-fix strong { color: var(--muted); font-weight: 500; }
+
+  .reviewer-source {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .mechanical {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 14px;
+  }
+  .mechanical h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mechanical ul { margin: 0; padding-left: 20px; }
+  .mechanical li { margin-bottom: 4px; color: var(--text); }
+
+  footer.report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body><div class="container">
+<header class="report-header"><div class="title"><h1>Arrivo administration — UX validation</h1><div class="subtitle">DESIGN.md + EXPERIENCE.md · 0 critical · 1 high · 7 medium · 0 low</div></div></header>
+<div class="synthesis"><p>The pair captures confirmed coaching decisions accurately and provides a usable contract for approved administration surfaces. Contract review found three bounded handoff gaps: failed-login presentation, still-open edit-batch behavior, and a committed accessible primary-action pairing. Exact CLI commands, token mechanisms, audit storage, and equal-membership-time tie handling remain architecture concerns.</p><p>Privacy/security review adds one high finding about outstanding cross-purpose recovery authorizations, plus clarification of MFA recovery-code retirement and invitation email binding. Accessibility review adds focus handoff and assisted MFA-entry requirements. Totals: 0 critical, 1 high, 7 medium, 0 low. No spines or production files were changed during validation.</p></div>
+<div class="dimension-summary"><div class="dim-card"><div class="dim-name">Flow coverage</div><div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div></div><div class="dim-card"><div class="dim-name">Token completeness</div><div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div></div><div class="dim-card"><div class="dim-name">Component coverage</div><div class="dim-verdict" style="color: var(--verdict-strong)">strong</div></div><div class="dim-card"><div class="dim-name">State coverage</div><div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div></div><div class="dim-card"><div class="dim-name">Visual reference coverage</div><div class="dim-verdict" style="color: var(--verdict-adequate)">adequate</div></div><div class="dim-card"><div class="dim-name">Bloat &amp; overspecification</div><div class="dim-verdict" style="color: var(--verdict-strong)">strong</div></div><div class="dim-card"><div class="dim-name">Inheritance discipline</div><div class="dim-verdict" style="color: var(--verdict-strong)">strong</div></div><div class="dim-card"><div class="dim-name">Shape fit</div><div class="dim-verdict" style="color: var(--verdict-strong)">strong</div></div></div>
+<section class="dimension"><details><summary><h2>Flow coverage</h2><span class="verdict-pill verdict-adequate">adequate</span></summary><div class="dim-body"><div class="dim-judgment"><p>All seven original scope headings and subsequent decisions map to eight named journeys. Failed-login presentation needs explicit action/fallback actor and destination filter.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">R-1 — Failed-login destination is underspecified</h3><span class="finding-location">EXPERIENCE.md — Activity Rules; Flows 7–8</span></header><div class="finding-note">Overview promises failed logins and links to Activity, but Activity names login/logout without an explicit failed-sign-in action or safe actor label for unattributed attempts.</div><div class="finding-fix"><strong>Fix:</strong> Name failed-sign-in events, define a safe fallback actor label, and make Overview links land on corresponding Activity action filter. Keep this within user activity, without sensitive diagnostic fields.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Token completeness</h2><span class="verdict-pill verdict-adequate">adequate</span></summary><div class="dim-body"><div class="dim-judgment"><p>YAML, source paths, token references, and inherited aliases resolve. UI-system inheritance permits CSS aliases. Accessible primary-action pairing remains a finalization task.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">R-2 — Accessible primary-action pairing remains unresolved</h3><span class="finding-location">DESIGN.md — Colors; action-button</span></header><div class="finding-note">Inherited light primary/foreground pairing measures 4.18:1, below stated 4.5:1 normal-text target. Draft acknowledges remediation, but has not committed a usable accessible variant. Accessibility reviewer treats this as known implementation-acceptance work rather than an additional finding.</div><div class="finding-fix"><strong>Fix:</strong> Before visual finalization, name accessible primary-action variant/token pairing and verify both themes while retaining existing visual language.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Component coverage</h2><span class="verdict-pill verdict-strong">strong</span></summary><div class="dim-body"><div class="dim-judgment"><p>All thirteen named components have matching visual and behavioral contracts.</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details><summary><h2>State coverage</h2><span class="verdict-pill verdict-adequate">adequate</span></summary><div class="dim-body"><div class="dim-judgment"><p>All fourteen IA surfaces have state coverage. Active edit-batch visibility, refresh/order, and date-filter semantics need definition.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">R-3 — Active edit batches lack visible and filtering behavior</h3><span class="finding-location">EXPERIENCE.md — Activity Rules; Activity state</span></header><div class="finding-note">Ten-minute sliding grouping and time range are defined, but first visibility, updates while Activity is open, ordering, and date-filter behavior for batches crossing a date boundary are not. Long editing sessions could disappear from recent history or move unpredictably between pages.</div><div class="finding-fix"><strong>Fix:</strong> Specify when first summary appears, how end time/order refreshes, and which timestamp or interval controls date filtering. Preserve summary-only rows and ten-minute grouping; storage remains architecture-owned.</div></article></div></details></section>
+<section class="dimension"><details><summary><h2>Visual reference coverage</h2><span class="verdict-pill verdict-adequate">adequate</span></summary><div class="dim-body"><div class="dim-judgment"><p>No orphan artifacts or broken visual links. All surfaces are explicitly spine-only; coverage confirmation and settings-entry placement remain acknowledged finalization work.</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details><summary><h2>Bloat &amp; overspecification</h2><span class="verdict-pill verdict-strong">strong</span></summary><div class="dim-body"><div class="dim-judgment"><p>Lifecycle and Activity rules are centralized; journeys and state tables serve distinct lookup needs. Architecture mechanisms remain appropriately deferred.</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details><summary><h2>Inheritance discipline</h2><span class="verdict-pill verdict-strong">strong</span></summary><div class="dim-body"><div class="dim-judgment"><p>Source paths and token references resolve. Canonical coaching log explicitly supplies subsequent overrides; domain and component names stay consistent.</p></div></div><div class="findings-list"></div></details></section>
+<section class="dimension"><details><summary><h2>Shape fit</h2><span class="verdict-pill verdict-strong">strong</span></summary><div class="dim-body"><div class="dim-judgment"><p>Canonical DESIGN order and required EXPERIENCE sections are present, with justified responsive and product-specific sections. Draft status is appropriate.</p></div></div><div class="findings-list"></div></details></section>
+<section class="reviewer-section"><details><summary><h2>Accessibility review</h2><span class="reviewer-source"><a href="review-accessibility.md">review-accessibility.md</a></span></summary><div class="dim-body"><div class="dim-judgment"><p>Adequate overall; authentication assistance is thin. Strong keyboard/target foundation, with two missing transition/assistance contracts. Static inherited light primary contrast is 4.18:1; draft already calls for remediation. Review is of contract, not rendered conformance.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">A11Y-01 — One-time link result has no focus handoff</h3><span class="finding-location">EXPERIENCE.md — link-result transition; share-link; Interaction Primitives</span></header><div class="finding-note">Creation result replaces form inside existing dialog. Focused submit control can disappear, leaving keyboard or screen-reader user without useful focus near the only copyable URL.</div><div class="finding-fix"><strong>Fix:</strong> Move focus to stable result heading/landmark, identify recipient and expiry, then order URL and Copy link logically. Keep focus on Copy link after copying; retain manual selection fallback and dialog-close focus restoration.</div></article><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">A11Y-02 — Accessible replacement-MFA setup is implicit</h3><span class="finding-location">EXPERIENCE.md — recovery-form; Flow 6; Accessibility Floor</span></header><div class="finding-note">New recovery requires replacement MFA but does not expressly inherit existing selectable manual setup key, Copy key fallback, paste/autofill, and password-manager support. QR-only setup or forced transcription could exclude one-device and assistive-technology users.</div><div class="finding-fix"><strong>Fix:</strong> Explicitly reuse QR plus selectable manual setup key, accessible copy/failure handling, whole-code paste and one-time-code autofill, password-manager filling, and associated verification errors without discarding setup context.</div></article></div></details></section>
+<section class="reviewer-section"><details><summary><h2>Privacy and security review</h2><span class="reviewer-source"><a href="review-privacy-security.md">review-privacy-security.md</a></span></summary><div class="dim-body"><div class="dim-judgment"><p>Authority/private-trip boundaries, deletion, and audit are strong; invitations adequate; recovery completion thin. Earlier recovery authority can remain live unless cross-purpose invalidation is explicitly defined. Exact token enforcement is architecture-owned; outcome policy needs resolution.</p></div></div><div class="findings-list"><article class="finding"><header><span class="badge badge-sev-high">high</span><h3 class="finding-title">PS-1 — Outstanding links of another purpose may survive recovery</h3><span class="finding-location">EXPERIENCE.md — Link Lifecycles; Flow 6</span></header><div class="finding-note">Replacement invalidation is defined by link purpose. Completion revokes sessions and trusted devices, but does not explicitly retire outstanding reset and CLI recovery links of another purpose. An earlier CLI link could still replace password and MFA after ordinary reset, or an earlier reset link could change password after CLI recovery.</div><div class="finding-fix"><strong>Fix:</strong> User decision: define whether completing either flow invalidates all outstanding reset/recovery authorizations for that account, including already-open unfinished flows. Architecture chooses enforcement.</div></article><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">PS-2 — Old MFA recovery codes are not explicitly retired</h3><span class="finding-location">EXPERIENCE.md — recovery-form; Link Lifecycles; Flow 6</span></header><div class="finding-note">Replacing MFA does not explicitly address existing alternate MFA recovery codes or handoff of replacements. Existing Arrivo enrollment already rotates these codes; this is distinct from deferred emergency recovery-code features.</div><div class="finding-fix"><strong>Fix:</strong> Explicitly inherit confirmed-enrollment behavior: retire previous codes at successful CLI recovery, issue replacement codes through existing one-time presentation, and define handoff before fresh sign-in. Preserve all-or-nothing recovery.</div></article><article class="finding"><header><span class="badge badge-sev-medium">medium</span><h3 class="finding-title">PS-3 — Invitation email binding is implicit in signup contract</h3><span class="finding-location">EXPERIENCE.md — registration-form; Link Lifecycles; Flow 2</span></header><div class="finding-note">Username is expressly fixed, but invitation email is not equally explicit. Reusing editable email from existing signup could allow acceptance under a different email, weakening admin-selected identity and email-specific replacement checks.</div><div class="finding-fix"><strong>Fix:</strong> Display invitation email read-only or as fixed context; create account for that email and reject submitted replacement. This clarifies recipient binding without adding a separate proof-of-email requirement.</div></article></div></details></section>
+<div class="mechanical"><h3>Mechanical notes and limits</h3><ul><li>Source links, YAML, token references, inherited color aliases, thirteen-component parity, and canonical section order checked.</li><li>All fourteen surfaces map to states; eight illustrative journeys cover approved scope.</li><li>No live browser, assistive-technology, or rendered UI audit was performed. Static contrast measurements are limited to named current token pairings.</li><li>No visual artifacts exist; settings-entry placement and visual-reference coverage confirmation remain pending.</li><li>Reviewer findings are retained by lens. Primary contrast is counted once under Contract; Accessibility explicitly acknowledged the same existing limitation without duplicating it.</li><li>Reviewer files preserve original citations/line references to reviewed drafts. Review findings are proposals/clarifications, not new approved policy.</li></ul><p>Authentication-assistance reference: <a href="https://www.w3.org/WAI/WCAG22/Understanding/accessible-authentication-minimum.html">W3C Accessible Authentication</a>.</p></div>
+<footer class="report-footer"><div class="meta"><span>Spines: <a href="DESIGN.md">DESIGN.md</a> · <a href="EXPERIENCE.md">EXPERIENCE.md</a></span><span>Rubric: <a href="review-rubric.md">review-rubric.md</a></span><span>Generated: 2026-10-23T22:32:25Z</span></div><p>Companion: <a href="validation-report.md">Markdown report</a>. Drafts remain unchanged; findings await UX update.</p></footer>
+</div></body></html>

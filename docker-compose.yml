@@ -29,8 +29,6 @@ services:
       # Owner of ./data/storage on the host. Run `id` on the host to see yours; many NAS systems don't use 1000.
       PUID: 1000
       PGID: 1000
-      # Set to "false" once everyone has an account.
-      ALLOW_SIGNUP: "true"
       # Optional. Public (pk.) Mapbox token for place search, routes and maps.
       MAPBOX_ACCESS_TOKEN: ""
       # Optional. Separate URL-restricted token for browsers only; blank reuses the one above.

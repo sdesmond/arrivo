@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { randomBytes } from "node:crypto";
+import { redirect } from "next/navigation";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decryptField, isEncryptedField } from "@/lib/field-encryption";
 
@@ -36,6 +37,8 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/db/schema", () => ({
   users: { tableName: "users" },
+  credentialAuthorizations: {},
+  trustedDevices: {},
   collaborators: { tableName: "collaborators" },
   trips: { tableName: "trips" },
   documents: { tableName: "documents" },
@@ -76,16 +79,25 @@ vi.mock("@/lib/invitations", () => ({
   publishInvitationChanged: mockPublishInvitationChanged,
 }));
 
-const { mockSignOut, mockSelectWhere, mockCheckThrottle, mockRecordFailure, mockClearFailures, mockBump } = vi.hoisted(
-  () => ({
-    mockSignOut: vi.fn(),
-    mockSelectWhere: vi.fn(),
-    mockCheckThrottle: vi.fn(),
-    mockRecordFailure: vi.fn(),
-    mockClearFailures: vi.fn(),
-    mockBump: vi.fn(),
-  })
-);
+const {
+  mockSignOut,
+  mockSelectWhere,
+  mockCheckThrottle,
+  mockRecordFailure,
+  mockClearFailures,
+  mockBump,
+  mockLockVersion,
+  mockSecurityExecute,
+} = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+  mockSelectWhere: vi.fn(),
+  mockCheckThrottle: vi.fn(),
+  mockRecordFailure: vi.fn(),
+  mockClearFailures: vi.fn(),
+  mockBump: vi.fn(),
+  mockLockVersion: vi.fn(),
+  mockSecurityExecute: vi.fn(),
+}));
 
 vi.mock("@/auth", () => ({
   signOut: mockSignOut,
@@ -102,12 +114,30 @@ vi.mock("@/lib/auth-throttle", async (importOriginal) => ({
   clearFailures: mockClearFailures,
 }));
 
-vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump }));
+vi.mock("@/lib/session-version", () => ({ bumpSessionVersion: mockBump, lockCurrentSecurityVersion: mockLockVersion }));
+
+const { mockRecordActivity, mockAfter } = vi.hoisted(() => ({ mockRecordActivity: vi.fn(), mockAfter: vi.fn() }));
+vi.mock("@/lib/activity", () => ({ recordActivity: mockRecordActivity }));
+vi.mock("next/server", () => ({ after: mockAfter }));
+
+// Runs a test against the real recorder with scheduling broken, proving a failed event cannot change the outcome.
+async function breakRealRecorderScheduling() {
+  const actual = await vi.importActual<typeof import("@/lib/activity")>("@/lib/activity");
+  mockRecordActivity.mockImplementation(actual.recordActivity);
+  mockAfter.mockImplementation(() => {
+    throw new Error("outside request scope");
+  });
+  return vi.spyOn(console, "error").mockImplementation(() => undefined);
+}
+
+const { mockDeleteOwnAccount } = vi.hoisted(() => ({ mockDeleteOwnAccount: vi.fn() }));
+vi.mock("@/lib/account-deletion", () => ({ deleteOwnAccount: mockDeleteOwnAccount }));
 
 import bcrypt from "bcryptjs";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { changePassword, deleteAccount } from "./actions";
-import { collaborators, documents, invitations, trips, users } from "@/db/schema";
-import { CollaboratorRole, InvitationStatus, LiveSyncEventType, TripDeletionAction } from "@/data/types";
+import { AccountDeletionFailure, LiveSyncEventType, TripDeletionAction } from "@/data/types";
+import type { DeletedAccountSummary } from "@/data/types";
 import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
 
 interface RecordedInsert {
@@ -136,9 +166,29 @@ function createTransactionMock(selectResults: unknown[][]) {
   return { recordedInserts, transaction };
 }
 
+// A transaction whose locked read sees `currentUsername` (undefined = row unreadable).
+function usernameTransaction(currentUsername: string | undefined) {
+  const transactionWhere = vi.fn().mockResolvedValue(undefined);
+  const transactionSet = vi.fn(() => ({ where: transactionWhere }));
+  const transaction = {
+    execute: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+    select: vi.fn(() => ({
+      from: () => ({ where: async () => (currentUsername === undefined ? [] : [{ username: currentUsername }]) }),
+    })),
+    update: vi.fn(() => ({ set: transactionSet })),
+  };
+  mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+    callback(transaction)
+  );
+  return { transaction, transactionSet, transactionWhere };
+}
+
 describe("updateProfile — server-side validation (AC10)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
+    mockTransaction.mockReset();
     mockUpdate.mockReturnValue({ set: mockSet });
     mockSet.mockReturnValue({ where: mockWhere });
     mockWhere.mockResolvedValue(undefined);
@@ -167,9 +217,10 @@ describe("updateProfile — server-side validation (AC10)", () => {
   });
 
   it("normalizes and writes a valid username", async () => {
+    const { transactionSet } = usernameTransaction("old.name");
     const result = await updateProfile({ username: "  Alice.W " });
     expect(result).toEqual({});
-    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ username: "alice.w" }));
+    expect(transactionSet).toHaveBeenCalledWith(expect.objectContaining({ username: "alice.w" }));
   });
 
   it("returns the validation error for an invalid username without writing", async () => {
@@ -178,10 +229,62 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it("reports a taken username", async () => {
-    mockWhere.mockRejectedValueOnce(new Error("Failed query", { cause: { code: "23505" } }));
+  it("reports a taken username and records nothing", async () => {
+    const { transactionWhere } = usernameTransaction("old.name");
+    transactionWhere.mockRejectedValueOnce(new Error("Failed query", { cause: { code: "23505" } }));
     const result = await updateProfile({ username: "bob" });
     expect(result).toEqual({ error: "That username is taken." });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records one username_changed event with the old username and stable ID, after the row changed", async () => {
+    const { transactionSet, transactionWhere, transaction } = usernameTransaction("old.name");
+    await expect(updateProfile({ username: "New.Name" })).resolves.toEqual({});
+
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "username_changed",
+      actor: { id: "user-1", username: "old.name" },
+    });
+    expect(transactionSet).toHaveBeenCalledWith(expect.objectContaining({ username: "new.name" }));
+    // The new value is never stored in the event.
+    expect(JSON.stringify(mockRecordActivity.mock.calls)).not.toContain("new.name");
+    expect(transactionWhere.mock.invocationCallOrder[0]).toBeLessThan(mockRecordActivity.mock.invocationCallOrder[0]);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+  });
+
+  it("records nothing when the normalized username did not change", async () => {
+    usernameTransaction("alice.w");
+    await expect(updateProfile({ username: "  Alice.W " })).resolves.toEqual({});
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the row cannot be read under the lock", async () => {
+    usernameTransaction(undefined);
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({});
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing and reports an error when the transaction rolls back", async () => {
+    mockTransaction.mockRejectedValue(new Error("deadlock"));
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({ error: "Something went wrong." });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("records nothing for an unrelated profile edit, without opening a transaction", async () => {
+    await updateProfile({ name: "Alice", currency: "EUR" });
+    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    usernameTransaction("old.name");
+    await expect(updateProfile({ username: "new.name" })).resolves.toEqual({});
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/profile");
+    log.mockRestore();
   });
 
   it("leaves the username alone when the patch omits it", async () => {
@@ -571,22 +674,110 @@ describe("profile action transactions", () => {
 describe("changePassword — throttling and session revocation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
+    mockBump.mockReset();
     mockUpdate.mockReturnValue({ set: mockSet });
     mockSet.mockReturnValue({ where: mockWhere });
-    mockWhere.mockResolvedValue(undefined);
+    mockWhere.mockReturnValue({ returning: mockReturning });
+    mockReturning.mockResolvedValue([{ username: "alice" }]);
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockSelectWhere.mockResolvedValue([{ passwordHash: "hash" }]);
     mockCheckThrottle.mockResolvedValue({ locked: false });
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
+    mockLockVersion.mockResolvedValue(true);
+    mockRequireUser.mockResolvedValue({ id: "user-1", sessionVersion: 2 });
+    mockTransaction.mockImplementation(async (callback) =>
+      callback({
+        select: () => ({ from: () => ({ where: mockSelectWhere }) }),
+        update: mockUpdate,
+        execute: mockSecurityExecute.mockResolvedValue([]),
+      })
+    );
+  });
+
+  it("rejects a session revoked while the action waited for its account lock", async () => {
+    mockLockVersion.mockResolvedValue(false);
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Session expired. Sign in again.",
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 
   it("updates the hash, signs out every device and sends the user to sign in again", async () => {
     await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({});
-    expect(mockSet).toHaveBeenCalledWith({ passwordHash: "new-hash" });
-    expect(mockBump).toHaveBeenCalledWith("user-1");
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ passwordHash: "new-hash", totpPendingSecret: null })
+    );
+    expect(mockSecurityExecute).toHaveBeenCalledTimes(2);
     expect(mockClearFailures).toHaveBeenCalledWith([expect.objectContaining({ key: "pwchange:user-1" })]);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
+  });
+
+  it("records one password_changed event with the current username after revocation, before sign-out", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "password_changed",
+      actor: { id: "user-1", username: "alice" },
+    });
+    expect(JSON.stringify(mockRecordActivity.mock.calls)).not.toMatch(/hash|new-password/i);
+    const [recorded] = mockRecordActivity.mock.invocationCallOrder;
+    expect(mockSecurityExecute.mock.invocationCallOrder[1]).toBeLessThan(recorded);
+    expect(recorded).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+  });
+
+  it("emits no separate logout event for the implied sign-out", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["password_changed"]);
+  });
+
+  it("refuses a new password one character under the shared minimum and accepts one at it", async () => {
+    await expect(
+      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH - 1) })
+    ).resolves.toEqual({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
+    expect(mockSet).not.toHaveBeenCalled();
+
+    await expect(
+      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH) })
+    ).resolves.toEqual({});
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ passwordHash: "new-hash" }));
+  });
+
+  it("records nothing when the new password is refused, the current one is wrong, or the account is locked", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "short" });
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+    await changePassword({ currentPassword: "bad", newPassword: "new-password" });
+    mockCheckThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    mockCheckThrottle.mockResolvedValue({ locked: false });
+    mockSelectWhere.mockResolvedValue([{ passwordHash: null }]);
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when revoking sessions fails", async () => {
+    mockSecurityExecute.mockRejectedValueOnce(new Error("db down"));
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
+      error: "Something went wrong.",
+    });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records nothing when the update returned no row to name", async () => {
+    mockReturning.mockResolvedValue([]);
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockRecordActivity).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({});
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?notice=password-changed" });
+    log.mockRestore();
   });
 
   it("records a failure when the current password is wrong", async () => {
@@ -607,138 +798,100 @@ describe("changePassword — throttling and session revocation", () => {
   });
 
   it("does not revoke sessions when the update fails", async () => {
-    mockWhere.mockRejectedValueOnce(new Error("db down"));
+    mockReturning.mockRejectedValueOnce(new Error("db down"));
     await expect(changePassword({ currentPassword: "old", newPassword: "new-password" })).resolves.toEqual({
       error: "Something went wrong.",
     });
     expect(mockBump).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRecordActivity).not.toHaveBeenCalled();
   });
 });
 
-interface RecordedStatement {
-  op: "update" | "delete";
-  table: unknown;
-  set?: unknown;
-  where: unknown;
-}
+const SUMMARY: DeletedAccountSummary = {
+  rescindedInvitations: [{ inviteeId: "user-grace", tripId: "trip-shared" }],
+  transferredTrips: [["trip-transferred", "user-ada"]],
+  deletedTripIds: ["trip-solo"],
+  deletedTripMembers: [{ tripId: "trip-solo", userId: "user-bo" }],
+  remainingTripIds: ["trip-transferred", "trip-transferred"],
+  storageUrls: ["/api/storage/docs/ticket.pdf", "/api/storage/covers/porto.jpg"],
+  account: { id: "user-1", username: "alice" },
+};
 
-interface DeletionFixture {
-  ownedTrips?: { id: string; name: string; coverImageUrl: string | null }[];
-  members?: {
-    id: string;
-    tripId: string;
-    userId: string | null;
-    name: string;
-    role: string;
-    addedAt: Date | null;
-  }[];
-  tripDocuments?: { url: string | null }[];
-  rescindedInvitations?: { inviteeId: string; tripId: string }[];
-  departedMemberships?: { tripId: string }[];
-}
-
-// Records every write in order and answers selects/returning() by table, so a test can assert both
-// what a statement changed and that it ran before another one.
-function createDeletionTransactionMock(fixture: DeletionFixture) {
-  const statements: RecordedStatement[] = [];
-  const selectResults = new Map<unknown, unknown[]>([
-    [trips, fixture.ownedTrips ?? []],
-    [collaborators, fixture.members ?? []],
-    [documents, fixture.tripDocuments ?? []],
-  ]);
-  const returningResults = new Map<unknown, unknown[]>([
-    [invitations, fixture.rescindedInvitations ?? []],
-    [collaborators, fixture.departedMemberships ?? []],
-  ]);
-
-  function recordWhere(statement: Omit<RecordedStatement, "where">) {
-    return vi.fn((where: unknown) => {
-      statements.push({ ...statement, where });
-      return Object.assign(Promise.resolve(undefined), {
-        returning: vi.fn(async () => returningResults.get(statement.table) ?? []),
-      });
-    });
-  }
-
-  const transaction = {
-    execute: vi.fn().mockResolvedValue([{ id: "locked" }]),
-    select: vi.fn(() => ({
-      from: vi.fn((table: unknown) => ({
-        where: vi.fn(async () => selectResults.get(table) ?? []),
-      })),
-    })),
-    update: vi.fn((table: unknown) => ({
-      set: vi.fn((set: unknown) => ({ where: recordWhere({ op: "update", table, set }) })),
-    })),
-    delete: vi.fn((table: unknown) => ({ where: recordWhere({ op: "delete", table }) })),
-  };
-
-  mockTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
-    callback(transaction)
-  );
-
-  return { statements, transaction };
-}
-
-const SOLO_TRIP = { id: "trip-solo", name: "Weekend in Porto", coverImageUrl: "/api/storage/covers/porto.jpg" };
-const SHARED_TRIP = { id: "trip-shared", name: "Lisbon Escape", coverImageUrl: null };
-const SHARED_TRIP_MEMBERS = [
-  {
-    id: "collab-me",
-    tripId: SHARED_TRIP.id,
-    userId: "user-1",
-    name: "Me",
-    role: CollaboratorRole.Manager,
-    addedAt: new Date("2026-01-01T00:00:00.000Z"),
-  },
-  {
-    id: "collab-bo",
-    tripId: SHARED_TRIP.id,
-    userId: "user-bo",
-    name: "Bo",
-    role: CollaboratorRole.Editor,
-    addedAt: new Date("2026-02-01T00:00:00.000Z"),
-  },
-  {
-    id: "collab-ada",
-    tripId: SHARED_TRIP.id,
-    userId: "user-ada",
-    name: "Ada",
-    role: CollaboratorRole.Viewer,
-    addedAt: new Date("2026-03-01T00:00:00.000Z"),
-  },
-];
-
-describe("deleteAccount — shared trip handoff", () => {
+describe("deleteAccount — adapter around deleteOwnAccount", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockRecordActivity.mockReset();
+    mockAfter.mockReset();
+    mockRequireUser.mockResolvedValue({ id: "user-1", sessionVersion: 7 });
     mockStorageDel.mockResolvedValue(undefined);
+    mockDeleteOwnAccount.mockResolvedValue({ ok: true, summary: SUMMARY });
   });
 
-  it("deletes a trip only the user is on and cleans up its files after commit", async () => {
-    const { statements } = createDeletionTransactionMock({
-      ownedTrips: [SOLO_TRIP],
-      members: [{ ...SHARED_TRIP_MEMBERS[0], tripId: SOLO_TRIP.id }],
-      tripDocuments: [{ url: "/api/storage/docs/ticket.pdf" }, { url: null }],
+  it("deletes for the signed-in user with the given choices", async () => {
+    const choices = [{ tripId: "trip-transferred", action: TripDeletionAction.Delete }] as const;
+
+    await expect(deleteAccount([...choices])).resolves.toEqual({ status: "success" });
+
+    expect(mockDeleteOwnAccount).toHaveBeenCalledWith(expect.anything(), "user-1", choices, 7);
+  });
+
+  it("publishes events, cleans up files and signs out only after the deletion commits", async () => {
+    await deleteAccount([]);
+
+    expect(mockPublishInvitationChanged).toHaveBeenCalledWith("user-grace", "trip-shared");
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-solo", {
+      type: LiveSyncEventType.TripDeleted,
+      tripId: "trip-solo",
     });
-
-    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
-
-    expect(statements).toContainEqual({ op: "delete", table: trips, where: ["inArray", [SOLO_TRIP.id]] });
+    expect(mockPublishUserEvent).toHaveBeenCalledWith("user-bo", {
+      type: LiveSyncEventType.TripDeleted,
+      tripId: "trip-solo",
+    });
+    expect(mockPurgeTripTopic).toHaveBeenCalledWith("trip-solo");
+    // Duplicate memberships on one trip produce a single notification.
+    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-transferred", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-transferred",
+    });
+    expect(
+      mockPublishTripEvent.mock.calls.filter(([, event]) => event.type === LiveSyncEventType.MembershipChanged)
+    ).toHaveLength(1);
+    expect(mockPublishUserEvent).toHaveBeenCalledWith("user-ada", {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId: "trip-transferred",
+    });
     expect(mockStorageDel).toHaveBeenCalledTimes(2);
     expect(mockStorageDel).toHaveBeenCalledWith("/api/storage/docs/ticket.pdf");
-    expect(mockStorageDel).toHaveBeenCalledWith(SOLO_TRIP.coverImageUrl);
-    expect(mockPublishTripEvent).toHaveBeenCalledWith(SOLO_TRIP.id, {
-      type: LiveSyncEventType.TripDeleted,
-      tripId: SOLO_TRIP.id,
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    expect(mockSignOut.mock.invocationCallOrder[0]).toBeGreaterThan(mockDeleteOwnAccount.mock.invocationCallOrder[0]);
+  });
+
+  it("records one account_deleted event with the captured identity, before cleanup and sign-out", async () => {
+    await deleteAccount([]);
+    expect(mockRecordActivity).toHaveBeenCalledTimes(1);
+    expect(mockRecordActivity).toHaveBeenCalledWith({
+      type: "account_deleted",
+      actor: { id: "user-1", username: "alice" },
     });
-    expect(mockPurgeTripTopic).toHaveBeenCalledWith(SOLO_TRIP.id);
+    const [recorded] = mockRecordActivity.mock.invocationCallOrder;
+    expect(mockDeleteOwnAccount.mock.invocationCallOrder[0]).toBeLessThan(recorded);
+    expect(recorded).toBeLessThan(mockStorageDel.mock.invocationCallOrder[0]);
+    expect(recorded).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+    // No implicit logout event for the deletion's sign-out.
+    expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["account_deleted"]);
+  });
+
+  it("keeps the outcome when the real recorder cannot schedule its write", async () => {
+    const log = await breakRealRecorderScheduling();
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+    expect(mockStorageDel).toHaveBeenCalledTimes(2);
+    expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+    log.mockRestore();
   });
 
   it("does not fail the deletion when a file cleanup rejects", async () => {
-    createDeletionTransactionMock({ ownedTrips: [SOLO_TRIP], tripDocuments: [{ url: "/api/storage/docs/a.pdf" }] });
     mockStorageDel.mockRejectedValue(new Error("disk gone"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -748,141 +901,73 @@ describe("deleteAccount — shared trip handoff", () => {
     warn.mockRestore();
   });
 
-  it("hands a shared trip to the chosen collaborator, promoting them to manager and creator", async () => {
-    const { statements, transaction } = createDeletionTransactionMock({
-      ownedTrips: [SHARED_TRIP],
-      members: SHARED_TRIP_MEMBERS,
-      departedMemberships: [{ tripId: SHARED_TRIP.id }],
+  it("keeps the committed deletion and signs out when a notification throws", async () => {
+    mockPublishTripEvent.mockImplementation(() => {
+      throw new Error("bus down");
     });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(
-      deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-ada" }])
-    ).resolves.toEqual({ status: "success" });
+    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
 
-    // One lock for the user row, one for the owned trip.
-    expect(transaction.execute).toHaveBeenCalledTimes(2);
-    expect(statements).toContainEqual({
-      op: "update",
-      table: trips,
-      set: { ownerId: "user-ada" },
-      where: ["eq", SHARED_TRIP.id],
-    });
-    expect(statements).toContainEqual({
-      op: "update",
-      table: collaborators,
-      set: { role: CollaboratorRole.Manager, isCreator: true },
-      where: ["and", ["eq", SHARED_TRIP.id], ["eq", "user-ada"]],
-    });
-    expect(statements.some((statement) => statement.op === "delete" && statement.table === trips)).toBe(false);
-    expect(mockStorageDel).not.toHaveBeenCalled();
-    expect(mockPublishTripEvent).toHaveBeenCalledWith(SHARED_TRIP.id, {
-      type: LiveSyncEventType.MembershipChanged,
-      tripId: SHARED_TRIP.id,
-    });
-    // The new owner's other sessions (e.g. their dashboard) only listen on their personal channel.
-    expect(mockPublishUserEvent).toHaveBeenCalledWith("user-ada", {
-      type: LiveSyncEventType.MembershipChanged,
-      tripId: SHARED_TRIP.id,
-    });
-  });
-
-  it("deletes a shared trip on purpose and tells its other members", async () => {
-    const { statements } = createDeletionTransactionMock({
-      ownedTrips: [SHARED_TRIP],
-      members: SHARED_TRIP_MEMBERS,
-      tripDocuments: [{ url: "/api/storage/docs/lisbon.pdf" }],
-    });
-
-    await expect(deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Delete }])).resolves.toEqual({
-      status: "success",
-    });
-
-    expect(statements).toContainEqual({ op: "delete", table: trips, where: ["inArray", [SHARED_TRIP.id]] });
-    expect(mockStorageDel).toHaveBeenCalledWith("/api/storage/docs/lisbon.pdf");
-    for (const userId of ["user-bo", "user-ada"]) {
-      expect(mockPublishUserEvent).toHaveBeenCalledWith(userId, {
-        type: LiveSyncEventType.TripDeleted,
-        tripId: SHARED_TRIP.id,
-      });
-    }
-    expect(mockPublishUserEvent).not.toHaveBeenCalledWith("user-1", expect.anything());
-  });
-
-  it("removes the user's collaborator rows, then the user, before signing out", async () => {
-    const { statements } = createDeletionTransactionMock({});
-
-    await deleteAccount([]);
-
-    const writes = statements.map((statement) => [statement.op, statement.table, statement.where]);
-    expect(writes.slice(-2)).toEqual([
-      ["delete", collaborators, ["eq", "user-1"]],
-      ["delete", users, ["eq", "user-1"]],
-    ]);
+    expect(mockStorageDel).toHaveBeenCalledTimes(2);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
-    expect(mockSignOut.mock.invocationCallOrder[0]).toBeGreaterThan(mockTransaction.mock.invocationCallOrder[0]);
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
+    warn.mockRestore();
+    mockPublishTripEvent.mockReset();
   });
 
-  it("cancels the user's pending invitations before ownership moves, then notifies invitees", async () => {
-    const { statements } = createDeletionTransactionMock({
-      ownedTrips: [SHARED_TRIP],
-      members: SHARED_TRIP_MEMBERS,
-      rescindedInvitations: [{ inviteeId: "user-grace", tripId: SHARED_TRIP.id }],
+  it("redirects revoked authentication before success effects", async () => {
+    mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Unauthorized });
+    vi.mocked(redirect).mockImplementationOnce(() => {
+      throw new Error("NEXT_REDIRECT");
     });
-
-    await deleteAccount([{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" }]);
-
-    const rescindIndex = statements.findIndex((statement) => statement.table === invitations);
-    const transferIndex = statements.findIndex((statement) => statement.op === "update" && statement.table === trips);
-    expect(statements[rescindIndex]).toEqual({
-      op: "update",
-      table: invitations,
-      set: { status: InvitationStatus.Rescinded },
-      where: ["and", ["eq", "user-1"], ["eq", InvitationStatus.Pending]],
-    });
-    expect(rescindIndex).toBeGreaterThanOrEqual(0);
-    expect(rescindIndex).toBeLessThan(transferIndex);
-    expect(mockPublishInvitationChanged).toHaveBeenCalledWith("user-grace", SHARED_TRIP.id);
+    await expect(deleteAccount([])).rejects.toThrow("NEXT_REDIRECT");
+    expectNoSideEffects();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
+  it("returns stale without side effects when the choices changed", async () => {
+    mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Stale });
 
-  it.each([
-    ["no decision for a shared trip", []],
-    [
-      "a transfer to someone not on the trip",
-      [{ tripId: SHARED_TRIP.id, action: TripDeletionAction.Transfer, newOwnerUserId: "user-stranger" }],
-    ],
-  ])("returns stale and changes nothing when the choices have %s", async (_label, choices) => {
-    const { statements } = createDeletionTransactionMock({ ownedTrips: [SHARED_TRIP], members: SHARED_TRIP_MEMBERS });
-
-    await expect(deleteAccount(choices as Parameters<typeof deleteAccount>[0])).resolves.toEqual({
+    await expect(deleteAccount([])).resolves.toEqual({
       status: "error",
       message: "Your shared trips changed. Review them and try again.",
       stale: true,
     });
 
-    expect(statements).toEqual([]);
-    expect(mockSignOut).not.toHaveBeenCalled();
-    expect(mockStorageDel).not.toHaveBeenCalled();
+    expectNoSideEffects();
   });
 
-  it("returns stale for a malformed choices payload", async () => {
-    createDeletionTransactionMock({});
+  it("explains the refusal, without stale, when the user is the last completed admin", async () => {
+    mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.LastAdmin });
 
+    await expect(deleteAccount([])).resolves.toEqual({
+      status: "error",
+      message: "You're the only admin with a finished account. Make another account an admin before deleting yours.",
+    });
+
+    expectNoSideEffects();
+  });
+
+  it("returns stale for a malformed choices payload without deleting", async () => {
     await expect(deleteAccount("everything" as unknown as Parameters<typeof deleteAccount>[0])).resolves.toEqual(
       expect.objectContaining({ stale: true })
     );
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
   });
 
-  it("skips cleanup, notifications and sign-out when the transaction fails", async () => {
-    createDeletionTransactionMock({ ownedTrips: [SOLO_TRIP], tripDocuments: [{ url: "/api/storage/docs/a.pdf" }] });
-    mockTransaction.mockRejectedValueOnce(new Error("db down"));
+  it("skips cleanup, notifications and sign-out when the deletion fails", async () => {
+    mockDeleteOwnAccount.mockRejectedValue(new Error("db down"));
 
     await expect(deleteAccount([])).rejects.toThrow("db down");
 
-    expect(mockStorageDel).not.toHaveBeenCalled();
-    expect(mockPublishTripEvent).not.toHaveBeenCalled();
-    expect(mockPublishInvitationChanged).not.toHaveBeenCalled();
-    expect(mockSignOut).not.toHaveBeenCalled();
+    expectNoSideEffects();
   });
 });
+
+function expectNoSideEffects() {
+  expect(mockStorageDel).not.toHaveBeenCalled();
+  expect(mockPublishTripEvent).not.toHaveBeenCalled();
+  expect(mockPublishUserEvent).not.toHaveBeenCalled();
+  expect(mockPublishInvitationChanged).not.toHaveBeenCalled();
+  expect(mockSignOut).not.toHaveBeenCalled();
+  expect(mockRecordActivity).not.toHaveBeenCalled();
+}

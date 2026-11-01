@@ -1,6 +1,30 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { browserUrl, isHttpsRequest } from "./request-origin";
+import { browserUrl, isHttpsRequest, trustedLinkOrigin } from "./request-origin";
+
+describe("trustedLinkOrigin", () => {
+  it("returns the origin of NEXTAUTH_URL, dropping any path", () => {
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "https://arrivo.example.com/base/path?x=1" })).toBe(
+      "https://arrivo.example.com"
+    );
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "http://192.168.1.50:4850/" })).toBe("http://192.168.1.50:4850");
+  });
+  it("prefers NEXTAUTH_URL, then AUTH_URL, skipping unusable values", () => {
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "https://a.example", AUTH_URL: "https://b.example" })).toBe(
+      "https://a.example"
+    );
+    expect(trustedLinkOrigin({ AUTH_URL: "https://b.example" })).toBe("https://b.example");
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "not a url", AUTH_URL: "https://b.example" })).toBe("https://b.example");
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "ftp://a.example", AUTH_URL: "https://b.example" })).toBe(
+      "https://b.example"
+    );
+  });
+  it("is undefined when nothing usable is configured", () => {
+    expect(trustedLinkOrigin({})).toBeUndefined();
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "", AUTH_URL: "  " })).toBeUndefined();
+    expect(trustedLinkOrigin({ NEXTAUTH_URL: "javascript:alert(1)" })).toBeUndefined();
+  });
+});
 
 // What the standalone server reports in req.url: its own listen address, not the browser's.
 const SERVER_URL = "http://localhost:4850/trips";

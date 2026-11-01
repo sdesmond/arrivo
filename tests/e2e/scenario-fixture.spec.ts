@@ -1,9 +1,17 @@
 import { eq } from "drizzle-orm";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "./fixtures";
+import { sql } from "drizzle-orm";
 import { days, documents, events, expenses, packingTemplates, trips, users } from "../../src/db/schema";
 import { cleanupScenarioFixtureContext, createScenarioFixtureContext } from "./scenario-fixture";
 import { withE2EDb } from "./e2e-db";
-import { E2E_TRIP_START_DATE, THREE_DAY_TRIP_MOTHER, cloneTripMother, cloneUserMother } from "./e2e-seed-data";
+import {
+  E2E_TRIP_START_DATE,
+  PENDING_USER_MOTHER,
+  THREE_DAY_TRIP_MOTHER,
+  cloneTripMother,
+  cloneUserMother,
+} from "./e2e-seed-data";
 import { validateUsername } from "../../src/lib/username";
 
 // Self-tests for the scenario-fixture infrastructure (mothers, unique naming, materialize/cleanup).
@@ -12,6 +20,54 @@ import { validateUsername } from "../../src/lib/username";
 // after global-setup has migrated and seeded the DB — keeps them out of the hermetic unit/coverage
 // Vitest run and avoids two concurrent Vitest processes racing Vite's shared temp dir.
 test.describe("E2E scenario fixtures", () => {
+  test("clones pending-user mothers independently", () => {
+    const first = cloneUserMother("pending");
+    const second = cloneUserMother("pending");
+    first.user.name = "Changed";
+    first.companions.push({ name: "Changed", age: 20, position: 0 });
+    expect(second).toEqual(PENDING_USER_MOTHER);
+    expect(second.user.setupComplete).toBe(false);
+    expect(cloneUserMother("default").user.setupComplete).not.toBe(false);
+  });
+  test("materializes pending-user mother without a password and cleans it up", async () => {
+    const scenario = createScenarioFixtureContext(test.info());
+    let userId: string | undefined;
+    try {
+      const result = await scenario.materialize({
+        user: { mother: "pending", setCurrent: false },
+      });
+      userId = result.user!.id;
+      const [created] = await withE2EDb((database) =>
+        database.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, result.user!.id))
+      );
+      expect(created.passwordHash).toBeNull();
+    } finally {
+      await cleanupScenarioFixtureContext(scenario);
+    }
+    const remaining = await withE2EDb((database) =>
+      database.select({ id: users.id }).from(users).where(eq(users.id, userId!))
+    );
+    expect(remaining).toHaveLength(0);
+  });
+  test("selects the regular worker database before scenario queries", async ({ bootstrapDatabase }) => {
+    expect(bootstrapDatabase).toBe(false);
+    const expectedName = new URL(process.env.E2E_DATABASE_URL!).pathname.slice(1);
+    expect(expectedName.endsWith("_bootstrap")).toBe(false);
+    const result = await withE2EDb((db) => db.execute(sql`select current_database() as name`));
+    expect(result[0].name).toBe(expectedName);
+  });
+  test("materializes the requested app role", async () => {
+    const context = createScenarioFixtureContext(test.info());
+    try {
+      const result = await context.materialize({ user: { overrides: { user: { role: "admin" } } } });
+      const [created] = await withE2EDb((db) =>
+        db.select({ role: users.role }).from(users).where(eq(users.id, result.user!.id))
+      );
+      expect(created.role).toBe("admin");
+    } finally {
+      await cleanupScenarioFixtureContext(context);
+    }
+  });
   test("clones trip mothers without mutating the base object", () => {
     const clone = cloneTripMother("threeDayTrip", {
       trip: { name: "Mutated Trip" },

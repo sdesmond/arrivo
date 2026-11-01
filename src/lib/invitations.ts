@@ -7,14 +7,10 @@ import { LiveSyncEventType } from "@/data/types";
 import type { CollaboratorRole, PendingInvitation, ResendInvitationResult } from "@/data/types";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { getNow } from "@/lib/mock-date";
-import type { DbTransaction } from "@/lib/server-action-locks";
+import { applyInvitationResend } from "@/lib/invitation-resend";
 import { publishTripEvent, publishUserEvent } from "@/lib/trip-events";
 
-type InvitationExecutor = Pick<DbTransaction, "select" | "update">;
-
-type AppliedInvitationResend =
-  | { status: "success"; expiresAt: string; inviteeId: string }
-  | Extract<ResendInvitationResult, { status: "error" }>;
+export { applyInvitationResend };
 
 export const INVITE_TTL_HOURS = 72;
 
@@ -65,39 +61,6 @@ export async function getMyPendingInvitations(userId: string): Promise<PendingIn
     role: row.role as CollaboratorRole,
     expiresAt: row.expiresAt.toISOString(),
   }));
-}
-
-/**
- * Resets `expiresAt` (and optionally `role`) on a trip's pending invitation. Takes an `executor` so
- * callers already inside a transaction (e.g. `inviteContributor`'s re-invite branch) can reuse this
- * instead of hand-rolling the same update — the auth check stays with the standalone `resendInvitation`
- * below since transactional callers have already authorized the caller themselves.
- */
-export async function applyInvitationResend(
-  executor: InvitationExecutor,
-  invitationId: string,
-  tripId: string,
-  expiresAt: Date,
-  role?: CollaboratorRole
-): Promise<AppliedInvitationResend> {
-  const [resentInvitation] = await executor
-    .update(invitations)
-    .set(role ? { expiresAt, role } : { expiresAt })
-    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
-    .returning({ id: invitations.id, inviteeId: invitations.inviteeId });
-
-  if (resentInvitation) {
-    return { status: "success", expiresAt: expiresAt.toISOString(), inviteeId: resentInvitation.inviteeId };
-  }
-
-  const [invitation] = await executor
-    .select({ id: invitations.id, tripId: invitations.tripId })
-    .from(invitations)
-    .where(eq(invitations.id, invitationId));
-  return {
-    status: "error",
-    message: invitation && invitation.tripId === tripId ? "Invitation is no longer pending." : "Invitation not found.",
-  };
 }
 
 export async function resendInvitation(

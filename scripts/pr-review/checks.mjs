@@ -38,8 +38,8 @@ export function classifyFile(path) {
   ) {
     return "doc";
   }
-  // Eval harnesses are test infrastructure themselves, so they do not need tests of their own.
-  if (path.startsWith("evals/")) return "tooling";
+  // Test setup and eval harnesses do not need colocated tests of their own.
+  if (path === "vitest.setup.mts" || path.startsWith("evals/")) return "tooling";
   if (path.startsWith("src/components/ui/")) return "ui";
   if (name === "types.ts") return "types";
   if (/^index\.(ts|tsx|js|jsx)$/.test(name)) return "barrel";
@@ -118,16 +118,24 @@ const HIGH_CONFIDENCE_PATTERNS = [
 ];
 
 const GENERIC_ASSIGNMENT =
-  /[\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*["']?\s*[:=]\s*["']([^"'\s]{8,})["']/i;
+  /([\w.-]*(?:password|passwd|secret|api[_-]?key|token|credential)s?[\w.-]*)["']?\s*[:=]\s*["']([^"'\s]{8,})["']/gi;
+const FETCH_CREDENTIAL_MODES = new Set(["same-origin", "include", "omit"]);
+// A PascalCase constant member set to lowercase snake/kebab words is an identifier (ActivityEventType.PasswordChanged =
+// "password_changed"), not a secret. Lowercase and camelCase names (apiToken, password) are still checked.
+const CONSTANT_IDENTIFIER_VALUE = /^[a-z]+(?:[_-][a-z]+)+$/;
 // Demo credentials legitimately live in seed data, fixtures, mocks and eval cases; only the high-confidence patterns apply there.
 const DEMO_DATA_PATH = /(^|\/)(seed|fixtures?|mocks?|evals)([\w.-]*\.|\/)/i;
 const PLACEHOLDER_VALUE = /changeme|example|placeholder|dummy|your[_-]|xxx|<.*>|\$\{|\{\{|process\.env|test/i;
 
 function genericSecret(text) {
-  const match = GENERIC_ASSIGNMENT.exec(text);
-  if (!match) return false;
-  const value = match[1];
-  return !PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value);
+  for (const match of text.matchAll(GENERIC_ASSIGNMENT)) {
+    const [, name, value] = match;
+    if (name === "credentials" && FETCH_CREDENTIAL_MODES.has(value)) continue;
+    if (name === "PASSWORD_RESET_COOKIE_PATH" && value === "/account-reset") continue;
+    if (/^[A-Z]/.test(name) && CONSTANT_IDENTIFIER_VALUE.test(value)) continue;
+    if (!PLACEHOLDER_VALUE.test(value) && !/^(.)\1+$/.test(value)) return true;
+  }
+  return false;
 }
 
 export function findSecrets(files) {
@@ -157,6 +165,15 @@ function isStrict(path) {
   return STRICT_TEST_DIRS.some((prefix) => path.startsWith(prefix));
 }
 
+// A test beside the file always covers it. Outside the strict directories a test in an ancestor directory covers the
+// subdirectories too (src/db/seed-runner.test.ts for src/db/seed-data/users.ts); the repository root never counts.
+function hasNearbyTest(path, testDirs) {
+  const dir = dirName(path);
+  if (testDirs.has(dir)) return true;
+  if (isStrict(path)) return false;
+  return [...testDirs].some((testDir) => testDir !== "" && dir.startsWith(`${testDir}/`));
+}
+
 export function checkTests(files) {
   const tests = files.filter((file) => classifyFile(file.path) === "test");
   const testDirs = new Set(tests.map((file) => dirName(file.path)));
@@ -164,7 +181,7 @@ export function checkTests(files) {
   const hasMigration = files.some((file) => file.path.startsWith("drizzle/"));
 
   const uncovered = files.filter(needsTest).filter((file) => {
-    if (testDirs.has(dirName(file.path))) return false;
+    if (hasNearbyTest(file.path, testDirs)) return false;
     const e2eCovers = hasE2e && (file.path.startsWith("src/app/") || file.path.startsWith("src/components/"));
     return isStrict(file.path) || !e2eCovers;
   });

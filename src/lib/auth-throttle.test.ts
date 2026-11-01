@@ -129,6 +129,14 @@ describe("targets", () => {
     expect(accountTarget("pwchange", "user-1")).toEqual({ key: "pwchange:user-1", policy: getAccountPolicy() });
     expect(accountTarget("mfa", "user-1").key).toBe("mfa:user-1");
     expect(accountTarget("device", "device-1")).toEqual({ key: "device:device-1", policy: getAccountPolicy() });
+    expect(accountTarget("setup", "user-1")).toEqual({
+      key: "setup:user-1",
+      policy: { ...getAccountPolicy(), maxFailures: 10 },
+    });
+    expect(accountTarget("reset", "user-1")).toEqual({
+      ...accountTarget("setup", "user-1"),
+      key: "reset:user-1",
+    });
   });
 });
 

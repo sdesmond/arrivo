@@ -52,7 +52,6 @@ describe("setup-dev helpers", async () => {
       "E2E_DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo_e2e",
       "NEXTAUTH_URL=http://localhost:3000",
       "NEXTAUTH_SECRET=change-me-32-bytes-min",
-      "ALLOW_SIGNUP=true",
       "E2E_USERNAME=e2e",
       "E2E_PASSWORD=e2e1234",
       "HIDE_OVERLAY=true",
@@ -65,7 +64,7 @@ describe("setup-dev helpers", async () => {
       baseExample,
       [
         "NEXTAUTH_URL=http://localhost:4000",
-        "ALLOW_SIGNUP=false",
+        "HIDE_OVERLAY=false",
         "UPLOAD_STUB=true",
         "BLOB_READ_WRITE_TOKEN=legacy-token",
         "",
@@ -75,7 +74,7 @@ describe("setup-dev helpers", async () => {
     expect(merged).toContain("DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo");
     expect(merged).toContain("E2E_DATABASE_URL=postgres://arrivo:arrivo@localhost:5432/arrivo_e2e");
     expect(merged).toContain("NEXTAUTH_URL=http://localhost:4000");
-    expect(merged).toContain("ALLOW_SIGNUP=false");
+    expect(merged).toContain("HIDE_OVERLAY=false");
     expect(merged).toContain("STORAGE_PROVIDER=local");
     expect(merged).toContain("STORAGE_LOCAL_ROOT_DIR=./.dev-storage");
     expect(merged).not.toContain("UPLOAD_STUB=");
@@ -113,7 +112,7 @@ describe("setup-dev helpers", async () => {
     expect(merged).toContain("STORAGE_LOCAL_ROOT_DIR=/var/lib/app-storage");
   });
 
-  it("migrates claude memories into the shared agents directory", () => {
+  it("migrates legacy claude memories into the shared agents directory and drops the claude link", () => {
     const rootDir = mkdtempSync(join(tmpdir(), "setup-dev-"));
     const legacyMemoryDir = join(rootDir, ".claude", "memory");
     const migratedMemoryPath = join(rootDir, ".agents", "memories", "legacy-note.md");
@@ -125,8 +124,25 @@ describe("setup-dev helpers", async () => {
       ensureAiToolLinks(rootDir);
 
       expect(readFileSync(migratedMemoryPath, "utf8")).toBe("remember this\n");
-      expect(lstatSync(join(rootDir, ".claude", "memory")).isSymbolicLink()).toBe(true);
-      expect(existsSync(join(rootDir, ".claude", "memory", "legacy-note.md"))).toBe(true);
+      expect(existsSync(legacyMemoryDir)).toBe(false);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("removes a memory link or checkout stub left at .claude/memory without creating a new one", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "setup-dev-"));
+    const memoryPath = join(rootDir, ".claude", "memory");
+
+    mkdirSync(join(rootDir, ".claude"), { recursive: true });
+    // core.symlinks=false checkouts write a tracked symlink as a plain file holding the target path.
+    writeFileSync(memoryPath, "../.agents/memories", "utf8");
+
+    try {
+      ensureAiToolLinks(rootDir);
+
+      expect(lstatSync(memoryPath, { throwIfNoEntry: false })).toBeUndefined();
+      expect(existsSync(join(rootDir, ".agents", "memories"))).toBe(true);
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
     }

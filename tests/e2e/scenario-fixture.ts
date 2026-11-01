@@ -24,6 +24,7 @@ import {
   users,
 } from "../../src/db/schema";
 import { withE2EDb } from "./e2e-db";
+import { setAppState, type AppStateName } from "./app-state";
 import {
   BASELINE_E2E_USER,
   cloneTemplateMother,
@@ -107,6 +108,8 @@ export interface ScenarioFixtureContext {
   /** Plain username/password sign-in, for a session other than the scenario's own current user. */
   signInAsUser(page: Page, username: string): Promise<void>;
   signOut(): void;
+  /** Sets the singleton app state for this scenario; cleanup restores "initialized". */
+  setAppState(name: AppStateName): Promise<void>;
   gotoCurrentTrip(page: Page): Promise<void>;
   uniqueName(label: string): string;
   uniqueUsername(label?: string): string;
@@ -138,6 +141,7 @@ interface MutableScenarioState {
   counters: Record<string, number>;
   values: Map<string, unknown>;
   signedInUsername?: string;
+  appStateChanged?: boolean;
   currentUser?: ScenarioUserRecord;
   currentTrip?: ScenarioTripRecord;
   currentTemplate?: ScenarioTemplateRecord;
@@ -259,7 +263,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
   ): Promise<ScenarioUserRecord> {
     const seed = cloneUserMother(mother, overrides);
     const username = uniqueUsername(seed.user.name);
-    const passwordHash = await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
+    const passwordHash = seed.user.setupComplete === false ? null : await bcrypt.hash(process.env.E2E_PASSWORD!, 10);
 
     return withE2EDb(async (db) => {
       const [user] = await db
@@ -268,6 +272,7 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
           username,
           name: seed.user.name,
           passwordHash,
+          role: seed.user.role ?? "member",
           dateFormat: seed.user.dateFormat,
           currency: seed.user.currency ?? "USD",
           defaultCoverType: seed.user.defaultCoverType,
@@ -591,6 +596,11 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
         await db.delete(users).where(eq(users.id, handle.id));
       }
     });
+
+    if (state.appStateChanged) {
+      state.appStateChanged = false;
+      await setAppState("initialized");
+    }
   }
 
   const context: ScenarioFixtureContext = {
@@ -636,6 +646,10 @@ export function createScenarioFixtureContext(testInfo: TestInfo): ScenarioFixtur
 
       result.cleanup = state.cleanup.slice(createdCleanupCount);
       return result;
+    },
+    async setAppState(name: AppStateName): Promise<void> {
+      state.appStateChanged = true;
+      await setAppState(name);
     },
     async ensureCurrentUser(overrides = {}): Promise<ScenarioUserRecord> {
       if (!state.currentUser) {

@@ -21,6 +21,7 @@ tests/e2e/.auth/
 # next.js
 /.next/
 /.next-e2e/
+/.next-e2e-bootstrap/
 /.next-validate/
 /out/
 
@@ -63,6 +64,7 @@ next-env.d.ts
 
 # storage adapter local roots
 /.e2e-storage/
+/.e2e-bootstrap-storage/
 /.dev-storage/
 
 # bmad framework installation (reinstallable from manifest)

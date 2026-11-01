@@ -1,7 +1,9 @@
 import { ExpenseCategory, TransitMode } from "../../src/data/types";
-import type { ReservationType } from "../../src/data/types";
+import type { UserRole, ReservationType } from "../../src/data/types";
 
 export interface UserSeed {
+  setupComplete?: boolean;
+  role?: UserRole;
   name: string;
   initials: string;
   dateFormat: "MM/DD/YYYY" | "DD/MM/YYYY";
@@ -241,6 +243,12 @@ export const DEFAULT_USER_MOTHER: UserMother = {
       position: 0,
     },
   ],
+};
+
+export const PENDING_USER_MOTHER: UserMother = {
+  user: { ...DEFAULT_USER_MOTHER.user, name: "Pending Person", setupComplete: false },
+  loyaltyNumbers: [],
+  companions: [],
 };
 
 export const THREE_DAY_TRIP_MOTHER: TripMother = {
@@ -509,7 +517,7 @@ export const E2E_TEMPLATE_PULL_2_ITEMS: TemplateItemSeed[] = [
   { text: "Shampoo", isLabel: false, position: 1 },
 ];
 
-export type UserMotherName = "default";
+export type UserMotherName = "default" | "pending";
 export type TripMotherName = "threeDayTrip" | "datelessTrip" | "deleteTrip";
 export type TemplateMotherName = "emptyTemplate";
 
@@ -518,7 +526,7 @@ function cloneValue<T>(value: T): T {
 }
 
 export function cloneUserMother(name: UserMotherName = "default", overrides: UserMotherOverrides = {}): UserMother {
-  const base = cloneValue(name === "default" ? DEFAULT_USER_MOTHER : DEFAULT_USER_MOTHER);
+  const base = cloneValue(name === "pending" ? PENDING_USER_MOTHER : DEFAULT_USER_MOTHER);
 
   return {
     user: { ...base.user, ...overrides.user },

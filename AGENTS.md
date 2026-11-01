@@ -39,7 +39,7 @@ Use this style unless told otherwise:
 
 ## Memory
 
-Read and write all project memories in `.agents/memories/`. Treat `.claude/memory/` as a compatibility link only so older tooling resolves to the same files without becoming the source of truth.
+Read and write all project memories in `.agents/memories/`. That folder is the only source of truth; there is no `.claude/memory/` link, and setup scripts remove a leftover one.
 
 ## Project Overview
 
@@ -130,20 +130,6 @@ Before editing any production file, you MUST name the exact test files and scena
 **Branch-confirmation gate:**
 Before starting any new development task, you MUST ask the user whether they want a branch created for the work. Creating the branch is optional; asking first is mandatory.
 
-**Build stage checkpoints — NON-NEGOTIABLE:**
-bmad-build (or any equivalent plan → implement → review flow) MUST halt at each of the three boundaries below and wait for a NEW, explicit user message saying to proceed. Workflow step files attempt to advance automatically — do not let them. Answering a checkpoint prompt (e.g. "[A] Approve", "looks good") does NOT cross a boundary; the confirm must be a fresh "proceed/continue/go" typed after you post the boundary status.
-
-The three boundaries, in order:
-
-1. After planning — spec/plan written and approved, BEFORE any implementation starts.
-2. After implementation — code changes done, BEFORE code review begins.
-3. After code review — findings triaged/applied, BEFORE presenting or committing.
-
-Crossing rules:
-
-- No implementation work (source/test/E2E edits, or dispatching the implementation subagent) may occur in the same turn as, or before, the user's confirm message. Only pure status bookkeeping that records the approved spec (frontmatter status flip, baseline_commit capture, sprint-status.yaml sync) may run.
-- At each boundary, post a short status ("what finished, what's next"), then HALT with a single "Proceed?" question — no further tool calls until the user answers.
-
 **Default workflow for any coding task:**
 
 1. Ask whether the user wants a branch created before development begins
@@ -160,7 +146,7 @@ Crossing rules:
    - For user-facing flow changes, run affected Playwright coverage first when practical
    - Do not treat `build-validator` as first signal that tests were missing
 5. In a feature PR, don't edit `CHANGELOG.md`: the `release-changelog` skill drafts it from the merged PRs when a release is cut (`docs/releasing.md`). If the change is visible to someone running Arrivo (UI, Docker/ports/env, migrations, self-hosting docs), say so in the PR description, and say what they must do when updating, so the draft is right
-6. Run `build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, etc.) must **not** invoke it themselves
+6. Run `build-validator` **once** after the change is fully implemented and targeted tests have already passed: lint, TypeScript, coverage, build, and affected Playwright E2E should confirm work that is already complete. Run coverage and E2E each alone, in that order after lint/TypeScript/build finish, and keep each separate from all other validation commands to avoid resource contention. The validator owns this single gate — BMad skills (bmad-build, bmad-build-auto, etc.) must **not** invoke it themselves
 7. If the validator flags issues, fix them and run `build-validator` again. The validator's fingerprint marker makes a re-run on an unchanged tree a no-op, so it is safe to invoke whenever in doubt — it will skip itself if nothing changed since the last PASS. Agents always run the affected subset (via the validator) and never the full suite as a gate; running the full E2E suite (`npm run test:e2e`) is the user's call — do not launch it automatically before commit/push/PR
 
 ## Key Conventions

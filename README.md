@@ -9,7 +9,7 @@ npm run setup:dev
 npm run dev
 ```
 
-Sign in at [http://localhost:3000](http://localhost:3000) with username `demo` / password `demo1234` (three more seed accounts, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
+Sign in at [http://localhost:3000](http://localhost:3000) with username `demo` / password `demo1234` (four more seed accounts, including the `admin` app administrator, same password, are described in **[docs/dev-seed-data.md](./docs/dev-seed-data.md)**).
 
 `npm run setup:dev` installs dependencies, configures `.env`, links the shared AI tools folders, prepares the dev and E2E databases, applies the database migrations, seeds demo data, and installs the Playwright Chromium browser.
 
@@ -27,7 +27,7 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 ## AI Skills & Agents Setup
 
-`.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills`, `agents`, and `memory`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
+`.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills` and `agents`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
 
 ## Self-hosting
 

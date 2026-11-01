@@ -23,7 +23,13 @@ export default defineConfig({
     // dedicated Playwright project (see playwright.config.ts), inside the E2E pipeline after the DB
     // is migrated. Keeping them there ensures only ONE Vitest process runs under the build-validator
     // — two concurrent Vitest processes race Vite's shared temp dir and intermittently crash both.
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "scripts/**/*.{test,spec}.mjs"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "scripts/**/*.{test,spec}.mjs",
+      "tests/e2e/server-action.test.ts",
+      "tests/e2e/dialog.test.ts",
+      "tests/e2e/onboarding-browser.test.ts",
+    ],
     setupFiles: ["./vitest.setup.mts"],
     server: {
       deps: {

@@ -40,6 +40,8 @@ if (typeof window !== "undefined") {
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  notFound: vi.fn(),
+  unstable_rethrow: vi.fn(),
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),

@@ -38,9 +38,23 @@ describe("validateSeedWorld — the real dev seed", () => {
     expect(() => validateSeedWorld(DEV_SEED)).not.toThrow();
   });
 
-  it("seeds four accounts", () => {
-    expect(DEV_SEED.users).toHaveLength(4);
-    expect(DEV_SEED.users.map((seedUser) => seedUser.username).sort()).toEqual(["alex", "demo", "jordan", "sam"]);
+  it("seeds five accounts", () => {
+    expect(DEV_SEED.users).toHaveLength(5);
+    expect(DEV_SEED.users.map((seedUser) => seedUser.username).sort()).toEqual([
+      "admin",
+      "alex",
+      "demo",
+      "jordan",
+      "sam",
+    ]);
+  });
+
+  it("seeds exactly one app admin; every other account is a member", () => {
+    const admins = DEV_SEED.users.filter((seedUser) => seedUser.role === "admin");
+    expect(admins.map((seedUser) => seedUser.username)).toEqual(["admin"]);
+    for (const seedUser of DEV_SEED.users.filter((candidate) => candidate !== admins[0])) {
+      expect(seedUser.role ?? "member").toBe("member");
+    }
   });
 
   it("seeds six trips, exactly one owner-manager collaborator each (enforced structurally: one owner per trip)", () => {

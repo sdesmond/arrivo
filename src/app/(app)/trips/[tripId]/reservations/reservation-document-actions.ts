@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { inferDocKind, formatFileSize } from "@/lib/utils";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
 
 async function getReservationTripId(reservationId: string): Promise<string> {
@@ -51,6 +52,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
     throw error;
   }
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -76,6 +78,7 @@ export async function removeReservationDocument(docId: string): Promise<void> {
   }
 
   await db.delete(documents).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, reservation.tripId);
   revalidatePath(`/trips/${reservation.tripId}`);
 }
 
@@ -87,6 +90,7 @@ export async function renameReservationDocument(docId: string, newName: string):
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -98,6 +102,7 @@ export async function promoteReservationDocToTrip(docId: string): Promise<void> 
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ tripId, reservationId: null }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -106,5 +111,6 @@ export async function attachTripDocToReservation(docId: string, reservationId: s
   const tripId = await getReservationTripId(reservationId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ reservationId }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
 }

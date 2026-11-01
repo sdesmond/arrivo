@@ -43,4 +43,24 @@ describe("drizzle migrations", () => {
     expect(times).toEqual([...times].sort((first, second) => first - second));
     expect(new Set(times).size).toBe(times.length);
   });
+  describe("0004_instance_state_roles", () => {
+    const migration = readFileSync(join(migrationsDir, "0004_instance_state_roles.sql"), "utf8");
+
+    it("creates the singleton and seeds it, initialized only when an account already exists", () => {
+      expect(migration).toContain('CREATE TABLE "instance_state"');
+      expect(migration).toMatch(/INSERT INTO "instance_state"[\s\S]*CASE WHEN EXISTS \(SELECT 1 FROM "users"\)/);
+    });
+
+    it("promotes the sole legacy account", () => {
+      expect(migration).toMatch(/UPDATE "users" SET "role" = 'admin' WHERE \(SELECT count\(\*\) FROM "users"\) = 1/);
+    });
+
+    it("halts with an operator remedy on several accounts, before any schema change", () => {
+      const halt = migration.indexOf("RAISE EXCEPTION");
+      expect(halt).toBeGreaterThan(-1);
+      expect(migration).toContain("account_count > 1");
+      expect(migration).toMatch(/delete the others/);
+      expect(halt).toBeLessThan(migration.indexOf("CREATE TABLE"));
+    });
+  });
 });

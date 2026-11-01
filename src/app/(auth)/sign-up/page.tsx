@@ -1,13 +1,8 @@
-import { SignUpForm } from "@/components/arrivo/auth-forms";
-import { signUpAction } from "../actions";
+import { redirect } from "next/navigation";
+import { isAppSetupOpen } from "@/lib/app-setup";
 
-export default function SignUpPage() {
-  return (
-    <>
-      <h1 className="mb-6 text-xl font-semibold" tabIndex={-1}>
-        Create your Arrivo account
-      </h1>
-      <SignUpForm action={signUpAction} />
-    </>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function SignUpPage() {
+  return redirect((await isAppSetupOpen()) ? "/setup" : "/sign-in");
 }

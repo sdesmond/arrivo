@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Search, Clock, LogOut, LayoutTemplate } from "lucide-react";
-import { signOutAction } from "@/app/(auth)/actions";
+import { Briefcase, Search, Clock, LayoutTemplate } from "lucide-react";
+import { AccountMenu } from "./account-menu";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { ArrivoBrand } from "./arrivo-brand";
 import { NavItem } from "./nav-item";
@@ -28,16 +28,17 @@ function getInitials(user: UserProfile): string {
 export interface SidebarNavProps {
   user: UserProfile | null;
   invitationCount?: number;
+  isAdmin?: boolean;
 }
 
-export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
+export function SidebarNav({ user, invitationCount, isAdmin = false }: SidebarNavProps) {
   const pathname = usePathname();
   const initials = user ? getInitials(user) : "?";
   const avatarTint = getAvatarTint(initials);
 
   return (
     <aside
-      className="flex flex-col w-[240px] shrink-0 border-r scroll-thin overflow-y-auto"
+      className="flex flex-col w-60 shrink-0 border-r scroll-thin overflow-y-auto"
       style={{ borderColor: "var(--line)", background: "var(--surface)" }}
       role="navigation"
       aria-label="Main navigation"
@@ -72,42 +73,39 @@ export function SidebarNav({ user, invitationCount }: SidebarNavProps) {
 
       {/* Footer */}
       <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid var(--line)" }}>
-        <Link
-          href="/profile"
-          className="flex items-center gap-2 flex-1 min-w-0 rounded-[6px] hover:bg-surface-2 transition-colors px-1 py-0.5"
-          aria-label="View profile"
-        >
-          <div
-            className="shrink-0 rounded-full flex items-center justify-center font-semibold"
-            style={{
-              width: 28,
-              height: 28,
-              background: avatarTint.bg,
-              color: avatarTint.color,
-              fontFamily: "var(--font-body, ui-sans-serif)",
-              fontSize: "calc(12px * var(--font-scale))",
-            }}
-          >
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-fg truncate" style={{ fontSize: "calc(13px * var(--font-scale))" }}>
-              {user?.name ?? user?.username ?? "—"}
-            </div>
-            <div className="text-fg-3 truncate" style={{ fontSize: "calc(11px * var(--font-scale))" }}>
-              {user ? `@${user.username}` : ""}
-            </div>
-          </div>
-        </Link>
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="shrink-0 p-1 rounded-[6px] text-fg-3 hover:text-fg hover:bg-surface-2 transition-colors"
-            title="Sign out"
-          >
-            <LogOut size={14} strokeWidth={1.5} />
-          </button>
-        </form>
+        <AccountMenu
+          isAdmin={isAdmin}
+          side="top"
+          trigger={
+            <button
+              type="button"
+              className="flex items-center gap-2 flex-1 min-w-0 min-h-11 rounded-md text-left hover:bg-surface-2 transition-colors px-1 py-0.5"
+              aria-label="Account menu"
+            >
+              <div
+                className="shrink-0 rounded-full flex items-center justify-center font-semibold"
+                style={{
+                  width: 28,
+                  height: 28,
+                  background: avatarTint.bg,
+                  color: avatarTint.color,
+                  fontFamily: "var(--font-body, ui-sans-serif)",
+                  fontSize: "calc(12px * var(--font-scale))",
+                }}
+              >
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-fg truncate" style={{ fontSize: "calc(13px * var(--font-scale))" }}>
+                  {user?.name ?? user?.username ?? "—"}
+                </div>
+                <div className="text-fg-3 truncate" style={{ fontSize: "calc(11px * var(--font-scale))" }}>
+                  {user ? `@${user.username}` : ""}
+                </div>
+              </div>
+            </button>
+          }
+        />
       </div>
     </aside>
   );

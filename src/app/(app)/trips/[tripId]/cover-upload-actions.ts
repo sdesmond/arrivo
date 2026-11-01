@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { trips } from "@/db/schema";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { publishTripEvent } from "@/lib/trip-events";
 import { assertValidCoverUpload, createUploadStorageName } from "@/lib/upload-policy";
 import { LiveSyncEventType } from "@/data/types";
@@ -55,6 +56,7 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
     throw error;
   }
 
+  recordTripUpdated(user.id!, tripId);
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
   revalidatePath(`/trips/${tripId}`);
   return url;

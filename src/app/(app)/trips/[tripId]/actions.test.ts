@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { recordTripUpdated } = vi.hoisted(() => ({ recordTripUpdated: vi.fn() }));
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
+
 const {
   mockAssertTripAccess,
   mockDbInsert,
@@ -386,6 +389,7 @@ describe("createEvent", () => {
       }),
     ]);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -408,6 +412,7 @@ describe("createEvent", () => {
     expect(transaction.insert).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -428,6 +433,7 @@ describe("updateEvent", () => {
     await updateEvent("event-1", { name: "Renamed" });
 
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -441,6 +447,7 @@ describe("updateEvent", () => {
     await expect(updateEvent("event-1", { name: "Renamed" })).rejects.toThrow("not found");
 
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -463,6 +470,7 @@ describe("deleteEvent", () => {
     await deleteEvent("event-1");
 
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -476,6 +484,7 @@ describe("deleteEvent", () => {
     await expect(deleteEvent("event-1")).rejects.toThrow("not found");
 
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -500,6 +509,7 @@ describe("deleteEventWithDocDecision", () => {
     await deleteEventWithDocDecision("event-1", true);
 
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -513,6 +523,7 @@ describe("deleteEventWithDocDecision", () => {
     await expect(deleteEventWithDocDecision("event-1", true)).rejects.toThrow("not found");
 
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -594,6 +605,7 @@ describe("createTripNote", () => {
         body: "Reef-safe only",
       },
     ]);
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -650,6 +662,7 @@ describe("updateTripNote", () => {
     ]);
     expect(updatedValues[0]).not.toHaveProperty("position");
     expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -736,6 +749,7 @@ describe("deleteTripNote", () => {
     expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(mockDbDelete).toHaveBeenCalledWith(notes);
     expect(where).toHaveBeenCalledOnce();
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -807,6 +821,7 @@ describe("reorderDayItems", () => {
       { position: 1, table: events },
       { position: 2, table: itineraryChecklists },
     ]);
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -835,6 +850,7 @@ describe("reorderDayItems", () => {
     ).rejects.toThrow("CONCURRENT_MODIFICATION");
 
     expect(updates).toEqual([]);
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });
@@ -891,6 +907,7 @@ describe("reorderTripNotes", () => {
       { position: 1, table: notes },
       { position: 2, table: notes },
     ]);
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -909,6 +926,7 @@ describe("reorderTripNotes", () => {
     );
 
     expect(updates).toEqual([]);
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
@@ -923,6 +941,7 @@ describe("reorderTripNotes", () => {
     );
 
     expect(updates).toEqual([]);
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
@@ -937,6 +956,7 @@ describe("reorderTripNotes", () => {
     );
 
     expect(updates).toEqual([]);
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("propagates access denial before touching the transaction", async () => {
@@ -956,6 +976,7 @@ describe("reorderTripNotes", () => {
     await reorderTripNotes({ tripId: "trip-1", orderedNoteIds: [] });
 
     expect(updates).toEqual([]);
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
@@ -1020,6 +1041,7 @@ describe("addChecklistFromPackingSource", () => {
     const checklistId = await addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1");
 
     expect(checklistId).toBe("checklist-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -1174,6 +1196,15 @@ describe("setTripCoverWithAttribution", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValueOnce(new Error("denied"));
+
+    await expect(setTripCoverWithAttribution("trip-1", "graphic:x")).rejects.toThrow("denied");
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("clears attribution when photographer fields are null", async () => {
@@ -1230,6 +1261,7 @@ describe("removeTripCover", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("throws when the trip no longer exists", async () => {
@@ -1245,6 +1277,7 @@ describe("removeTripCover", () => {
 
     expect(mockDbUpdate).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -1313,6 +1346,7 @@ describe("addDay", () => {
     expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" });
     expect(tripUpdates).toHaveLength(0);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -1412,6 +1446,7 @@ describe("removeLastDay", () => {
 
     await expect(removeLastDay("trip-1")).rejects.toThrow("Cannot remove the only remaining day.");
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("removes last day of a multi-day dateless trip without updating trip dates", async () => {
@@ -1431,6 +1466,7 @@ describe("removeLastDay", () => {
     expect(deletes).toHaveLength(1);
     expect(tripUpdates).toHaveLength(0);
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
       type: LiveSyncEventType.ItineraryChanged,
       tripId: "trip-1",
@@ -1472,8 +1508,10 @@ describe("removeLastDay", () => {
     const result = await removeLastDay("trip-1");
 
     expect(result).toEqual({ status: "confirmation-required", hasPlannedContent: true });
+    expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(deletes).toHaveLength(0);
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -1505,6 +1543,15 @@ describe("removeDocument", () => {
       tripId: "trip-1",
     });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("records nothing when the document is already gone", async () => {
+    mockDbSelect.mockReturnValue({ from: vi.fn(() => ({ where: vi.fn(async () => []) })) });
+
+    await expect(removeDocument("doc-1")).resolves.toBeUndefined();
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
 
@@ -1721,6 +1768,7 @@ describe("publishItineraryChanged regression coverage", () => {
   it.each(cases)("publishes ItineraryChanged for $name", async ({ tripId, run }) => {
     await run();
 
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", tripId);
     expect(mockPublishTripEvent).toHaveBeenCalledWith(tripId, {
       type: LiveSyncEventType.ItineraryChanged,
       tripId,

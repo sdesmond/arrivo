@@ -1,3 +1,5 @@
+import "dotenv/config";
+import { BOOTSTRAP_E2E_PORT, deriveBootstrapConnectionString, ensureBootstrapDatabase } from "./e2e-bootstrap.mjs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -125,12 +127,18 @@ function runCommand(command, args, options = {}) {
   };
 }
 
-function runPackageCommand(command, args, options = {}) {
-  if (process.platform === "win32") {
-    return runCommand("cmd.exe", ["/d", "/s", "/c", `${command} ${args.join(" ")}`], options);
+export function buildPackageInvocation(command, args, platform = process.platform, executable = process.execPath) {
+  if (platform === "win32") {
+    // Invoke npm's JS entrypoint directly: cmd.exe interprets regex pipes and spaces as shell syntax.
+    const entrypoint = join(dirname(executable), "node_modules", "npm", "bin", `${command}-cli.js`);
+    return { command: executable, args: [entrypoint, ...args] };
   }
+  return { command, args };
+}
 
-  return runCommand(command, args, options);
+function runPackageCommand(command, args, options = {}) {
+  const invocation = buildPackageInvocation(command, args);
+  return runCommand(invocation.command, invocation.args, options);
 }
 
 function wait(milliseconds) {
@@ -278,7 +286,25 @@ function resolveScope(plan) {
   return result;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export function getE2EServerPorts(port) {
+  if (port === BOOTSTRAP_E2E_PORT)
+    throw new Error("Bootstrap E2E port 3002 must be separate from the regular app port.");
+  return [port, BOOTSTRAP_E2E_PORT];
+}
+
+export async function prepareE2EDatabases(source, runDatabaseCommand, ensureDatabase = ensureBootstrapDatabase) {
+  const bootstrap = deriveBootstrapConnectionString(source);
+  await ensureDatabase(source);
+  for (const connectionString of [source, bootstrap]) {
+    await runDatabaseCommand("db:reset:e2e", connectionString);
+    await runDatabaseCommand("db:migrate:e2e", connectionString);
+  }
+}
+
+export async function main(argv = process.argv.slice(2), dependencies = {}) {
+  const prepareServer = dependencies.prepareServer ?? prepareServerPort;
+  const runPackage = dependencies.runPackage ?? runPackageCommand;
+  const ensureDatabase = dependencies.ensureDatabase ?? ensureBootstrapDatabase;
   const __filename = fileURLToPath(import.meta.url);
   const rootDir = join(dirname(__filename), "..");
   const plan = buildRunE2EPlan(argv);
@@ -289,21 +315,27 @@ export async function main(argv = process.argv.slice(2)) {
     return;
   }
 
-  prepareServerPort({
-    serverMode: plan.serverMode,
-    port: plan.port,
-    rootDir,
-  });
+  for (const port of getE2EServerPorts(plan.port)) {
+    prepareServer({ serverMode: plan.serverMode, port, rootDir });
+  }
 
   const env = {
     E2E_REUSE_SERVER: plan.serverMode === SERVER_MODE_REUSE ? "true" : "false",
     PORT: `${plan.port}`,
   };
 
-  runPackageCommand("npm", ["run", "db:reset:e2e"], { cwd: rootDir, env });
-  runPackageCommand("npm", ["run", "db:migrate:e2e"], { cwd: rootDir, env });
-  runPackageCommand("npx", ["bddgen"], { cwd: rootDir, env });
-  runPackageCommand("npx", buildPlaywrightArgs(plan.ui, scope.mode === "grep" ? scope.grep : undefined), {
+  await prepareE2EDatabases(
+    process.env.E2E_DATABASE_URL,
+    async (command, connectionString) => {
+      runPackage("npm", ["run", command], {
+        cwd: rootDir,
+        env: { ...env, E2E_DATABASE_URL: connectionString },
+      });
+    },
+    ensureDatabase
+  );
+  runPackage("npx", ["bddgen"], { cwd: rootDir, env });
+  runPackage("npx", buildPlaywrightArgs(plan.ui, scope.mode === "grep" ? scope.grep : undefined), {
     cwd: rootDir,
     env,
   });

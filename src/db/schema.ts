@@ -13,6 +13,7 @@ import {
   unique,
   uniqueIndex,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -49,8 +50,48 @@ export const users = pgTable(
     mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
     // Sign-in identifier; stored lowercased (src/lib/username.ts).
     username: text("username").notNull(),
+    // App authority: "admin" | "member" (UserRole in src/data/types.ts).
+    role: text("role").default("member").notNull(),
   },
   (table) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${table.username})`)]
+);
+
+// Singleton row (id is always true). initializedAt is set once, when the first account is created or the sole
+// legacy account is promoted; after that public sign-up stays closed.
+export const appState = pgTable(
+  "app_state",
+  {
+    id: boolean("id").primaryKey().default(true),
+    initializedAt: timestamp("initialized_at", { withTimezone: true }),
+    activityRetentionDays: integer("activity_retention_days").notNull().default(90),
+  },
+  (table) => [
+    check("app_state_singleton", sql`${table.id}`),
+    check("app_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
+  ]
+);
+
+export const credentialAuthorizations = pgTable(
+  "credential_authorizations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    digest: text("digest").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+    /** Encrypted replacement TOTP secret of a recovery attempt; never `users.totp_pending_secret`. */
+    pendingTotpSecret: text("pending_totp_secret"),
+  },
+  (table) => [
+    check("credential_authorizations_purpose", sql`${table.purpose} in ('setup', 'reset', 'recovery')`),
+    index("credential_authorizations_user_purpose_idx").on(table.userId, table.purpose),
+  ]
 );
 
 export const accounts = pgTable(
@@ -556,4 +597,28 @@ export const trustedDevices = pgTable(
       .notNull(),
   },
   (table) => [index("trusted_devices_user_id_idx").on(table.userId)]
+);
+
+// Best-effort audit trail (src/lib/activity.ts). Deliberately no foreign keys or cascades: history must survive
+// account and trip deletion, so actors are a stable ID plus the username as it was at event time.
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+    type: text("type").notNull(),
+    actorId: uuid("actor_id"),
+    actorUsername: text("actor_username"),
+    targetId: uuid("target_id"),
+    targetUsername: text("target_username"),
+    tripId: uuid("trip_id"),
+  },
+  (table) => [
+    index("activity_events_ended_at_id_idx").on(table.endedAt.desc(), table.id.desc()),
+    index("activity_events_actor_id_idx").on(table.actorId),
+    index("activity_events_type_idx").on(table.type),
+  ]
 );

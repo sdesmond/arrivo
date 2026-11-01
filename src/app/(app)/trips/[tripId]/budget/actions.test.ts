@@ -7,6 +7,7 @@ const {
   db,
   expensesTable,
   recalculate,
+  recordTripUpdated,
   requireUser,
   revalidatePath,
   tripsTable,
@@ -23,6 +24,7 @@ const {
   },
   expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
   recalculate: vi.fn(),
+  recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
   tripsTable: { id: "trips.id", budgetCurrency: "trips.budgetCurrency" },
@@ -47,6 +49,8 @@ vi.mock("@/db/schema", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
+
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
 vi.mock("@/lib/currency", () => ({
   convertDual,
@@ -139,6 +143,7 @@ describe("budget actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(result.id).toBe("expense-1");
     expect(result.conversionError).toBeUndefined();
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("propagates denied access (e.g. a viewer) without creating an expense", async () => {
@@ -156,6 +161,7 @@ describe("budget actions", () => {
 
     expect(db.insert).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("creates an unlinked expense with no eventId or reservationId", async () => {
@@ -345,6 +351,7 @@ describe("budget actions", () => {
       updatedAt: expect.any(Date),
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("recomputes conversions using the merged values when amount, currency, or date changes", async () => {
@@ -391,6 +398,7 @@ describe("budget actions", () => {
 
     expect(assertTripAccess).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("deletes an expense after auth checks", async () => {
@@ -401,6 +409,7 @@ describe("budget actions", () => {
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(deletedWhere).toHaveBeenCalledWith(expect.anything());
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("returns silently when deleting a missing expense", async () => {
@@ -410,6 +419,7 @@ describe("budget actions", () => {
 
     expect(assertTripAccess).not.toHaveBeenCalled();
     expect(db.delete).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   describe("recalculateConversions", () => {
@@ -466,6 +476,18 @@ describe("budget actions", () => {
       expect(db.select).not.toHaveBeenCalled();
     });
 
+    it("records no Activity when recalculation updates no expenses", async () => {
+      const { tx } = mockTransaction();
+      tx.select
+        .mockReturnValueOnce(createSelectMock([{ budgetCurrency: "USD" }]))
+        .mockReturnValueOnce(createSelectMock([]));
+      recalculate.mockResolvedValue([]);
+
+      await recalculateConversions("trip-1");
+
+      expect(recordTripUpdated).not.toHaveBeenCalled();
+    });
+
     it("recalculates conversions for mismatched expenses and revalidates", async () => {
       const { tx, updateWhereSpy, getLastSetValues } = mockTransaction();
       tx.select
@@ -490,6 +512,7 @@ describe("budget actions", () => {
       expect(updateWhereSpy).toHaveBeenCalledWith(expect.anything());
       expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
       expect(result).toEqual({ recalculated: true });
+      expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
     });
 
     it("stamps updatedAt on recalculated rows so a future call sees the fixed rate as no-longer-stale", async () => {
@@ -537,6 +560,7 @@ describe("budget actions", () => {
 
       expect(tx.update).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
+      expect(recordTripUpdated).not.toHaveBeenCalled();
     });
   });
 });

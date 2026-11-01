@@ -1,0 +1,103 @@
+# tickets.toml — epic-instance-foundation. Table order is build order.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Instance state, roles and bootstrap signup"
+description = "Adds the instance_state singleton and users.role in one generated migration that promotes a sole legacy account and halts on several; first signup becomes admin in one transaction and public signup then stays closed regardless of ALLOW_SIGNUP, with the E2E baseline user seeded as admin and `instance_state` re-inserted as initialized after global-setup truncation, plus a per-scenario helper that resets instance state to fresh or initialized; new .feature files are registered in feature-map.mjs."
+verify = "Unit tests show concurrent first signups yield one admin and a second signup is refused with 'Ask an admin to create your account.'; migration tests promote a one-account DB once and stop a multi-account DB with an operator error; an E2E bootstrap scenario passes."
+covers = ["CAP-1"]
+after = []
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+references = ["architecture-self-hosted-administration/architecture-self-hosted-administration.md#ad-2--one-durable-instance-authority-governs-bootstrap-and-roles"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Account menu and Manage instance shell"
+description = "Adds requireAdmin (current DB authority), the account menu on the desktop sidebar account control and mobile Profile tab with Manage instance shown only to admins, and an /admin shell with the settings-style section navigation (only Users enabled; later epics add sections) that rechecks authority; removes the standalone Log out control and changes the mobile Profile tab from navigating to opening the menu."
+verify = "On a fresh install the first account opens the menu, chooses Manage instance and reaches /admin; a non-admin sees no entry and gets notFound on /admin."
+covers = ["CAP-11"]
+after = [1]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+references = ["ux-self-hosted-administration/EXPERIENCE.md#information-architecture", "architecture-self-hosted-administration/architecture-self-hosted-administration.md#ad-1--instance-authority-does-not-confer-trip-access-adopted"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Role-change service with last-admin guard"
+description = "Adds the request-independent lifecycle service that promotes and demotes users under instance-then-user locks, refusing to leave no completed admin; a completed account has a non-null password_hash, so an account with a null one is unfinished. Exports the last-admin guard and lock-order helper that story 5 and epic-recovery-and-deletion reuse."
+verify = "Concurrent demotion of two admins leaves one; demoting the last completed admin is refused; an account with a null password_hash cannot be promoted."
+covers = ["CAP-4"]
+after = [1]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+references = ["architecture-self-hosted-administration/architecture-self-hosted-administration.md#ad-2--one-durable-instance-authority-governs-bootstrap-and-roles"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Users list and role-change UI"
+description = "Adds the Users section listing username and role, with Make admin and Remove admin confirmations, the last-admin tooltip and self-demotion returning to personal settings."
+verify = "An admin promotes another user, then removes their own admin role, lands in personal settings and no longer sees Manage instance."
+covers = ["CAP-4", "CAP-11"]
+after = [2, 3]
+hitl = false
+risk = "medium"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+references = ["ux-self-hosted-administration/EXPERIENCE.md#flow-4--admin-management"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Last-admin guard on self-service deletion"
+description = "Moves deleteAccount onto the shared lock order and refuses to delete the last completed admin by consuming the guard helper exported by story 3, keeping the explicit transfer and delete choices; admin deletion of others belongs to epic-recovery-and-deletion."
+verify = "Concurrent self-deletion of two admins leaves one; deleting the only admin is refused with the existing dialog showing why."
+covers = ["CAP-4"]
+after = [1, 3]
+hitl = false
+risk = "high"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+references = ["architecture-self-hosted-administration/architecture-self-hosted-administration.md#ad-7--deletion-owns-succession-and-shares-concurrency-rules"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Refactor sweep"
+description = "Cleanup of the epic's code from the plans and review findings deferred during the epic; scope is set when it starts."
+verify = "Lint, types and coverage pass with no behavior change."
+covers = ["CAP-1", "CAP-4", "CAP-11"]
+after = [1, 2, 3, 4, 5]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Bootstrap and role E2E suite"
+description = "Closing end-to-end scenarios for fresh bootstrap, closed signup, account menu visibility, role changes and self-demotion on desktop and mobile."
+verify = "The affected Playwright features pass."
+covers = ["CAP-1", "CAP-4", "CAP-11"]
+after = [6]
+hitl = false
+risk = "low"
+notes = ["Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main (epic-instance-foundation decision, 2026-10-24)."]
+
+[[entry]]
+id = 8
+type = "story"
+title = "First-run admin setup"
+description = "Replaces public signup UI with one-time admin welcome setup. Fresh entry automatically reaches /setup with Username, Name, Password and Confirm password; successful creation signs in to Trips. Initialized setup/signup routes redirect to sign-in with no signup link. Existing transactional bootstrap prevents stale or concurrent submissions from creating another admin. Retains bootstrap Activity producer delivered by 2.3."
+verify = "Fresh desktop/mobile entry shows welcome setup; valid matching fields create one admin and Activity event; missing/mismatched fields create none; initialized setup/signup URLs redirect to sign-in; stale open forms are refused; existing bootstrap concurrency tests still pass."
+covers = ["CAP-1"]
+after = [7, "2.3"]
+hitl = false
+risk = "medium"
+notes = ["Decision: 2026-10-27 approved course correction; complete before account onboarding. /setup is reserved for instance initialization, separate from later account setup links.", "Decision: 2026-10-27 historical foundation closure remains intact; this follow-up owns its cleanup and regression coverage after the completed sweep and closing suite.", "Branching: branch off feat/self-hosted-administration as ticket/<slug> and open the PR into feat/self-hosted-administration, never main.", "Implementation plan remains at _bmad-output/initiative-self-hosted-administration/plan-first-run-admin-setup.md."]
+references = ["spec-self-hosted-administration/spec-self-hosted-administration.md#capabilities", "ux-self-hosted-administration/EXPERIENCE.md#flow-1--first-run-admin-setup", "change-first-run-admin-setup/change-first-run-admin-setup.md"]

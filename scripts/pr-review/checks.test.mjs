@@ -82,6 +82,8 @@ describe("classifyFile", () => {
     ["src/components/arrivo/index.ts", "barrel"],
     ["evals/pr-reviewer/run-eval.mjs", "tooling"],
     ["evals/pr-reviewer/build-cases.mjs", "tooling"],
+    ["vitest.setup.mts", "tooling"],
+    ["src/lib/vitest.setup.mts", "source"],
     ["src/lib/format.ts", "source"],
     ["src/app/(app)/trips/page.tsx", "source"],
     ["scripts/setup-dev.mjs", "source"],
@@ -141,6 +143,48 @@ describe("findSecrets", () => {
     expect(findSecrets(files)).toEqual([]);
   });
 
+  it.each(['PasswordChanged: "password_changed",', 'TokenExpired: "token-expired",'])(
+    "allows a PascalCase constant member set to an identifier value: %s",
+    (line) => {
+      expect(secretsIn(line)).toEqual([]);
+    }
+  );
+
+  it("allows the reset cookie path without suppressing other credential assignments", () => {
+    expect(secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "/account-reset";')).toEqual([]);
+    expect(secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "Tr0ub4dor&3xyzQ9";')).toHaveLength(1);
+    expect(secretsIn('const password = "/account-reset";')).toHaveLength(1);
+    expect(
+      secretsIn('export const PASSWORD_RESET_COOKIE_PATH = "/account-reset"; const password = "Tr0ub4dor&3xyzQ9";')
+    ).toHaveLength(1);
+  });
+
+  it.each(['password: "hunter_two_words",', 'Password: "Tr0ub4dor&3xyzQ9",', 'SecretKey: "abcd1234efgh",'])(
+    "still detects a constant-looking name with a credential-shaped value: %s",
+    (line) => {
+      expect(secretsIn(line)).toHaveLength(1);
+    }
+  );
+
+  it.each(["same-origin", "include", "omit"])("allows the Fetch credentials mode %s", (mode) => {
+    expect(secretsIn(`fetch("/api/me", { credentials: "${mode}" });`)).toEqual([]);
+    expect(secretsIn(`fetch('/api/me', { 'credentials': '${mode}' });`)).toEqual([]);
+  });
+
+  it.each([
+    'const apiToken = "same-origin";',
+    'const clientCredentials = "same-origin";',
+    'const credentials = "real-credential-value";',
+    'fetch("/api/me", { credentials: "same-origin", apiKey: "7f3a9c1e5b2d48a6" });',
+    'const credentials = "same-origin"; const password = "Tr0ub4dor&3xyzQ9";',
+  ])("still detects actual credential assignments: %s", (line) => {
+    expect(secretsIn(line)).toHaveLength(1);
+  });
+
+  it("still scans test setup for literal credentials", () => {
+    expect(secretsIn('const password = "Tr0ub4dor&3xyzQ9";', "vitest.setup.mts")).toHaveLength(1);
+  });
+
   it("skips noise files such as lockfiles", () => {
     expect(secretsIn(`"integrity": "${stripe}"`, "package-lock.json")).toEqual([]);
   });
@@ -175,6 +219,19 @@ describe("findSecrets", () => {
 });
 
 describe("checkTests", () => {
+  it("does not require a colocated test for root test setup", () => {
+    const files = parse(fileDiff("vitest.setup.mts", { lines: ["setup();"] }));
+    expect(checkTests(files)).toEqual({ status: "PASS", missing: [], review: [] });
+  });
+
+  it("does not count root test setup as coverage for application source", () => {
+    const files = parse(
+      fileDiff("src/lib/format.ts", { lines: ["changed();"] }),
+      fileDiff("vitest.setup.mts", { lines: ["setup();"] })
+    );
+    expect(checkTests(files)).toEqual({ status: "FAIL", missing: ["src/lib/format.ts"], review: [] });
+  });
+
   it("passes when a colocated test changes with the source", () => {
     const files = parse(
       fileDiff("src/lib/format.ts", { lines: ["x"] }),
@@ -228,6 +285,42 @@ describe("checkTests", () => {
     );
 
     expect(checkTests(files).status).toBe("PASS");
+  });
+
+  it("lets a test in an ancestor directory cover files in a subdirectory outside the strict directories", () => {
+    const files = parse(
+      fileDiff("src/db/seed-data/users.ts", { lines: ["x"] }),
+      fileDiff("src/db/seed-runner.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "PASS", missing: [], review: [] });
+  });
+
+  it("does not let a test in a subdirectory cover files in its parent directory", () => {
+    const files = parse(
+      fileDiff("src/db/seed-runner.ts", { lines: ["x"] }),
+      fileDiff("src/db/seed-data/users.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "REVIEW", missing: [], review: ["src/db/seed-runner.ts"] });
+  });
+
+  it("does not let a repository-root test cover every directory", () => {
+    const files = parse(
+      fileDiff("src/db/seed-data/users.ts", { lines: ["x"] }),
+      fileDiff("root.test.mjs", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toEqual({ status: "REVIEW", missing: [], review: ["src/db/seed-data/users.ts"] });
+  });
+
+  it("does not let an ancestor test cover a strict directory", () => {
+    const files = parse(
+      fileDiff("src/lib/storage/adapter.ts", { lines: ["x"] }),
+      fileDiff("src/lib/format.test.ts", { lines: ["y"] })
+    );
+
+    expect(checkTests(files)).toMatchObject({ status: "FAIL", missing: ["src/lib/storage/adapter.ts"] });
   });
 
   it("lets an e2e feature or step cover src/app and component changes", () => {

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 describe("resetE2EStorage", async () => {
   const tempRoots = [];
-  const { E2E_STORAGE_DIRECTORY, resetE2EStorage } = await import("./e2e-storage.mjs");
+  const { E2E_STORAGE_DIRECTORY, BOOTSTRAP_E2E_STORAGE_DIRECTORY, resetE2EStorage } = await import("./e2e-storage.mjs");
 
   afterEach(() => {
     for (const tempRoot of tempRoots.splice(0)) {
@@ -31,6 +31,18 @@ describe("resetE2EStorage", async () => {
     expect(storageRoot).toBe(join(rootDir, E2E_STORAGE_DIRECTORY));
     expect(existsSync(storageRoot)).toBe(true);
     expect(existsSync(staleFile)).toBe(false);
+  });
+
+  it("resets bootstrap storage as a separate sibling without changing normal storage", () => {
+    const rootDir = createProjectRoot();
+    mkdirSync(join(rootDir, E2E_STORAGE_DIRECTORY));
+    writeFileSync(join(rootDir, E2E_STORAGE_DIRECTORY, "keep.txt"), "keep");
+    mkdirSync(join(rootDir, BOOTSTRAP_E2E_STORAGE_DIRECTORY));
+    writeFileSync(join(rootDir, BOOTSTRAP_E2E_STORAGE_DIRECTORY, "stale.txt"), "stale");
+    const storageRoot = resetE2EStorage(rootDir, true);
+    expect(storageRoot).toBe(join(rootDir, ".e2e-bootstrap-storage"));
+    expect(existsSync(join(storageRoot, "stale.txt"))).toBe(false);
+    expect(readFileSync(join(rootDir, E2E_STORAGE_DIRECTORY, "keep.txt"), "utf8")).toBe("keep");
   });
 
   it("creates the E2E storage root when it does not exist", () => {

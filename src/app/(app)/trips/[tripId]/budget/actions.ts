@@ -8,6 +8,7 @@ import { ExpenseCategory, type CreateExpenseInput, type UpdateExpensePatch } fro
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { convertDual, recalculate } from "@/lib/currency";
 import { dbExpenseToType } from "@/lib/db-mappers";
+import { recordTripUpdated } from "@/lib/trip-activity";
 
 const VALID_EXPENSE_CATEGORIES = new Set(Object.values(ExpenseCategory));
 
@@ -154,6 +155,7 @@ export async function createExpense(
     })
     .returning({ id: expenses.id });
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   return { id: createdExpense.id, ...(conversionError ? { conversionError: true } : {}) };
 }
@@ -236,6 +238,7 @@ export async function updateExpense(
     throw new Error("Expense was deleted before update could complete.");
   }
 
+  recordTripUpdated(user.id!, expenseRow.tripId);
   revalidatePath(`/trips/${expenseRow.tripId}`);
 
   if (conversionError) {
@@ -247,6 +250,7 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
 
+  let updatedCount = 0;
   await db.transaction(async (tx) => {
     const [tripRow] = await tx.select({ budgetCurrency: trips.budgetCurrency }).from(trips).where(eq(trips.id, tripId));
     const tripCurrency = (tripRow?.budgetCurrency ?? "").toUpperCase();
@@ -255,6 +259,7 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
     const tripExpenses = expenseRows.map(dbExpenseToType);
 
     const conversionResults = await recalculate(tripExpenses, tripCurrency);
+    updatedCount = conversionResults.length;
 
     await Promise.all(
       conversionResults.map((result) =>
@@ -271,6 +276,7 @@ export async function recalculateConversions(tripId: string): Promise<{ recalcul
     );
   });
 
+  if (updatedCount > 0) recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   return { recalculated: true };
 }
@@ -285,5 +291,6 @@ export async function deleteExpense(expenseId: string): Promise<void> {
 
   await assertTripAccess(expenseRow.tripId, user.id!, "editor");
   await db.delete(expenses).where(eq(expenses.id, expenseId));
+  recordTripUpdated(user.id!, expenseRow.tripId);
   revalidatePath(`/trips/${expenseRow.tripId}`);
 }

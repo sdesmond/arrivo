@@ -19,6 +19,7 @@ import {
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import type {
   AcceptInvitationResult,
   ContributorChange,
@@ -42,16 +43,20 @@ import { deriveGraphicCover, detectPreferredCurrency, stableStringify, toLocalDa
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
 import { recalculateAll } from "@/lib/currency";
 import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
-import { type DbTransaction, lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
+import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
+import { getInvitationExpiry, hasNormalizedUsername, publishInvitationChanged } from "@/lib/invitations";
 import {
-  applyInvitationResend,
-  getInvitationExpiry,
-  hasNormalizedUsername,
-  publishInvitationChanged,
-} from "@/lib/invitations";
-import { isUniqueViolation } from "@/lib/error-utils";
+  acceptInvitationWrite,
+  ContributorChangeGuardError,
+  createTripWrite,
+  inviteContributorWrite,
+  leaveTripWrite,
+  NOT_ON_TRIP_MESSAGE,
+  saveContributorChangesWrite,
+} from "@/lib/membership-writes";
+import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
 import { normalizeUsername } from "@/lib/username";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
@@ -300,35 +305,15 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
 
-  let tripId = "";
-  let userId = "";
-  await db.transaction(async (tx) => {
-    const [user] = await tx
-      .select({
-        id: users.id,
-        username: users.username,
-        name: users.name,
-        currency: users.currency,
-        transitMode: users.transitMode,
-      })
-      .from(users)
-      .where(eq(users.id, sessionUser.id!))
-      .for("update");
-
-    if (!user?.id) {
-      throw new Error("Signed-in user could not be resolved before trip creation.");
-    }
-    userId = user.id;
+  const created = await createTripWrite(db, sessionUser.id!, (user) => {
     const userName = user.name ?? user.username;
     const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
     const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
     const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
     const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
 
-    const [trip] = await tx
-      .insert(trips)
-      .values({
-        ownerId: userId,
+    return {
+      tripValues: {
         name: input.name,
         startDate: input.startDate ?? null,
         endDate: input.endDate ?? null,
@@ -341,24 +326,17 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
         transitMode,
         budgetTotal: input.budgetTotal?.toString(),
         tags: input.tags ?? [],
-      })
-      .returning();
-    tripId = trip.id;
-    await tx.insert(collaborators).values({
-      tripId: trip.id,
-      userId,
-      name: userName,
-      initials: userName.slice(0, 2).toUpperCase(),
-      role: "manager",
-      isCreator: true,
-    });
-    const dayRows = buildDayRows(trip.id, input.startDate, input.endDate);
-    if (dayRows.length > 0) {
-      await tx.insert(days).values(dayRows);
-    } else {
-      await tx.insert(days).values(buildDatelessDayRow(trip.id));
-    }
+      },
+      collaboratorName: userName,
+      buildDayRows: (newTripId) => {
+        const dayRows = buildDayRows(newTripId, input.startDate, input.endDate);
+        return dayRows.length > 0 ? dayRows : buildDatelessDayRow(newTripId);
+      },
+    };
   });
+  const { tripId, ownerId: userId, ownerUsername: actorUsername } = created;
+
+  recordTripCreated({ id: userId, username: actorUsername }, tripId);
 
   const hasDestination = !!input.destinationName || !!input.destinationCenter;
   let coverUrl: string | null = null;
@@ -699,6 +677,7 @@ export async function updateTripMetadata(
     );
   }
 
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
   return { status: "saved" };
@@ -772,56 +751,16 @@ export async function inviteContributor(
   }
 
   const expiresAt = getInvitationExpiry();
-  const result = await db.transaction(async (transaction) => {
-    const existingCollaborators = await transaction
-      .select({ id: collaborators.id })
-      .from(collaborators)
-      .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, invitee.id)));
-    if (existingCollaborators.length > 0) {
-      return {
-        status: "error",
-        message: "This person is already a collaborator on this trip",
-        errorCode: "already-collaborator",
-      } as const;
-    }
-
-    const existingInvitations = await transaction
-      .select({ id: invitations.id, status: invitations.status })
-      .from(invitations)
-      .where(and(eq(invitations.tripId, tripId), eq(invitations.inviteeId, invitee.id)));
-    const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
-    if (pendingInvitation) {
-      await applyInvitationResend(transaction, pendingInvitation.id, tripId, expiresAt, role);
-      return { status: "resent" } as const;
-    }
-
-    const declinedInvitation = existingInvitations.find((invitation) => invitation.status === "declined");
-    if (declinedInvitation) {
-      await transaction.delete(invitations).where(eq(invitations.id, declinedInvitation.id));
-    }
-
-    try {
-      await transaction.insert(invitations).values({
-        tripId,
-        inviteeId: invitee.id,
-        role,
-        status: "pending",
-        expiresAt,
-        invitedBy: user.id!,
-      });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        return {
-          status: "error",
-          message: "This person was just invited by someone else. Try again.",
-          errorCode: "invite-conflict",
-        } as const;
-      }
-      throw error;
-    }
-    return { status: "invited" } as const;
+  const result = await inviteContributorWrite(db, {
+    tripId,
+    inviterId: user.id!,
+    inviteeId: invitee.id,
+    role,
+    expiresAt,
   });
+  if (result.status === "gone") notFound();
 
+  if (result.status === "invited") recordTripInvitation("invitation_created", user.id!, tripId);
   if (result.status !== "error") {
     // Invitee's personal channel refreshes their dashboard/badge; the trip channel lets another
     // manager's open share dialog pick up the new pending row.
@@ -869,47 +808,10 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     return { status: "error", message: "Invitation not found." };
   }
   const userId = user.id;
-  const matchedInvitation = await db.transaction(async (transaction) => {
-    const [updatedInvitation] = await transaction
-      .update(invitations)
-      .set({ status: "accepted" })
-      .where(
-        and(
-          eq(invitations.id, invitationId),
-          eq(invitations.inviteeId, userId),
-          eq(invitations.status, "pending"),
-          sql`${invitations.expiresAt} > now()`
-        )
-      )
-      .returning();
-
-    if (!updatedInvitation) {
-      return null;
-    }
-
-    const [account] = await transaction
-      .select({ name: users.name, username: users.username })
-      .from(users)
-      .where(eq(users.id, userId));
-    const userName = account?.name ?? account?.username ?? user.name ?? "";
-    const collaboratorValues = {
-      tripId: updatedInvitation.tripId,
-      userId,
-      name: userName,
-      initials: userName.slice(0, 2).toUpperCase(),
-      role: updatedInvitation.role,
-      isCreator: false,
-    };
-
-    await transaction
-      .insert(collaborators)
-      .values(collaboratorValues)
-      .onConflictDoUpdate({
-        target: [collaborators.tripId, collaborators.userId],
-        set: collaboratorValues,
-      });
-
-    return updatedInvitation;
+  const matchedInvitation = await acceptInvitationWrite(db, {
+    userId,
+    fallbackName: user.name ?? "",
+    invitationId,
   });
 
   if (!matchedInvitation) {
@@ -917,6 +819,7 @@ export async function acceptInvitation(invitationId: string): Promise<AcceptInvi
     return { status: "error", message };
   }
 
+  recordTripInvitation("invitation_accepted", userId, matchedInvitation.tripId);
   publishTripEvent(matchedInvitation.tripId, {
     type: LiveSyncEventType.MembershipChanged,
     tripId: matchedInvitation.tripId,
@@ -986,6 +889,7 @@ export async function rescindInvitation(tripId: string, invitationId: string): P
     return { status: "error", message };
   }
 
+  recordTripInvitation("invitation_rescinded", user.id!, tripId);
   publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
   publishInvitationChanged(rescindedInvitation.inviteeId, tripId);
   revalidatePath("/trips");
@@ -1013,30 +917,6 @@ export async function dismissInvitation(tripId: string, invitationId: string): P
   revalidatePath("/trips");
 
   return { status: "success" };
-}
-
-function assertNotCreator(
-  collab: { isCreator: boolean | null },
-  message: string,
-  ErrorClass: new (message: string) => Error = Error
-): void {
-  if (collab.isCreator) {
-    throw new ErrorClass(message);
-  }
-}
-
-/**
- * Thrown for expected, user-facing rejections inside `saveContributorChanges`'s and `leaveTrip`'s transactions.
- * `stale` marks a concurrent-edit guard failure (row gone, or its role changed since staging) so the
- * caller knows to refetch; unexpected errors are left as plain `Error`s and rethrown, not wrapped here.
- */
-class ContributorChangeGuardError extends Error {
-  readonly stale: boolean;
-
-  constructor(message: string, options?: { stale?: boolean }) {
-    super(message);
-    this.stale = options?.stale ?? false;
-  }
 }
 
 /**
@@ -1074,66 +954,11 @@ export async function saveContributorChanges(
     return { status: "error", message: "Duplicate change for the same contributor" };
   }
 
-  const removedUserIds: string[] = [];
-  const roleChangedUserIds: string[] = [];
-  let tripName = "";
-  let removedByUsername = "";
-
   try {
-    await db.transaction(async (transaction) => {
-      await lockTripForUpdate(transaction, tripId);
-
-      const collaboratorsOnTrip = await transaction
-        .select()
-        .from(collaborators)
-        .where(eq(collaborators.tripId, tripId));
-      const collaboratorById = new Map(collaboratorsOnTrip.map((collaborator) => [collaborator.id, collaborator]));
-
-      const myRow = collaboratorsOnTrip.find((collaborator) => collaborator.userId === user.id);
-      const myRowId = myRow?.id;
-
-      for (const change of changes) {
-        const target = collaboratorById.get(change.collaboratorId);
-        if (!target || target.tripId !== tripId) {
-          throw new ContributorChangeGuardError("One or more contributors are no longer on this trip.", {
-            stale: true,
-          });
-        }
-        assertNotCreator(target, "The trip creator's seat cannot be changed.", ContributorChangeGuardError);
-        if (target.id === myRowId) {
-          throw new ContributorChangeGuardError("You cannot change your own access.");
-        }
-
-        if (change.type === "role") {
-          if (target.role !== change.fromRole) {
-            throw new ContributorChangeGuardError("A contributor's role changed since you started editing.", {
-              stale: true,
-            });
-          }
-          await transaction
-            .update(collaborators)
-            .set({ role: change.toRole })
-            .where(eq(collaborators.id, change.collaboratorId));
-          if (target.userId) {
-            roleChangedUserIds.push(target.userId);
-          }
-        } else {
-          await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
-          if (target.userId) {
-            removedUserIds.push(target.userId);
-          }
-        }
-      }
-
-      if (removedUserIds.length > 0) {
-        const [tripRow] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId));
-        tripName = tripRow?.name ?? "";
-        const [remover] = await transaction
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, user.id!));
-        removedByUsername = remover?.username ?? "";
-      }
+    const { removedUserIds, roleChangedUserIds, tripName, removedByUsername } = await saveContributorChangesWrite(db, {
+      tripId,
+      actorId: user.id!,
+      changes,
     });
 
     if (removedUserIds.length > 0) {
@@ -1175,7 +1000,6 @@ export async function saveContributorChanges(
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NOT_ON_TRIP_MESSAGE = "You're no longer on this trip.";
 
 /**
  * Removes the signed-in editor or viewer from a trip — their own membership row only. The trip, its
@@ -1195,41 +1019,16 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
     return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
   }
 
-  const ownMembership = and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId));
-
-  const [existingMembership] = await db.select({ id: collaborators.id }).from(collaborators).where(ownMembership);
+  const [existingMembership] = await db
+    .select({ id: collaborators.id })
+    .from(collaborators)
+    .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId)));
   if (!existingMembership) {
     return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
   }
 
   try {
-    await db.transaction(async (transaction) => {
-      try {
-        await lockTripForUpdate(transaction, tripId);
-      } catch (error) {
-        // Trip deleted between the pre-check and the lock: the caller is no longer on it — stale, not a failure.
-        if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) {
-          throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
-        }
-        throw error;
-      }
-
-      const [membership] = await transaction
-        .select({ id: collaborators.id, role: collaborators.role, isCreator: collaborators.isCreator })
-        .from(collaborators)
-        .where(ownMembership);
-      if (!membership) {
-        throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
-      }
-      assertNotCreator(membership, "The trip creator can't leave this trip.", ContributorChangeGuardError);
-      if (membership.role !== CollaboratorRole.Editor && membership.role !== CollaboratorRole.Viewer) {
-        throw new ContributorChangeGuardError("Managers can't leave a trip.");
-      }
-
-      await transaction
-        .delete(collaborators)
-        .where(and(eq(collaborators.id, membership.id), eq(collaborators.userId, userId)));
-    });
+    await leaveTripWrite(db, { tripId, userId });
   } catch (error) {
     if (error instanceof ContributorChangeGuardError) {
       return { status: "error", message: error.message, stale: error.stale };

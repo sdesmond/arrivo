@@ -1,3 +1,4 @@
+import { UserRole } from "../../data/types";
 import type { SeedUser } from "./seed-types";
 
 export const DEMO_USER: SeedUser = {
@@ -55,4 +56,14 @@ export const JORDAN_USER: SeedUser = {
   dateFormat: "MM/DD/YYYY",
 };
 
-export const SEED_USERS: SeedUser[] = [DEMO_USER, ALEX_USER, SAM_USER, JORDAN_USER];
+export const ADMIN_USER: SeedUser = {
+  key: "admin",
+  username: "admin",
+  name: "Admin User",
+  initials: "AU",
+  currency: "USD",
+  dateFormat: "MM/DD/YYYY",
+  role: UserRole.Admin,
+};
+
+export const SEED_USERS: SeedUser[] = [DEMO_USER, ALEX_USER, SAM_USER, JORDAN_USER, ADMIN_USER];

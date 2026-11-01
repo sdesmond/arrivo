@@ -4,37 +4,28 @@ import { requireUser } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import {
   users,
-  collaborators,
-  documents,
-  invitations,
-  trips,
   userLoyaltyNumbers,
   userWishlistDestinations,
   userCompanions,
+  credentialAuthorizations,
+  trustedDevices,
 } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import {
-  CollaboratorRole,
-  CoverType,
-  InvitationStatus,
-  LiveSyncEventType,
-  SignInNotice,
-  TransitMode,
-  TripDeletionAction,
-} from "@/data/types";
-import { lockTripForUpdate, lockUserForUpdate } from "@/lib/server-action-locks";
-import { publishInvitationChanged } from "@/lib/invitations";
+import { AccountDeletionFailure, ActivityEventType, CoverType, SignInNotice, TransitMode } from "@/data/types";
+import { recordActivity } from "@/lib/activity";
+import { lockUserForUpdate } from "@/lib/server-action-locks";
+import { deleteOwnAccount } from "@/lib/account-deletion";
+import { runAccountDeletionEffects } from "@/lib/account-deletion-effects";
 import { isUniqueViolation } from "@/lib/error-utils";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { normalizeUsername, validateUsername } from "@/lib/username";
-import { getStorageAdapter } from "@/lib/storage/storage-adapter";
-import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
-import { areDeletionChoicesValid, buildSharedOwnedTrips } from "@/lib/trip-ownership";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
-import { bumpSessionVersion } from "@/lib/session-version";
+import { lockCurrentSecurityVersion } from "@/lib/session-version";
 import type {
   UpdateUserProfilePatch,
   AddLoyaltyNumberInput,
@@ -130,11 +121,34 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
     dbPatch.knownTravelerNumber = encryptOptionalField(patch.knownTravelerNumber);
   }
 
+  // A username change needs the row's old username and proof the value really changed, so it is locked, read and
+  // updated in one transaction. Other edits keep the plain update.
+  let renamedFrom: string | undefined;
   try {
-    await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
+    if (dbPatch.username !== undefined) {
+      const newUsername = dbPatch.username;
+      renamedFrom = await db.transaction(async (transaction) => {
+        await lockUserForUpdate(transaction, session.id!);
+        const [current] = await transaction
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, session.id!));
+        await transaction.update(users).set(dbPatch).where(eq(users.id, session.id!));
+        return current && current.username !== newUsername ? current.username : undefined;
+      });
+    } else {
+      await db.update(users).set(dbPatch).where(eq(users.id, session.id!));
+    }
   } catch (error) {
     if (isUniqueViolation(error)) return { error: "That username is taken." };
     return { error: "Something went wrong." };
+  }
+  // After commit, with the pre-change username and the stable ID; the new value is deliberately not stored.
+  if (renamedFrom !== undefined) {
+    recordActivity({
+      type: ActivityEventType.UsernameChanged,
+      actor: { id: session.id!, username: renamedFrom },
+    });
   }
   revalidatePath("/profile");
   revalidatePath("/trips");
@@ -209,28 +223,50 @@ export async function changePassword({
   const throttle = await checkThrottle(throttleTargets);
   if (throttle.locked) return { error: lockoutMessage(throttle.retryAfterSeconds) };
 
-  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId));
-
-  if (!user?.passwordHash) return { error: "No password set on this account." };
-
-  const match = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!match) {
-    await recordFailure(throttleTargets);
-    return { error: "Current password is incorrect." };
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    return { error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` };
   }
-  await clearFailures(throttleTargets);
-
-  if (newPassword.length < 8) return { error: "New password must be at least 8 characters." };
 
   const hash = await bcrypt.hash(newPassword, 10);
+  let outcome: { error?: string; username?: string };
   try {
-    await db.update(users).set({ passwordHash: hash }).where(eq(users.id, userId));
+    outcome = await db.transaction(async (transaction) => {
+      if (!(await lockCurrentSecurityVersion(transaction, userId, session.sessionVersion)))
+        return { error: "Session expired. Sign in again." };
+      const [user] = await transaction
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, userId));
+      if (!user?.passwordHash) return { error: "No password set on this account." };
+      if (!(await bcrypt.compare(currentPassword, user.passwordHash)))
+        return { error: "Current password is incorrect." };
+      const [updated] = await transaction
+        .update(users)
+        .set({ passwordHash: hash, sessionVersion: sql`${users.sessionVersion} + 1`, totpPendingSecret: null })
+        .where(eq(users.id, userId))
+        .returning({ username: users.username });
+      if (!updated) throw new Error("Account disappeared during password change.");
+      await transaction.execute(sql`delete from ${trustedDevices} where ${trustedDevices.userId} = ${userId}`);
+      await transaction.execute(sql`update ${credentialAuthorizations} set invalidated_at = now()
+        where ${credentialAuthorizations.userId} = ${userId} and ${credentialAuthorizations.purpose} in ('reset', 'recovery')
+        and ${credentialAuthorizations.consumedAt} is null and ${credentialAuthorizations.invalidatedAt} is null`);
+      return { username: updated.username };
+    });
   } catch {
     return { error: "Something went wrong." };
   }
-
-  // Anyone holding a session from before the change (including whoever learned the old password) is out.
-  await bumpSessionVersion(userId);
+  if (outcome.error) {
+    if (outcome.error === "Current password is incorrect.") await recordFailure(throttleTargets);
+    return { error: outcome.error };
+  }
+  await clearFailures(throttleTargets);
+  // Recorded before sign-out, whose redirect ends this action. No logout event: the revocation is part of this one.
+  if (outcome.username) {
+    recordActivity({
+      type: ActivityEventType.PasswordChanged,
+      actor: { id: userId, username: outcome.username },
+    });
+  }
   await signOut({ redirectTo: `/sign-in?notice=${SignInNotice.PasswordChanged}` });
   return {};
 }
@@ -326,13 +362,12 @@ export async function deleteCompanion(id: string): Promise<void> {
 }
 
 const ACCOUNT_DELETION_STALE_MESSAGE = "Your shared trips changed. Review them and try again.";
-
-class AccountDeletionStaleError extends Error {}
+const LAST_ADMIN_MESSAGE =
+  "You're the only admin with a finished account. Make another account an admin before deleting yours.";
 
 /**
- * Deletes the signed-in user's account. `trips.ownerId` cascades, so every trip the user owns must be
- * dealt with first: shared trips go to the collaborator the user picked (promoted to manager and
- * creator) or are deleted because the user chose to; trips nobody else is on are deleted.
+ * Deletes the signed-in user's account; the transaction, trip handoff and last-admin guard live in
+ * `deleteOwnAccount`. Events, file cleanup and sign-out run here, only after it commits.
  */
 export async function deleteAccount(choices: TripDeletionChoice[]): Promise<DeleteAccountResult> {
   const session = await requireUser();
@@ -340,129 +375,18 @@ export async function deleteAccount(choices: TripDeletionChoice[]): Promise<Dele
   const staleResult: DeleteAccountResult = { status: "error", message: ACCOUNT_DELETION_STALE_MESSAGE, stale: true };
   if (!Array.isArray(choices)) return staleResult;
 
-  let deletion;
-  try {
-    deletion = await db.transaction(async (transaction) => {
-      await lockUserForUpdate(transaction, userId);
-
-      const ownedTrips = await transaction
-        .select({ id: trips.id, name: trips.name, coverImageUrl: trips.coverImageUrl })
-        .from(trips)
-        .where(eq(trips.ownerId, userId));
-      for (const trip of ownedTrips) {
-        await lockTripForUpdate(transaction, trip.id);
-      }
-
-      const ownedTripIds = ownedTrips.map((trip) => trip.id);
-      const members =
-        ownedTripIds.length > 0
-          ? await transaction
-              .select({
-                id: collaborators.id,
-                tripId: collaborators.tripId,
-                userId: collaborators.userId,
-                name: collaborators.name,
-                role: collaborators.role,
-                addedAt: collaborators.addedAt,
-              })
-              .from(collaborators)
-              .where(inArray(collaborators.tripId, ownedTripIds))
-          : [];
-
-      // The dialog's choices were made against an earlier read; a trip gaining or losing members since
-      // then must be shown again rather than resolved by a guess.
-      if (!areDeletionChoicesValid(buildSharedOwnedTrips(ownedTrips, members, userId), choices)) {
-        throw new AccountDeletionStaleError();
-      }
-
-      // Cancel invitations before ownership moves so nobody joins a trip on the departing user's say-so.
-      const rescindedInvitations = await transaction
-        .update(invitations)
-        .set({ status: InvitationStatus.Rescinded })
-        .where(and(eq(invitations.invitedBy, userId), eq(invitations.status, InvitationStatus.Pending)))
-        .returning({ inviteeId: invitations.inviteeId, tripId: invitations.tripId });
-
-      const heirByTripId = new Map(
-        choices.flatMap((choice) =>
-          choice.action === TripDeletionAction.Transfer ? [[choice.tripId, choice.newOwnerUserId] as const] : []
-        )
-      );
-      const deletedTrips = ownedTrips.filter((trip) => !heirByTripId.has(trip.id));
-      const deletedTripIds = deletedTrips.map((trip) => trip.id);
-
-      const deletedTripDocuments =
-        deletedTripIds.length > 0
-          ? await transaction
-              .select({ url: documents.url })
-              .from(documents)
-              .where(inArray(documents.tripId, deletedTripIds))
-          : [];
-      if (deletedTripIds.length > 0) {
-        await transaction.delete(trips).where(inArray(trips.id, deletedTripIds));
-      }
-
-      for (const [tripId, heirUserId] of heirByTripId) {
-        await transaction.update(trips).set({ ownerId: heirUserId }).where(eq(trips.id, tripId));
-        await transaction
-          .update(collaborators)
-          .set({ role: CollaboratorRole.Manager, isCreator: true })
-          .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, heirUserId)));
-      }
-
-      const departedMemberships = await transaction
-        .delete(collaborators)
-        .where(eq(collaborators.userId, userId))
-        .returning({ tripId: collaborators.tripId });
-      await transaction.delete(users).where(eq(users.id, userId));
-
-      return {
-        rescindedInvitations,
-        transferredTrips: [...heirByTripId],
-        deletedTripIds,
-        deletedTripMembers: members.filter(
-          (member) => member.userId && member.userId !== userId && deletedTripIds.includes(member.tripId)
-        ),
-        remainingTripIds: departedMemberships.map((membership) => membership.tripId),
-        storageUrls: [
-          ...deletedTripDocuments.map((tripDocument) => tripDocument.url),
-          ...deletedTrips.map((trip) => trip.coverImageUrl),
-        ].filter((url): url is string => !!url),
-      };
-    });
-  } catch (error) {
-    if (error instanceof AccountDeletionStaleError) return staleResult;
-    throw error;
+  const result = await deleteOwnAccount(db, userId, choices, session.sessionVersion);
+  if (!result.ok) {
+    if (result.reason === AccountDeletionFailure.Unauthorized) redirect("/sign-in");
+    return result.reason === AccountDeletionFailure.Stale
+      ? staleResult
+      : { status: "error", message: LAST_ADMIN_MESSAGE };
   }
-
-  for (const invitation of deletion.rescindedInvitations) {
-    publishInvitationChanged(invitation.inviteeId, invitation.tripId);
-  }
-  for (const tripId of deletion.deletedTripIds) {
-    publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
-  }
-  // Members watching their dashboard only hold their personal channel, mirroring deleteTrip.
-  for (const member of deletion.deletedTripMembers) {
-    publishUserEvent(member.userId!, { type: LiveSyncEventType.TripDeleted, tripId: member.tripId });
-  }
-  for (const tripId of deletion.deletedTripIds) {
-    purgeTripTopic(tripId);
-  }
-  for (const tripId of new Set(deletion.remainingTripIds)) {
-    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  }
-  // The new owner's role changed; their other sessions only listen on their personal channel.
-  for (const [tripId, heirUserId] of deletion.transferredTrips) {
-    publishUserEvent(heirUserId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  }
-
-  // Best-effort: a file that won't delete must not undo or block the account deletion.
-  await Promise.all(
-    deletion.storageUrls.map((url) =>
-      getStorageAdapter()
-        .del(url)
-        .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-    )
-  );
+  // Committed. Effects run before sign-out, whose redirect ends this action; no logout event for the implied sign-out.
+  await runAccountDeletionEffects(result.summary, {
+    type: ActivityEventType.AccountDeleted,
+    actor: result.summary.account,
+  });
 
   revalidatePath("/trips");
   await signOut({ redirectTo: "/sign-in" });

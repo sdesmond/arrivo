@@ -1,0 +1,315 @@
+@feat:app-activity
+Feature: App activity
+  Scenario: Admin sees their own sign-in after refresh
+    Given I am signed in as an app "admin"
+    When I open the app Activity page
+    And I refresh the page
+    Then the Activity table lists a Sign-in row for me
+
+  Scenario: An MFA password step alone adds no sign-in row
+    Given the current account is an app admin
+    And my account has two-factor authentication on
+    And I am on the sign-in page
+    When I sign in with my password
+    Then I should be asked for an authentication code
+    And my account has 0 recorded sign-ins
+    When I enter the next code from my authenticator app
+    Then I should be redirected to the trips page
+    And my account has 1 recorded sign-ins
+
+  Scenario: A member cannot open Activity
+    Given I am signed in as an app "member"
+    When I request app management at "/admin/activity"
+    Then app management is not found
+
+  Scenario: A deleted account's sign-in keeps its snapshot username
+    Given I am signed in as an app "admin"
+    And another completed app member exists
+    And that member signed in and then had their account deleted
+    When I open the app Activity page
+    Then the Activity table lists a Sign-in row for that deleted member
+
+  Scenario: A wrong password for a known account is recorded against that account
+    Given the current account is an app admin
+    And I am on the sign-in page
+    When I submit the wrong password for my account
+    Then 1 failed sign-in is recorded against my account
+    And my account has 0 recorded sign-ins
+    When I sign in with my password
+    Then I should be redirected to the trips page
+    When I open the app Activity page
+    Then the Activity table lists a Failed sign-in row for my account with an unavailable actor
+
+  Scenario: A wrong password for an unknown account is recorded as an unknown account
+    Given the current account is an app admin
+    And I am on the sign-in page
+    When I submit the wrong password for an account that does not exist
+    Then 1 failed sign-in is recorded against that unknown username
+    When I sign in with my password
+    Then I should be redirected to the trips page
+    When I open the app Activity page
+    Then the Activity table lists a Failed sign-in row for that unknown username
+
+  Scenario: A rejected direct credentials callback is recorded without an actor
+    Given the current account is an app admin
+    And I am on the sign-in page
+    When wrong credentials for my account are posted directly to the sign-in callback
+    Then 1 failed sign-in is recorded against my account
+    When I sign in with my password
+    Then I should be redirected to the trips page
+    When I open the app Activity page
+    Then the Activity table lists a Failed sign-in row for my account with an unavailable actor
+
+  Scenario: A forged second-factor ticket is recorded with an unavailable identity
+    Given the current account is an app admin
+    And I am on the sign-in page
+    When a forged second-factor ticket is posted directly to the sign-in callback
+    Then 1 failed sign-in is recorded with no identity
+    When I sign in with my password
+    Then I should be redirected to the trips page
+    When I open Activity for failed sign-ins from that attempt
+    Then the Activity table lists a Failed sign-in row with an unavailable affected account
+
+  Scenario: Logging out is recorded
+    Given I am signed in as an app "admin"
+    When I sign out
+    Then my account has 1 recorded "sign_out" events
+    When I sign in with my password
+    Then I should be redirected to the trips page
+    When I open the app Activity page
+    Then the Activity table lists a Sign-out row for me
+
+  Scenario: A role change records the admin and the affected account
+    Given I am signed in as an app "admin"
+    And another completed app member exists
+    When I request app management at "/admin/users"
+    And I promote the other app member
+    Then my account has 1 recorded "role_changed" events
+    And the role change names me and the other app member
+    When I open the app Activity page
+    Then the Activity table lists a Changed role row for me affecting the other app member
+
+  Scenario: A username change keeps the original identity in history
+    Given I am signed in as an app "admin"
+    And I remember my current username
+    When I open my profile page
+    And I navigate to the Identity section
+    And I change my username to a new one and save
+    Then my account has 1 recorded "username_changed" events
+    And the rename event keeps my original username and account ID
+    When I open the app Activity page
+    Then the Activity table lists a Changed username row for my original username
+
+  Scenario: A password change is recorded without a separate logout
+    Given I am signed in as an app "admin"
+    When I open my profile page
+    And I change my password
+    Then I should be redirected to the sign-in page
+    And my account has 1 recorded "password_changed" events
+    And my account has 0 recorded "sign_out" events
+    When I sign in with my new password
+    And I open the app Activity page
+    Then the Activity table lists a Changed password row for me
+
+  Scenario: Deleting my own account is recorded with the identity it had
+    Given I am signed in as an app "admin"
+    And another completed app admin exists
+    And I remember my current username
+    When I open my profile page
+    And I delete my account
+    Then I should be redirected to the sign-in page
+    And my account has 1 recorded "account_deleted" events
+    And the deletion event keeps my original username and account ID
+    When the other app admin opens the app Activity page
+    Then the Activity table lists a Deleted own account row for my original username
+
+  Scenario: Created trip activity shows identity and ID without its name
+    Given I am signed in as an app "admin"
+    When I create a private trip for Activity
+    And I open the app Activity page
+    Then Activity lists one "Created trip" row for that trip without its name
+
+  Scenario: Itinerary edits share one private Activity summary
+    Given I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    When I add two private itinerary notes for Activity
+    And I open the app Activity page
+    Then Activity lists one "Updated trip" row for that trip without its name
+
+  Scenario: Budget and reservation edits share one private Activity summary
+    Given I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    When I add a private expense for Activity
+    And I add a private reservation for Activity
+    And I open the app Activity page
+    Then Activity lists one "Updated trip" row for that trip without its name
+    And Activity shows no expense amount or reservation provider
+
+  Scenario: Invitation creation and acceptance remain separate private Activity rows
+    Given I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When the Activity invitee accepts their real invitation
+    And I open the app Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity lists one "Accepted invitation" transition without invitation metadata
+
+  Scenario: Rescinding a pending invitation records one private Activity row
+    Given I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When I rescind the Activity invitation
+    And I open the app Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity lists one "Rescinded invitation" transition without invitation metadata
+
+  Scenario: Resends and rejected invitation attempts add no lifecycle rows
+    Given I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    And there is a registered user I can invite
+    When I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then I receive an invitation sent toast
+    When I resend the Activity invitation using both controls
+    And I try an Activity invitation for a missing account
+    And I open the app Activity page
+    Then Activity lists one "Created invitation" transition without invitation metadata
+    And Activity has no other invitation transitions for that trip
+
+  Scenario: Equal-timestamp history pages without repeats and keeps its filter after reload
+    Given I am signed in as an app "admin"
+    And 45 Activity trips were created by one seeded account in the same instant
+    When I open the app Activity page
+    And I filter Activity to the seeded account
+    And I page Older through the seeded Activity history
+    Then every seeded Activity trip was listed exactly once in latest-first order
+    When I refresh the page
+    Then the seeded account filter and older page are kept
+    When I go to the newest Activity page
+    Then the seeded account filter is kept on the newest page
+
+  Scenario: Date filters select every batch whose range overlaps, inclusive at the edges
+    Given I am signed in as an app "admin"
+    And seeded batched Activity edits around 10:00 to 12:00
+    When I open Activity for the seeded account from "10:00" to "11:00"
+    Then Activity lists only the seeded edits "straddling, boundary"
+    When I open Activity for the seeded account from "11:00" to "12:00"
+    Then Activity lists only the seeded edits "straddling"
+    When I open Activity for the seeded account from "12:00" to "13:00"
+    Then Activity shows no activity matching the filters
+    When I open Activity for the seeded account from "12:00" to "11:00"
+    Then Activity explains the date range is invalid and lists nothing
+
+  Scenario: An ongoing batch shows its range and stays ordered after a refresh
+    Given I am signed in as an app "admin"
+    And an ongoing and a finished batched Activity edit for one seeded account
+    When I open Activity for the seeded account
+    Then the "ongoing" seeded row shows a start-to-end range and Ongoing text
+    And the "finished" seeded row shows no Ongoing text
+    When I refresh the Activity list
+    Then the "ongoing" seeded row shows a start-to-end range and Ongoing text
+    And the ongoing seeded row is listed above the finished one
+
+  Scenario: Renamed and deleted accounts stay filterable and unknown identities are not invented
+    Given I am signed in as an app "admin"
+    And Activity history for a renamed account, a deleted account and unidentified failures
+    When I open the app Activity page
+    Then the Username filter lists the renamed account once under its latest name
+    When I filter Activity to the renamed account
+    Then Activity lists rows under both the old and the latest username
+    When I filter Activity to the deleted account
+    Then Activity lists one row for the deleted account
+    When I open Activity for failed sign-ins in the seeded minute
+    Then the failures show unavailable and unknown identities without fabricated names
+
+  Scenario: A failed refresh keeps the earlier rows and a retry recovers
+    Given I am signed in as an app "admin"
+    And 3 Activity rows exist for one seeded account
+    When I open Activity for the seeded account
+    And Activity read requests start failing
+    And I click Refresh without waiting for the response
+    Then Activity keeps the earlier rows with a stale notice and Retry
+    When Activity read requests recover
+    And I click Retry
+    Then the stale notice is gone
+
+  Scenario: Losing administrator access removes the rows and filters on refresh
+    Given I am signed in as an app "admin"
+    And 3 Activity rows exist for one seeded account
+    When I open Activity for the seeded account
+    And my app administrator role is removed
+    And I click Refresh and await the response
+    Then Activity shows only that I no longer have administrator access
+
+  Scenario: Activity stays usable and private on a narrow viewport
+    Given the viewport is 375 by 812
+    And I am signed in as an app "admin"
+    And a private trip and an Activity row for it by one seeded account
+    When I open Activity for the seeded account
+    Then the page does not scroll horizontally
+    And the Activity table scrolls by keyboard inside its labeled region
+    And every Activity filter and page control is at least 44 pixels tall
+    And Activity shows the trip ID but not the trip name
+
+  Scenario Outline: Real edits merge into one filtered ongoing summary on <device>
+    Given the Activity viewport is <width> by <height>
+    And I am signed in as an app "admin"
+    And a private itinerary exists for Activity
+    When I add two private itinerary notes for Activity
+    And I add a private expense for Activity
+    And I add a private reservation for Activity
+    And I open the app Activity page
+    And I filter Activity by my account, the "Updated trip" action and today
+    Then Activity lists one ongoing summary for that trip with only approved metadata
+    And the underlying private edits persist
+    And the page does not scroll horizontally
+    Examples:
+      | device  | width | height |
+      | desktop | 1280  | 800    |
+      | mobile  | 375   | 812    |
+
+  Scenario Outline: Recorder persistence failure leaves sign-in and trip edits intact on <device>
+    Given the Activity viewport is <width> by <height>
+    And I am signed in as an app "admin"
+    And an existing itinerary exists for the Activity edit
+    And Activity recording fails for my account
+    When I sign out from whichever account menu is showing
+    And I sign in with my password
+    Then I should be redirected to the trips page
+    When I create a private trip for Activity
+    And I add a private note to the existing itinerary without waiting for Activity
+    Then the trip and the note persist after reload
+    And every attempted Activity write was rejected and none was recorded
+    Examples:
+      | device  | width | height |
+      | desktop | 1280  | 800    |
+      | mobile  | 375   | 812    |
+
+  Scenario: Real rename and self-deletion keep one stable filterable identity
+    Given I am signed in as an app "admin"
+    And another completed app admin exists
+    And I remember my current username
+    When I open my profile page
+    And I navigate to the Identity section
+    And I change my username to a new one and save
+    And I sign out
+    And I sign in with my password
+    Then I should be redirected to the trips page
+    When the other app admin filters Activity to my stable account
+    Then the Username filter lists my account once under its latest name
+    And the filtered Activity shows "Sign-in, Changed username" under my original username
+    And the filtered Activity shows "Sign-out, Sign-in" under my latest username
+    When I open my profile page
+    And I delete my account
+    Then I should be redirected to the sign-in page
+    And my account has 1 recorded "account_deleted" events
+    When the other app admin filters Activity to my stable account again
+    Then the Username filter lists my account once under its latest name
+    And the filtered Activity shows "Sign-in, Changed username" under my original username
+    And the filtered Activity shows "Sign-out, Sign-in, Deleted own account" under my latest username

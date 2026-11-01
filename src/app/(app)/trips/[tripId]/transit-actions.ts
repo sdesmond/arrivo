@@ -1,5 +1,6 @@
 "use server";
 
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { trips } from "@/db/schema";
@@ -21,6 +22,7 @@ export async function updateTripTransitMode(
   await assertTripAccess(tripId, user.id!, "editor");
 
   await db.update(trips).set({ transitMode }).where(eq(trips.id, tripId));
+  recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }

@@ -3,15 +3,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { signIn, signOut, db } = vi.hoisted(() => ({
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  db: {
-    insert: vi.fn(),
-  },
-}));
+const { signIn, signOut, auth, identityRows, db, bootstrapFirstAccount, recordActivity } = vi.hoisted(() => {
+  const identityRows = vi.fn();
+  return {
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    auth: vi.fn(),
+    identityRows,
+    db: { select: vi.fn(() => ({ from: () => ({ where: identityRows }) })) },
+    bootstrapFirstAccount: vi.fn(),
+    recordActivity: vi.fn(),
+  };
+});
+
+vi.mock("@/lib/activity", () => ({ recordActivity }));
+
+vi.mock("@/lib/app-bootstrap", () => ({ bootstrapFirstAccount }));
 
 vi.mock("@/auth", () => ({
+  auth,
   signIn,
   signOut,
 }));
@@ -25,10 +35,9 @@ vi.mock("next-auth", async () => ({
 }));
 
 import { CredentialsSignin } from "@auth/core/errors";
-import { users } from "@/db/schema";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
-import { signInAction, signOutAction, signUpAction, verifyMfaAction } from "./actions";
+import { signInAction, signOutAction, setupAdminAction, verifyMfaAction } from "./actions";
 
 function cookieJar(values: Record<string, string> = {}) {
   const jar = {
@@ -53,27 +62,31 @@ describe("auth actions", () => {
     vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
-  function mockUserInsert(result: () => Promise<unknown> = async () => undefined) {
-    const insertValues = vi.fn(result);
-    db.insert.mockImplementation((table: unknown) => {
-      if (table === users) return { values: insertValues };
-      throw new Error("Unexpected insert");
-    });
-    return insertValues;
+  function mockBootstrap(
+    result: () => Promise<unknown> = async () => ({ ok: true, userId: "user-1", username: "test.user" })
+  ) {
+    bootstrapFirstAccount.mockImplementation(result);
+    return bootstrapFirstAccount;
   }
 
   function signUpForm(fields: Record<string, string> = {}) {
-    return signInForm({ username: " Test.User ", password: "password123", name: "Test User", ...fields });
+    return signInForm({
+      username: " Test.User ",
+      password: "password123",
+      name: "Test User",
+      confirmPassword: "password123",
+      ...fields,
+    });
   }
 
   it("stores a normalized username and locale-derived currency when signing up", async () => {
     vi.mocked(headers).mockResolvedValueOnce(new Headers({ "accept-language": "en-GB,en;q=0.9" }));
-    const insertValues = mockUserInsert();
+    mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toBeUndefined();
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toBeUndefined();
 
-    expect(db.insert).toHaveBeenCalledWith(users);
-    expect(insertValues).toHaveBeenCalledWith(
+    expect(bootstrapFirstAccount).toHaveBeenCalledWith(
+      db,
       expect.objectContaining({
         username: "test.user",
         name: "Test User",
@@ -87,52 +100,127 @@ describe("auth actions", () => {
     expect(signInFormData.get("keepSignedIn")).toBe("true");
   });
 
-  it("rejects an invalid username without creating an account", async () => {
-    mockUserInsert();
+  it("records the committed creation with the new ID before the automatic sign-in", async () => {
+    mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
+    await setupAdminAction(undefined, signUpForm());
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith({
+      type: "account_created",
+      actor: { id: "user-1", username: "test.user" },
+    });
+    expect(recordActivity.mock.invocationCallOrder[0]).toBeLessThan(signIn.mock.invocationCallOrder[0]);
+  });
+
+  it("records no creation when sign-up is closed, invalid, taken or fails", async () => {
+    mockBootstrap(async () => ({ ok: false, reason: "closed" }));
+    await setupAdminAction(undefined, signUpForm());
+    mockBootstrap(async () => {
+      throw new Error("Failed query", { cause: { code: "23505" } });
+    });
+    await setupAdminAction(undefined, signUpForm());
+    mockBootstrap(async () => {
+      throw new Error("db down");
+    });
+    await setupAdminAction(undefined, signUpForm()).catch(() => undefined);
+    await setupAdminAction(undefined, signUpForm({ password: "short" }));
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid username without creating an account", async () => {
+    mockBootstrap();
+
+    await expect(setupAdminAction(undefined, signUpForm({ username: "a@b.com" }))).resolves.toEqual({
       error: "Use letters, numbers, dots, dashes or underscores, starting with a letter or number.",
     });
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
   });
 
   it("rejects a short password", async () => {
-    mockUserInsert();
+    mockBootstrap();
 
-    await expect(signUpAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
+    await expect(setupAdminAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
       error: "Password must be at least 8 characters.",
     });
-    expect(db.insert).not.toHaveBeenCalled();
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
   });
 
   it("reports a taken username", async () => {
-    mockUserInsert(async () => {
+    mockBootstrap(async () => {
       throw new Error("Failed query", { cause: { code: "23505" } });
     });
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "That username is taken." });
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({ error: "That username is taken." });
     expect(signIn).not.toHaveBeenCalled();
   });
 
   it("rethrows other insert failures", async () => {
-    mockUserInsert(async () => {
+    mockBootstrap(async () => {
       throw new Error("db down");
     });
 
-    await expect(signUpAction(undefined, signUpForm())).rejects.toThrow("db down");
+    await expect(setupAdminAction(undefined, signUpForm())).rejects.toThrow("db down");
   });
 
-  it("refuses sign-up when it is disabled", async () => {
-    vi.stubEnv("ALLOW_SIGNUP", "false");
-    mockUserInsert();
+  it("refuses sign-up once the app is initialized", async () => {
+    mockBootstrap(async () => ({ ok: false, reason: "closed" }));
 
-    await expect(signUpAction(undefined, signUpForm())).resolves.toEqual({ error: "Signup is disabled." });
-    expect(db.insert).not.toHaveBeenCalled();
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({
+      error: "Setup is already complete. Sign in to continue.",
+    });
+    expect(signIn).not.toHaveBeenCalled();
   });
 
-  it("signs out to the sign-in page", async () => {
-    await signOutAction();
-    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
+  describe("signOutAction", () => {
+    beforeEach(() => {
+      auth.mockResolvedValue({ user: { id: "user-1" } });
+      identityRows.mockResolvedValue([{ id: "user-1", username: "alice" }]);
+      signOut.mockResolvedValue(undefined);
+    });
+
+    it("signs out without redirecting, records the canonical identity, then redirects", async () => {
+      await signOutAction();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).toHaveBeenCalledTimes(1);
+      expect(recordActivity).toHaveBeenCalledWith({
+        type: "sign_out",
+        actor: { id: "user-1", username: "alice" },
+      });
+      expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(recordActivity.mock.invocationCallOrder[0]);
+      expect(recordActivity.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(redirect).mock.invocationCallOrder[0]);
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
+
+    it("records nothing and does not redirect when sign-out fails", async () => {
+      signOut.mockRejectedValue(new Error("session store down"));
+      await expect(signOutAction()).rejects.toThrow("session store down");
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(redirect).not.toHaveBeenCalled();
+    });
+
+    it("still signs out, with an unavailable actor, when the identity lookup fails", async () => {
+      identityRows.mockRejectedValue(new Error("db down"));
+      await signOutAction();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).toHaveBeenCalledWith({ type: "sign_out", actor: null });
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
+
+    it("records an unavailable actor when the account row is gone", async () => {
+      identityRows.mockResolvedValue([]);
+      await signOutAction();
+      expect(recordActivity).toHaveBeenCalledWith({ type: "sign_out", actor: null });
+    });
+
+    it("signs out but records nothing when nobody was signed in", async () => {
+      auth.mockResolvedValue(null);
+      await signOutAction();
+      expect(identityRows).not.toHaveBeenCalled();
+      expect(signOut).toHaveBeenCalledWith({ redirect: false });
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(redirect).toHaveBeenCalledWith("/sign-in");
+    });
   });
 });
 
@@ -258,5 +346,29 @@ describe("verifyMfaAction", () => {
     cookieJar({ [MFA_COOKIE]: "signed-ticket" });
     signIn.mockRejectedValueOnce(new Error("db down"));
     await expect(verifyMfaAction(undefined, signInForm({ code: "123456" }))).rejects.toThrow("db down");
+  });
+});
+
+describe("setup validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  it.each([
+    [{ name: "   " }, "Name is required."],
+    [{ confirmPassword: "" }, "Confirm your password."],
+    [{ confirmPassword: "different" }, "Passwords do not match."],
+    [{ password: "" }, "Password must be at least 8 characters."],
+  ])("rejects invalid setup %j without side effects", async (overrides, error) => {
+    const fields = signInForm({
+      username: "admin",
+      name: "Admin",
+      password: "password123",
+      confirmPassword: "password123",
+      ...overrides,
+    });
+    await expect(setupAdminAction(undefined, fields)).resolves.toEqual({ error });
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
+    expect(recordActivity).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
   });
 });

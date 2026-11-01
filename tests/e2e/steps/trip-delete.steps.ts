@@ -41,9 +41,13 @@ When("I delete the trip", async ({ page, scenario }) => {
   await page.goto("/trips");
   const tripCard = page.locator(`a[href="/trips/${trip.id}"]`).filter({ hasText: trip.name }).first();
   await expect(tripCard).toBeVisible();
-  await tripCard.getByTitle("Trip options").click();
+  const trigger = tripCard.getByTitle("Trip options");
   const deleteTripItem = page.getByRole("menuitem", { name: "Delete trip" });
-  await expect(deleteTripItem).toBeVisible();
+  // A click before hydration opens nothing; retry only while the menu is closed so a slow open is never toggled shut.
+  await expect(async () => {
+    if (!(await deleteTripItem.isVisible())) await trigger.click();
+    await expect(deleteTripItem).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
   await deleteTripItem.click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0);

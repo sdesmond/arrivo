@@ -4,6 +4,7 @@ import { and, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { trustedDevices, users } from "@/db/schema";
 import type { TrustedDeviceSummary } from "@/data/types";
+import type { DbTransaction } from "./server-action-locks";
 
 // One random token per browser, in an httpOnly cookie; only its SHA-256 is stored. See trustedDevices in
 // src/db/schema.ts for what trust buys.
@@ -156,9 +157,10 @@ export async function listTrustedDevices(
 export async function forgetTrustedDevice(
   userId: string,
   deviceId: string,
-  currentToken: string | undefined
+  currentToken: string | undefined,
+  executor: Pick<DbTransaction, "delete"> = db
 ): Promise<{ wasCurrent: boolean }> {
-  const [removed] = await db
+  const [removed] = await executor
     .delete(trustedDevices)
     .where(and(eq(trustedDevices.id, deviceId), eq(trustedDevices.userId, userId)))
     .returning({ tokenHash: trustedDevices.tokenHash });

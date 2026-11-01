@@ -20,7 +20,6 @@ const ENV_ORDER = [
   "NEXTAUTH_URL",
   "NEXTAUTH_SECRET",
   "DATA_ENCRYPTION_KEY",
-  "ALLOW_SIGNUP",
   "E2E_USERNAME",
   "E2E_PASSWORD",
   "HIDE_OVERLAY",
@@ -30,7 +29,6 @@ const ENV_ORDER = [
 
 const DEFAULT_ENV_VALUES = {
   NEXTAUTH_URL: "http://localhost:3000",
-  ALLOW_SIGNUP: "true",
   E2E_USERNAME: "e2e",
   E2E_PASSWORD: "e2e1234",
   HIDE_OVERLAY: "true",
@@ -279,9 +277,7 @@ function moveDirectoryEntries(sourceDir, targetDir, rootDir) {
   }
 }
 
-function ensureDirectoryLink(rootDir, linkPath, targetPath, options = {}) {
-  const { migrateExistingDirectory = false } = options;
-
+function ensureDirectoryLink(rootDir, linkPath, targetPath) {
   ensureDirectory(targetPath);
   ensureDirectory(dirname(linkPath));
 
@@ -290,9 +286,6 @@ function ensureDirectoryLink(rootDir, linkPath, targetPath, options = {}) {
 
   if (stats) {
     if (stats.isSymbolicLink()) {
-      rmSync(linkPath, { recursive: true, force: true });
-    } else if (migrateExistingDirectory) {
-      moveDirectoryEntries(linkPath, targetPath, rootDir);
       rmSync(linkPath, { recursive: true, force: true });
     } else {
       fail(`Refusing to replace existing path: ${relative(rootDir, linkPath)}`);
@@ -312,11 +305,6 @@ export function ensureAiToolLinks(rootDir) {
   const mappings = [
     { linkPath: join(claudeDir, "skills"), targetPath: agentsSkillsDir },
     { linkPath: join(claudeDir, "agents"), targetPath: agentsAgentsDir },
-    {
-      linkPath: join(claudeDir, "memory"),
-      targetPath: agentsMemoriesDir,
-      migrateExistingDirectory: true,
-    },
   ];
 
   ensureDirectory(agentsSkillsDir);
@@ -325,10 +313,24 @@ export function ensureAiToolLinks(rootDir) {
   ensureDirectory(claudeDir);
 
   for (const mapping of mappings) {
-    ensureDirectoryLink(rootDir, mapping.linkPath, mapping.targetPath, {
-      migrateExistingDirectory: mapping.migrateExistingDirectory,
-    });
+    ensureDirectoryLink(rootDir, mapping.linkPath, mapping.targetPath);
   }
+
+  retireLegacyMemoryPath(rootDir, join(claudeDir, "memory"), agentsMemoriesDir);
+}
+
+// .agents/memories is the only memory location. Older checkouts left .claude/memory behind as a directory, a link,
+// or (core.symlinks=false) a plain file holding the link target, so fold any real directory in and remove the rest.
+function retireLegacyMemoryPath(rootDir, legacyPath, memoriesDir) {
+  const stats = lstatSync(legacyPath, { throwIfNoEntry: false });
+
+  if (!stats) return;
+
+  if (stats.isDirectory()) {
+    moveDirectoryEntries(legacyPath, memoriesDir, rootDir);
+  }
+
+  rmSync(legacyPath, { recursive: true, force: true });
 }
 
 function ensureLocalPostgresDatabases() {
@@ -423,7 +425,6 @@ function applyDatabaseSetup(rootDir, envValues) {
     NEXTAUTH_URL: envValues.NEXTAUTH_URL,
     NEXTAUTH_SECRET: envValues.NEXTAUTH_SECRET,
     DATA_ENCRYPTION_KEY: envValues.DATA_ENCRYPTION_KEY,
-    ALLOW_SIGNUP: envValues.ALLOW_SIGNUP,
     E2E_USERNAME: envValues.E2E_USERNAME,
     E2E_PASSWORD: envValues.E2E_PASSWORD,
     HIDE_OVERLAY: envValues.HIDE_OVERLAY,

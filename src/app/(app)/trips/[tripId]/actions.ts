@@ -1,5 +1,6 @@
 "use server";
 
+import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import {
@@ -226,6 +227,7 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
     await transaction.insert(events).values({ ...values, position: appendPos });
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -247,6 +249,7 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch): Pro
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -271,6 +274,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
     );
   }
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -303,6 +307,7 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
     );
   }
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -357,6 +362,7 @@ export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void
       }
     }
   });
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -366,6 +372,7 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<v
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(days).set(patch).where(eq(days.id, dayId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -412,6 +419,7 @@ export async function addDay(tripId: string): Promise<void> {
     }
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
@@ -486,6 +494,7 @@ export async function removeLastDay(tripId: string, confirmedDestructiveRemoval 
     );
   }
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   revalidatePath("/trips");
@@ -508,6 +517,7 @@ export async function setTripCoverWithAttribution(
       coverPhotographerUrl: coverPhotographerUrl ?? null,
     })
     .where(eq(trips.id, tripId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -532,6 +542,7 @@ export async function removeTripCover(tripId: string): Promise<void> {
       .where(eq(trips.id, tripId));
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -553,6 +564,7 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
     size: input.size,
     url: input.url,
   });
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -576,6 +588,7 @@ export async function createNote(dayId: string, content: string, insertAtPositio
     await transaction.insert(itineraryNotes).values({ dayId, content, position: appendPos });
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -587,6 +600,7 @@ export async function updateNote(noteId: string, content: string): Promise<void>
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(itineraryNotes).set({ content, updatedAt: new Date() }).where(eq(itineraryNotes.id, noteId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -598,6 +612,7 @@ export async function deleteNote(noteId: string): Promise<void> {
   const tripId = await getDayTripId(note.dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -621,6 +636,7 @@ export async function createTripNote(tripId: string, input: CreateTripNoteInput)
     await transaction.insert(notes).values({ tripId, position: 0, title, body });
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -646,6 +662,7 @@ export async function updateTripNote(noteId: string, input: UpdateTripNoteInput)
   if (body !== undefined) updateValues.body = body;
 
   await db.update(notes).set(updateValues).where(eq(notes.id, noteId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -657,6 +674,7 @@ export async function deleteTripNote(noteId: string): Promise<void> {
 
   await assertTripAccess(note.tripId, user.id!, "editor");
   await db.delete(notes).where(eq(notes.id, noteId));
+  recordTripUpdated(user.id!, note.tripId);
   publishItineraryChanged(note.tripId);
   revalidatePath(`/trips/${note.tripId}`);
 }
@@ -687,6 +705,7 @@ export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<vo
     }
   });
 
+  recordTripUpdated(user.id!, input.tripId);
   publishItineraryChanged(input.tripId);
   revalidatePath(`/trips/${input.tripId}`);
 }
@@ -703,6 +722,7 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
     await transaction.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -730,6 +750,7 @@ export async function createChecklistWithItem(
     return newChecklist.id;
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   return checklistId;
@@ -744,6 +765,7 @@ export async function updateChecklistTitle(checklistId: string, title: string | 
     .update(itineraryChecklists)
     .set({ title: title ?? null, updatedAt: new Date() })
     .where(eq(itineraryChecklists.id, checklistId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -754,6 +776,7 @@ export async function deleteChecklist(checklistId: string): Promise<void> {
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -764,6 +787,7 @@ export async function createChecklistItem(checklistId: string, content: string):
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.insert(checklistItems).values({ checklistId, content });
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -773,6 +797,7 @@ export async function updateChecklistItem(itemId: string, content: string): Prom
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(checklistItems).set({ content }).where(eq(checklistItems.id, itemId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -785,6 +810,7 @@ export async function toggleChecklistItem(itemId: string): Promise<void> {
     .update(checklistItems)
     .set({ isChecked: sql`NOT ${checklistItems.isChecked}` })
     .where(eq(checklistItems.id, itemId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -794,6 +820,7 @@ export async function deleteChecklistItem(itemId: string): Promise<void> {
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -811,6 +838,7 @@ export async function removeDocument(docId: string): Promise<void> {
       .catch((error) => console.warn(`Cleanup failed for ${doc.url}`, error));
   }
   await db.delete(documents).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -823,6 +851,7 @@ export async function renameDocument(docId: string, newName: string): Promise<vo
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -832,6 +861,7 @@ export async function attachTripDocToEvent(docId: string, eventId: string): Prom
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -844,6 +874,7 @@ export async function promoteEventDocToTrip(docId: string): Promise<void> {
   if (!tripId) return;
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
 }
@@ -913,6 +944,7 @@ export async function addChecklistFromPackingSource(
     return newChecklist.id;
   });
 
+  recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
   return checklistId;

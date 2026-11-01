@@ -29,6 +29,48 @@
       "when": 1792796259953,
       "tag": "0003_username_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792873127208,
+      "tag": "0004_instance_state_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792983687364,
+      "tag": "0005_familiar_obadiah_stane",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793057586619,
+      "tag": "0006_handy_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793148406062,
+      "tag": "0007_dazzling_aaron_stack",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793273206351,
+      "tag": "0008_rename_instance_state_to_app_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793321942865,
+      "tag": "0009_productive_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

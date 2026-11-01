@@ -209,7 +209,9 @@ When("I invite that user to the trip as an editor", async ({ page, scenario }) =
   await page.getByLabel("Invite username").fill(invitee.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
   await page.getByTitle("Invite this person to the trip").click();
+  await response;
 });
 
 Then("I receive an invitation sent toast", async ({ page }) => {

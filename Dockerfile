@@ -18,11 +18,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # public/ is optional in the repo; ensure it exists so the runner COPY never breaks.
 RUN mkdir -p public && npm run build
-# The standalone output only traces what the app imports, so bundle the migrator and the two-factor reset tool
+# The standalone output only traces what the app imports, so bundle the migrator and the admin recovery tool
 # (each with its deps) into single files.
 RUN npx esbuild src/db/migrate-cli.ts --bundle --platform=node --format=esm --outfile=dist/migrate.mjs \
   --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
-RUN npx esbuild src/db/mfa-reset-cli.ts --bundle --platform=node --format=esm --outfile=dist/mfa-reset.mjs \
+RUN npx esbuild src/db/admin-recovery-main.ts --bundle --platform=node --format=esm --outfile=dist/admin-recovery.mjs \
   --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
 # sharp is the standalone output's only native module, and the trace picked the build machine's binaries.
 # Swap in the target arch's prebuilt packages, at the versions this sharp release pins.
@@ -54,7 +54,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/dist/migrate.mjs ./migrate.mjs
-COPY --from=builder /app/dist/mfa-reset.mjs ./mfa-reset.mjs
+COPY --from=builder /app/dist/admin-recovery.mjs ./admin-recovery.mjs
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder --chmod=0755 /app/docker/entrypoint.sh ./docker/entrypoint.sh
 # Next writes its image-optimization cache here at runtime, as whichever PUID the host picks.

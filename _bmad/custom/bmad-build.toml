@@ -1,0 +1,6 @@
+# Team override for bmad-build.
+# Review defaults to "auto": full routes get the thorough review, oneshot routes get quick.
+# The shipped default "quick" pins quick for every build, so the route never picked the review.
+
+[workflow]
+review = "auto"

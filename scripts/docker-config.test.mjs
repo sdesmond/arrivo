@@ -103,9 +103,12 @@ describe("Dockerfile", () => {
     expect(lines(".gitignore")).not.toContain("drizzle");
   });
 
-  it("bundles the two-factor reset tool for lost-phone recovery", () => {
-    expect(dockerfileStage(dockerfile, "builder")).toContain("src/db/mfa-reset-cli.ts");
-    expect(runner).toMatch(/COPY --from=builder \/app\/dist\/mfa-reset\.mjs/);
+  it("bundles the admin recovery tool and ships no immediate two-factor reset", () => {
+    expect(dockerfileStage(dockerfile, "builder")).toContain("src/db/admin-recovery-main.ts");
+    expect(runner).toMatch(/COPY --from=builder \/app\/dist\/admin-recovery\.mjs \.\/admin-recovery\.mjs/);
+    expect(dockerfile).not.toMatch(/mfa-reset/);
+    for (const stale of ["mfa-reset.ts", "mfa-reset-cli.ts", "mfa-reset.test.ts"])
+      expect(existsSync(join(rootDir, "src/db", stale))).toBe(false);
   });
 
   it("listens on 4850 on all interfaces", () => {

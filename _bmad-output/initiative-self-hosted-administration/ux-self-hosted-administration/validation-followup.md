@@ -1,0 +1,22 @@
+# Validation follow-up
+
+Original [validation report](validation-report.md) is preserved as review snapshot.
+
+| Finding | Follow-up |
+| --- | --- |
+| PS-1: outstanding cross-purpose links | User confirmed completing either reset flow invalidates all other outstanding reset/recovery authorizations for same account, including already-open flows. EXPERIENCE updated; enforcement remains architecture-owned. |
+| PS-3: invitation email binding | Superseded by merged username identity model at `980d0a6`. Active contract now binds account invitation to fixed username and rejects submitted substitution. Existing trip invitations follow account ID across Profile renames. New model has not been revalidated. |
+| A11Y-01: result focus | Applied: focus stable result heading on form-to-link-result transition; maintain logical recipient/expiry/URL/Copy order and retain focus after copy. |
+| A11Y-02: assisted MFA setup | Applied as existing-control inheritance: QR plus selectable manual key, copy/manual fallback, paste/autofill and password-manager entry, associated errors preserving setup context. |
+| R-3: active-batch visibility/filtering | User confirmed ongoing summaries visible on page load or Refresh, updated and sorted by latest edit descending. Date filters include batches overlapping selected range. Existing 10-minute inactivity grouping remains; no live feed required. |
+| R-1: failed-login representation | User confirmed actual account usernames for known actors. Failed sign-ins show matched account username, or supplied username with “Unknown account” text when unmatched. Source IP requirement subsequently removed during architecture coaching. Unavailable values are explicit. User chose activity types within ordinary Activity list/filter instead of special failed-sign-in view or Overview shortcut. Overview count stays read-only. Resolved through this simpler navigation. |
+| PS-2: MFA recovery-code rotation/handoff | User confirmed CLI recovery retires old codes and presents replacement codes once with Copy, Download, and “I saved these” before fresh sign-in. Rotation belongs to atomic credential replacement. |
+| R-2: accessible primary pairing | Resolved: user approved light-theme primary using existing accent-ink with white (10.12:1 calculated contrast), dark theme unchanged primary/foreground (7.30:1). DESIGN specifies theme-specific aliases; rendered implementation still needs state/contrast checks. |
+
+Latest visual feedback: fixed setup username is plain non-editable identity text; rename later in Settings. Shared username menu replaces settings-heading entry: Settings and Log out for everyone, plus admin-only management item (“Manage instance” approved). Remove standalone logout. Actions use Add User and Reset password; latter generates link in copyable dialog without changing password at issuance. Activity requires shadcn Table. Revised previews approved; historical reviews do not cover these changes.
+
+Further refinement: omit username-change advice and long reset-result instructions from UI. Show reset URL as plain selectable text with adjacent copy icon, not textbox. Disabled reasons use accessible tooltips rather than inline labels. Remove Back to settings; existing side/bottom navigation exits page. Activity stays wide; Overview/Users use padded narrower content, with options menu for crowded user actions. Lifecycle and last-admin safeguards remain in contract.
+
+Username/no-email prerequisite merged at `980d0a6`; UX stash restored and identity reconciled. Admin immediately creates account with no password; setup-only link opens forced dialog, resumable until password save/original 24-hour expiry. Save consumes link/unlocks app. Regeneration targets same account and invalidates old. Delete account is sole withdrawal action, including before first login. Expiry keeps account visible with expired-link status and Generate new link. All account creation/setup controls are in Users; sections are Overview, Users, Activity. New model is not yet revalidated; no runtime changes.
+
+User accepted revised previews, Manage instance wording, and accessible primary treatment. Mobile Profile tab opens shared account menu; desktop uses sidebar account control. User confirmed remaining surfaces need specs only; [visual coverage](visual-coverage.md) records coverage. Original reports remain historical; resolved findings do not imply new security/accessibility validation of final model.

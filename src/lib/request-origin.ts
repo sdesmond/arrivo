@@ -26,6 +26,22 @@ export function browserUrl(path: string, request: RequestLike, env: OriginEnv = 
   return new URL(path, `${protocol}://${host}`);
 }
 
+// Origin for credential links (setup, recovery). Only the operator-configured NEXTAUTH_URL / AUTH_URL counts: a
+// link built from Host or X-Forwarded-* could be steered by the requester. Undefined when neither is a usable
+// http(s) URL, so the caller can refuse before writing anything.
+export function trustedLinkOrigin(env: OriginEnv = process.env): string | undefined {
+  for (const value of [env.NEXTAUTH_URL, env.AUTH_URL]) {
+    if (!value) continue;
+    try {
+      const parsed = new URL(value.trim());
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.origin;
+    } catch {
+      // Unparseable: fall through to the next variable.
+    }
+  }
+  return undefined;
+}
+
 // Mirrors Auth.js: cookies are Secure only when the browser reached us over HTTPS, so plain-HTTP LAN installs work.
 export function isHttpsRequest(headers: Headers, env: OriginEnv = process.env): boolean {
   const forwardedProto = firstValue(headers.get("x-forwarded-proto"));

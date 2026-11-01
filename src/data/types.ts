@@ -38,6 +38,306 @@ export const CollaboratorRole = {
 } as const;
 export type CollaboratorRole = (typeof CollaboratorRole)[keyof typeof CollaboratorRole];
 
+export const UserRole = {
+  Admin: "admin",
+  Member: "member",
+} as const;
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const CredentialAuthorizationPurpose = {
+  Setup: "setup",
+  Reset: "reset",
+  Recovery: "recovery",
+} as const;
+export type CredentialAuthorizationPurpose =
+  (typeof CredentialAuthorizationPurpose)[keyof typeof CredentialAuthorizationPurpose];
+
+/** Adapters authenticate admins; trusted operator context belongs exclusively to local operator tooling. */
+export type CredentialIssuanceAuthority = { kind: "admin"; actorUserId: string } | { kind: "trusted-operator" };
+export interface IssueCredentialAuthorizationInput {
+  userId: string;
+  purpose: CredentialAuthorizationPurpose;
+}
+export interface CredentialAuthorizationInput {
+  token: string;
+  purpose: CredentialAuthorizationPurpose;
+}
+export interface CredentialAuthorizationAccount {
+  userId: string;
+  username: string;
+  purpose: CredentialAuthorizationPurpose;
+  expiresAt: string;
+}
+export type CredentialAuthorizationFailure = {
+  ok: false;
+  reason: "invalid" | "forbidden" | "app-unavailable" | "retry";
+};
+export type IssueCredentialAuthorizationResult =
+  | { ok: true; token: string; expiresAt: string }
+  | CredentialAuthorizationFailure;
+export type ValidateCredentialAuthorizationResult =
+  | { ok: true; account: CredentialAuthorizationAccount }
+  | CredentialAuthorizationFailure;
+export type ConsumeCredentialAuthorizationResult = { ok: true } | CredentialAuthorizationFailure;
+export type CredentialSecurityClock = () => Date;
+export interface AdminRecoveryIssuanceInput {
+  username: string;
+  origin: string;
+}
+export type AdminRecoveryIssuanceOutcome =
+  | { ok: true; userId: string; username: string; url: string; expiresAt: string }
+  | {
+      ok: false;
+      reason: "invalid-username" | "invalid-origin" | "forbidden" | "changed-state" | "app-unavailable" | "retry";
+    };
+
+/** Browser-side replacement-MFA enrollment of a recovery authorization; the secret is shown for QR/key entry only. */
+export type AdminRecoveryEnrollmentResult =
+  | { ok: true; secret: string; username: string }
+  | { ok: false; reason: "unavailable" | "retry" | "needs-key" };
+export interface AdminRecoveryCompletionInput {
+  token: string;
+  passwordHash: string;
+  code: string;
+}
+export type AdminRecoveryCompletionResult =
+  | { ok: true; userId: string; username: string; recoveryCodes: string[] }
+  | { ok: false; reason: "unavailable" | "retry" | "invalid-code" };
+export type AdminRecoveryActionState =
+  | { error: string; field: "password" | "confirmPassword" | "code" }
+  | { recoveryCodes: string[] }
+  | undefined;
+
+export interface BootstrapAccountValues {
+  username: string;
+  name: string;
+  passwordHash: string;
+  currency?: string | null;
+}
+
+export type AccountSetupActionState =
+  | { error: string; field: "name" | "password" | "confirmPassword"; name: string }
+  | undefined;
+
+export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
+
+export const ActivityEventType = {
+  RetentionChanged: "retention_changed",
+  SignIn: "sign_in",
+  /** The target is the attempted account, never an authenticated actor. */
+  SignInFailed: "sign_in_failed",
+  SignOut: "sign_out",
+  AccountCreated: "account_created",
+  SetupLinkGenerated: "setup_link_generated",
+  SetupLinkRegenerated: "setup_link_regenerated",
+  /** The target is the deleted unfinished account; identities only. */
+  PendingAccountDeleted: "pending_account_deleted",
+  /** The actor is the account that finished setup. */
+  SetupCompleted: "setup_completed",
+  RoleChanged: "role_changed",
+  UsernameChanged: "username_changed",
+  PasswordChanged: "password_changed",
+  PasswordResetLinkGenerated: "password_reset_link_generated",
+  PasswordResetCompleted: "password_reset_completed",
+  AdminRecoveryLinkGenerated: "admin_recovery_link_generated",
+  /** The actor is the recovered admin; credentials, codes and tokens are never recorded. */
+  AdminRecoveryCompleted: "admin_recovery_completed",
+  AccountDeleted: "account_deleted",
+  /** The actor is the admin; the target is the deleted completed account. Identities only, no trip detail. */
+  AccountDeletedByAdmin: "account_deleted_by_admin",
+  TripCreated: "trip_created",
+  /** Summary only: one row per burst of trip edits, merged by `src/lib/activity-batches.ts`. */
+  TripUpdated: "trip_updated",
+  InvitationCreated: "invitation_created",
+  InvitationAccepted: "invitation_accepted",
+  InvitationRescinded: "invitation_rescinded",
+} as const;
+export type ActivityEventType = (typeof ActivityEventType)[keyof typeof ActivityEventType];
+export type InvitationActivityEventType =
+  | typeof ActivityEventType.InvitationCreated
+  | typeof ActivityEventType.InvitationAccepted
+  | typeof ActivityEventType.InvitationRescinded;
+
+/** Stable account ID plus the username at the time of the event; Activity has no foreign keys. */
+export interface ActivityIdentity {
+  id: string;
+  username: string;
+}
+
+/**
+ * The account an event is about. `id` set = a known account; `id` null with a username = a supplied name that matched
+ * no account; omit the target entirely when no safe identity is available.
+ */
+export interface ActivityTarget {
+  id: string | null;
+  username: string;
+}
+
+export interface ActivityEventInput {
+  type: ActivityEventType;
+  /** Null only where nobody is authenticated: failed sign-ins, and a sign-out whose identity could not be read. */
+  actor: ActivityIdentity | null;
+  /** The account acted upon, when different from the actor. */
+  target?: ActivityTarget;
+  tripId?: string;
+}
+
+/** Trip summaries are partitioned by actor, so they always have one. */
+export type ActivityBatchInput = ActivityEventInput & { actor: ActivityIdentity };
+
+/** Safe read shape: no IPs, tokens, URLs or credentials. */
+export interface ActivityEventSummary {
+  id: string;
+  type: ActivityEventType;
+  actorUsername: string | null;
+  /** The affected account's username when one was recorded; `targetKnown` is false for a name that matched no account. */
+  targetUsername?: string;
+  targetKnown?: boolean;
+  /** ISO 8601 UTC. For a batched summary this is the latest edit (the end of the range). */
+  occurredAt: string;
+  /** Batched summaries only: ISO 8601 UTC start of the range that `occurredAt` ends. */
+  startedAt?: string;
+  /** Batched summaries only: the burst is recent enough that more edits may still join it. */
+  ongoing?: boolean;
+  tripId?: string;
+}
+
+/** Filters and cursor for the Activity read. Every field is untrusted input and validated server-side. */
+export interface ActivityQuery {
+  /** Stable account ID of the actor. */
+  actorId?: string;
+  type?: ActivityEventType;
+  /** ISO 8601 UTC instant; rows whose interval overlaps [from, to] match. */
+  from?: string;
+  to?: string;
+  /** Opaque cursor from a previous page's `nextCursor`. */
+  cursor?: string;
+}
+
+/** An actor filter choice: the stable ID labelled by the account's latest recorded username. */
+export interface ActivityActorOption {
+  id: string;
+  username: string;
+}
+
+export interface ActivityPage {
+  events: ActivityEventSummary[];
+  /** Present only when older rows exist. */
+  nextCursor?: string;
+  actors: ActivityActorOption[];
+  /** ISO 8601 UTC time of the read. */
+  loadedAt: string;
+  /** The requested date range was unreadable or inverted; no rows are returned. */
+  invalidRange?: boolean;
+}
+
+export type ActivityPageResult = ({ status: "ok" } & ActivityPage) | { status: "forbidden" };
+export type ActivityLoadResult = ActivityPageResult | { status: "unavailable" };
+
+export const ACTIVITY_RETENTION_DAYS = [30, 90, 180, 365] as const;
+export type ActivityRetentionDays = (typeof ACTIVITY_RETENTION_DAYS)[number];
+export interface ActivityRetentionInspection {
+  days: ActivityRetentionDays;
+  expired: boolean;
+  checkedAt: string;
+}
+export type ActivityRetentionReadResult =
+  | ({ status: "ok" } & ActivityRetentionInspection)
+  | { status: "forbidden" | "unavailable" };
+export type ActivityRetentionSaveResult =
+  | { status: "ok"; days: ActivityRetentionDays }
+  | { status: "invalid" | "stale" | "forbidden" | "unavailable" };
+export type ActivityRetentionCommitResult =
+  | { status: "ok"; days: ActivityRetentionDays; changed: boolean; actor: ActivityIdentity }
+  | { status: "invalid" | "stale" | "forbidden" };
+
+export interface AppUserSummary {
+  id: string;
+  username: string;
+  /** Display name; omitted when the user has none. */
+  name?: string;
+  role: UserRole;
+  setupComplete: boolean;
+  /** ISO 8601 UTC expiry of the open setup link; present only for an unfinished account that has one. */
+  setupExpiresAt?: string;
+  isLastCompletedAdmin: boolean;
+}
+
+export const AddUserFailure = {
+  InvalidUsername: "invalid-username",
+  UsernameTaken: "username-taken",
+  OriginUnavailable: "origin-unavailable",
+  Forbidden: "forbidden",
+  AppUnavailable: "app-unavailable",
+  Retry: "retry",
+} as const;
+export type AddUserFailure = (typeof AddUserFailure)[keyof typeof AddUserFailure];
+
+export interface AddUserInput {
+  username: string;
+}
+
+export const RegenerateSetupLinkFailure = {
+  OriginUnavailable: "origin-unavailable",
+  Forbidden: "forbidden",
+  ChangedState: "changed-state",
+  AppUnavailable: "app-unavailable",
+  Retry: "retry",
+} as const;
+export type RegenerateSetupLinkFailure = (typeof RegenerateSetupLinkFailure)[keyof typeof RegenerateSetupLinkFailure];
+export type RegenerateSetupLinkResult =
+  | { ok: true; userId: string; username: string; setupUrl: string; expiresAt: string }
+  | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
+export type RegenerateSetupLinkOutcome =
+  | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
+  | { ok: false; reason: Exclude<RegenerateSetupLinkFailure, "origin-unavailable"> };
+export type PasswordResetIssuanceOutcome = RegenerateSetupLinkOutcome;
+export type PasswordResetLinkResult =
+  | { ok: true; userId: string; username: string; resetUrl: string; expiresAt: string }
+  | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
+export type PasswordResetActionState = { error: string; field: "password" | "confirmPassword" } | undefined;
+export interface SetupLinkTargetState {
+  userId: string;
+  state: "unfinished" | "completed" | "missing";
+  setupExpiresAt?: string;
+}
+
+/** `setupUrl` is the only copy of the link: it is never stored, logged or recorded in Activity. */
+export type AddUserResult =
+  | { ok: true; userId: string; username: string; setupUrl: string; expiresAt: string }
+  | { ok: false; reason: AddUserFailure; message?: string };
+
+/** Service result: the setup token (no origin) plus identities read under the lock, for the post-commit events. */
+export type AddUserOutcome =
+  | { ok: true; userId: string; username: string; token: string; expiresAt: string; actor: ActivityIdentity }
+  | { ok: false; reason: Exclude<AddUserFailure, "origin-unavailable">; message?: string };
+
+export const RoleChangeFailure = {
+  Forbidden: "forbidden",
+  NotFound: "not-found",
+  AppUnavailable: "app-unavailable",
+  LastAdmin: "last-admin",
+  UnfinishedAccount: "unfinished-account",
+  InvalidRole: "invalid-role",
+  Retry: "retry",
+} as const;
+export type RoleChangeFailure = (typeof RoleChangeFailure)[keyof typeof RoleChangeFailure];
+
+export interface ChangeUserRoleInput {
+  targetUserId: string;
+  role: UserRole;
+}
+
+// `changed` is false when the target already held the requested role.
+export type ChangeUserRoleResult =
+  | { ok: true; userId: string; role: UserRole; changed: boolean }
+  | { ok: false; reason: RoleChangeFailure };
+
+/** What the service returns: the client-facing result plus usernames read under the lock, for the post-commit event. */
+export type ChangeUserRoleOutcome =
+  | (Extract<ChangeUserRoleResult, { ok: true }> & { actor: ActivityIdentity; target: ActivityIdentity })
+  | Extract<ChangeUserRoleResult, { ok: false }>;
+
 export const InvitationStatus = {
   Pending: "pending",
   Accepted: "accepted",
@@ -604,8 +904,66 @@ export interface AccountDeletionTrip {
   suggestedHeirUserId: string;
 }
 
+export const AccountDeletionFailure = {
+  Unauthorized: "unauthorized",
+  Stale: "stale",
+  LastAdmin: "last-admin",
+} as const;
+export type AccountDeletionFailure = (typeof AccountDeletionFailure)[keyof typeof AccountDeletionFailure];
+
+// What a committed self-service deletion changed, for the caller's post-commit events and file cleanup.
+export interface DeletedAccountSummary {
+  rescindedInvitations: { inviteeId: string; tripId: string }[];
+  transferredTrips: [tripId: string, heirUserId: string][];
+  deletedTripIds: string[];
+  deletedTripMembers: { tripId: string; userId: string }[];
+  remainingTripIds: string[];
+  storageUrls: string[];
+  /** The deleted account as it was under the lock, for the caller's post-commit event. */
+  account: ActivityIdentity;
+}
+
+export type DeleteOwnAccountResult =
+  | { ok: true; summary: DeletedAccountSummary }
+  | { ok: false; reason: AccountDeletionFailure };
+
 // `stale` means the shared trips changed after the dialog loaded; the client refreshes and asks again.
 export type DeleteAccountResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
+
+export const AdminDeletionFailure = {
+  Forbidden: "forbidden",
+  Changed: "changed",
+  LastAdmin: "last-admin",
+  AppUnavailable: "app-unavailable",
+  Retry: "retry",
+} as const;
+export type AdminDeletionFailure = (typeof AdminDeletionFailure)[keyof typeof AdminDeletionFailure];
+
+/**
+ * What an admin sees before deleting an account: aggregate trip outcomes only. The fingerprint is a keyed digest of the
+ * exact outcomes (trip IDs and successors included), so it proves a review without disclosing any of them.
+ */
+export interface AdminDeletionPreview {
+  userId: string;
+  username: string;
+  setupComplete: boolean;
+  transferredTripCount: number;
+  deletedTripCount: number;
+  fingerprint: string;
+}
+
+export type AdminDeletionPreviewResult =
+  | { ok: true; preview: AdminDeletionPreview }
+  | { ok: false; reason: AdminDeletionFailure };
+
+/** `preview` accompanies `changed` when the outcomes moved since review: the admin must confirm the new one. */
+export type AdminDeletionFailureResult = { ok: false; reason: AdminDeletionFailure; preview?: AdminDeletionPreview };
+
+export type AdminDeletionOutcome =
+  | { ok: true; summary: DeletedAccountSummary; actor: ActivityIdentity; setupComplete: boolean }
+  | AdminDeletionFailureResult;
+
+export type DeleteAccountAsAdminResult = { ok: true; userId: string; username: string } | AdminDeletionFailureResult;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP

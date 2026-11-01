@@ -773,6 +773,7 @@ const BASE_USER: UserRow = {
   totpPendingSecret: null,
   totpLastStep: null,
   mfaEnabledAt: null,
+  role: "member",
 };
 
 describe("dbUserToType", () => {

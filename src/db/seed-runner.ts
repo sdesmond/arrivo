@@ -1,8 +1,15 @@
 // Validates and materializes the dev seed world (src/db/seed-data/index.ts) into the database. The CLI
 // entry point is src/db/seed.ts (`npm run db:seed`); the world itself is documented in
 // docs/dev-seed-data.md.
+import { UserRole } from "../data/types";
 import type { db as liveDb } from "./index";
-import { deleteSeedAccounts, insertInvitations, insertShares, insertUsers } from "./seed-inserts-accounts";
+import {
+  deleteSeedAccounts,
+  insertInvitations,
+  insertShares,
+  insertUsers,
+  markAppInitialized,
+} from "./seed-inserts-accounts";
 import { insertTrip } from "./seed-inserts-trip";
 import type { SeedWorld } from "./seed-data/seed-types";
 
@@ -139,6 +146,9 @@ export async function seedDevDatabase(
     );
 
     const usersByKey = await insertUsers(tx, world.users);
+    if (world.users.some((seedUser) => seedUser.role === UserRole.Admin)) {
+      await markAppInitialized(tx, now);
+    }
 
     const tripIdsByKey = new Map<string, string>();
     for (const trip of world.trips) {
