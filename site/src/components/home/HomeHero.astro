@@ -31,6 +31,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   </h1>
   <p class="home-hero__headline">Plan the whole trip in one place.</p>
   {tagline && <p class="home-hero__tagline" set:html={tagline} />}
+  <ul class="home-hero__pledge" aria-label="What Arrivo does not do">
+    <li>No subscriptions</li>
+    <li>No tracking</li>
+    <li>No ads</li>
+  </ul>
   <div class="home-hero__actions">
     {
       actions.map((action, index) => (

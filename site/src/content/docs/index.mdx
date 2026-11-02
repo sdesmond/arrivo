@@ -1,7 +1,7 @@
 ---
 title: Arrivo
 editUrl: false
-description: Arrivo is a self-hosted travel planner. Plan trips day by day, keep reservations, budgets, documents and packing lists with them, and share them with the people you travel with.
+description: Arrivo is a free, self-hosted travel planner. No subscriptions, no tracking, no ads. Plan trips day by day, keep reservations, budgets, documents and packing lists with them, and share them with the people you travel with.
 template: splash
 hero:
   tagline: Arrivo is a self-hosted travel planner. Build a day-by-day itinerary, keep reservations, budgets, documents and packing lists with the trip, and share it with the people you're traveling with.
@@ -15,6 +15,7 @@ hero:
 import Card from "../../components/home/Card.astro";
 import FeatureRow from "../../components/home/FeatureRow.astro";
 import PhoneShowcase from "../../components/home/PhoneShowcase.astro";
+import PledgeBand from "../../components/home/PledgeBand.astro";
 import SelfHostBand from "../../components/home/SelfHostBand.astro";
 
 <section class="home-section not-content">
@@ -29,10 +30,12 @@ import SelfHostBand from "../../components/home/SelfHostBand.astro";
     </Card>
     <Card title="Yours to run" icon="server">
       Arrivo runs on your own server with Docker. Your trips, documents and accounts stay with you, and there is no
-      hosted service to sign up for.
+      hosted service to sign up for or pay for.
     </Card>
   </div>
 </section>
+
+<PledgeBand />
 
 <FeatureRow
   eyebrow="Itinerary"
