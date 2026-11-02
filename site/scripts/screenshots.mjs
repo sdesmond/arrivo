@@ -24,6 +24,8 @@ import { applyCoverPhotos } from "./cover-photos.mjs";
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const PASSWORD = "demo1234";
 const VIEWPORT = { width: 1280, height: 900 };
+// Phone shots are captured at 2x so they stay sharp when the docs scale them.
+const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 };
 const OUTPUT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "assets", "screenshots");
 const THEMES = ["light", "dark"];
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -79,7 +81,8 @@ export const SHOTS = [
     run: async (page, context) => {
       await page.goto(`${BASE_URL}${context.tokyo}`);
       await settle(page);
-      await page.getByText("Mon, Nov 2", { exact: false }).first().click();
+      // The seeded "today" day card carries an Active label, so this keeps working on any date.
+      await page.getByText("Active", { exact: true }).first().click();
     },
   },
   {
@@ -129,21 +132,48 @@ export const SHOTS = [
   { name: "profile", account: "demo", run: (page) => page.goto(`${BASE_URL}/profile`) },
   { name: "admin-overview", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/overview`) },
   { name: "admin-users", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/users`) },
+  { name: "mobile-trips", account: "demo", mobile: true, run: (page) => page.goto(`${BASE_URL}/trips`) },
+  {
+    name: "mobile-itinerary",
+    account: "demo",
+    mobile: true,
+    run: async (page, context) => {
+      await page.goto(`${BASE_URL}${context.tokyo}`);
+      await settle(page);
+      await page.getByText("Active", { exact: true }).first().click();
+    },
+  },
 ];
 
 async function captureTheme(browser, theme, only) {
   const outputDir = join(OUTPUT_ROOT, theme);
   mkdirSync(outputDir, { recursive: true });
 
-  const accounts = [...new Set(SHOTS.map((shot) => shot.account))];
-  for (const account of accounts) {
-    const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: theme, deviceScaleFactor: 1 });
+  const groups = [...new Set(SHOTS.map((shot) => `${shot.account}|${Boolean(shot.mobile)}`))];
+  for (const group of groups) {
+    const [accountName, mobileFlag] = group.split("|");
+    const account = accountName === "null" ? null : accountName;
+    const mobile = mobileFlag === "true";
+    const context = await browser.newContext({
+      ...(mobile ? MOBILE : { viewport: VIEWPORT, deviceScaleFactor: 1 }),
+      colorScheme: theme,
+    });
+    // The dev server's floating "LIVE" date-mock button is not part of the product; keep it out of shots.
+    await context.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const style = document.createElement("style");
+        style.textContent = '[data-testid="dev-date-picker-toggle"] { display: none !important; }';
+        document.head.append(style);
+      });
+    });
     const page = await context.newPage();
     if (account) await signIn(page, account);
     const shared = {};
     if (account === "demo") shared.tokyo = await tripUrl(page, "Tokyo");
 
-    for (const shot of SHOTS.filter((candidate) => candidate.account === account)) {
+    for (const shot of SHOTS.filter(
+      (candidate) => candidate.account === account && Boolean(candidate.mobile) === mobile
+    )) {
       if (only && !only.includes(shot.name)) continue;
       await shot.run(page, shared);
       await settle(page);
