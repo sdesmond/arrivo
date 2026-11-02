@@ -45,9 +45,9 @@ describe("SidebarNav", () => {
     expect(screen.getAllByText("Trips").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders Search nav item", () => {
+  it("omits the inactive Search nav item", () => {
     render(<SidebarNav user={baseUser} />);
-    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
   });
 
   it("renders Packing Templates nav item linking to /packing", () => {
@@ -128,7 +128,6 @@ describe("SidebarNav", () => {
     render(<SidebarNav user={baseUser} invitationCount={0} />);
     expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
   });
-
   it("renders no badge on the Trips nav item when invitationCount is omitted", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
