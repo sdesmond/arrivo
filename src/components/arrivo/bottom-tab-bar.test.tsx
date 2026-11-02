@@ -37,11 +37,11 @@ describe("BottomTabBar", () => {
     expect(tripsLink).not.toHaveAttribute("aria-current");
   });
 
-  it("renders all 5 tabs", () => {
+  it("renders the remaining tabs without the inactive Search entry", () => {
     render(<BottomTabBar />);
     expect(screen.getByText("Trips")).toBeInTheDocument();
     expect(screen.getByText("History")).toBeInTheDocument();
-    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
     expect(screen.getByText("Map")).toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
   });

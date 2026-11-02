@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { AccountSetupActionState } from "@/data/types";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { AuthSubmitButton } from "./auth-submit-button";
+import { ArrivoBrand } from "./arrivo-brand";
 
 interface AccountSetupDialogProps {
   username: string;
@@ -34,6 +35,9 @@ export function AccountSetupDialog({ username, action }: AccountSetupDialogProps
   return (
     <Dialog open onOpenChange={ignoreDismissal} disablePointerDismissal>
       <DialogContent showCloseButton={false} aria-describedby="account-setup-description">
+        <div className="mb-8 flex justify-center">
+          <ArrivoBrand size={80} />
+        </div>
         <DialogHeader>
           <DialogTitle>Set up your account</DialogTitle>
           <DialogDescription id="account-setup-description">

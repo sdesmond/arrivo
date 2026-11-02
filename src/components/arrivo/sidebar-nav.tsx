@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, Search, Clock, LayoutTemplate } from "lucide-react";
+import { Briefcase, Clock, LayoutTemplate } from "lucide-react";
 import { AccountMenu } from "./account-menu";
 import { getAvatarTint } from "@/lib/trip-tints";
 import { ArrivoBrand } from "./arrivo-brand";
@@ -12,7 +12,6 @@ import type { UserProfile } from "@/data/types";
 const NAV_ITEMS = [
   { id: "trips", label: "Trips", icon: Briefcase, href: "/trips" },
   { id: "templates", label: "Packing Templates", icon: LayoutTemplate, href: "/packing" },
-  { id: "search", label: "Search", icon: Search, href: "/search" },
   { id: "travel-history", label: "Travel History", icon: Clock, href: "/travel-history" },
 ];
 

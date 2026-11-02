@@ -45,9 +45,9 @@ describe("SidebarNav", () => {
     expect(screen.getAllByText("Trips").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders Search nav item", () => {
+  it("omits the inactive Search nav item", () => {
     render(<SidebarNav user={baseUser} />);
-    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
   });
 
   it("renders Packing Templates nav item linking to /packing", () => {
@@ -59,12 +59,12 @@ describe("SidebarNav", () => {
 
   it("renders the Arrivo brand name", () => {
     render(<SidebarNav user={baseUser} />);
-    expect(screen.getByText("Arrivo")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Arrivo" })).toBeInTheDocument();
   });
 
   it("renders the logo inside the brand link to /trips", () => {
     render(<SidebarNav user={baseUser} />);
-    const brandLink = screen.getByText("Arrivo").closest("a");
+    const brandLink = screen.getByRole("link", { name: "Arrivo" });
     expect(brandLink).toHaveAttribute("href", "/trips");
     expect(brandLink?.querySelector("img")).toBeInTheDocument();
   });
@@ -128,7 +128,6 @@ describe("SidebarNav", () => {
     render(<SidebarNav user={baseUser} invitationCount={0} />);
     expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
   });
-
   it("renders no badge on the Trips nav item when invitationCount is omitted", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
