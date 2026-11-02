@@ -1,10 +1,12 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
+import { BASE_PATH, SITE_ORIGIN } from "./site-info.mjs";
+
 // GitHub Pages project site: https://sdesmond.github.io/arrivo/
 export default defineConfig({
-  site: "https://sdesmond.github.io",
-  base: "/arrivo",
+  site: SITE_ORIGIN,
+  base: BASE_PATH,
   integrations: [
     starlight({
       title: "Arrivo",
@@ -42,7 +44,12 @@ export default defineConfig({
         { label: "Self-hosting", slug: "self-hosting" },
         {
           label: "Support",
-          items: [{ slug: "support/faq" }, { slug: "support/troubleshooting" }, { slug: "changelog" }],
+          items: [
+            { slug: "support/faq" },
+            { slug: "support/troubleshooting" },
+            { slug: "support/ai-assistant" },
+            { slug: "changelog" },
+          ],
         },
       ],
     }),

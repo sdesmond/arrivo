@@ -34,7 +34,7 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 ## Documentation
 
-User guide and self-hosting docs: <https://sdesmond.github.io/arrivo/>. Source lives in [`site/`](./site) (Astro Starlight); `cd site && npm install && npm run dev` previews it.
+User guide and self-hosting docs: <https://sdesmond.github.io/arrivo/>. Source lives in [`site/`](./site) (Astro Starlight); `cd site && npm install && npm run dev` previews it. Point an AI assistant at <https://sdesmond.github.io/arrivo/llms-full.txt> to have it answer questions about Arrivo from the guide.
 
 ## Self-hosting
 

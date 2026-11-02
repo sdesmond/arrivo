@@ -4,12 +4,13 @@
   "type": "module",
   "scripts": {
     "sync": "node scripts/sync-content.mjs",
-    "dev": "npm run sync && astro dev",
-    "build": "npm run sync && astro check && astro build",
+    "dev": "npm run sync && npm run llms && astro dev",
+    "build": "npm run sync && npm run llms && astro check && astro build",
     "preview": "astro preview",
     "check:links": "node scripts/check-links.mjs",
     "screenshots": "node scripts/screenshots.mjs",
-    "test": "node --test scripts/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs",
+    "llms": "node scripts/build-llms.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.12",
