@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { buildChangelogPage, buildSelfHostingPage, rewriteRelativeLinks } from "./sync-content.mjs";
+import {
+  buildChangelogPage,
+  buildSelfHostingPage,
+  copyBrandAssets,
+  rewriteRelativeLinks,
+  writeAppVersion,
+} from "./sync-content.mjs";
 
 const REPO_URL = "https://github.com/sdesmond/arrivo";
 
@@ -48,4 +57,43 @@ test("frontmatter values stay valid YAML when they contain a colon", () => {
 
   assert.ok(description.startsWith('"') && description.endsWith('"'));
   assert.doesNotThrow(() => JSON.parse(description));
+});
+
+function makeRepo() {
+  const root = mkdtempSync(join(tmpdir(), "sync-content-"));
+  const repoRoot = join(root, "repo");
+  const siteRoot = join(repoRoot, "site");
+  mkdirSync(join(repoRoot, "src", "assets"), { recursive: true });
+  mkdirSync(siteRoot, { recursive: true });
+  writeFileSync(join(repoRoot, "src", "assets", "arrivo-logo.svg"), "<svg>logo</svg>");
+  writeFileSync(join(repoRoot, "src", "assets", "arrivo-text.svg"), "<svg>text</svg>");
+  writeFileSync(join(repoRoot, "package.json"), JSON.stringify({ name: "arrivo", version: "9.8.7" }));
+  return { repoRoot, siteRoot };
+}
+
+test("copyBrandAssets copies the app's logo and wordmark so the site never keeps its own copy", () => {
+  const { repoRoot, siteRoot } = makeRepo();
+
+  copyBrandAssets(repoRoot, siteRoot);
+
+  assert.equal(readFileSync(join(siteRoot, "src", "assets", "brand", "arrivo-logo.svg"), "utf8"), "<svg>logo</svg>");
+  assert.equal(readFileSync(join(siteRoot, "src", "assets", "brand", "arrivo-text.svg"), "utf8"), "<svg>text</svg>");
+});
+
+test("copyBrandAssets fails loudly when an app asset is missing", () => {
+  const { repoRoot, siteRoot } = makeRepo();
+  writeFileSync(join(repoRoot, "src", "assets", "arrivo-logo.svg"), "");
+  mkdirSync(join(repoRoot, "empty"), { recursive: true });
+
+  assert.throws(() => copyBrandAssets(join(repoRoot, "empty"), siteRoot), /arrivo-logo\.svg/);
+});
+
+test("writeAppVersion records the app's package version for the home page", () => {
+  const { repoRoot, siteRoot } = makeRepo();
+
+  writeAppVersion(repoRoot, siteRoot);
+
+  assert.deepEqual(JSON.parse(readFileSync(join(siteRoot, "src", "generated", "app-version.json"), "utf8")), {
+    version: "9.8.7",
+  });
 });

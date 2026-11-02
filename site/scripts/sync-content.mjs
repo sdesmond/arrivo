@@ -1,9 +1,11 @@
 // Generates docs pages from repo files so the site never duplicates them by hand:
 //   CHANGELOG.md          -> src/content/docs/changelog.md
 //   docs/self-hosting.md  -> src/content/docs/self-hosting/index.md
-// Both outputs are git-ignored; `npm run sync` (run before dev/build) regenerates them.
+//   src/assets/arrivo-{logo,text}.svg -> src/assets/brand/ (the app's logo and wordmark)
+//   package.json version  -> src/generated/app-version.json (shown on the home page)
+// All outputs are git-ignored; `npm run sync` (run before dev/build) regenerates them.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,6 +61,23 @@ export function buildSelfHostingPage(markdown, repoUrl) {
   })}\n<!-- Generated from docs/self-hosting.md by site/scripts/sync-content.mjs. Edit that file instead. -->\n\n${withLinks.trim()}\n`;
 }
 
+const BRAND_ASSETS = ["arrivo-logo.svg", "arrivo-text.svg"];
+
+export function copyBrandAssets(repoRoot, siteRoot) {
+  const outputDir = join(siteRoot, "src", "assets", "brand");
+  mkdirSync(outputDir, { recursive: true });
+  for (const name of BRAND_ASSETS) {
+    const source = join(repoRoot, "src", "assets", name);
+    if (!existsSync(source)) throw new Error(`Brand asset not found: ${source} (expected ${name} in the app)`);
+    copyFileSync(source, join(outputDir, name));
+  }
+}
+
+export function writeAppVersion(repoRoot, siteRoot) {
+  const { version } = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+  writeGenerated(join(siteRoot, "src", "generated", "app-version.json"), `${JSON.stringify({ version })}\n`);
+}
+
 function writeGenerated(path, content) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
@@ -74,6 +93,9 @@ function main() {
 
   const selfHosting = readFileSync(join(repoRoot, "docs", "self-hosting.md"), "utf8");
   writeGenerated(join(docsDir, "self-hosting", "index.md"), buildSelfHostingPage(selfHosting, REPO_URL));
+
+  copyBrandAssets(repoRoot, siteRoot);
+  writeAppVersion(repoRoot, siteRoot);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

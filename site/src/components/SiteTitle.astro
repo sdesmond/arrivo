@@ -1,0 +1,34 @@
+---
+// Replaces Starlight's text title with the app's logo and wordmark (sized like ArrivoBrand in the app:
+// logo 411.24:443.29, wordmark 1225.23:356.04 at two thirds of the logo's height).
+import logo from "../assets/brand/arrivo-logo.svg";
+import wordmark from "../assets/brand/arrivo-text.svg";
+
+const { siteTitleHref } = Astro.locals.starlightRoute;
+const LOGO_HEIGHT = 30;
+const WORDMARK_HEIGHT = 20;
+---
+
+<a href={siteTitleHref} class="site-title sl-flex" aria-label="Arrivo home">
+  <img
+    src={logo.src}
+    alt=""
+    aria-hidden="true"
+    width={Math.round(LOGO_HEIGHT * (411.23917 / 443.29297))}
+    height={LOGO_HEIGHT}
+  />
+  <img
+    src={wordmark.src}
+    alt="Arrivo"
+    width={Math.round(WORDMARK_HEIGHT * (1225.2265 / 356.03836))}
+    height={WORDMARK_HEIGHT}
+  />
+</a>
+
+<style>
+  .site-title {
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+</style>
