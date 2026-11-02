@@ -14,6 +14,12 @@ async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("AccountSetupDialog", () => {
+  it("shows prominent Arrivo branding", () => {
+    render(<AccountSetupDialog username="pending-person" action={noop} />);
+    expect(screen.getByRole("img", { name: "Arrivo" })).toHaveAttribute("height", "53");
+    expect(document.querySelector('img[aria-hidden="true"]')).toHaveAttribute("height", "80");
+  });
+
   it("shows the username as read-only text, not an input", () => {
     render(<AccountSetupDialog username="pending-person" action={noop} />);
     const dialog = screen.getByRole("dialog", { name: "Set up your account" });

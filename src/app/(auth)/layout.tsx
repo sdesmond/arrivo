@@ -7,15 +7,16 @@ interface AuthLayoutProps {
 export default function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <main
-      className="flex min-h-screen items-center justify-center px-4"
+      className="flex min-h-screen items-center justify-center px-4 py-12"
       style={{ background: "var(--bg)", color: "var(--fg)" }}
     >
-      <div
-        className="w-full max-w-sm rounded-2xl p-8"
-        style={{ background: "var(--surface)", border: "1px solid var(--line)" }}
-      >
-        <ArrivoBrand size={36} className="mb-6" />
-        {children}
+      <div className="flex w-full max-w-sm flex-col gap-12">
+        <div className="flex justify-center">
+          <ArrivoBrand size={80} />
+        </div>
+        <div className="rounded-2xl p-8" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}>
+          {children}
+        </div>
       </div>
     </main>
   );

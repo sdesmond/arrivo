@@ -5,8 +5,12 @@ import { ArrivoBrand } from "./arrivo-brand";
 describe("ArrivoBrand", () => {
   it("renders the app name next to the logo", () => {
     const { container } = render(<ArrivoBrand />);
-    expect(screen.getByText("Arrivo")).toBeInTheDocument();
-    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Arrivo" })).toHaveAttribute(
+      "src",
+      expect.stringContaining("arrivo-text.svg")
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", expect.stringContaining("arrivo-logo.svg"));
+    expect(screen.getAllByRole("img")).toHaveLength(1);
   });
 
   it("marks the logo decorative so the name is announced once", () => {
@@ -19,13 +23,18 @@ describe("ArrivoBrand", () => {
   it("sizes the logo from the size prop", () => {
     const { container } = render(<ArrivoBrand size={40} />);
     const logo = container.querySelector("img");
-    expect(logo).toHaveAttribute("width", "40");
+    expect(logo).toHaveAttribute("width", "37");
     expect(logo).toHaveAttribute("height", "40");
+    const wordmark = screen.getByRole("img", { name: "Arrivo" });
+    expect(wordmark).toHaveAttribute("height", "27");
+    expect(wordmark).toHaveAttribute("width", "93");
   });
 
   it("defaults the logo to 24px", () => {
     const { container } = render(<ArrivoBrand />);
-    expect(container.querySelector("img")).toHaveAttribute("width", "24");
+    expect(container.querySelector("img")).toHaveAttribute("height", "24");
+    expect(container.querySelector("img")).toHaveAttribute("width", "22");
+    expect(screen.getByRole("img", { name: "Arrivo" })).toHaveAttribute("height", "16");
   });
 
   it("merges a custom className", () => {

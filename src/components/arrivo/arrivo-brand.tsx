@@ -2,28 +2,39 @@
 
 import Image from "next/image";
 import arrivoLogo from "@/assets/arrivo-logo.svg";
+import arrivoText from "@/assets/arrivo-text.svg";
 import { cn } from "@/lib/utils";
 
 export interface ArrivoBrandProps {
-  /** Logo edge length in px; the wordmark scales with it. */
+  /** Logo height in px; the wordmark scales with it. */
   size?: number;
   className?: string;
 }
 
 export function ArrivoBrand({ size = 24, className }: ArrivoBrandProps) {
+  const wordmarkHeight = Math.round((size * 2) / 3);
+
   return (
-    <span
-      className={cn("inline-flex items-center gap-2", className)}
-      style={{
-        fontFamily: "var(--font-heading-family, ui-sans-serif)",
-        fontWeight: 700,
-        fontSize: `calc(${Math.round((size * 2) / 3)}px * var(--font-scale))`,
-        letterSpacing: "-0.02em",
-        color: "var(--fg)",
-      }}
-    >
-      <Image src={arrivoLogo} alt="" aria-hidden="true" width={size} height={size} priority />
-      Arrivo
+    <span className={cn("inline-flex items-center gap-2", className)}>
+      <Image
+        src={arrivoLogo}
+        alt=""
+        aria-hidden="true"
+        width={Math.round(size * (411.23917 / 443.29297))}
+        height={size}
+        priority
+      />
+      <Image
+        src={arrivoText}
+        alt="Arrivo"
+        width={Math.round(wordmarkHeight * (1225.2265 / 356.03836))}
+        height={wordmarkHeight}
+        style={{
+          height: `calc(${wordmarkHeight}px * var(--font-scale))`,
+          width: "auto",
+        }}
+        priority
+      />
     </span>
   );
 }
