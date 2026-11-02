@@ -9,10 +9,13 @@ describe("SupportArrivoCard", () => {
     expect(region).toHaveTextContent(/free, open-source/i);
   });
 
-  it("links to GitHub Sponsors in a new tab without leaking the opener", () => {
+  it.each([
+    [/Sponsor on GitHub/, "https://github.com/sponsors/sdesmond"],
+    [/Tip on Ko-fi/, "https://ko-fi.com/arrivo"],
+  ])("links %s to %s in a new tab without leaking the opener", (name, href) => {
     render(<SupportArrivoCard />);
-    const link = screen.getByRole("link", { name: /Sponsor on GitHub/ });
-    expect(link).toHaveAttribute("href", "https://github.com/sponsors/sdesmond");
+    const link = screen.getByRole("link", { name });
+    expect(link).toHaveAttribute("href", href);
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });

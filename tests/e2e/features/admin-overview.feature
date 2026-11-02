@@ -37,7 +37,7 @@ Feature: Admin overview
     Given I am signed in as an app "admin"
     When I request app management at "/admin"
     Then I am on the app Overview
-    And the Overview offers a GitHub Sponsors link that opens in a new tab
+    And the Overview offers GitHub Sponsors and Ko-fi links that open in a new tab
 
   Scenario: A member cannot open Overview
     Given I am signed in as an app "member"

@@ -7,9 +7,10 @@ export interface SupportLink {
   href: string;
 }
 
-// Add Ko-fi here once its page exists; the card renders one link per entry.
+// The card renders one link per entry; keep in sync with .github/FUNDING.yml and the README.
 export const SUPPORT_LINKS: readonly SupportLink[] = [
   { label: "Sponsor on GitHub", href: "https://github.com/sponsors/sdesmond" },
+  { label: "Tip on Ko-fi", href: "https://ko-fi.com/arrivo" },
 ];
 
 export interface SupportArrivoCardProps {
@@ -33,7 +34,7 @@ export function SupportArrivoCard({ className }: SupportArrivoCardProps) {
       </h2>
       <p className="mt-1" style={{ color: "var(--fg-3)", fontSize: "calc(13px * var(--font-scale))" }}>
         Arrivo is free, open-source software built by an independent developer. If it&apos;s useful to you and the
-        people you travel with, a sponsorship helps fund new features, fixes and maintenance.
+        people you travel with, a sponsorship or one-off tip helps fund new features, fixes and maintenance.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {SUPPORT_LINKS.map(({ label, href }) => (
