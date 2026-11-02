@@ -33,6 +33,12 @@ Feature: Admin overview
     And the Overview failed sign-in count matches Activity for the last 24 hours
     And the Overview contains no private fixture details
 
+  Scenario: Admin sees how to support Arrivo
+    Given I am signed in as an app "admin"
+    When I request app management at "/admin"
+    Then I am on the app Overview
+    And the Overview offers a GitHub Sponsors link that opens in a new tab
+
   Scenario: A member cannot open Overview
     Given I am signed in as an app "member"
     When I request app management at "/admin/overview"
