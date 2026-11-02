@@ -1,5 +1,7 @@
 # Arrivo
 
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/sdesmond)
+
 A travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, and Drizzle ORM.
 
 ## Quick start
@@ -77,6 +79,12 @@ Implement the `StorageAdapter` interface (`put`/`del`/`read`) in a new file unde
 - [PostgreSQL](https://www.postgresql.org) — primary database
 - [Tailwind CSS v4](https://tailwindcss.com) — utility-first styling
 - [Base UI](https://base-ui.com) / [shadcn](https://ui.shadcn.com) — unstyled UI primitives
+
+## Support Arrivo
+
+Arrivo is free, open-source software built by an independent developer. If it's useful to you, you can
+[sponsor its development on GitHub](https://github.com/sponsors/sdesmond), either once or monthly. Sponsorships fund
+new features, fixes and maintenance; Arrivo stays free and open source either way.
 
 ## Security
 
