@@ -12,6 +12,7 @@ import {
   readRecentAdminActions,
 } from "@/lib/overview-readers";
 import { OverviewMetrics } from "@/components/arrivo/overview-metrics";
+import { SupportArrivoCard } from "@/components/arrivo/support-arrivo-card";
 
 export default async function AdminOverviewPage() {
   // The layout can be reused by client navigation; guard every page request too.
@@ -31,27 +32,30 @@ export default async function AdminOverviewPage() {
       readRecentAdminActions(),
     ]);
   return (
-    <section
-      aria-labelledby="admin-overview-heading"
-      className="max-w-3xl rounded-lg border p-4"
-      style={{ borderColor: "var(--line)", background: "var(--surface)" }}
-    >
-      <h2 id="admin-overview-heading" className="font-semibold text-fg">
-        Overview
-      </h2>
-      <OverviewMetrics
-        version={version}
-        database={database}
-        storage={storage}
-        uploadBytes={uploadBytes}
-        users={counts.users}
-        admins={counts.admins}
-        pending={counts.pending}
-        trips={tripCount}
-        documents={documentCount}
-        failedSignIns={failedSignIns}
-        adminActions={adminActions}
-      />
-    </section>
+    <div className="flex max-w-3xl flex-col gap-4">
+      <section
+        aria-labelledby="admin-overview-heading"
+        className="rounded-lg border p-4"
+        style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+      >
+        <h2 id="admin-overview-heading" className="font-semibold text-fg">
+          Overview
+        </h2>
+        <OverviewMetrics
+          version={version}
+          database={database}
+          storage={storage}
+          uploadBytes={uploadBytes}
+          users={counts.users}
+          admins={counts.admins}
+          pending={counts.pending}
+          trips={tripCount}
+          documents={documentCount}
+          failedSignIns={failedSignIns}
+          adminActions={adminActions}
+        />
+      </section>
+      <SupportArrivoCard />
+    </div>
   );
 }

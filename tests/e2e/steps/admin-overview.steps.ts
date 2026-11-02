@@ -418,6 +418,19 @@ Then("I am on the app Overview", async ({ page }) => {
   await expect(navigation.getByRole("link")).toHaveCount(3);
 });
 
+Then("the Overview offers GitHub Sponsors and Ko-fi links that open in a new tab", async ({ page }) => {
+  const support = page.getByRole("region", { name: "Support Arrivo" });
+  for (const [name, href] of [
+    [/Sponsor on GitHub/, "https://github.com/sponsors/sdesmond"],
+    [/Tip on Ko-fi/, "https://ko-fi.com/arrivo"],
+  ] as const) {
+    const link = support.getByRole("link", { name });
+    await expect(link).toHaveAttribute("href", href);
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  }
+});
+
 Then("the Overview shows version, database health and user counts with checked times", async ({ page }) => {
   const section = page.getByRole("region", { name: "Overview" });
   for (const label of [

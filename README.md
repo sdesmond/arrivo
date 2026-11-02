@@ -1,5 +1,8 @@
 # Arrivo
 
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/sdesmond)
+[![Tip on Ko-fi](https://img.shields.io/badge/Tip-Ko--fi-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/arrivo)
+
 A travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, and Drizzle ORM.
 
 ## Quick start
@@ -77,6 +80,16 @@ Implement the `StorageAdapter` interface (`put`/`del`/`read`) in a new file unde
 - [PostgreSQL](https://www.postgresql.org) — primary database
 - [Tailwind CSS v4](https://tailwindcss.com) — utility-first styling
 - [Base UI](https://base-ui.com) / [shadcn](https://ui.shadcn.com) — unstyled UI primitives
+
+## Support Arrivo
+
+Arrivo is free, open-source software built by an independent developer. If it's useful to you, you can support its
+development:
+
+- [Sponsor on GitHub](https://github.com/sponsors/sdesmond): monthly or one-time sponsorships
+- [Tip on Ko-fi](https://ko-fi.com/arrivo): one-off tips, no account needed
+
+Support funds new features, fixes and maintenance; Arrivo stays free and open source either way.
 
 ## Security
 

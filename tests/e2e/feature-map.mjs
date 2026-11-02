@@ -160,6 +160,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/metric-row.tsx",
     "src/components/arrivo/refreshable-metric.tsx",
     "src/components/arrivo/overview-metrics.tsx",
+    "src/components/arrivo/support-arrivo-card.tsx",
     // Recent admin actions and failed sign-ins read Activity.
     "src/components/arrivo/recent-admin-actions.tsx",
     "src/lib/activity-queries.ts",
