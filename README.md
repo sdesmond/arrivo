@@ -1,9 +1,17 @@
 # Arrivo
 
+[![Documentation](https://img.shields.io/badge/Docs-user%20guide-0e8b80)](https://sdesmond.github.io/arrivo/)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/sdesmond)
 [![Tip on Ko-fi](https://img.shields.io/badge/Tip-Ko--fi-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/arrivo)
 
-A travel itinerary planning app built with Next.js (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, and Drizzle ORM.
+A free, self-hosted travel itinerary planner, with no subscriptions, tracking or ads. Built with Next.js (App Router), TypeScript, Tailwind CSS v4, PostgreSQL, and Drizzle ORM.
+
+**Documentation: <https://sdesmond.github.io/arrivo/>**
+
+- [Get started](https://sdesmond.github.io/arrivo/get-started/): your first trip in five steps
+- [User guide](https://sdesmond.github.io/arrivo/guide/trips/): itinerary, reservations, budget, documents, packing, sharing
+- [Self-hosting](https://sdesmond.github.io/arrivo/self-hosting/): install with Docker, configure, update, back up
+- [Ask an AI about Arrivo](https://sdesmond.github.io/arrivo/support/ai-assistant/): point an assistant at the guide to get answers
 
 ## Quick start
 
@@ -31,6 +39,10 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 ## AI Skills & Agents Setup
 
 `.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills` and `agents`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
+
+## Documentation
+
+The published docs (<https://sdesmond.github.io/arrivo/>) are built from [`site/`](./site) (Astro Starlight); `cd site && npm install && npm run dev` previews them. The self-hosting and changelog pages are generated from `docs/self-hosting.md` and `CHANGELOG.md`, so edit those files, not the site copies. The guide is also published as one file for AI assistants: <https://sdesmond.github.io/arrivo/llms-full.txt>.
 
 ## Self-hosting
 

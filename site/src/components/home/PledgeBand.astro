@@ -1,0 +1,46 @@
+---
+import { Icon } from "@astrojs/starlight/components";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const pledges = [
+  {
+    title: "No subscriptions",
+    body: "Arrivo is free and open source under <span class='home-nowrap'>AGPL-3.0</span>. There is no paid tier, no trial and no account with us. Sponsorship is optional, for people who want to help fund new features and fixes.",
+  },
+  {
+    title: "No tracking",
+    body: "The app contains no analytics, telemetry or tracking code, and the Docker image turns off Next.js telemetry. Your trips, documents and accounts live in your own database and storage folder.",
+  },
+  {
+    title: "No ads",
+    body: "Nothing in Arrivo is for sale: no ads, no sponsored suggestions, and no business model built on your itinerary.",
+  },
+];
+---
+
+<section class="home-pledge not-content">
+  <div class="home-section__header">
+    <p class="home-eyebrow">The deal</p>
+    <h2 class="home-h2">No subscriptions. No tracking. No ads.</h2>
+    <p class="home-lede">Just a travel planner that runs where you put it and works for you.</p>
+  </div>
+  <div class="home-grid home-grid--three">
+    {
+      pledges.map((pledge) => (
+        <article class="home-card home-card--pledge">
+          <span class="home-card__icon" aria-hidden="true">
+            <Icon name="approve-check-circle" size="1.25rem" />
+          </span>
+          <h3 class="home-card__title">{pledge.title}</h3>
+          <div class="home-card__body" set:html={pledge.body} />
+        </article>
+      ))
+    }
+  </div>
+  <p class="home-pledge__note">
+    Some features call outside services, and only when you use them: Mapbox for maps and place search (you add
+    your own token), Unsplash for cover photo search (your own key), and Frankfurter for exchange rates when an
+    expense is in another currency. Directions open Google Maps in your browser. See
+    <a href={`${base}/self-hosting/#configuration`}>Configuration</a>.
+  </p>
+</section>

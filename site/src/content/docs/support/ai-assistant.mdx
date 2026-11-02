@@ -1,0 +1,46 @@
+---
+title: Ask an AI about Arrivo
+description: Point an AI assistant at Arrivo's guide so it can answer questions about using, administering and self-hosting the app.
+---
+
+The whole user guide is also published as a single plain-text file made for AI assistants. Point your assistant at it and it can answer questions about Arrivo from the same pages you read here, instead of guessing.
+
+- **Full guide (one file):** [llms-full.txt](/arrivo/llms-full.txt). Every page of this site as one Markdown document, with a version number at the top and a short set of rules for the assistant.
+- **Index:** [llms.txt](/arrivo/llms.txt). A short list of the pages with one-line descriptions, in the [llms.txt](https://llmstxt.org) format that some tools look for.
+
+Both are rebuilt from these pages on every release, so they always match the website.
+
+## Quick start
+
+Copy this into your AI assistant, then ask your question:
+
+```text wrap
+Use https://sdesmond.github.io/arrivo/llms-full.txt as your source for Arrivo, a self-hosted travel itinerary planner. Answer my questions about using, administering and self-hosting Arrivo from that document. If it doesn't cover something, say so instead of guessing.
+```
+
+## If your assistant can't open links
+
+Some assistants can't browse the web. Download [llms-full.txt](/arrivo/llms-full.txt) and attach or upload it to the chat, or open it and paste the contents in. It is about 7,000 words, short enough for most assistants to take in whole.
+
+## Keep it handy
+
+Most assistants let you save reference material so you don't have to repeat yourself:
+
+- Add the file, or its link, to a **project**, **knowledge base** or **custom assistant** if your tool has one.
+- Put the quick-start line above into your assistant's **custom instructions**, so it uses the guide whenever you mention Arrivo.
+- With a **coding assistant** or agent tool, save `llms-full.txt` in your project and tell the tool to read it, or give it the link.
+
+## What to ask
+
+- "How do I share a trip so my partner can edit but not manage who else is on it?"
+- "My map tab is empty. What should I check?"
+- "How do I back up Arrivo and restore it later?"
+- "A user lost their phone and their recovery codes. What now?"
+- "What changed in the latest release, and do I need to do anything when I update?"
+
+## Keep in mind
+
+- **It answers from the guide.** Assistants can still get things wrong. Check important steps against the page it links to, and read the relevant section before anything hard to undo, such as restoring a backup or deleting an account.
+- **Your server may be a different version.** The file describes the latest release, and the version is on its first lines. The changelog at the end lists what changed.
+- **Don't paste secrets into a chat.** Setup links, password reset links, recovery codes and your server's encryption key are credentials. Describe the problem instead.
+- **This isn't a support desk.** Arrivo is self-hosted, so your server's admin is the first contact for account problems. If the guide is missing something, please [open an issue](https://github.com/sdesmond/arrivo/issues).

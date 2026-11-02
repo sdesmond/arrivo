@@ -1,0 +1,16 @@
+---
+import { Icon } from "@astrojs/starlight/components";
+
+interface Props {
+  title: string;
+  icon: Parameters<typeof Icon>[0]["name"];
+}
+
+const { title, icon } = Astro.props;
+---
+
+<article class="home-card">
+  <span class="home-card__icon" aria-hidden="true"><Icon name={icon} size="1.25rem" /></span>
+  <h3 class="home-card__title">{title}</h3>
+  <div class="home-card__body"><slot /></div>
+</article>

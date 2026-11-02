@@ -45,6 +45,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "coverage/**",
+    "site/**",
     "test-results/**",
     ".features-gen/**",
     "_bmad/**",

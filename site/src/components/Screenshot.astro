@@ -1,0 +1,45 @@
+---
+import { Image } from "astro:assets";
+
+interface Props {
+  /** File name without extension, from src/assets/screenshots/{light,dark}/. */
+  name: string;
+  alt: string;
+}
+
+const { name, alt } = Astro.props;
+const images = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*/*.webp", { eager: true });
+const light = images[`../assets/screenshots/light/${name}.webp`]?.default;
+const dark = images[`../assets/screenshots/dark/${name}.webp`]?.default;
+
+if (!light || !dark) {
+  throw new Error(`Missing screenshot "${name}" (need light and dark). Run \`npm run screenshots\`.`);
+}
+---
+
+<figure class="screenshot">
+  <Image src={light} alt={alt} class="shot-light" widths={[640, 1280]} sizes="(min-width: 50rem) 44rem, 100vw" />
+  <Image
+    src={dark}
+    alt={alt}
+    class="shot-dark"
+    widths={[640, 1280]}
+    sizes="(min-width: 50rem) 44rem, 100vw"
+  />
+</figure>
+
+<style is:global>
+  .screenshot {
+    margin: 1.5rem 0;
+  }
+  .screenshot img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+  }
+  :root[data-theme="dark"] .screenshot .shot-light,
+  :root:not([data-theme="dark"]) .screenshot .shot-dark {
+    display: none;
+  }
+</style>

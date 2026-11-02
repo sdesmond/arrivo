@@ -1,0 +1,12 @@
+/* Arrivo teal in place of Starlight's default blue. */
+:root {
+  --sl-color-accent-low: #c9ece6;
+  --sl-color-accent: #0d8a7c;
+  --sl-color-accent-high: #064c43;
+}
+
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #0a3a34;
+  --sl-color-accent: #2bb8a8;
+  --sl-color-accent-high: #a6e6dc;
+}

@@ -1,0 +1,50 @@
+---
+title: Day planning
+description: Build a day-by-day itinerary with events, reservations, notes and routes.
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+The **Itinerary** tab lists one card per day. Each card shows the date, a short summary of the stops, and how many stops it has. Today's card is marked **Active**.
+
+<Screenshot
+  name="trip-day-expanded"
+  alt="An expanded itinerary day with an event, its time, place, cost and attachment options, and a note"
+/>
+
+## Events
+
+Open a day to see its events. For each event you can add a note, a time, a place, a cost, and an attachment. Events you haven't scheduled, for example after shortening a trip's dates, are kept in an **Unscheduled Events** group at the top of the itinerary so nothing is lost.
+
+Drag events to reorder them within a day.
+
+## Reservations
+
+Flights, lodging and other bookings live in the **Reservations** tab, grouped by type with the soonest first.
+
+<Screenshot name="trip-reservations" alt="The Reservations tab with Lodging and Flight groups" />
+
+Reservations also show up on the itinerary as linked events, so you don't enter them twice:
+
+- A lodging reservation appears as **Check-in** and **Check-out** on the right days.
+- A flight that leaves and lands on the same day appears as one linked event.
+- Selecting a linked event opens it in Reservations.
+- A reservation outside the trip's dates adds a day to the trip. If you later shorten the trip past a reservation, Arrivo warns you and lets you keep it.
+
+## Schedule conflicts
+
+When two timed events with places are scheduled closer together than the travel time between them, Arrivo flags a conflict on the day. Select the day's conflict button to jump to the first conflicting event. Events without a time or place aren't flagged themselves.
+
+## Route strip
+
+A day with two or more places shows a route strip, so you can see the order you'll move through them.
+
+## Notes
+
+The **Notes** tab holds notes for the whole trip, such as a rail-pass reminder or backup restaurants. Add them with **New Note**, drag to reorder, and delete with the trash icon.
+
+<Screenshot name="trip-notes" alt="The Notes tab with two trip notes" />
+
+## Live updates
+
+If someone else edits the trip while you have it open, their changes appear without reloading.
