@@ -1,0 +1,31 @@
+---
+title: Arrivo
+description: Plan trips day by day, share them with travel companions, and keep everything on your own server.
+template: splash
+hero:
+  tagline: Plan trips day by day, share them with the people you travel with, and keep your data on your own server.
+  actions:
+    - text: Get started
+      link: /arrivo/get-started/
+      icon: right-arrow
+    - text: Self-host Arrivo
+      link: /arrivo/self-hosting/
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid stagger>
+  <Card title="Plan every day" icon="calendar">
+    Build a day-by-day itinerary with events, reservations and notes.
+  </Card>
+  <Card title="Share with companions" icon="add-user">
+    Invite people to a trip as viewers, editors or managers.
+  </Card>
+  <Card title="Keep it together" icon="document">
+    Attach documents, track spending and keep packing lists with each trip.
+  </Card>
+  <Card title="Own your data" icon="seti:docker">
+    One Docker Compose file runs Arrivo and PostgreSQL on your own hardware.
+  </Card>
+</CardGrid>

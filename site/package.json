@@ -1,0 +1,19 @@
+{
+  "name": "arrivo-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync-content.mjs",
+    "dev": "npm run sync && astro dev",
+    "build": "npm run sync && astro check && astro build",
+    "preview": "astro preview",
+    "check:links": "node scripts/check-links.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/starlight": "^0.42.8",
+    "astro": "^7.4.5",
+    "typescript": "^6.0.3"
+  }
+}
