@@ -8,9 +8,9 @@ interface Props {
 }
 
 const { name, alt } = Astro.props;
-const images = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*/*.png", { eager: true });
-const light = images[`../assets/screenshots/light/${name}.png`]?.default;
-const dark = images[`../assets/screenshots/dark/${name}.png`]?.default;
+const images = import.meta.glob<{ default: ImageMetadata }>("../assets/screenshots/*/*.webp", { eager: true });
+const light = images[`../assets/screenshots/light/${name}.webp`]?.default;
+const dark = images[`../assets/screenshots/dark/${name}.webp`]?.default;
 
 if (!light || !dark) {
   throw new Error(`Missing screenshot "${name}" (need light and dark). Run \`npm run screenshots\`.`);

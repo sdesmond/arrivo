@@ -4,20 +4,30 @@
 //   npm run dev            # in the repo root, http://localhost:3000
 //   cd site && npm run screenshots
 //
-// Needs the repo root's dependencies (it resolves `playwright` from there). Output goes to
-// src/assets/screenshots/{light,dark}/<name>.png and is committed, so CI never needs the app.
+// Needs the repo root's dependencies and `.env` (it resolves `playwright`, `postgres` and `dotenv` from
+// there, and reads DATABASE_URL and STORAGE_LOCAL_ROOT_DIR). Before capturing, it gives the seeded Tokyo
+// and Kyoto trips photo covers (see cover-photos.mjs), which changes the dev database and storage folder;
+// `npm run db:seed` restores the seed. Output goes to src/assets/screenshots/{light,dark}/<name>.webp and
+// is committed, so CI never needs the app.
 
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import dotenv from "dotenv";
 import { chromium } from "playwright";
+import postgres from "postgres";
+import sharp from "sharp";
+
+import { applyCoverPhotos } from "./cover-photos.mjs";
 
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const PASSWORD = "demo1234";
 const VIEWPORT = { width: 1280, height: 900 };
 const OUTPUT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "assets", "screenshots");
 const THEMES = ["light", "dark"];
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(SCRIPT_DIR, "..", "..");
 
 async function signIn(page, username) {
   await page.goto(`${BASE_URL}/sign-in`);
@@ -137,14 +147,35 @@ async function captureTheme(browser, theme, only) {
       if (only && !only.includes(shot.name)) continue;
       await shot.run(page, shared);
       await settle(page);
-      await page.screenshot({ path: join(outputDir, `${shot.name}.png`) });
-      console.log(`${theme}/${shot.name}.png`);
+      // WebP keeps photo covers from bloating the repo (the same shots were ~4x larger as PNG).
+      const png = await page.screenshot();
+      await sharp(png)
+        .webp({ quality: 90 })
+        .toFile(join(outputDir, `${shot.name}.webp`));
+      console.log(`${theme}/${shot.name}.webp`);
     }
     await context.close();
   }
 }
 
+async function applyPhotoCovers() {
+  dotenv.config({ path: join(REPO_ROOT, ".env"), quiet: true });
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set (expected in the repo root .env).");
+  const sql = postgres(process.env.DATABASE_URL);
+  try {
+    await applyCoverPhotos({
+      photosDir: join(SCRIPT_DIR, "cover-photos"),
+      storageRoot: resolve(REPO_ROOT, process.env.STORAGE_LOCAL_ROOT_DIR ?? "./.dev-storage"),
+      findTripId: async (name) => (await sql`select id from trips where name = ${name}`)[0]?.id,
+      setCoverUrl: (tripId, url) => sql`update trips set cover_image_url = ${url} where id = ${tripId}`,
+    });
+  } finally {
+    await sql.end();
+  }
+}
+
 async function main() {
+  await applyPhotoCovers();
   const only = process.argv.slice(2);
   const browser = await chromium.launch({ executablePath: process.env.SCREENSHOT_CHROMIUM_PATH });
   try {
