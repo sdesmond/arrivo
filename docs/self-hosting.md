@@ -43,22 +43,22 @@ container app built into a NAS.
 All settings are environment variables on the `app` service. After you change one, run
 `docker compose up -d`, or redeploy the stack in your container manager.
 
-| Variable              | Default          | Purpose                                                                                                                                      |
-| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                           |
-| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                     |
-| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab              |
-| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                          |
-| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                                |
-| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                            |
-| `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key`     |
-| `NEXTAUTH_URL`        | unset            | Address users open Arrivo at. Required for account setup and password reset links; also controls sign-in redirects. `AUTH_URL` is a fallback |
+| Variable              | Default          | Purpose                                                                                                                                                                   |
+| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | the bundled `db` | Postgres connection. If you change `POSTGRES_PASSWORD` on `db`, change it here too                                                                                        |
+| `PUID` / `PGID`       | `1000` / `1000`  | Owner of `./data/storage` on the host. The app re-owns that folder to these IDs on start                                                                                  |
+| `MAPBOX_ACCESS_TOKEN` | —                | Public (`pk.`) [Mapbox token](https://account.mapbox.com/access-tokens/) for place search, routes, map previews and the Map tab                                           |
+| `MAPBOX_PUBLIC_TOKEN` | the token above  | Optional separate token for browsers only, so you can URL-restrict it (a restricted token breaks server-side calls)                                                       |
+| `UNSPLASH_ACCESS_KEY` | —                | [Unsplash](https://unsplash.com/developers) access key for cover-image search                                                                                             |
+| `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                                                         |
+| `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key`                                  |
+| `NEXTAUTH_URL`        | unset            | Address users open Arrivo at, using the public reverse-proxy address if applicable. Required for account links; also controls sign-in redirects. `AUTH_URL` is a fallback |
 
 Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
 
 Before adding users or generating password reset links, set `NEXTAUTH_URL` to the address those users
-will open, including `http://` or `https://` and any nonstandard port. For a reverse proxy, use its
+will open, including `http://` or `https://` and any nonstandard port. For a reverse proxy, tunnel, or similar gateway, use its
 public address, not the app's internal IP or container address. `NEXTAUTH_URL` takes priority over
 `AUTH_URL` when both are set. Account links use this configured address rather than request or proxy
 headers; without a valid configured address, Arrivo refuses to generate them.
@@ -86,7 +86,7 @@ arrivo.example.com {
 If the proxy runs on the same host, change the port line to `"127.0.0.1:4850:4850"` so the app
 isn't reachable around it.
 
-Set the public address under `app.environment` in your Compose file:
+Set the address users open (the public reverse-proxy address when applicable) under `app.environment` in your Compose file:
 
 ```yaml
 NEXTAUTH_URL: https://arrivo.example.com
@@ -204,7 +204,7 @@ Start with `docker ps -a` and `docker logs arrivo`. A healthy install shows `arr
 | `arrivo` keeps restarting                     | Read `docker logs arrivo`. A failed database update or wrong `DATABASE_URL` stops it before it serves pages                                                       |
 | `manifest unknown` when pulling               | The image tag names a release that doesn't exist                                                                                                                  |
 | `port is already allocated`                   | Change the left number in the `ports` line                                                                                                                        |
-| Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address you open, port included                                                                                                   |
+| Sign-in redirects to `localhost` or loops     | Set `NEXTAUTH_URL` to the exact address users open, including scheme and port; use the public reverse-proxy address if applicable                                 |
 | Everyone was signed out after a restore/move  | `storage/.arrivo/auth-secret` wasn't carried over; sign in again                                                                                                  |
 | An admin is locked out of two-factor sign-in  | See [Recovering an account](#recovering-an-account); `docker exec arrivo node /app/admin-recovery.mjs their-username https://your-address` prints a recovery link |
 | Someone doesn't know their username           | `docker exec arrivo-db psql -U arrivo -d arrivo -c "select name, username from users"` lists every account                                                        |

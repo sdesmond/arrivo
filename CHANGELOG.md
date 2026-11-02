@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-02
+
+### Upgrading
+
+- **Account links:** if not already configured, set `NEXTAUTH_URL` to the address users open Arrivo at,
+  using the public reverse-proxy or tunnel address when applicable, including the scheme and any nonstandard port.
+  Recreate the app container or redeploy the stack, then generate
+  fresh setup or password reset links. This clarifies an existing requirement; previously copied links keep their
+  old address. `AUTH_URL` is a fallback when `NEXTAUTH_URL` is unset.
+
+### Added
+
+- Admin → Overview includes a Support Arrivo card linking to GitHub Sponsors and Ko-fi.
+
+### Changed
+
+- Refreshed logo, SVG wordmark and browser tab icon. Sign-in, initial admin setup and new-user account setup
+  show larger branding, with more space between the branding and sign-in form.
+
+### Removed
+
+- Inactive Search entry from the desktop sidebar and mobile navigation.
+
 ## [0.6.0] - 2026-10-31
 
 ### Upgrading
@@ -102,7 +125,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/sdesmond/arrivo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sdesmond/arrivo/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/sdesmond/arrivo/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/sdesmond/arrivo/compare/v0.4.1...v0.5.0

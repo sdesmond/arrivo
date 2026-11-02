@@ -90,18 +90,25 @@ touches any other account in the database.
 
 `npm run setup:dev` creates `.env` from `.env.example`, preserves existing non-empty values, generates `NEXTAUTH_SECRET` and `DATA_ENCRYPTION_KEY` when needed, and sets database URLs for the selected backend.
 
-| Variable                 | Description                                    | Example default                                      |
-| ------------------------ | ---------------------------------------------- | ---------------------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string                   | `postgres://arrivo:arrivo@localhost:5432/arrivo`     |
-| `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E | `postgres://arrivo:arrivo@localhost:5432/arrivo_e2e` |
-| `NEXTAUTH_URL`           | Full URL of the app                            | `http://localhost:3000`                              |
-| `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                       | generated automatically                              |
-| `DATA_ENCRYPTION_KEY`    | Encrypts passport numbers and 2FA secrets      | generated automatically; never change it once set    |
-| `E2E_USERNAME`           | E2E login username                             | `e2e`                                                |
-| `E2E_PASSWORD`           | E2E login password                             | `e2e1234`                                            |
-| `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator        | `true`                                               |
-| `STORAGE_PROVIDER`       | Active file-storage adapter                    | `local`                                              |
-| `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                   | `./.dev-storage`                                     |
+| Variable                 | Description                                                          | Example default                                      |
+| ------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection string                                         | `postgres://arrivo:arrivo@localhost:5432/arrivo`     |
+| `E2E_DATABASE_URL`       | Dedicated PostgreSQL connection string for E2E                       | `postgres://arrivo:arrivo@localhost:5432/arrivo_e2e` |
+| `NEXTAUTH_URL`           | URL users open, using the public reverse-proxy address if applicable | `http://localhost:3000`                              |
+| `NEXTAUTH_SECRET`        | Random secret ≥ 32 bytes                                             | generated automatically                              |
+| `DATA_ENCRYPTION_KEY`    | Encrypts passport numbers and 2FA secrets                            | generated automatically; never change it once set    |
+| `E2E_USERNAME`           | E2E login username                                                   | `e2e`                                                |
+| `E2E_PASSWORD`           | E2E login password                                                   | `e2e1234`                                            |
+| `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator                              | `true`                                               |
+| `STORAGE_PROVIDER`       | Active file-storage adapter                                          | `local`                                              |
+| `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                                         | `./.dev-storage`                                     |
+
+Set `NEXTAUTH_URL` to the address users open in their browser, including `http://` or `https://` and any
+nonstandard port. If Arrivo is behind a reverse proxy, tunnel, or similar gateway, use its public address
+(for example, `https://arrivo.example.com`), not the app's internal host or container address. This address is
+used for account setup and password reset links as well as sign-in redirects. Restart the dev server after
+changing `.env`; for Docker, recreate the app container or redeploy the stack. Generate fresh account links
+afterward, since previously copied links keep their old address.
 
 A `.env` created before `DATA_ENCRYPTION_KEY` existed has no key, and the dev server prints a warning at startup;
 saving a passport number or setting up two-factor won't work until it's set. Add one (and keep it) with:
