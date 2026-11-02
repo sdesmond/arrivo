@@ -32,6 +32,10 @@ For how schema changes and migrations work (generate, review, commit `drizzle/`)
 
 `.agents/` is the tracked source of truth for shared AI assets: skills in `.agents/skills`, agents in `.agents/agents`, and project memories in `.agents/memories`. `npm run setup:dev` also configures the compatibility links under `.claude/` (`skills` and `agents`) described in [ai-tools-setup.md](./ai-tools-setup/ai-tools-setup.md) without duplicating files.
 
+## Documentation
+
+User guide and self-hosting docs: <https://sdesmond.github.io/arrivo/>. Source lives in [`site/`](./site) (Astro Starlight); `cd site && npm install && npm run dev` previews it.
+
 ## Self-hosting
 
 Arrivo ships as one prebuilt image plus PostgreSQL and runs on any host with Docker: a Linux server, a NAS or a Raspberry Pi. Download one compose file and run `docker compose up -d`; nothing else to configure. **Guide: [docs/self-hosting.md](./docs/self-hosting.md)** (quick start, configuration, HTTPS, updates, backups, troubleshooting). Publishing new images: [docs/releasing.md](./docs/releasing.md).
