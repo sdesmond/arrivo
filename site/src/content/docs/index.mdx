@@ -1,31 +1,189 @@
 ---
 title: Arrivo
-description: Plan trips day by day, share them with travel companions, and keep everything on your own server.
+editUrl: false
+description: Arrivo is a self-hosted travel planner. Plan trips day by day, keep reservations, budgets, documents and packing lists with them, and share them with the people you travel with.
 template: splash
 hero:
-  tagline: Plan trips day by day, share them with the people you travel with, and keep your data on your own server.
+  tagline: Arrivo is a self-hosted travel planner. Build a day-by-day itinerary, keep reservations, budgets, documents and packing lists with the trip, and share it with the people you're traveling with.
   actions:
     - text: Get started
       link: /arrivo/get-started/
-      icon: right-arrow
     - text: Self-host Arrivo
       link: /arrivo/self-hosting/
-      variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import Card from "../../components/home/Card.astro";
+import FeatureRow from "../../components/home/FeatureRow.astro";
+import PhoneShowcase from "../../components/home/PhoneShowcase.astro";
+import SelfHostBand from "../../components/home/SelfHostBand.astro";
 
-<CardGrid stagger>
-  <Card title="Plan every day" icon="calendar">
-    Build a day-by-day itinerary with events, reservations and notes.
-  </Card>
-  <Card title="Share with companions" icon="add-user">
-    Invite people to a trip as viewers, editors or managers.
-  </Card>
-  <Card title="Keep it together" icon="document">
-    Attach documents, track spending and keep packing lists with each trip.
-  </Card>
-  <Card title="Own your data" icon="seti:docker">
-    One Docker Compose file runs Arrivo and PostgreSQL on your own hardware.
-  </Card>
-</CardGrid>
+<section class="home-section not-content">
+  <div class="home-grid home-grid--three">
+    <Card title="Everything in one place" icon="open-book">
+      The itinerary, reservations, budget, documents, notes and packing lists all live on the trip, so nothing is
+      scattered across emails and tabs.
+    </Card>
+    <Card title="Plan it together" icon="comment-alt">
+      Invite travel companions by username as viewers, editors or managers. Changes show up on everyone's screen without
+      reloading.
+    </Card>
+    <Card title="Yours to run" icon="server">
+      Arrivo runs on your own server with Docker. Your trips, documents and accounts stay with you, and there is no
+      hosted service to sign up for.
+    </Card>
+  </div>
+</section>
+
+<FeatureRow
+  eyebrow="Itinerary"
+  title="A day-by-day plan that keeps up with you"
+  screenshot="trip-day-expanded"
+  alt="An expanded itinerary day showing an event with its time, place, cost and attachment options"
+  href="/arrivo/guide/day-planning/"
+  linkText="Plan your days"
+>
+  Every day is a card. Add events with a time, place, cost and note, attach documents, and drag them into order.
+
+- Arrivo flags events scheduled too close together for the travel between them.
+- A day with two or more places shows the route through them.
+- Events that lose their date when you change a trip's dates wait in **Unscheduled Events**, not lost.
+- While you travel, **Trips** shows what is happening now and what comes next.
+
+</FeatureRow>
+
+<FeatureRow
+  reverse
+  eyebrow="Reservations"
+  title="Enter a booking once. It shows up where you need it."
+  screenshot="trip-reservations"
+  alt="The Reservations tab with Lodging and Flight groups, each showing the next booking"
+  href="/arrivo/guide/day-planning/#reservations"
+  linkText="How reservations work"
+>
+  Flights, lodging and other bookings live in one tab, grouped by type with the soonest first.
+
+- Lodging appears on the itinerary as check-in and check-out on the right days.
+- A flight that leaves and lands on the same day shows as one linked event.
+- A booking outside your trip dates adds the day it needs.
+- Attach the confirmation right to the reservation.
+
+</FeatureRow>
+
+<FeatureRow
+  eyebrow="Budget"
+  title="Know where the money is going"
+  screenshot="trip-budget"
+  alt="The Budget tab with total spent, a warning badge, category totals and an expense list"
+  href="/arrivo/guide/spending/"
+  linkText="Track spending"
+>
+  Set a budget for a trip, add costs to events or as miscellaneous expenses, and see the total and each category at a glance.
+
+- The status badge changes at the warning and danger percentages you choose in your preferences.
+- **Travel History → Spending** adds up spending across all your trips, with charts by category and destination.
+- Set your default currency in your preferences.
+
+</FeatureRow>
+
+<FeatureRow
+  reverse
+  eyebrow="Sharing"
+  title="Plan together, with the right access"
+  screenshot="trip-share"
+  alt="The Share trip dialog with an invite field, a collaborator, a pending invitation and a declined invitation"
+  href="/arrivo/guide/sharing/"
+  linkText="Share a trip"
+>
+  Invite people by username and choose what they can do. Viewers can read a trip, editors plan it, and managers also control who is on it.
+
+- Invitations are pending until accepted, and they expire.
+- A role change applies right away, even to someone who has the trip open.
+- Edits from other people appear live, without a reload.
+
+</FeatureRow>
+
+<PhoneShowcase />
+
+<section class="home-section not-content">
+  <div class="home-section__header">
+    <p class="home-eyebrow">And everything around the itinerary</p>
+    <h2 class="home-h2">The details that make a trip run smoothly</h2>
+  </div>
+  <div class="home-grid home-grid--cards">
+    <Card title="Documents" icon="document">
+      Keep tickets, confirmations and insurance with the trip. PDF, JPG, PNG, WEBP and HEIC files up to 25 MB, with an
+      in-app viewer and search.
+    </Card>
+    <Card title="Packing lists and templates" icon="list-format">
+      Check items off per trip. Save a list as a template and pull it into the next trip. Items you already have are
+      skipped.
+    </Card>
+    <Card title="Trip map" icon="random">
+      See a trip's places as numbered pins, for the whole trip or one day at a time. Needs a Mapbox token on your
+      server.
+    </Card>
+    <Card title="Travel history" icon="clock">
+      Look back at past trips with their days, documents and packing progress, plus a spending view across every trip.
+    </Card>
+    <Card title="Traveler profile" icon="information">
+      Keep passport and Known Traveler numbers, loyalty numbers and travel companions on your profile. Passport and
+      Known Traveler numbers are encrypted at rest.
+    </Card>
+    <Card title="Your preferences" icon="setting">
+      Light or dark theme, Month/Day or Day/Month dates, your currency, and imperial or metric distances.
+    </Card>
+  </div>
+</section>
+
+<SelfHostBand />
+
+<section class="home-section not-content">
+  <div class="home-section__header">
+    <p class="home-eyebrow">Security</p>
+    <h2 class="home-h2">Built with your travel documents in mind</h2>
+    <p class="home-lede">
+      Itineraries hold passport numbers, confirmations and where you will be on which day. Arrivo treats them that way.
+    </p>
+  </div>
+  <div class="home-grid home-grid--cards">
+    <Card title="Two-factor sign-in" icon="padlock">
+      Add a code from an authenticator app to every sign-in, with recovery codes for the day you lose your phone.
+    </Card>
+    <Card title="Throttled sign-ins" icon="warning">
+      Repeated failed sign-ins are throttled. Failed attempts from elsewhere never lock you out of browsers you already
+      use.
+    </Card>
+    <Card title="Encrypted at rest" icon="database">
+      Passport and Known Traveler numbers are encrypted with AES-256-GCM before they reach the database.
+    </Card>
+    <Card title="Control your sessions" icon="laptop">
+      See every browser you signed in from, remove the ones you don't recognize, or sign out everywhere at once.
+    </Card>
+    <Card title="Access by role" icon="approve-check-circle">
+      Trips are visible only to the people on them, each with a viewer, editor or manager role.
+    </Card>
+    <Card title="An activity log for admins" icon="notes">
+      Admins can review sign-ins, account changes, trip and itinerary changes and invitations, with filters.
+    </Card>
+  </div>
+</section>
+
+<section class="home-cta not-content">
+  <h2 class="home-h2">Ready to plan your next trip?</h2>
+  <p class="home-lede">Start with a five-step walkthrough, or put Arrivo on your own server.</p>
+  <div class="home-hero__actions">
+    <a class="home-button home-button--primary" href="/arrivo/get-started/">
+      Get started
+    </a>
+    <a class="home-button home-button--secondary" href="/arrivo/self-hosting/">
+      Self-host Arrivo
+    </a>
+  </div>
+  <p class="home-hero__meta">
+    <a href="https://github.com/sdesmond/arrivo">GitHub</a>
+    <span aria-hidden="true">·</span>
+    <a href="/arrivo/changelog/">Changelog</a>
+    <span aria-hidden="true">·</span>
+    <a href="/arrivo/support/faq/">FAQ</a>
+  </p>
+</section>

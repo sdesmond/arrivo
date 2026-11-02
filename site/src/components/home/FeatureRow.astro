@@ -1,0 +1,27 @@
+---
+import Screenshot from "../Screenshot.astro";
+
+interface Props {
+  eyebrow: string;
+  title: string;
+  screenshot: string;
+  alt: string;
+  href: string;
+  linkText: string;
+  reverse?: boolean;
+}
+
+const { eyebrow, title, screenshot, alt, href, linkText, reverse = false } = Astro.props;
+---
+
+<section class:list={["home-row", "not-content", { "home-row--reverse": reverse }]}>
+  <div class="home-row__copy">
+    <p class="home-eyebrow">{eyebrow}</p>
+    <h2 class="home-h2">{title}</h2>
+    <slot />
+    <a class="home-link" href={href}>{linkText} <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="home-row__media">
+    <Screenshot name={screenshot} alt={alt} />
+  </div>
+</section>

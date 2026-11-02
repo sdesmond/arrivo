@@ -10,7 +10,11 @@ export default defineConfig({
       title: "Arrivo",
       description: "User guide and self-hosting docs for Arrivo, a travel itinerary planner.",
       favicon: "/favicon.svg",
-      customCss: ["./src/styles/brand.css"],
+      customCss: ["./src/styles/brand.css", "./src/styles/home.css"],
+      components: {
+        SiteTitle: "./src/components/SiteTitle.astro",
+        Hero: "./src/components/home/HomeHero.astro",
+      },
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/sdesmond/arrivo" }],
       editLink: { baseUrl: "https://github.com/sdesmond/arrivo/edit/main/site/" },
       sidebar: [

@@ -1,0 +1,31 @@
+---
+import { Code } from "@astrojs/starlight/components";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const quickStart = `mkdir -p ~/arrivo && cd ~/arrivo
+curl -fsSLO https://raw.githubusercontent.com/sdesmond/arrivo/main/docker-compose.yml
+docker compose up -d`;
+---
+
+<section class="home-band not-content">
+  <div class="home-band__copy">
+    <p class="home-eyebrow">Self-hosting</p>
+    <h2 class="home-h2">One compose file. Two containers.</h2>
+    <p>
+      Arrivo is the app plus PostgreSQL 17. Download one compose file, start it, and open the address. The app
+      prepares its own database on every start.
+    </p>
+    <ul class="home-checks">
+      <li>Runs on amd64 and ARM64: a Linux server, a NAS or a Raspberry Pi.</li>
+      <li>No <code>.env</code> file and no secret to generate.</li>
+      <li>The first visit creates the admin account. After that there is no public sign-up.</li>
+      <li>Your trips and documents stay on your hardware. There is no hosted service to sign up for.</li>
+      <li>Open source under AGPL-3.0.</li>
+    </ul>
+    <a class="home-link" href={`${base}/self-hosting/`}>Read the self-hosting guide <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="home-band__code">
+    <Code code={quickStart} lang="bash" title="Terminal" frame="terminal" wrap />
+    <p class="home-band__note">Then open <code>http://&lt;your-server&gt;:4850</code>.</p>
+  </div>
+</section>
