@@ -2,7 +2,7 @@
 // (accounts and trips: docs/dev-seed-data.md).
 //
 //   npm run dev            # in the repo root, http://localhost:3000
-//   cd site && npm run screenshots
+//   cd site && SCREENSHOT_SEED_PASSWORD=<seed password> npm run screenshots   # password: docs/dev-seed-data.md
 //
 // Needs the repo root's dependencies and `.env` (it resolves `playwright`, `postgres` and `dotenv` from
 // there, and reads DATABASE_URL and STORAGE_LOCAL_ROOT_DIR). Before capturing, it gives the seeded Tokyo
@@ -20,9 +20,9 @@ import postgres from "postgres";
 import sharp from "sharp";
 
 import { applyCoverPhotos } from "./cover-photos.mjs";
+import { readSeedPassword } from "./screenshot-env.mjs";
 
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
-const PASSWORD = "demo1234";
 const VIEWPORT = { width: 1280, height: 900 };
 // Phone shots are captured at 2x so they stay sharp when the docs scale them.
 const MOBILE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 };
@@ -34,7 +34,7 @@ const REPO_ROOT = join(SCRIPT_DIR, "..", "..");
 async function signIn(page, username) {
   await page.goto(`${BASE_URL}/sign-in`);
   await page.getByLabel("Username").fill(username);
-  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByLabel("Password").fill(readSeedPassword());
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
 }
