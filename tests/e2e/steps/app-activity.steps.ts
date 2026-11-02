@@ -369,7 +369,9 @@ When("I create a private trip for Activity", async ({ page, scenario }) => {
   const response = waitForServerActionResponse(page, { pathIncludes: "/trips", timeoutMs: 15_000 });
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await response;
-  await expect(page).toHaveURL(/\/trips\/[^/?]+(\?new=1)?$/);
+  // The client push commits only after the dev server compiles the trip route on first request,
+  // which can outlast `toHaveURL`'s short window under load; wait with the navigation timeout.
+  await page.waitForURL(/\/trips\/[^/?]+(\?new=1)?$/);
   await scenario.rememberTripByName(ACTIVITY_TRIP_NAME);
 });
 
