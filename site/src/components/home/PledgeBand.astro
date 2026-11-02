@@ -1,7 +1,6 @@
 ---
 import { Icon } from "@astrojs/starlight/components";
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const pledges = [
   {
     title: "No subscriptions",
@@ -37,10 +36,4 @@ const pledges = [
       ))
     }
   </div>
-  <p class="home-pledge__note">
-    Some features call outside services, and only when you use them: Mapbox for maps and place search (you add
-    your own token), Unsplash for cover photo search (your own key), and Frankfurter for exchange rates when an
-    expense is in another currency. Directions open Google Maps in your browser. See
-    <a href={`${base}/self-hosting/#configuration`}>Configuration</a>.
-  </p>
 </section>

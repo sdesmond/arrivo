@@ -403,17 +403,6 @@
   border-color: var(--sl-color-accent);
 }
 
-.home-pledge__note {
-  max-width: 60rem;
-  margin: 1.25rem 0 0;
-  font-size: var(--sl-text-sm);
-  color: var(--sl-color-gray-3);
-}
-
-.home-pledge__note a {
-  color: inherit;
-}
-
 .home-nowrap {
   white-space: nowrap;
 }
