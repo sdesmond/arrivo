@@ -4,10 +4,15 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HREF_PATTERN = /\bhref="([^"]+)"/g;
+const ID_PATTERN = /\bid="([^"]+)"/g;
 
 function candidates(path) {
   const clean = path.replace(/\/$/, "");
   return [clean, `${clean}/index.html`, `${clean}.html`];
+}
+
+function hasId(html, id) {
+  return [...html.matchAll(ID_PATTERN)].some(([, candidate]) => candidate === id);
 }
 
 export function findBrokenLinks(pages, base) {
@@ -18,7 +23,10 @@ export function findBrokenLinks(pages, base) {
     for (const [, href] of html.matchAll(HREF_PATTERN)) {
       if (!href.startsWith(`${base}/`)) continue;
       const path = href.slice(base.length + 1).split(/[?#]/)[0];
-      const found = path === "" || candidates(path).some((candidate) => known.has(candidate));
+      const fragment = href.includes("#") ? href.slice(href.indexOf("#") + 1) : "";
+      const target = path === "" ? "index.html" : candidates(path).find((candidate) => known.has(candidate));
+      const found =
+        target !== undefined && (!fragment || !target.endsWith(".html") || hasId(pages.get(target) ?? "", fragment));
       if (!found) broken.push({ page, href });
     }
   }

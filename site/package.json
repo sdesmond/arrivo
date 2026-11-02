@@ -8,6 +8,7 @@
     "build": "npm run sync && astro check && astro build",
     "preview": "astro preview",
     "check:links": "node scripts/check-links.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
