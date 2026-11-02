@@ -1,8 +1,17 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { users } from "../../../src/db/schema";
 import { Given, When, Then } from "../fixtures";
 import { withE2EDb } from "../e2e-db";
+
+/**
+ * A client navigation commits its URL only once the target route's RSC payload arrives, and the
+ * E2E dev server compiles a route on its first request — several seconds under parallel load. Wait
+ * with the navigation timeout, not `toHaveURL`'s short in-page assertion window.
+ */
+async function waitForClientNavigation(page: Page, url: RegExp): Promise<void> {
+  await page.waitForURL(url);
+}
 
 Given("account role responses are delayed", async ({ page, scenario }) => {
   let releaseResponses!: () => void;
@@ -55,7 +64,7 @@ Given("I use a mobile account viewport", async ({ page }) => {
 
 When("I open Travel History from the sidebar", async ({ page }) => {
   await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Travel History" }).click();
-  await expect(page).toHaveURL(/\/travel-history$/);
+  await waitForClientNavigation(page, /\/travel-history$/);
 });
 
 When("I switch Travel History to Spending through query navigation", async ({ page }) => {
@@ -97,11 +106,11 @@ When("I choose Manage app", async ({ page }) => {
 
 When("I choose account Settings", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Settings" }).click();
-  await expect(page).toHaveURL(/\/profile$/);
+  await waitForClientNavigation(page, /\/profile$/);
 });
 
 Then("I see the Overview app management shell", async ({ page }) => {
-  await expect(page).toHaveURL(/\/admin\/overview$/);
+  await waitForClientNavigation(page, /\/admin\/overview$/);
   await expect(page.getByRole("heading", { name: "Manage app" })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "App sections" });
   await expect(navigation.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
