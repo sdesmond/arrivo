@@ -1,0 +1,40 @@
+---
+title: FAQ
+description: Quick answers to common questions about Arrivo.
+---
+
+## Who can see my trips?
+
+Only you and the people you share them with. Documents are private to the trip. Admins manage accounts and the server, not your trips.
+
+## Where is my data stored?
+
+On the server running Arrivo: trips in its PostgreSQL database, and uploaded documents and covers in its storage folder. There is no hosted Arrivo service. If your admin enables map and cover-photo search, those lookups go to Mapbox and Unsplash. See [Self-hosting](/arrivo/self-hosting/).
+
+## Why is the Map tab empty?
+
+The server has no valid Mapbox token. Ask your admin to set `MAPBOX_ACCESS_TOKEN`. See [Map](/arrivo/guide/map/).
+
+## What files can I upload?
+
+PDF, JPG, PNG, WEBP and HEIC, up to 25 MB each.
+
+## I can't open the Share dialog or see the Budget tab.
+
+Sharing is for managers, and Budget is hidden from viewers. Ask a manager of the trip to change your role. See [Roles and permissions](/arrivo/reference/roles/).
+
+## Can I plan a trip without dates?
+
+Yes. Leave the dates empty and add them later. The trip sits under **Unscheduled** until it has dates.
+
+## My invitation disappeared.
+
+Invitations expire. Ask the trip's manager to resend it.
+
+## I lost my two-factor device.
+
+Sign in with one of your recovery codes (each works once). If you have none left, ask your admin. See [Troubleshooting](/arrivo/support/troubleshooting/).
+
+## How do I reset a password?
+
+Ask your admin for a reset link.

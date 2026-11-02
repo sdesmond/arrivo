@@ -1,0 +1,31 @@
+---
+title: Administration
+description: Manage users and keep an eye on your Arrivo server.
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+People with the **Admin** role see **Manage app** in the app. This page is for them. For installing and updating the server itself, see [Self-hosting](/arrivo/self-hosting/).
+
+## Overview
+
+A health snapshot of the server: Arrivo's version, the database and document storage status, upload storage used, and counts of users, admins, pending setups and trips.
+
+<Screenshot name="admin-overview" alt="Manage app Overview with version, database, storage and user counts" />
+
+## Users
+
+**Users** lists every account. From here you can:
+
+- **Add User** to create an account and get a one-time setup link for the new person.
+- Change a person's role between Admin and Member. You can't change or delete your own account here.
+- **Reset password** to issue a reset link.
+- Delete an account with the trash icon.
+
+<Screenshot name="admin-users" alt="Manage app Users listing five accounts with role pickers and reset password buttons" />
+
+Setup and reset links use the address in `NEXTAUTH_URL`, so set that to the address people actually open. See [Self-hosting](/arrivo/self-hosting/#configuration).
+
+## Activity
+
+**Activity** shows a log of what's happening in the app, which you can filter, and settings for how long the log is kept.

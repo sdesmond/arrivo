@@ -1,0 +1,32 @@
+---
+title: Sharing and roles
+description: Invite people to a trip and choose what they can do.
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+## Invite someone
+
+Open a trip and choose **Share**. Enter the person's username, pick a role, and choose **Invite**. They must already have an Arrivo account on your server.
+
+<Screenshot name="trip-share" alt="The Share trip dialog with an invite field, a collaborator, a pending invitation and a declined invitation" />
+
+The dialog lists everyone on the trip:
+
+- **People with access**, with a role you can change, or remove with the trash icon. You can't change your own row.
+- **Pending** invitations, with their expiry. Resend or cancel one. An expired invitation can still be resent or cancelled.
+- **Declined** invitations, which you can dismiss.
+
+Only managers can open the sharing dialog. See [Roles and permissions](/arrivo/reference/roles/) for what each role can do.
+
+## When you're invited
+
+A badge on **Trips** in the sidebar counts your pending invitations. Open **Trips** to **accept** (you go straight to the trip) or **decline**. Expired invitations disappear from your list.
+
+## Leave a trip
+
+From the trip's card menu, choose **Leave trip** and confirm. The creator and managers can't leave.
+
+## Changes apply right away
+
+If your role changes while you have the trip open, the page updates: for example, someone moved to viewer loses the Budget tab immediately.

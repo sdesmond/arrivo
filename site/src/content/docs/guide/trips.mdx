@@ -1,0 +1,34 @@
+---
+title: Trips
+description: Create, find, edit, leave and delete trips.
+---
+
+import Screenshot from "../../../components/Screenshot.astro";
+
+**Trips** is your home page. It shows the trips you own and the ones shared with you, grouped by whether they are active, upcoming, past, or have no dates yet. Switch between **Cards** and **List** with the toggle.
+
+<Screenshot name="trips" alt="The Trips page showing an active trip card with the current and next event" />
+
+## Trip status
+
+Status comes from the trip's dates and today's date, so you never set it by hand:
+
+- **Active**: today falls within the trip's dates. The card shows what is happening **Now** and the **Next event**.
+- **Upcoming**: the trip starts later, or has no dates yet.
+- **Past**: the trip has ended. Past trips also appear in [Travel history](/arrivo/guide/travel-history/).
+
+A trip with no dates shows up in an **Unscheduled** group until you give it dates.
+
+## Create a trip
+
+Choose **New trip**. Enter a title, and optionally a destination, a date range and a budget. See [Get started](/arrivo/get-started/) for a walkthrough.
+
+## Cover image
+
+Each trip has a cover. Your default cover type (Photo, Map or Graphic) is set in [Profile → Preferences](/arrivo/guide/account/#preferences). You can change a trip's cover from the trip itself.
+
+## Edit, leave or delete
+
+- **Edit** a trip from the trip page or the card's menu. Viewers don't get an Edit option.
+- **Leave** a trip that was shared with you from the card's menu, after confirming. The trip's creator and managers are not offered Leave.
+- **Delete** a trip from the card's menu. Anyone who has the trip open when it is deleted is taken back out of it.
