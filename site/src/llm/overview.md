@@ -17,7 +17,7 @@ Arrivo is a travel itinerary planner you run on your own server with Docker. Eac
 
 Quick facts:
 
-- It is free and open source under AGPL-3.0. There are no subscriptions, no tracking and no ads. The app has no analytics or telemetry code. Some optional features call outside services when used: Mapbox (maps and place search), Unsplash (cover photo search) and Frankfurter (exchange rates).
+- It is free and open source under AGPL-3.0. There are no subscriptions, no tracking and no ads. The app has no analytics or telemetry code.
 - It runs as two containers: the app and PostgreSQL 17, from one Docker Compose file, on amd64 or ARM64 hardware. The default address is `http://<your-server>:4850`.
 - People sign in with a **username** and password, not an email address. The first visit to a new install creates the admin account. After that there is no public sign-up: an admin adds people and gives them a setup link.
 - Two-factor authentication with an authenticator app is optional and set up under Settings → Security.
