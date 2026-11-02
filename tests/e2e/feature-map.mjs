@@ -698,6 +698,7 @@ export const IGNORE_GLOBS = [
   "**/*.mdx",
   "_bmad-output/**",
   "docs/**",
+  "site/**", // standalone docs site (Astro); no Arrivo runtime code
   ".agents/**",
   ".claude/**",
   ".github/**",
