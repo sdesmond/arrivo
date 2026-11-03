@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { collaborators, days, invitations, trips, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { After, Given, When, Then } from "../fixtures";
+import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
 import { waitForServerActionResponse } from "../server-action";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
@@ -161,7 +162,7 @@ Given("a registered user is watching their dashboard in their own session", asyn
 When("I invite the watching user to my trip as an editor", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
   await openManagerShareDialog(page, scenario);
-  await page.getByLabel("Invite username").fill(watchingUser.username);
+  await pickInviteUser(page, watchingUser.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
   await page.getByTitle("Invite this person to the trip").click();

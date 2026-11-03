@@ -27,6 +27,9 @@ const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoiste
 }));
 vi.mock("@/lib/trip-activity", () => ({ recordTripCreated, recordTripUpdated, recordTripInvitation }));
 
+const { getInvitableUsers } = vi.hoisted(() => ({ getInvitableUsers: vi.fn() }));
+vi.mock("@/lib/invitable-users", () => ({ getInvitableUsers }));
+
 const {
   assertTripAccess,
   db,
@@ -148,6 +151,7 @@ import {
   dismissInvitation,
   inviteContributor,
   leaveTrip,
+  listInvitableUsers,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
@@ -1998,6 +2002,41 @@ function setupInviteContributorDb({
 
   return operations;
 }
+
+describe("listInvitableUsers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "manager-1" });
+    assertTripAccess.mockResolvedValue("manager");
+  });
+
+  it("returns the invitable users after asserting manager access", async () => {
+    const result = { users: [{ id: "user-2", username: "alice" }], hasOtherUsers: true };
+    getInvitableUsers.mockResolvedValue(result);
+
+    await expect(listInvitableUsers("trip-1")).resolves.toEqual(result);
+
+    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
+    expect(getInvitableUsers).toHaveBeenCalledWith("trip-1", "manager-1");
+  });
+
+  it("denies non-managers before querying the user directory", async () => {
+    assertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(listInvitableUsers("trip-1")).rejects.toThrow("not found");
+
+    expect(getInvitableUsers).not.toHaveBeenCalled();
+  });
+
+  it("requires a signed-in user before any lookup", async () => {
+    requireUser.mockRejectedValue(new Error("unauthorized"));
+
+    await expect(listInvitableUsers("trip-1")).rejects.toThrow("unauthorized");
+
+    expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(getInvitableUsers).not.toHaveBeenCalled();
+  });
+});
 
 describe("inviteContributor", () => {
   beforeEach(() => {

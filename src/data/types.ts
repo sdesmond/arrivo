@@ -1315,6 +1315,17 @@ export type InviteContributorResult =
   | { status: "resent" }
   | { status: "error"; message: string; errorCode: InviteContributorErrorCode };
 
+export interface InvitableUser {
+  id: string;
+  username: string;
+}
+
+export interface InvitableUsersResult {
+  users: InvitableUser[];
+  /** True when any account besides the caller exists, even if none can be invited to this trip. */
+  hasOtherUsers: boolean;
+}
+
 export interface AddDocumentInput {
   tripId?: string;
   eventId?: string;

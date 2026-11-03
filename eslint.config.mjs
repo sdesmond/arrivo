@@ -55,6 +55,8 @@ const eslintConfig = defineConfig([
     ".opencode/**",
     ".playwright-mcp/**",
     ".ui-review-screenshots/**",
+    // Git-ignored machine-local scratch (PR checkouts, probes); not part of the project.
+    ".local/**",
   ]),
   {
     rules: {
