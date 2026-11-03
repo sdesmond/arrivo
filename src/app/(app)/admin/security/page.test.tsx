@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 vi.mock("@/lib/auth-helpers", () => ({ requireAdmin: mocks.requireAdmin }));
+vi.mock("@/lib/mfa-policy", () => ({ readMfaPolicy: vi.fn().mockResolvedValue({ instanceRequired: false }) }));
+vi.mock("@/components/arrivo/mfa-policy-settings", () => ({ MfaPolicySettings: () => "mfa-settings" }));
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
 vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicyForAdmin: mocks.read }));

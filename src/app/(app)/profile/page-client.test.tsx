@@ -286,3 +286,18 @@ describe("ProfilePageClient", () => {
     );
   });
 });
+
+it("passes effective MFA requirement through to Security", async () => {
+  render(
+    <ProfilePageClient
+      user={baseUser}
+      mfaStatus={{ enabled: true, recoveryCodesRemaining: 10 }}
+      trustedDevices={[]}
+      encryptionConfigured
+      sharedOwnedTrips={[]}
+      mfaRequired
+    />
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Security" }));
+  expect(screen.getByRole("button", { name: "Turn off two-factor authentication" })).toBeDisabled();
+});

@@ -192,3 +192,12 @@ describe("MfaEnrollment", () => {
     expect(screen.queryByAltText("QR code for your authenticator app")).not.toBeInTheDocument();
   });
 });
+
+it("shows enrollment refusal without invoking the callback", async () => {
+  mocks.startMfaEnrollment.mockResolvedValue({ error: "Two-factor policy is unavailable." });
+  const onEnrolled = vi.fn();
+  render(<MfaEnrollment onEnrolled={onEnrolled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Set up two-factor authentication" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Two-factor policy is unavailable.");
+  expect(onEnrolled).not.toHaveBeenCalled();
+});

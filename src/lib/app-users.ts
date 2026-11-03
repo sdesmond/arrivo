@@ -16,6 +16,8 @@ export function toAppUserSummaries(rows: AppUserRow[]): AppUserSummary[] {
     .sort((left, right) => left.username.localeCompare(right.username))
     .map((user) => ({
       id: user.id,
+      ...(typeof user.mfaRequired === "boolean" ? { mfaRequired: user.mfaRequired } : {}),
+      ...(typeof user.instanceMfaRequired === "boolean" ? { instanceMfaRequired: user.instanceMfaRequired } : {}),
       username: user.username,
       ...(user.name?.trim() ? { name: user.name.trim() } : {}),
       role: user.role === UserRole.Admin ? UserRole.Admin : UserRole.Member,
@@ -31,6 +33,8 @@ export async function listAppUsers(): Promise<AppUserSummary[]> {
   const rows = await db
     .select({
       id: users.id,
+      mfaRequired: users.mfaRequired,
+      instanceMfaRequired: sql<boolean>`(select mfa_required from app_state where id = true)`,
       username: users.username,
       name: users.name,
       role: users.role,

@@ -51,3 +51,8 @@ Feature: Two-factor authentication
     Then I should be redirected to the sign-in page
     When I sign in with my password
     Then I should be asked for an authentication code
+
+  Scenario: Optional enrollment stays available without a requirement
+    Given I am on the profile page
+    When I open the Security section
+    Then optional two-factor enrollment is available

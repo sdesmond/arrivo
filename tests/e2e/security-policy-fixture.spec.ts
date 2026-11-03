@@ -102,6 +102,36 @@ test.describe("E2E password-policy fixture", () => {
     expect(count).toBe(0);
   });
 
+  test("MFA requirement migration defaults false while preserving enrolled credentials and sessions", async () => {
+    app = await createSecurityPolicyApp({ slot: slot(), startServer: false, migrateThrough: 11 });
+    const [user] = await app.client`insert into users
+      (username, password_hash, totp_secret, totp_pending_secret, totp_last_step, mfa_enabled_at, session_version)
+      values ('migration-user', 'password-hash', 'encrypted-secret', 'pending-secret', 42, now(), 7)
+      returning id, mfa_enabled_at`;
+    await app.client`insert into trusted_devices (user_id, token_hash, label, session_version)
+      values (${user.id}, 'migration-device-hash', 'Migration browser', 7)`;
+    await app.client`insert into sessions (session_token, user_id, expires)
+      values ('migration-session', ${user.id}, now() + interval '1 day')`;
+    await applyMigrations(app.client, { from: 12 });
+    const [state] = await app.client`select mfa_required from app_state where id = true`;
+    const [after] = await app.client`select mfa_required, password_hash, totp_secret, totp_pending_secret,
+      totp_last_step, mfa_enabled_at, session_version from users where id = ${user.id}`;
+    expect(state.mfa_required).toBe(false);
+    expect(after).toMatchObject({
+      mfa_required: false,
+      password_hash: "password-hash",
+      totp_secret: "encrypted-secret",
+      totp_pending_secret: "pending-secret",
+      totp_last_step: 42,
+      session_version: 7,
+      mfa_enabled_at: user.mfa_enabled_at,
+    });
+    const [device] = await app.client`select session_version from trusted_devices where user_id = ${user.id}`;
+    expect(device.session_version).toBe(7);
+    const [session] = await app.client`select session_token from sessions where user_id = ${user.id}`;
+    expect(session.session_token).toBe("migration-session");
+  });
+
   test("never touches the shared E2E database", async () => {
     const shared = postgres(process.env.E2E_DATABASE_URL!, { max: 1 });
     try {
