@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { startAdminRecoveryEnrollment } from "@/lib/admin-recovery-completion";
 import { ADMIN_RECOVERY_COOKIE, resolveAdminRecoveryContext } from "@/lib/admin-recovery-session";
 import { totpUri } from "@/lib/mfa";
+import { PASSWORD_POLICY_UNAVAILABLE_ERROR } from "@/lib/password-policy";
+import { loadPasswordPolicy } from "@/lib/password-policy-store";
 import { completeAdminRecoveryAction } from "./actions";
 import { AdminRecoveryForm } from "./form";
 
@@ -48,6 +50,24 @@ export default async function AdminRecoveryPage({ searchParams }: AdminRecoveryP
       </>
     );
   }
+  const policy = await loadPasswordPolicy(db);
+  if (!policy) {
+    return (
+      <>
+        <h1 className="mb-2 text-xl font-semibold">Recover account</h1>
+        <p role="alert" style={{ color: "var(--destructive)" }}>
+          {PASSWORD_POLICY_UNAVAILABLE_ERROR}
+        </p>
+      </>
+    );
+  }
   const qrDataUrl = await QRCode.toDataURL(totpUri(enrollment.username, enrollment.secret), { margin: 1, width: 200 });
-  return <AdminRecoveryForm action={completeAdminRecoveryAction} secret={enrollment.secret} qrDataUrl={qrDataUrl} />;
+  return (
+    <AdminRecoveryForm
+      action={completeAdminRecoveryAction}
+      secret={enrollment.secret}
+      qrDataUrl={qrDataUrl}
+      policy={policy}
+    />
+  );
 }

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { ActivityEventType, type AdminRecoveryActionState } from "@/data/types";
+import { ActivityEventType, type AdminRecoveryActionState, type PasswordPolicy } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { completeAdminRecovery } from "@/lib/admin-recovery-completion";
 import {
@@ -12,7 +12,13 @@ import {
   ADMIN_RECOVERY_COOKIE_PATH,
   resolveAdminRecoveryContext,
 } from "@/lib/admin-recovery-session";
-import { PASSWORD_BCRYPT_COST, failedPasswordField, validateNewPassword } from "@/lib/password-policy";
+import {
+  PASSWORD_BCRYPT_COST,
+  PASSWORD_POLICY_UNAVAILABLE_ERROR,
+  failedPasswordField,
+  validateNewPassword,
+} from "@/lib/password-policy";
+import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { isHttpsRequest } from "@/lib/request-origin";
 
 const CODE_ERROR = "That code didn't work. Check your authenticator app and try again.";
@@ -42,14 +48,21 @@ export async function completeAdminRecoveryAction(
 ): Promise<AdminRecoveryActionState> {
   const password = String(form.get("password") ?? "");
   const confirmation = String(form.get("confirmPassword") ?? "");
-  const passwordError = validateNewPassword(password, confirmation);
-  if (passwordError) return { error: passwordError, field: failedPasswordField(password) };
   const code = String(form.get("code") ?? "");
   if (!/^\d{6}$/.test(code.replace(/\s/g, ""))) return { error: CODE_ERROR, field: "code" };
 
   const token = (await cookies()).get(ADMIN_RECOVERY_COOKIE)?.value;
   const context = await resolveAdminRecoveryContext(token, { headers: await headers(), attempt: "submit" });
   if (!token || context.status !== "ready") return unavailable();
+
+  let policy: PasswordPolicy;
+  try {
+    policy = await readPasswordPolicy(db);
+  } catch {
+    return { error: PASSWORD_POLICY_UNAVAILABLE_ERROR, field: "password" };
+  }
+  const passwordError = validateNewPassword(password, confirmation, policy);
+  if (passwordError) return { error: passwordError, field: failedPasswordField(password, policy), policy };
 
   const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   const outcome = await completeAdminRecovery(db, { token, passwordHash, code });

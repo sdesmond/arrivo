@@ -2,6 +2,9 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AccountSetupDialog } from "@/components/arrivo/account-setup-dialog";
 import { auth } from "@/auth";
+import { db } from "@/db";
+import { PASSWORD_POLICY_UNAVAILABLE_ERROR } from "@/lib/password-policy";
+import { loadPasswordPolicy } from "@/lib/password-policy-store";
 import { AccountSetupSignOut } from "@/components/arrivo/account-setup-sign-out";
 import { completeAccountSetupAction, signOutAndContinueSetupAction } from "./actions";
 import { ACCOUNT_SETUP_COOKIE, resolveAccountSetupContext } from "@/lib/account-setup-session";
@@ -19,7 +22,22 @@ export default async function AccountSetupPage() {
     const userId = (await auth())?.user?.id;
     if (userId && userId !== context.account.userId)
       return <AccountSetupSignOut action={signOutAndContinueSetupAction} />;
-    return <AccountSetupDialog username={context.account.username} action={completeAccountSetupAction} />;
+    const policy = await loadPasswordPolicy(db);
+    if (!policy) {
+      return (
+        <>
+          <h1 className="mb-2 text-xl font-semibold" tabIndex={-1}>
+            Set up your account
+          </h1>
+          <p role="alert" style={{ color: "var(--destructive)" }}>
+            {PASSWORD_POLICY_UNAVAILABLE_ERROR}
+          </p>
+        </>
+      );
+    }
+    return (
+      <AccountSetupDialog username={context.account.username} action={completeAccountSetupAction} policy={policy} />
+    );
   }
   if (token) return redirect("/account-setup/open");
 

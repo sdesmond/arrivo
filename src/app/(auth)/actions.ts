@@ -9,7 +9,13 @@ import { AuthError } from "next-auth";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { detectPreferredCurrency } from "@/lib/utils";
-import { ActivityEventType, type ActivityIdentity, type MfaActionState, type SignInActionState } from "@/data/types";
+import {
+  ActivityEventType,
+  type ActivityIdentity,
+  type MfaActionState,
+  type PasswordPolicy,
+  type SignInActionState,
+} from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { lockoutMessage } from "@/lib/auth-throttle";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
@@ -17,10 +23,11 @@ import { MFA_COOKIE, MFA_TICKET_TTL_MS } from "@/lib/mfa";
 import { isHttpsRequest } from "@/lib/request-origin";
 import { bootstrapFirstAccount } from "@/lib/app-bootstrap";
 import { isUniqueViolation } from "@/lib/error-utils";
-import { PASSWORD_BCRYPT_COST, validateNewPassword } from "@/lib/password-policy";
+import { PASSWORD_BCRYPT_COST, PASSWORD_POLICY_UNAVAILABLE_ERROR, validateNewPassword } from "@/lib/password-policy";
+import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 
-type ActionState = { error?: string } | undefined;
+type ActionState = { error?: string; policy?: PasswordPolicy } | undefined;
 
 export async function signInAction(_prev: SignInActionState, formData: FormData): Promise<SignInActionState> {
   const username = String(formData.get("username") ?? "");
@@ -79,8 +86,14 @@ export async function setupAdminAction(_prev: ActionState, formData: FormData): 
   const usernameError = validateUsername(username);
   if (usernameError) return { error: usernameError };
   if (!name) return { error: "Name is required." };
-  const passwordError = validateNewPassword(password, confirmPassword);
-  if (passwordError) return { error: passwordError };
+  let policy: PasswordPolicy;
+  try {
+    policy = await readPasswordPolicy(db);
+  } catch {
+    return { error: PASSWORD_POLICY_UNAVAILABLE_ERROR };
+  }
+  const passwordError = validateNewPassword(password, confirmPassword, policy);
+  if (passwordError) return { error: passwordError, policy };
 
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
   const currency = detectPreferredCurrency(acceptLanguage);

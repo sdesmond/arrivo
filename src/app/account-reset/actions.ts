@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { ActivityEventType, type PasswordResetActionState } from "@/data/types";
+import { ActivityEventType, type PasswordPolicy, type PasswordResetActionState } from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { completePasswordReset } from "@/lib/password-reset";
 import {
@@ -12,7 +12,13 @@ import {
   PASSWORD_RESET_COOKIE_PATH,
   resolvePasswordResetContext,
 } from "@/lib/password-reset-session";
-import { PASSWORD_BCRYPT_COST, failedPasswordField, validateNewPassword } from "@/lib/password-policy";
+import {
+  PASSWORD_BCRYPT_COST,
+  PASSWORD_POLICY_UNAVAILABLE_ERROR,
+  failedPasswordField,
+  validateNewPassword,
+} from "@/lib/password-policy";
+import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { isHttpsRequest } from "@/lib/request-origin";
 
 async function clearCookie() {
@@ -35,11 +41,19 @@ export async function completePasswordResetAction(
 ): Promise<PasswordResetActionState> {
   const password = String(form.get("password") ?? "");
   const confirmation = String(form.get("confirmPassword") ?? "");
-  const error = validateNewPassword(password, confirmation);
-  if (error) return { error, field: failedPasswordField(password) };
   const token = (await cookies()).get(PASSWORD_RESET_COOKIE)?.value;
   const context = await resolvePasswordResetContext(token, { headers: await headers(), attempt: "submit" });
   if (!token || context.status !== "ready") return unavailable();
+  // Rules are read after the link checks, so an unusable link learns nothing about them, and just before validating,
+  // so a policy change made while the form was open applies to this submission.
+  let policy: PasswordPolicy;
+  try {
+    policy = await readPasswordPolicy(db);
+  } catch {
+    return { error: PASSWORD_POLICY_UNAVAILABLE_ERROR, field: "password" };
+  }
+  const error = validateNewPassword(password, confirmation, policy);
+  if (error) return { error, field: failedPasswordField(password, policy), policy };
   const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   const outcome = await completePasswordReset(db, { token, passwordHash });
   if (!outcome.ok) {

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     throw new Error(`redirect:${path}`);
   }),
   after: vi.fn(),
+  readPolicy: vi.fn(),
 }));
 vi.mock("@/lib/password-reset-session", () => ({
   PASSWORD_RESET_COOKIE: "reset",
@@ -21,17 +22,21 @@ vi.mock("@/lib/password-reset", () => ({ completePasswordReset: mocks.complete }
 vi.mock("@/lib/activity", () => ({ recordActivity: mocks.record }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("bcryptjs", () => ({ default: { hash: mocks.hash } }));
+vi.mock("@/db", () => ({ db: {} }));
+vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicy: mocks.readPolicy }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: mocks.get, set: mocks.set }),
   headers: async () => new Headers(),
 }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 import { completePasswordResetAction } from "./actions";
+import { DEFAULT_PASSWORD_POLICY } from "@/data/types";
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReturnValue({ value: "token" });
   mocks.resolve.mockResolvedValue({ status: "ready" });
   mocks.hash.mockResolvedValue("hash");
+  mocks.readPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   mocks.complete.mockResolvedValue({ ok: true, userId: "user", username: "alex" });
 });
 function form(password: string, confirmation = password) {
@@ -44,6 +49,31 @@ it("validates passwords before changing credentials", async () => {
   expect(await completePasswordResetAction(undefined, form("long-enough-password", "different"))).toMatchObject({
     field: "confirmPassword",
   });
+  expect(mocks.complete).not.toHaveBeenCalled();
+  expect(mocks.hash).not.toHaveBeenCalled();
+});
+it("enforces the stored rules, returns them on failure and never hashes a rejected password", async () => {
+  const strict = { ...DEFAULT_PASSWORD_POLICY, minSpecial: 2 };
+  mocks.readPolicy.mockResolvedValue(strict);
+  expect(await completePasswordResetAction(undefined, form("longenoughpassword"))).toEqual({
+    error: "Password must be 8 to 20 characters, with at least 2 special characters.",
+    field: "password",
+    policy: strict,
+  });
+  expect(mocks.hash).not.toHaveBeenCalled();
+  expect(mocks.complete).not.toHaveBeenCalled();
+});
+it("reads the rules only after the link checks", async () => {
+  mocks.resolve.mockResolvedValue({ status: "unavailable" });
+  await expect(completePasswordResetAction(undefined, form("short"))).rejects.toThrow("redirect:/account-reset");
+  expect(mocks.readPolicy).not.toHaveBeenCalled();
+});
+it("refuses safely when the rules cannot be read", async () => {
+  mocks.readPolicy.mockRejectedValue(new Error("db down"));
+  const result = await completePasswordResetAction(undefined, form("long-enough-password"));
+  expect(result).toMatchObject({ field: "password" });
+  expect(result?.error).toMatch(/unavailable/i);
+  expect(mocks.hash).not.toHaveBeenCalled();
   expect(mocks.complete).not.toHaveBeenCalled();
 });
 it("completes the reset and returns to sign-in without logging secrets", async () => {

@@ -1,15 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { AccountSetupActionState } from "@/data/types";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import type { AccountSetupActionState, PasswordPolicy } from "@/data/types";
 import { AuthSubmitButton } from "./auth-submit-button";
+import { PasswordRequirements } from "./password-requirements";
 import { ArrivoBrand } from "./arrivo-brand";
 
 interface AccountSetupDialogProps {
   username: string;
   action: (prev: AccountSetupActionState, formData: FormData) => Promise<AccountSetupActionState>;
+  /** Rules read by the server page; a failed submission returns the current ones. */
+  policy: PasswordPolicy;
 }
 
 const ignoreDismissal = () => {};
@@ -17,8 +19,9 @@ const INPUT_CLASS = "h-11 rounded-lg border px-3";
 const INPUT_STYLE = { borderColor: "var(--line)", background: "var(--surface)" };
 
 // Non-dismissable on purpose: nothing behind it is reachable until the password is saved.
-export function AccountSetupDialog({ username, action }: AccountSetupDialogProps) {
+export function AccountSetupDialog({ username, action, policy }: AccountSetupDialogProps) {
   const [state, formAction] = useActionState(action, undefined);
+  const [password, setPassword] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
@@ -81,12 +84,18 @@ export function AccountSetupDialog({ username, action }: AccountSetupDialogProps
               name="password"
               type="password"
               required
-              minLength={PASSWORD_MIN_LENGTH}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
               className={INPUT_CLASS}
               style={INPUT_STYLE}
               aria-invalid={invalid("password")}
-              aria-describedby={describedBy("password")}
+              aria-describedby={[describedBy("password"), "account-setup-requirements"].filter(Boolean).join(" ")}
+            />
+            <PasswordRequirements
+              id="account-setup-requirements"
+              password={password}
+              policy={state?.policy ?? policy}
             />
           </div>
           <div className="flex flex-col gap-1">

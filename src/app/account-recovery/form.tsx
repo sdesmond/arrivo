@@ -1,24 +1,27 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
-import type { AdminRecoveryActionState } from "@/data/types";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import type { AdminRecoveryActionState, PasswordPolicy } from "@/data/types";
 import { AuthSubmitButton } from "@/components/arrivo/auth-submit-button";
+import { PasswordRequirements } from "@/components/arrivo/password-requirements";
 import { RecoveryCodesStep } from "./codes-step";
 
 interface AdminRecoveryFormProps {
   action: (previous: AdminRecoveryActionState, form: FormData) => Promise<AdminRecoveryActionState>;
   secret: string;
   qrDataUrl: string;
+  /** Rules read by the server page; a failed submission returns the current ones. */
+  policy: PasswordPolicy;
 }
 
 const INPUT_CLASS = "h-11 rounded-lg border px-3";
 const INPUT_STYLE = { borderColor: "var(--line)", background: "var(--surface)" };
 
-export function AdminRecoveryForm({ action, secret, qrDataUrl }: AdminRecoveryFormProps) {
+export function AdminRecoveryForm({ action, secret, qrDataUrl, policy }: AdminRecoveryFormProps) {
   const [state, formAction] = useActionState(action, undefined);
+  const [newPassword, setNewPassword] = useState("");
   const password = useRef<HTMLInputElement>(null);
   const confirmation = useRef<HTMLInputElement>(null);
   const code = useRef<HTMLInputElement>(null);
@@ -63,13 +66,15 @@ export function AdminRecoveryForm({ action, secret, qrDataUrl }: AdminRecoveryFo
             name="password"
             type="password"
             required
-            minLength={PASSWORD_MIN_LENGTH}
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
             autoComplete="new-password"
             className={INPUT_CLASS}
             style={INPUT_STYLE}
             aria-invalid={invalid("password")}
-            aria-describedby={describedBy("password")}
+            aria-describedby={[describedBy("password"), "recovery-requirements"].filter(Boolean).join(" ")}
           />
+          <PasswordRequirements id="recovery-requirements" password={newPassword} policy={failure?.policy ?? policy} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="recovery-confirm">Confirm password</label>
