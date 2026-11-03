@@ -1,7 +1,8 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
 import { Before, Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
+import { expectTargetAtLeast44px } from "../target-size";
 
 function decodeStepValue(value: string): string {
   return value.replace(/\\n/g, "\n");
@@ -9,17 +10,6 @@ function decodeStepValue(value: string): string {
 
 function reorderHandle(page: Page, name: string) {
   return page.getByTitle(`Reorder ${name}`, { exact: false });
-}
-
-// No scrollIntoViewIfNeeded here — these are pure geometry checks, not interactions, and scrolling
-// right after a viewport resize (e.g. `page.setViewportSize`) races the layout reflow, occasionally
-// throwing "Element is not attached to the DOM". A single evaluate() reads the rect atomically
-// instead of resolving the element across two separate round-trips (scroll, then boundingBox).
-async function expectControlAtLeast44px(control: Locator): Promise<void> {
-  await expect(control).toBeVisible({ timeout: 10_000 });
-  const rect = await control.evaluate((element) => element.getBoundingClientRect());
-  expect(rect.width).toBeGreaterThanOrEqual(44);
-  expect(rect.height).toBeGreaterThanOrEqual(44);
 }
 
 Given("I have a trip for trip notes", async ({ scenario }) => {
@@ -162,12 +152,12 @@ Then("the expanded note titled {string} remains and its Trash action is focused"
 });
 
 Then("the expanded note disclosure measures at least 44 by 44 pixels", async ({ page }) => {
-  await expectControlAtLeast44px(page.locator('button[aria-expanded="true"]'));
+  await expectTargetAtLeast44px(page.locator('button[aria-expanded="true"]'));
 });
 
 Then("the Notes tab and New Note controls measure at least 44 by 44 pixels", async ({ page }) => {
-  await expectControlAtLeast44px(page.getByRole("button", { name: "Notes", exact: true }));
-  await expectControlAtLeast44px(page.getByRole("button", { name: "New Note", exact: true }));
+  await expectTargetAtLeast44px(page.getByRole("button", { name: "Notes", exact: true }));
+  await expectTargetAtLeast44px(page.getByRole("button", { name: "New Note", exact: true }));
 });
 
 Then("the Notes panel has no horizontal scrolling", async ({ page }) => {
@@ -284,5 +274,5 @@ When("I reload the Notes tab", async ({ page }) => {
 });
 
 Then("the reorder handle for {string} measures at least 44 by 44 pixels", async ({ page }, name: string) => {
-  await expectControlAtLeast44px(reorderHandle(page, name));
+  await expectTargetAtLeast44px(reorderHandle(page, name));
 });

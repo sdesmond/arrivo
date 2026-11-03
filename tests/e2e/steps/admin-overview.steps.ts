@@ -13,6 +13,7 @@ import { EVENT_LABELS } from "../../../src/lib/activity-labels";
 import { withE2EDb } from "../e2e-db";
 import { seedActivityEvents, seedActor } from "../activity-seed";
 import { waitForServerActionResponse } from "../server-action";
+import { expectTargetAtLeast44px } from "../target-size";
 
 const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
 const failureMarker = join(storageRoot, ".storage-probes", "force-failure");
@@ -304,9 +305,7 @@ Then("the Overview storage refresh is independent and keyboard accessible", asyn
   const checkedTimes = page.getByRole("region", { name: "Overview" }).locator("time", { hasText: /^Checked / });
   const before = await checkedTimes.evaluateAll((times) => times.map((time) => time.getAttribute("datetime")));
   const button = row.getByRole("button", { name: "Refresh Document storage" });
-  const dimensions = await button.boundingBox();
-  expect(dimensions!.width).toBeGreaterThanOrEqual(44);
-  expect(dimensions!.height).toBeGreaterThanOrEqual(44);
+  await expectTargetAtLeast44px(button);
   let releaseRequest!: () => void;
   const gate = new Promise<void>((resolve) => {
     releaseRequest = resolve;
@@ -344,9 +343,7 @@ Then("the Overview storage refresh is independent and keyboard accessible", asyn
   try {
     await expect(button).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-    const narrowDimensions = await button.boundingBox();
-    expect(narrowDimensions!.width).toBeGreaterThanOrEqual(44);
-    expect(narrowDimensions!.height).toBeGreaterThanOrEqual(44);
+    await expectTargetAtLeast44px(button);
   } finally {
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "";

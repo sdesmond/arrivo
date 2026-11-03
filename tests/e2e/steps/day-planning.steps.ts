@@ -15,6 +15,7 @@ import {
   e2eTripDateTime,
 } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
+import { expectTargetAtLeast44px } from "../target-size";
 
 async function openFirstDay(page: Page): Promise<void> {
   const dayToggles = page.locator("button").filter({ hasText: /\d+ stops/ });
@@ -93,13 +94,6 @@ const ACTION_BAR_GEOMETRY_EXPENSE_CURRENCY = "USD";
 
 function actionBarGeometryRow(page: Page, eventName: string): Locator {
   return page.locator('[id^="event-"]').filter({ hasText: eventName }).first();
-}
-
-async function expectControlAtLeast44px(control: Locator): Promise<void> {
-  await expect(control).toBeVisible();
-  const rect = await control.evaluate((element) => element.getBoundingClientRect());
-  expect(rect.width).toBeGreaterThanOrEqual(44);
-  expect(rect.height).toBeGreaterThanOrEqual(44);
 }
 
 async function changeTripDateRange(page: Page, startDate: string, endDate: string): Promise<void> {
@@ -852,15 +846,15 @@ Then(
     const row = actionBarGeometryRow(page, eventName);
     await expect(row).toBeVisible();
 
-    await expectControlAtLeast44px(row.getByRole("button", { name: /9:00\s*AM/i }));
-    await expectControlAtLeast44px(
+    await expectTargetAtLeast44px(row.getByRole("button", { name: /9:00\s*AM/i }));
+    await expectTargetAtLeast44px(
       row.getByRole("button", {
         name: formatCurrencyChipAmount(ACTION_BAR_GEOMETRY_EXPENSE_AMOUNT, ACTION_BAR_GEOMETRY_EXPENSE_CURRENCY),
       })
     );
-    await expectControlAtLeast44px(row.getByRole("button", { name: /doc/i }));
-    await expectControlAtLeast44px(row.getByRole("button", { name: /open directions to/i }));
-    await expectControlAtLeast44px(row.getByRole("button", { name: "Edit location" }));
+    await expectTargetAtLeast44px(row.getByRole("button", { name: /doc/i }));
+    await expectTargetAtLeast44px(row.getByRole("button", { name: /open directions to/i }));
+    await expectTargetAtLeast44px(row.getByRole("button", { name: "Edit location" }));
   }
 );
 
@@ -870,8 +864,8 @@ Then(
     const row = actionBarGeometryRow(page, eventName);
     await expect(row).toBeVisible();
 
-    await expectControlAtLeast44px(row.getByRole("button", { name: "Attach", exact: true }));
-    await expectControlAtLeast44px(row.getByRole("button", { name: /add location/i }));
+    await expectTargetAtLeast44px(row.getByRole("button", { name: "Attach", exact: true }));
+    await expectTargetAtLeast44px(row.getByRole("button", { name: /add location/i }));
   }
 );
 

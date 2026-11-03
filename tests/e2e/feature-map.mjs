@@ -145,6 +145,7 @@ export const FEATURE_MAP = [
     "tests/e2e/credential-authorization-fixture.ts",
   ]),
   entry("activity-retention", [
+    "tests/e2e/target-size.ts",
     "src/lib/activity-retention.ts",
     "src/lib/activity-maintenance.ts",
     "src/components/arrivo/activity-retention-settings.tsx",
@@ -153,6 +154,7 @@ export const FEATURE_MAP = [
     "tests/e2e/activity-integration-fixture.ts",
   ]),
   entry("admin-overview", [
+    "tests/e2e/target-size.ts",
     "src/lib/overview-metric.ts",
     "src/lib/overview-readers.ts",
     // Storage health and usage readers.
@@ -179,6 +181,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/admin/users/**",
   ]),
   entry("app-activity", [
+    "tests/e2e/target-size.ts",
     "src/lib/trip-activity.ts",
     // Bounds every trip-activity write.
     "src/lib/with-timeout.ts",
@@ -345,6 +348,7 @@ export const FEATURE_MAP = [
   // `entry()` covers its own feature/step files, so editing a scenario still re-runs it.
   entry("dashboard-live-sync", []),
   entry("day-planning", [
+    "tests/e2e/target-size.ts",
     "src/components/arrivo/day-card*.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/note-item.tsx",
@@ -524,7 +528,11 @@ export const FEATURE_MAP = [
     "src/app/api/trips/[tripId]/events/route.ts",
     "src/lib/trip-events.ts",
   ]),
-  entry("trip-notes", ["src/components/arrivo/trip-notes-*.tsx", "src/lib/note-preview.ts"]),
+  entry("trip-notes", [
+    "src/components/arrivo/trip-notes-*.tsx",
+    "src/lib/note-preview.ts",
+    "tests/e2e/target-size.ts",
+  ]),
   entry("trip-tabs", [
     "src/components/arrivo/active-trip-summary-events.ts",
     "src/components/arrivo/active-trip-summary-time.ts",

@@ -22,6 +22,7 @@ import {
 import { After, Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
+import { expectTargetAtLeast44px } from "../target-size";
 
 // Also uses "I am signed in as an app {string}" and "app management is not found" from
 // account-menu.steps.ts, and the sign-in / code steps from mfa.steps.ts.
@@ -1048,10 +1049,7 @@ Then("every Activity filter and page control is at least 44 pixels tall", async 
     page.locator("#activity-filter-to"),
     page.getByRole("button", { name: "Refresh", exact: true }),
   ];
-  for (const control of controls) {
-    const box = await control.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  }
+  for (const control of controls) await expectTargetAtLeast44px(control, { dimensions: "height" });
 });
 
 Then("Activity shows the trip ID but not the trip name", async ({ page, scenario }) => {

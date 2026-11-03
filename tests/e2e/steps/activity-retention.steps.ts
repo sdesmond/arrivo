@@ -10,6 +10,7 @@ import {
 import { holdActivityMaintenance, type ActivityMaintenanceHold } from "../activity-integration-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
+import { expectTargetAtLeast44px } from "../target-size";
 
 const MAINTENANCE_HOLD_KEY = "retentionMaintenanceHold";
 
@@ -105,7 +106,7 @@ Then("retention confirmation is a mobile bottom sheet", async ({ page }) => {
     page.getByRole("button", { name: "Cancel", exact: true }),
     page.getByRole("button", { name: "Confirm retention change" }),
   ])
-    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expectTargetAtLeast44px(control, { dimensions: "height" });
 });
 When("I dismiss retention confirmation using Escape", async ({ page }) => {
   await page.keyboard.press("Escape");
