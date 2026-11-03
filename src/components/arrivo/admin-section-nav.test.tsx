@@ -8,16 +8,23 @@ describe("AdminSectionNav", () => {
     vi.restoreAllMocks();
   });
 
-  it("links Overview, Users and Activity and marks Users current on its path", () => {
+  it("links Overview, Users, Activity and Security and marks Users current on its path", () => {
     vi.spyOn(navigation, "usePathname").mockReturnValue("/admin/users");
     render(<AdminSectionNav />);
     expect(screen.getByRole("link", { name: "Users" })).toHaveAttribute("href", "/admin/users");
     expect(screen.getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/admin/activity");
     expect(screen.getByRole("link", { name: "Activity" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Security" })).toHaveAttribute("href", "/admin/security");
+    expect(screen.getByRole("link", { name: "Security" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/admin/overview");
     expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
-    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Overview", "Users", "Activity"]);
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Overview",
+      "Users",
+      "Activity",
+      "Security",
+    ]);
   });
 
   it("marks Overview current on its path", () => {
@@ -31,6 +38,13 @@ describe("AdminSectionNav", () => {
     vi.spyOn(navigation, "usePathname").mockReturnValue("/admin/activity");
     render(<AdminSectionNav />);
     expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Users" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks Security current on its path", () => {
+    vi.spyOn(navigation, "usePathname").mockReturnValue("/admin/security");
+    render(<AdminSectionNav />);
+    expect(screen.getByRole("link", { name: "Security" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Users" })).not.toHaveAttribute("aria-current");
   });
 });
