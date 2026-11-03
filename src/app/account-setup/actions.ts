@@ -11,6 +11,7 @@ import { db } from "@/db";
 import {
   ActivityEventType,
   type ActivityIdentity,
+  type PasswordPolicy,
   type SignInActionState,
   type AccountSetupActionState,
 } from "@/data/types";
@@ -21,7 +22,13 @@ import {
   ACCOUNT_SETUP_COOKIE_PATH,
   resolveAccountSetupContext,
 } from "@/lib/account-setup-session";
-import { PASSWORD_BCRYPT_COST, failedPasswordField, validateNewPassword } from "@/lib/password-policy";
+import {
+  PASSWORD_BCRYPT_COST,
+  PASSWORD_POLICY_UNAVAILABLE_ERROR,
+  failedPasswordField,
+  validateNewPassword,
+} from "@/lib/password-policy";
+import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { isHttpsRequest } from "@/lib/request-origin";
 
 async function clearSetupCookie(): Promise<void> {
@@ -49,10 +56,9 @@ export async function completeAccountSetupAction(
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  // Validation first: a bad form costs no database work and no bcrypt, and leaves the link untouched.
+  // A missing name costs no database work. The password is validated after the link checks, against current rules,
+  // and before bcrypt: a bad form never hashes and leaves the link untouched.
   if (!name) return { error: "Name is required.", field: "name", name };
-  const passwordError = validateNewPassword(password, confirmPassword);
-  if (passwordError) return { error: passwordError, field: failedPasswordField(password), name };
 
   const token = (await cookies()).get(ACCOUNT_SETUP_COOKIE)?.value;
   const context = await resolveAccountSetupContext(token, { headers: await headers() });
@@ -60,6 +66,15 @@ export async function completeAccountSetupAction(
 
   const userId = (await auth())?.user?.id;
   if (userId && userId !== context.account.userId) return redirect("/account-setup");
+
+  let policy: PasswordPolicy;
+  try {
+    policy = await readPasswordPolicy(db);
+  } catch {
+    return { error: PASSWORD_POLICY_UNAVAILABLE_ERROR, field: "password", name };
+  }
+  const passwordError = validateNewPassword(password, confirmPassword, policy);
+  if (passwordError) return { error: passwordError, field: failedPasswordField(password, policy), name, policy };
 
   const passwordHash = await bcrypt.hash(password, PASSWORD_BCRYPT_COST);
   const completion = await completeAccountSetup(db, { token, name, passwordHash });

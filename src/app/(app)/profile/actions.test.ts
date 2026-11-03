@@ -35,6 +35,9 @@ vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
 }));
 
+const { mockReadPolicy } = vi.hoisted(() => ({ mockReadPolicy: vi.fn() }));
+vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicy: mockReadPolicy }));
+
 vi.mock("@/db/schema", () => ({
   users: { tableName: "users" },
   credentialAuthorizations: {},
@@ -134,9 +137,8 @@ const { mockDeleteOwnAccount } = vi.hoisted(() => ({ mockDeleteOwnAccount: vi.fn
 vi.mock("@/lib/account-deletion", () => ({ deleteOwnAccount: mockDeleteOwnAccount }));
 
 import bcrypt from "bcryptjs";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { changePassword, deleteAccount } from "./actions";
-import { AccountDeletionFailure, LiveSyncEventType, TripDeletionAction } from "@/data/types";
+import { AccountDeletionFailure, DEFAULT_PASSWORD_POLICY, LiveSyncEventType, TripDeletionAction } from "@/data/types";
 import type { DeletedAccountSummary } from "@/data/types";
 import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
 
@@ -684,6 +686,8 @@ describe("changePassword — throttling and session revocation", () => {
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockSelectWhere.mockResolvedValue([{ passwordHash: "hash" }]);
     mockCheckThrottle.mockResolvedValue({ locked: false });
+    mockReadPolicy.mockReset();
+    mockReadPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
     mockLockVersion.mockResolvedValue(true);
@@ -734,16 +738,52 @@ describe("changePassword — throttling and session revocation", () => {
     expect(mockRecordActivity.mock.calls.map(([event]) => event.type)).toEqual(["password_changed"]);
   });
 
-  it("refuses a new password one character under the shared minimum and accepts one at it", async () => {
-    await expect(
-      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH - 1) })
-    ).resolves.toEqual({ error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` });
+  it("refuses a new password one character under the minimum and accepts one at it", async () => {
+    await expect(changePassword({ currentPassword: "old", newPassword: "x".repeat(7) })).resolves.toEqual({
+      error: "Password must be 8 to 20 characters.",
+      policy: DEFAULT_PASSWORD_POLICY,
+    });
     expect(mockSet).not.toHaveBeenCalled();
+    expect(bcrypt.hash).not.toHaveBeenCalled();
 
-    await expect(
-      changePassword({ currentPassword: "old", newPassword: "x".repeat(PASSWORD_MIN_LENGTH) })
-    ).resolves.toEqual({});
+    await expect(changePassword({ currentPassword: "old", newPassword: "x".repeat(8) })).resolves.toEqual({});
     expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ passwordHash: "new-hash" }));
+  });
+
+  it("validates against the rules read at submission time and returns them on failure", async () => {
+    const strict = { ...DEFAULT_PASSWORD_POLICY, minNumbers: 2 };
+    mockReadPolicy.mockResolvedValue(strict);
+    await expect(changePassword({ currentPassword: "old", newPassword: "no-numbers-here" })).resolves.toEqual({
+      error: "Password must be 8 to 20 characters, with at least 2 numbers.",
+      policy: strict,
+    });
+    await expect(changePassword({ currentPassword: "old", newPassword: "has-two-nums-12" })).resolves.toEqual({});
+    expect(mockReadPolicy).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a password beyond bcrypt's byte capacity with an explicit error and never hashes it", async () => {
+    const result = await changePassword({ currentPassword: "old", newPassword: "😀".repeat(19) });
+    expect(result.error).toMatch(/72 bytes/);
+    expect(bcrypt.hash).not.toHaveBeenCalled();
+  });
+
+  it("hashes with the shared cost and the password exactly as typed", async () => {
+    await changePassword({ currentPassword: "old", newPassword: "  padded pass  " });
+    expect(bcrypt.hash).toHaveBeenCalledWith("  padded pass  ", 10);
+  });
+
+  it("checks the throttle before reading the rules", async () => {
+    mockCheckThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 60 });
+    await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(mockReadPolicy).not.toHaveBeenCalled();
+  });
+
+  it("refuses safely, without weaker fallback rules, when the rules cannot be read", async () => {
+    mockReadPolicy.mockRejectedValue(new Error("db down"));
+    const result = await changePassword({ currentPassword: "old", newPassword: "new-password" });
+    expect(result.error).toMatch(/unavailable/i);
+    expect(bcrypt.hash).not.toHaveBeenCalled();
+    expect(mockSet).not.toHaveBeenCalled();
   });
 
   it("records nothing when the new password is refused, the current one is wrong, or the account is locked", async () => {

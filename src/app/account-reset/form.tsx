@@ -1,15 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import type { PasswordResetActionState } from "@/data/types";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import { useActionState, useEffect, useRef, useState } from "react";
+import type { PasswordPolicy, PasswordResetActionState } from "@/data/types";
 import { AuthSubmitButton } from "@/components/arrivo/auth-submit-button";
+import { PasswordRequirements } from "@/components/arrivo/password-requirements";
 
 interface PasswordResetFormProps {
   action: (previous: PasswordResetActionState, form: FormData) => Promise<PasswordResetActionState>;
+  /** Rules read by the server page; a failed submission returns the current ones. */
+  policy: PasswordPolicy;
 }
-export function PasswordResetForm({ action }: PasswordResetFormProps) {
+export function PasswordResetForm({ action, policy }: PasswordResetFormProps) {
   const [state, formAction] = useActionState(action, undefined);
+  const [newPassword, setNewPassword] = useState("");
   const password = useRef<HTMLInputElement>(null);
   const confirmation = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -32,13 +35,15 @@ export function PasswordResetForm({ action }: PasswordResetFormProps) {
           name="password"
           type="password"
           required
-          minLength={PASSWORD_MIN_LENGTH}
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
           autoComplete="new-password"
           className={inputClass}
           style={style}
           aria-invalid={state?.field === "password" || undefined}
-          aria-describedby={state?.field === "password" ? "reset-error" : undefined}
+          aria-describedby={state?.field === "password" ? "reset-error reset-requirements" : "reset-requirements"}
         />
+        <PasswordRequirements id="reset-requirements" password={newPassword} policy={state?.policy ?? policy} />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="reset-confirm">Confirm password</label>

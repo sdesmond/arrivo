@@ -112,7 +112,7 @@ Then("the other member's new password is saved and the link is unavailable", asy
       .from(users)
       .where(eq(users.id, member(scenario).id))
   );
-  expect(await bcrypt.compare("replacement-password-1", row.passwordHash!)).toBe(true);
+  expect(await bcrypt.compare("replacement-pass-1", row.passwordHash!)).toBe(true);
   await page.goto(scenario.getValue<string>("resetUrl")!);
   await expect(page.getByRole("heading", { name: "Reset link unavailable" })).toBeVisible();
 });
@@ -136,7 +136,7 @@ Then("I see the reset link unavailable page", async ({ page }) => {
 When("the other member signs in with the new password", async ({ page, scenario }) => {
   await page.goto("/sign-in");
   await page.getByLabel("Username").fill(member(scenario).username);
-  await page.getByLabel("Password", { exact: true }).fill("replacement-password-1");
+  await page.getByLabel("Password", { exact: true }).fill("replacement-pass-1");
   await page.getByRole("button", { name: "Sign in" }).click();
 });
 
@@ -148,8 +148,8 @@ When("the other member enters their authenticator code", async ({ page, scenario
 });
 
 When("I submit a cross-origin password reset", async ({ page }) => {
-  await page.getByLabel("Password", { exact: true }).fill("replacement-password-1");
-  await page.getByLabel("Confirm password").fill("replacement-password-1");
+  await page.getByLabel("Password", { exact: true }).fill("replacement-pass-1");
+  await page.getByLabel("Confirm password").fill("replacement-pass-1");
   let status = 0;
   await page.route("**/account-reset", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
@@ -272,9 +272,10 @@ When("the member's password change races a reset", async ({ page, scenario }) =>
   await scenario.signInAsUser(page, target.username);
   await page.goto("/profile");
   await page.getByRole("tab", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Change password" }).click();
   await page.getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
-  await page.getByLabel("New password", { exact: true }).fill("race-profile-password");
-  await page.getByLabel("Confirm new password").fill("race-profile-password");
+  await page.getByLabel("New password", { exact: true }).fill("race-profile-pass");
+  await page.getByLabel("Confirm new password").fill("race-profile-pass");
 
   await withE2EDb(async (database) => {
     const issued = await issueCredentialAuthorization(
@@ -324,7 +325,7 @@ Then("the reset password wins and the old session cannot change it", async ({ pa
       .where(eq(users.id, member(scenario).id))
   );
   expect(await bcrypt.compare(scenario.getValue<string>("raceResetPassword")!, row.passwordHash!)).toBe(true);
-  expect(await bcrypt.compare("race-profile-password", row.passwordHash!)).toBe(false);
+  expect(await bcrypt.compare("race-profile-pass", row.passwordHash!)).toBe(false);
 });
 
 When("the member's {string} races a reset", async ({ page, scenario }, action: string) => {
@@ -459,7 +460,7 @@ When("the member's self-deletion queues behind {string}", async ({ page, scenari
     await page.getByRole("button", { name: "Delete account", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Delete account?" });
     await expect(dialog).toBeVisible();
-    const replacementPassword = "race-lifecycle-password";
+    const replacementPassword = "race-lifecycle-pass";
     const passwordHash = await bcrypt.hash(replacementPassword, 10);
     let response: Promise<unknown> | undefined;
     await database.transaction(async (transaction) => {

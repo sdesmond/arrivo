@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CollaboratorRole } from "@/data/types";
+import { CollaboratorRole, DEFAULT_PASSWORD_POLICY } from "@/data/types";
 import type { UserProfile } from "@/data/types";
 
 vi.mock("./actions", () => ({
@@ -54,7 +54,7 @@ const baseUser: UserProfile = {
 const MFA_OFF = { enabled: false, recoveryCodesRemaining: 0 };
 
 describe("ProfilePageClient", () => {
-  it("shows Identity content by default", () => {
+  it("shows the Account section by default, with the profile fields first", () => {
     render(
       <ProfilePageClient
         user={baseUser}
@@ -68,7 +68,7 @@ describe("ProfilePageClient", () => {
     expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
   });
 
-  it("renders all five nav items", () => {
+  it("renders one Account tab first and no Identity tab", () => {
     render(
       <ProfilePageClient
         user={baseUser}
@@ -80,7 +80,9 @@ describe("ProfilePageClient", () => {
     );
     const nav = screen.getByRole("tablist", { name: "Profile sections" });
     expect(nav).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Identity" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Identity" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab", { name: "Account" })).toHaveLength(1);
+    expect(screen.getAllByRole("tab")[0]).toHaveTextContent("Account");
     expect(screen.getByRole("tab", { name: "Traveler" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Preferences" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Appearance" })).toBeInTheDocument();
@@ -88,7 +90,7 @@ describe("ProfilePageClient", () => {
     expect(screen.getByRole("tab", { name: "Account" })).toBeInTheDocument();
   });
 
-  it("Identity tab is selected by default", () => {
+  it("Account tab is selected by default", () => {
     render(
       <ProfilePageClient
         user={baseUser}
@@ -98,7 +100,7 @@ describe("ProfilePageClient", () => {
         sharedOwnedTrips={[]}
       />
     );
-    expect(screen.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Account" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("clicking Traveler tab shows all three sub-sections", async () => {
@@ -118,7 +120,7 @@ describe("ProfilePageClient", () => {
     expect(screen.queryByDisplayValue("Test User")).not.toBeInTheDocument();
   });
 
-  it("clicking Preferences tab shows preferences and hides Identity", async () => {
+  it("clicking Preferences tab shows preferences and hides Account", async () => {
     const user = userEvent.setup();
     render(
       <ProfilePageClient
@@ -165,7 +167,25 @@ describe("ProfilePageClient", () => {
     expect(screen.getByRole("button", { name: "Sign out all devices" })).toBeInTheDocument();
   });
 
-  it("clicking Account tab shows the password form", async () => {
+  it("opens the change-password dialog from the Account section with the rules the page loaded", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageClient
+        user={baseUser}
+        mfaStatus={MFA_OFF}
+        trustedDevices={[]}
+        encryptionConfigured
+        sharedOwnedTrips={[]}
+        passwordPolicy={{ ...DEFAULT_PASSWORD_POLICY, minNumbers: 1 }}
+      />
+    );
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Password requirements" })).toHaveTextContent("At least 1 number");
+  });
+
+  it("says the password rules are unavailable in the dialog when the page could not load them", async () => {
     const user = userEvent.setup();
     render(
       <ProfilePageClient
@@ -176,8 +196,69 @@ describe("ProfilePageClient", () => {
         sharedOwnedTrips={[]}
       />
     );
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Password rules are unavailable");
+  });
+
+  it("keeps the password form out of the Security tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProfilePageClient
+        user={baseUser}
+        mfaStatus={MFA_OFF}
+        trustedDevices={[]}
+        encryptionConfigured
+        sharedOwnedTrips={[]}
+        passwordPolicy={DEFAULT_PASSWORD_POLICY}
+      />
+    );
+    await user.click(screen.getByRole("tab", { name: "Security" }));
+    expect(screen.queryByRole("button", { name: "Change password" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
+  });
+
+  it("has one h2 for the Account section", () => {
+    render(
+      <ProfilePageClient
+        user={baseUser}
+        mfaStatus={MFA_OFF}
+        trustedDevices={[]}
+        encryptionConfigured
+        sharedOwnedTrips={[]}
+        passwordPolicy={DEFAULT_PASSWORD_POLICY}
+      />
+    );
+    expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual(["Account"]);
+  });
+
+  it("warns before leaving the Account tab only for unsaved name or username input, never for the password dialog", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <ProfilePageClient
+        user={baseUser}
+        mfaStatus={MFA_OFF}
+        trustedDevices={[]}
+        encryptionConfigured
+        sharedOwnedTrips={[]}
+        passwordPolicy={DEFAULT_PASSWORD_POLICY}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    await user.type(screen.getByLabelText(/current password/i), "abc");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("tab", { name: "Security" }));
+    expect(confirm).not.toHaveBeenCalled();
     await user.click(screen.getByRole("tab", { name: "Account" }));
-    expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Name"), "x");
+    await user.click(screen.getByRole("tab", { name: "Traveler" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Name")).toHaveValue("Test Userx");
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("tab", { name: "Traveler" }));
+    await user.click(screen.getByRole("tab", { name: "Account" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Test User");
+    confirm.mockRestore();
   });
 
   it("passes the user's shared trips to the delete-account dialog", async () => {
@@ -199,7 +280,6 @@ describe("ProfilePageClient", () => {
         ]}
       />
     );
-    await user.click(screen.getByRole("tab", { name: "Account" }));
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     expect(await screen.findByRole("combobox", { name: /Lisbon Escape/ })).toHaveTextContent(
       "Transfer to Bo Nilsen · editor"

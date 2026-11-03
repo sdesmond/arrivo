@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-const mockState = vi.hoisted(() => ({ value: undefined as { error?: string; mfaRequired?: boolean } | undefined }));
+const mockState = vi.hoisted(() => ({
+  value: undefined as { error?: string; mfaRequired?: boolean; policy?: PasswordPolicy } | undefined,
+}));
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
@@ -12,8 +15,7 @@ vi.mock("react", async (importOriginal) => {
 });
 
 import { SignInForm, AdminSetupForm } from "./auth-forms";
-import { SignInNotice } from "@/data/types";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import { DEFAULT_PASSWORD_POLICY, SignInNotice, type PasswordPolicy } from "@/data/types";
 
 const noopAction = vi.fn(async () => undefined);
 
@@ -91,37 +93,39 @@ describe("AdminSetupForm", () => {
     render(
       <>
         <h1 tabIndex={-1}>Welcome to Arrivo!</h1>
-        <AdminSetupForm action={noopAction} />
+        <AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />
       </>
     );
     expect(screen.getByLabelText("Username")).toHaveFocus();
   });
 
   it("renders name, username and password fields", () => {
-    render(<AdminSetupForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     const username = screen.getByLabelText("Username");
     expect(username).toHaveAttribute("name", "username");
     expect(username).toHaveAttribute("minlength", "3");
     expect(username).toHaveAttribute("maxlength", "30");
-    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", String(PASSWORD_MIN_LENGTH));
+    // Native constraints count UTF-16 units; the live rules count code points, so the browser must not enforce them.
+    expect(screen.getByLabelText("Password")).not.toHaveAttribute("minlength");
+    expect(screen.getByLabelText("Password")).not.toHaveAttribute("maxlength");
   });
 
   it("renders submit button", () => {
-    render(<AdminSetupForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     expect(screen.getByRole("button", { name: /create admin account/i })).toBeInTheDocument();
   });
 
   it("shows error alert when state has error", () => {
     mockState.value = { error: "That username is taken." };
-    render(<AdminSetupForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("That username is taken.")).toBeInTheDocument();
   });
 
   it("sets aria-invalid on inputs when there is an error", () => {
     mockState.value = { error: "Signup failed" };
-    render(<AdminSetupForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     expect(screen.getByLabelText("Username")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
   });
@@ -129,7 +133,7 @@ describe("AdminSetupForm", () => {
 
 describe("admin setup contract", () => {
   it("renders required fields in order with password-manager support", () => {
-    const { container } = render(<AdminSetupForm action={noopAction} />);
+    const { container } = render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     expect(Array.from(container.querySelectorAll("input")).map((input) => input.name)).toEqual([
       "username",
       "name",
@@ -142,14 +146,56 @@ describe("admin setup contract", () => {
     expect(screen.getByLabelText("Name")).toHaveAttribute("autocomplete", "name");
     expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "new-password");
     expect(screen.getByLabelText("Confirm password")).toHaveAttribute("autocomplete", "new-password");
-    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "8");
   });
   it("associates every setup field with errors", () => {
     mockState.value = { error: "Setup is already complete. Sign in to continue." };
-    render(<AdminSetupForm action={noopAction} />);
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
     for (const label of ["Username", "Name", "Password", "Confirm password"]) {
       expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
-      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(mockState.value.error);
+      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(
+        expect.stringContaining("Setup is already complete. Sign in to continue.")
+      );
     }
+  });
+});
+
+describe("AdminSetupForm password checklist", () => {
+  const strict: PasswordPolicy = { ...DEFAULT_PASSWORD_POLICY, minUppercase: 1, minNumbers: 1 };
+
+  it("shows the active requirements before typing, linked to the password field", () => {
+    render(<AdminSetupForm action={noopAction} policy={strict} />);
+    const list = screen.getByRole("list");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(list.querySelector("svg")).toBeNull();
+    expect(screen.getByLabelText("Password")).toHaveAttribute("aria-describedby", expect.stringContaining(list.id));
+    expect(screen.getByLabelText("Confirm password")).not.toHaveAttribute(
+      "aria-describedby",
+      expect.stringContaining(list.id)
+    );
+  });
+
+  it("checks and unchecks requirements as the password is edited, with no failure mark", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<AdminSetupForm action={noopAction} policy={strict} />);
+    const field = screen.getByLabelText("Password");
+    await user.type(field, "Abcdefg1");
+    expect(screen.getByRole("list").querySelectorAll("svg")).toHaveLength(3);
+    await user.type(field, "{Backspace}");
+    expect(screen.getByRole("list").querySelectorAll("svg")).toHaveLength(1);
+    expect(container.querySelector(".lucide-x, .lucide-circle-x")).toBeNull();
+  });
+
+  it("refreshes the checklist from the rules a failed submission returns", () => {
+    mockState.value = {
+      error: "Password must be 8 to 20 characters.",
+      policy: { ...DEFAULT_PASSWORD_POLICY, minLength: 12 },
+    };
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
+    expect(screen.getByRole("list")).toHaveTextContent("12 to 20 characters");
+  });
+
+  it("omits disabled classes", () => {
+    render(<AdminSetupForm action={noopAction} policy={DEFAULT_PASSWORD_POLICY} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
   });
 });

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   resolve: vi.fn(),
   start: vi.fn(),
+  loadPolicy: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`redirect:${path}`);
   }),
@@ -21,6 +22,7 @@ vi.mock("@/lib/admin-recovery-session", () => ({
   resolveAdminRecoveryContext: mocks.resolve,
 }));
 vi.mock("@/lib/admin-recovery-completion", () => ({ startAdminRecoveryEnrollment: mocks.start }));
+vi.mock("@/lib/password-policy-store", () => ({ loadPasswordPolicy: mocks.loadPolicy }));
 vi.mock("@/lib/mfa", () => ({ totpUri: () => "otpauth://totp/Arrivo:root?secret=SECRET" }));
 vi.mock("./actions", () => ({ completeAdminRecoveryAction: vi.fn() }));
 vi.mock("./form", () => ({
@@ -28,6 +30,7 @@ vi.mock("./form", () => ({
 }));
 
 import AdminRecoveryPage from "./page";
+import { DEFAULT_PASSWORD_POLICY } from "@/data/types";
 
 const render = async (searchParams: { token?: string | string[] } = {}) =>
   renderToStaticMarkup(await AdminRecoveryPage({ searchParams: Promise.resolve(searchParams) }));
@@ -38,6 +41,7 @@ describe("AdminRecoveryPage", () => {
     mocks.get.mockReturnValue({ value: "cookie-token" });
     mocks.resolve.mockResolvedValue({ status: "ready" });
     mocks.start.mockResolvedValue({ ok: true, secret: "SECRET", username: "root" });
+    mocks.loadPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   });
 
   it("hands an operator link's token to the exchange route", async () => {
@@ -48,6 +52,19 @@ describe("AdminRecoveryPage", () => {
   it("renders the form with the stable pending secret for a ready context", async () => {
     expect(await render()).toContain("form:SECRET");
     expect(mocks.start).toHaveBeenCalledWith(expect.anything(), "cookie-token");
+  });
+
+  it("says the rules are unavailable, without a form, when they cannot be read", async () => {
+    mocks.loadPolicy.mockResolvedValue(undefined);
+    const html = await render();
+    expect(html).toContain("Password rules are unavailable");
+    expect(html).not.toContain("form:");
+  });
+
+  it("does not read the rules for an unusable link", async () => {
+    mocks.resolve.mockResolvedValue({ status: "unavailable" });
+    await render().catch(() => undefined);
+    expect(mocks.loadPolicy).not.toHaveBeenCalled();
   });
 
   it("shows the generic unavailable state without a cookie", async () => {

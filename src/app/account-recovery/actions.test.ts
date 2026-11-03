@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`redirect:${path}`);
   }),
+  readPolicy: vi.fn(),
 }));
 vi.mock("@/lib/admin-recovery-session", () => ({
   ADMIN_RECOVERY_COOKIE: "recovery",
@@ -20,18 +21,21 @@ vi.mock("@/lib/admin-recovery-completion", () => ({ completeAdminRecovery: mocks
 vi.mock("@/lib/activity", () => ({ recordActivity: mocks.record }));
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("bcryptjs", () => ({ default: { hash: mocks.hash } }));
+vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicy: mocks.readPolicy }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: mocks.get, set: mocks.set }),
   headers: async () => new Headers(),
 }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 import { completeAdminRecoveryAction } from "./actions";
+import { DEFAULT_PASSWORD_POLICY } from "@/data/types";
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReturnValue({ value: "token" });
   mocks.resolve.mockResolvedValue({ status: "ready" });
   mocks.hash.mockResolvedValue("hash");
+  mocks.readPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   mocks.complete.mockResolvedValue({ ok: true, userId: "user", username: "root", recoveryCodes: ["aaaaa-bbbbb"] });
 });
 function form(password: string, confirmation = password, code = "123456") {
@@ -42,15 +46,37 @@ function form(password: string, confirmation = password, code = "123456") {
   return data;
 }
 
-it("validates input before spending throttle budget or changing credentials", async () => {
-  expect(await completeAdminRecoveryAction(undefined, form("short"))).toMatchObject({ field: "password" });
-  expect(await completeAdminRecoveryAction(undefined, form("long-enough-password", "different"))).toMatchObject({
-    field: "confirmPassword",
-  });
+it("rejects a malformed code before spending throttle budget or changing credentials", async () => {
   expect(await completeAdminRecoveryAction(undefined, form("long-enough-password", undefined, "12"))).toMatchObject({
     field: "code",
   });
   expect(mocks.resolve).not.toHaveBeenCalled();
+  expect(mocks.complete).not.toHaveBeenCalled();
+});
+
+it("validates the password against the stored rules before hashing or changing credentials", async () => {
+  expect(await completeAdminRecoveryAction(undefined, form("short"))).toEqual({
+    error: "Password must be 8 to 20 characters.",
+    field: "password",
+    policy: DEFAULT_PASSWORD_POLICY,
+  });
+  expect(await completeAdminRecoveryAction(undefined, form("long-enough-password", "different"))).toMatchObject({
+    field: "confirmPassword",
+  });
+  expect(mocks.hash).not.toHaveBeenCalled();
+  expect(mocks.complete).not.toHaveBeenCalled();
+});
+
+it("reads the rules only after the link checks and refuses safely when they are unreadable", async () => {
+  mocks.resolve.mockResolvedValue({ status: "unavailable" });
+  await expect(completeAdminRecoveryAction(undefined, form("short"))).rejects.toThrow("redirect:/account-recovery");
+  expect(mocks.readPolicy).not.toHaveBeenCalled();
+
+  mocks.resolve.mockResolvedValue({ status: "ready" });
+  mocks.readPolicy.mockRejectedValue(new Error("db down"));
+  const result = await completeAdminRecoveryAction(undefined, form("long-enough-password"));
+  expect(result).toMatchObject({ field: "password" });
+  expect(mocks.hash).not.toHaveBeenCalled();
   expect(mocks.complete).not.toHaveBeenCalled();
 });
 

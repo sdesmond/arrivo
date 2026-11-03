@@ -129,7 +129,7 @@ function leakedCategories(scenario: Scenario, markup: string): string[] {
       tokenOf(scenario.getValue<string>("resetUrl")),
       tokenOf(scenario.getValue<string>("recoveryUrl")),
     ]),
-    password: present([process.env.E2E_PASSWORD, "replacement-password-1"]),
+    password: present([process.env.E2E_PASSWORD, "replacement-pass-1"]),
     "authenticator key": present([
       scenario.getValue<string>("resetMfaSecret"),
       scenario.getValue<string>("recoverySecret"),

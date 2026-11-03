@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_PASSWORD_POLICY, type PasswordPolicy } from "@/data/types";
 import { AdminRecoveryForm } from "./form";
 
-const PROPS = { secret: "JBSWY3DPEHPK3PXP", qrDataUrl: "data:image/png;base64,AAAA" };
+const PROPS = { secret: "JBSWY3DPEHPK3PXP", qrDataUrl: "data:image/png;base64,AAAA", policy: DEFAULT_PASSWORD_POLICY };
 
 describe("AdminRecoveryForm", () => {
   it("labels every field, gives the QR alt text and offers the setup key", () => {
@@ -28,7 +29,45 @@ describe("AdminRecoveryForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Something is wrong.");
     await waitFor(() => expect(screen.getByLabelText(label, { exact: true })).toHaveFocus());
     expect(screen.getByLabelText(label, { exact: true })).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText(label, { exact: true })).toHaveAttribute("aria-describedby", "recovery-error");
+    expect(screen.getByLabelText(label, { exact: true }).getAttribute("aria-describedby")).toContain("recovery-error");
+  });
+
+  describe("password checklist", () => {
+    const strict: PasswordPolicy = { ...DEFAULT_PASSWORD_POLICY, minUppercase: 1, minNumbers: 1 };
+
+    it("lists the active requirements before typing and links them to the password field", () => {
+      render(<AdminRecoveryForm action={vi.fn()} {...PROPS} policy={strict} />);
+      const list = screen.getByRole("list");
+      expect(list).toHaveTextContent("At least 1 uppercase letter");
+      expect(list).toHaveTextContent("At least 1 number");
+      expect(list.querySelector("svg")).toBeNull();
+      expect(screen.getByLabelText("Password", { exact: true })).toHaveAttribute(
+        "aria-describedby",
+        expect.stringContaining(list.id)
+      );
+      expect(screen.getByLabelText("Password", { exact: true })).not.toHaveAttribute("minlength");
+    });
+
+    it("checks and unchecks live without ever showing an X", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<AdminRecoveryForm action={vi.fn()} {...PROPS} policy={strict} />);
+      await user.type(screen.getByLabelText("Password", { exact: true }), "Abcdefg1");
+      expect(screen.getByRole("list").querySelectorAll("svg")).toHaveLength(3);
+      await user.type(screen.getByLabelText("Password", { exact: true }), "{Backspace}");
+      expect(screen.getByRole("list").querySelectorAll("svg")).toHaveLength(1);
+      expect(container.querySelector(".lucide-x, .lucide-circle-x")).toBeNull();
+    });
+
+    it("refreshes from the rules a refused submission returns", async () => {
+      const action = vi.fn().mockResolvedValue({
+        error: "Password must be 12 to 20 characters.",
+        field: "password",
+        policy: { ...DEFAULT_PASSWORD_POLICY, minLength: 12 },
+      });
+      render(<AdminRecoveryForm action={action} {...PROPS} />);
+      await userEvent.click(screen.getByRole("button", { name: "Recover account" }));
+      await waitFor(() => expect(screen.getByRole("list")).toHaveTextContent("12 to 20 characters"));
+    });
   });
 
   it("swaps to the recovery codes, focused on their heading, once the action returns them", async () => {

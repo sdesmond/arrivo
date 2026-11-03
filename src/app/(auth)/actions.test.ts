@@ -3,18 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { signIn, signOut, auth, identityRows, db, bootstrapFirstAccount, recordActivity } = vi.hoisted(() => {
-  const identityRows = vi.fn();
-  return {
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    auth: vi.fn(),
-    identityRows,
-    db: { select: vi.fn(() => ({ from: () => ({ where: identityRows }) })) },
-    bootstrapFirstAccount: vi.fn(),
-    recordActivity: vi.fn(),
-  };
-});
+const { signIn, signOut, auth, identityRows, db, bootstrapFirstAccount, recordActivity, readPolicy } = vi.hoisted(
+  () => {
+    const identityRows = vi.fn();
+    return {
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      auth: vi.fn(),
+      identityRows,
+      db: { select: vi.fn(() => ({ from: () => ({ where: identityRows }) })) },
+      bootstrapFirstAccount: vi.fn(),
+      recordActivity: vi.fn(),
+      readPolicy: vi.fn(),
+    };
+  }
+);
+
+vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicy: readPolicy }));
 
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 
@@ -38,6 +43,7 @@ import { CredentialsSignin } from "@auth/core/errors";
 import { LockedOutError, MfaRequiredError } from "@/lib/authorize-credentials";
 import { MFA_COOKIE } from "@/lib/mfa";
 import { signInAction, signOutAction, setupAdminAction, verifyMfaAction } from "./actions";
+import { DEFAULT_PASSWORD_POLICY } from "@/data/types";
 
 function cookieJar(values: Record<string, string> = {}) {
   const jar = {
@@ -60,6 +66,8 @@ describe("auth actions", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     vi.mocked(headers).mockResolvedValue(new Headers());
+    readPolicy.mockReset();
+    readPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   });
 
   function mockBootstrap(
@@ -141,9 +149,33 @@ describe("auth actions", () => {
     mockBootstrap();
 
     await expect(setupAdminAction(undefined, signUpForm({ password: "short" }))).resolves.toEqual({
-      error: "Password must be at least 8 characters.",
+      error: "Password must be 8 to 20 characters.",
+      policy: DEFAULT_PASSWORD_POLICY,
     });
     expect(bootstrapFirstAccount).not.toHaveBeenCalled();
+  });
+
+  it("enforces the stored rules and returns them with the failure", async () => {
+    const strict = { ...DEFAULT_PASSWORD_POLICY, minUppercase: 1, minSpecial: 1 };
+    readPolicy.mockResolvedValue(strict);
+    mockBootstrap();
+
+    await expect(setupAdminAction(undefined, signUpForm({ password: "alllowercase" }))).resolves.toEqual({
+      error: "Password must be 8 to 20 characters, with at least 1 uppercase letter and at least 1 special character.",
+      policy: strict,
+    });
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
+  });
+
+  it("refuses without hashing or creating anything when the rules cannot be read", async () => {
+    readPolicy.mockRejectedValue(new Error("db down"));
+    mockBootstrap();
+
+    await expect(setupAdminAction(undefined, signUpForm())).resolves.toEqual({
+      error: "Password rules are unavailable right now. Try again in a moment.",
+    });
+    expect(bootstrapFirstAccount).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
   });
 
   it("reports a taken username", async () => {
@@ -352,12 +384,13 @@ describe("verifyMfaAction", () => {
 describe("setup validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    readPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   });
   it.each([
     [{ name: "   " }, "Name is required."],
     [{ confirmPassword: "" }, "Confirm your password."],
     [{ confirmPassword: "different" }, "Passwords do not match."],
-    [{ password: "" }, "Password must be at least 8 characters."],
+    [{ password: "" }, "Password must be 8 to 20 characters."],
   ])("rejects invalid setup %j without side effects", async (overrides, error) => {
     const fields = signInForm({
       username: "admin",
@@ -366,7 +399,7 @@ describe("setup validation", () => {
       confirmPassword: "password123",
       ...overrides,
     });
-    await expect(setupAdminAction(undefined, fields)).resolves.toEqual({ error });
+    await expect(setupAdminAction(undefined, fields)).resolves.toMatchObject({ error });
     expect(bootstrapFirstAccount).not.toHaveBeenCalled();
     expect(recordActivity).not.toHaveBeenCalled();
     expect(signIn).not.toHaveBeenCalled();

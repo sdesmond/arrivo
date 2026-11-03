@@ -7,7 +7,7 @@ Feature: Admin recovery completion in the browser
     When the operator issues a recovery link for the other member
     And I open the recovery link as the recipient
     Then the recovery form shows a new authenticator key
-    When I complete recovery with password "replacement-password-1" and the correct authenticator code
+    When I complete recovery with password "replacement-pass-1" and the correct authenticator code
     Then I see ten recovery codes once
     And the other member's credentials are fully replaced
     And Activity shows operator issuance and secret-free completion for the other member
@@ -20,7 +20,7 @@ Feature: Admin recovery completion in the browser
     When the operator issues a recovery link for the other member
     And I open the recovery link as the recipient
     Then the recovery form shows a new authenticator key
-    When I complete recovery with password "replacement-password-1" and the correct authenticator code
+    When I complete recovery with password "replacement-pass-1" and the correct authenticator code
     Then I see ten recovery codes once
     When I acknowledge the recovery codes
     And the other member signs in with the new password
@@ -69,7 +69,7 @@ Feature: Admin recovery completion in the browser
     And I open the recovery link as the recipient
     Then the recovery form shows a new authenticator key
     When a password reset completes for the other member
-    And I complete recovery with password "replacement-password-1" and the correct authenticator code
+    And I complete recovery with password "replacement-pass-1" and the correct authenticator code
     Then I see the recovery link unavailable page
     And the competing reset's password stands and MFA is unchanged
 
@@ -80,7 +80,7 @@ Feature: Admin recovery completion in the browser
     When the operator issues a recovery link for the other member
     And I open the recovery link as the recipient
     Then the recovery form shows a new authenticator key
-    When I submit recovery with password "replacement-password-1" and code "000000"
+    When I submit recovery with password "replacement-pass-1" and code "000000"
     Then I see a recovery error "That code didn't work"
     And reloading shows the same authenticator key
     And the other member's credentials are unchanged

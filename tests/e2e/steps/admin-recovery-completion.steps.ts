@@ -21,7 +21,7 @@ import { withE2EDb } from "../e2e-db";
 type Scenario = Pick<ScenarioFixtureContext, "getValue" | "setValue" | "ensureCurrentUser" | "signOut">;
 
 const OLD_SECRET = new Secret({ size: 20 }).base32;
-const NEW_PASSWORD = "replacement-password-1";
+const NEW_PASSWORD = "replacement-pass-1";
 const ORIGIN = `http://localhost:${process.env.PORT ?? "3001"}`;
 const member = (scenario: Scenario) => scenario.getValue<ScenarioUserRecord>("appMember")!;
 const database = (db: unknown) => db as CredentialAuthorizationDatabase;

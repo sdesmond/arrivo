@@ -104,7 +104,7 @@ export type AdminRecoveryCompletionResult =
   | { ok: true; userId: string; username: string; recoveryCodes: string[] }
   | { ok: false; reason: "unavailable" | "retry" | "invalid-code" };
 export type AdminRecoveryActionState =
-  | { error: string; field: "password" | "confirmPassword" | "code" }
+  | { error: string; field: "password" | "confirmPassword" | "code"; policy?: PasswordPolicy }
   | { recoveryCodes: string[] }
   | undefined;
 
@@ -116,7 +116,7 @@ export interface BootstrapAccountValues {
 }
 
 export type AccountSetupActionState =
-  | { error: string; field: "name" | "password" | "confirmPassword"; name: string }
+  | { error: string; field: "name" | "password" | "confirmPassword"; name: string; policy?: PasswordPolicy }
   | undefined;
 
 export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
@@ -251,6 +251,59 @@ export type ActivityRetentionCommitResult =
   | { status: "ok"; days: ActivityRetentionDays; changed: boolean; actor: ActivityIdentity }
   | { status: "invalid" | "stale" | "forbidden" };
 
+/**
+ * Instance-wide new-password policy. Applies only where a password is chosen, never at sign-in. A class minimum of 0
+ * means that class is not required (those characters are still allowed). Lowercase letters are always allowed and
+ * never required.
+ */
+export interface PasswordPolicy {
+  /** Code points, 8-16. */
+  minLength: number;
+  /** Code points, 15-20, at least `minLength`. */
+  maxLength: number;
+  /** Required ASCII uppercase letters, 0-20. */
+  minUppercase: number;
+  /** Required ASCII digits, 0-20. */
+  minNumbers: number;
+  /** Required Unicode punctuation and symbols, 0-20. */
+  minSpecial: number;
+}
+
+export const PASSWORD_POLICY_BOUNDS = {
+  minLength: { min: 8, max: 16 },
+  maxLength: { min: 15, max: 20 },
+  classMinimum: { min: 0, max: 20 },
+} as const;
+
+/** What fresh installs and upgraded installs start with: the former minimum of 8, nothing else required. */
+export const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
+  minLength: 8,
+  maxLength: 20,
+  minUppercase: 0,
+  minNumbers: 0,
+  minSpecial: 0,
+};
+
+export type PasswordPolicyField = keyof PasswordPolicy;
+
+export interface ChangePasswordResult {
+  error?: string;
+  /** Current rules, returned when the new password broke them so the form can refresh its checklist. */
+  policy?: PasswordPolicy;
+}
+
+export type PasswordPolicyReadResult =
+  | { status: "ok"; policy: PasswordPolicy }
+  | { status: "forbidden" | "unavailable" };
+export type PasswordPolicySaveResult =
+  | { status: "ok"; policy: PasswordPolicy }
+  | { status: "invalid"; error: string; field?: PasswordPolicyField }
+  | { status: "stale" | "forbidden" | "unavailable" };
+export type PasswordPolicyCommitResult =
+  | { status: "ok"; policy: PasswordPolicy; changed: boolean }
+  | { status: "invalid"; error: string; field?: PasswordPolicyField }
+  | { status: "stale" | "forbidden" };
+
 export interface AppUserSummary {
   id: string;
   username: string;
@@ -295,7 +348,9 @@ export type PasswordResetIssuanceOutcome = RegenerateSetupLinkOutcome;
 export type PasswordResetLinkResult =
   | { ok: true; userId: string; username: string; resetUrl: string; expiresAt: string }
   | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
-export type PasswordResetActionState = { error: string; field: "password" | "confirmPassword" } | undefined;
+export type PasswordResetActionState =
+  | { error: string; field: "password" | "confirmPassword"; policy?: PasswordPolicy }
+  | undefined;
 export interface SetupLinkTargetState {
   userId: string;
   state: "unfinished" | "completed" | "missing";
@@ -537,7 +592,6 @@ export interface UpdateCompanionPatch {
 }
 
 export const ProfileSection = {
-  identity: "identity",
   traveler: "traveler",
   companions: "companions",
   preferences: "preferences",

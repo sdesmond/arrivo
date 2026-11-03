@@ -3,18 +3,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const { auth, signOut, select, signIn, db, resolveAccountSetupContext, completeAccountSetup, recordActivity, hash } =
-  vi.hoisted(() => ({
-    auth: vi.fn(),
-    signOut: vi.fn(),
-    select: vi.fn(),
-    signIn: vi.fn(),
-    db: { select: vi.fn() },
-    resolveAccountSetupContext: vi.fn(),
-    completeAccountSetup: vi.fn(),
-    recordActivity: vi.fn(),
-    hash: vi.fn(),
-  }));
+const {
+  auth,
+  signOut,
+  select,
+  signIn,
+  db,
+  resolveAccountSetupContext,
+  completeAccountSetup,
+  recordActivity,
+  hash,
+  readPolicy,
+} = vi.hoisted(() => ({
+  auth: vi.fn(),
+  signOut: vi.fn(),
+  select: vi.fn(),
+  signIn: vi.fn(),
+  db: { select: vi.fn() },
+  resolveAccountSetupContext: vi.fn(),
+  completeAccountSetup: vi.fn(),
+  recordActivity: vi.fn(),
+  hash: vi.fn(),
+  readPolicy: vi.fn(),
+}));
 
 vi.mock("@/auth", () => ({ auth, signIn, signOut }));
 vi.mock("@/db", () => ({ db }));
@@ -26,10 +37,12 @@ vi.mock("@/lib/account-setup-session", () => ({
   resolveAccountSetupContext,
 }));
 vi.mock("bcryptjs", () => ({ default: { hash } }));
+vi.mock("@/lib/password-policy-store", () => ({ readPasswordPolicy: readPolicy }));
 vi.mock("next-auth", async () => ({ AuthError: (await import("@auth/core/errors")).AuthError }));
 
 import { CredentialsSignin } from "@auth/core/errors";
 import { completeAccountSetupAction, signOutAndContinueSetupAction } from "./actions";
+import { DEFAULT_PASSWORD_POLICY } from "@/data/types";
 
 const TOKEN = "t".repeat(43);
 
@@ -59,19 +72,56 @@ describe("completeAccountSetupAction", () => {
     hash.mockResolvedValue("hashed");
     completeAccountSetup.mockResolvedValue({ ok: true, userId: "user-1", username: "pending.one" });
     signIn.mockResolvedValue(undefined);
+    readPolicy.mockReset();
+    readPolicy.mockResolvedValue(DEFAULT_PASSWORD_POLICY);
   });
 
   it.each([
     [{ name: "   " }, "Name is required.", "name"],
-    [{ password: "short", confirmPassword: "short" }, "Password must be at least 8 characters.", "password"],
+    [{ password: "short", confirmPassword: "short" }, "Password must be 8 to 20 characters.", "password"],
     [{ confirmPassword: "" }, "Confirm your password.", "confirmPassword"],
     [{ confirmPassword: "different-one" }, "Passwords do not match.", "confirmPassword"],
-  ])("rejects invalid input %j without touching the database or bcrypt", async (fields, error, field) => {
+  ])("rejects invalid input %j without hashing or completing", async (fields, error, field) => {
     const result = await completeAccountSetupAction(undefined, form(fields));
     expect(result).toMatchObject({ error, field });
-    expect(resolveAccountSetupContext).not.toHaveBeenCalled();
     expect(hash).not.toHaveBeenCalled();
     expect(completeAccountSetup).not.toHaveBeenCalled();
+  });
+
+  it("returns the current rules with a password failure so the form can refresh its checklist", async () => {
+    const strict = { ...DEFAULT_PASSWORD_POLICY, minNumbers: 1 };
+    readPolicy.mockResolvedValue(strict);
+    const result = await completeAccountSetupAction(
+      undefined,
+      form({ password: "nonumbers", confirmPassword: "nonumbers" })
+    );
+    expect(result).toMatchObject({
+      error: "Password must be 8 to 20 characters, with at least 1 number.",
+      field: "password",
+      policy: strict,
+    });
+  });
+
+  it("checks the link before reading the rules, so an unusable link learns nothing about them", async () => {
+    resolveAccountSetupContext.mockResolvedValue({ status: "unavailable" });
+    await completeAccountSetupAction(undefined, form({ password: "short", confirmPassword: "short" }));
+    expect(readPolicy).not.toHaveBeenCalled();
+  });
+
+  it("refuses without hashing when the rules cannot be read", async () => {
+    readPolicy.mockRejectedValue(new Error("db down"));
+    const result = await completeAccountSetupAction(undefined, form());
+    expect(result).toMatchObject({ field: "password", name: "Alex" });
+    expect((result as { error: string }).error).toMatch(/unavailable/i);
+    expect(hash).not.toHaveBeenCalled();
+    expect(completeAccountSetup).not.toHaveBeenCalled();
+  });
+
+  it("rejects a password beyond the bcrypt byte capacity without hashing", async () => {
+    const long = "\u{1F600}".repeat(19);
+    const result = await completeAccountSetupAction(undefined, form({ password: long, confirmPassword: long }));
+    expect((result as { error: string }).error).toMatch(/72 bytes/);
+    expect(hash).not.toHaveBeenCalled();
   });
 
   it("returns the trimmed name so the form keeps it", async () => {

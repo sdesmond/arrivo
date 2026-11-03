@@ -15,13 +15,26 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 import bcrypt from "bcryptjs";
-import { AccountDeletionFailure, ActivityEventType, CoverType, SignInNotice, TransitMode } from "@/data/types";
+import {
+  AccountDeletionFailure,
+  ActivityEventType,
+  CoverType,
+  SignInNotice,
+  TransitMode,
+  type ChangePasswordResult,
+  type PasswordPolicy,
+} from "@/data/types";
 import { recordActivity } from "@/lib/activity";
 import { lockUserForUpdate } from "@/lib/server-action-locks";
 import { deleteOwnAccount } from "@/lib/account-deletion";
 import { runAccountDeletionEffects } from "@/lib/account-deletion-effects";
 import { isUniqueViolation } from "@/lib/error-utils";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import {
+  PASSWORD_BCRYPT_COST,
+  PASSWORD_POLICY_UNAVAILABLE_ERROR,
+  validatePasswordAgainstPolicy,
+} from "@/lib/password-policy";
+import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
@@ -215,7 +228,7 @@ export async function changePassword({
 }: {
   currentPassword: string;
   newPassword: string;
-}): Promise<{ error?: string }> {
+}): Promise<ChangePasswordResult> {
   const session = await requireUser();
   const userId = session.id!;
   const throttleTargets = [accountTarget("pwchange", userId)];
@@ -223,11 +236,17 @@ export async function changePassword({
   const throttle = await checkThrottle(throttleTargets);
   if (throttle.locked) return { error: lockoutMessage(throttle.retryAfterSeconds) };
 
-  if (newPassword.length < PASSWORD_MIN_LENGTH) {
-    return { error: `New password must be at least ${PASSWORD_MIN_LENGTH} characters.` };
+  // Rules are read per submission, after the throttle check and before bcrypt, so a policy change applies at once.
+  let policy: PasswordPolicy;
+  try {
+    policy = await readPasswordPolicy(db);
+  } catch {
+    return { error: PASSWORD_POLICY_UNAVAILABLE_ERROR };
   }
+  const policyError = validatePasswordAgainstPolicy(newPassword, policy);
+  if (policyError) return { error: policyError, policy };
 
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, PASSWORD_BCRYPT_COST);
   let outcome: { error?: string; username?: string };
   try {
     outcome = await db.transaction(async (transaction) => {

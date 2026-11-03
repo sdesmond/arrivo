@@ -84,7 +84,7 @@ Feature: First-run admin setup
       | field           | value     | error                                  |
       | confirmPassword | different | Passwords do not match.                |
       | confirmPassword |           | Confirm your password.                 |
-      | password        |           | Password must be at least 8 characters. |
-      | password        | short     | Password must be at least 8 characters. |
+      | password        |           | Password must be 8 to 20 characters. |
+      | password        | short     | Password must be 8 to 20 characters. |
       | name            |           | Name is required.                      |
       | username        | bad@email | Use letters, numbers, dots, dashes or underscores, starting with a letter or number. |

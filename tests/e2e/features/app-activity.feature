@@ -93,7 +93,7 @@ Feature: App activity
     Given I am signed in as an app "admin"
     And I remember my current username
     When I open my profile page
-    And I navigate to the Identity section
+    And I navigate to the Account section
     And I change my username to a new one and save
     Then my account has 1 recorded "username_changed" events
     And the rename event keeps my original username and account ID
@@ -297,7 +297,7 @@ Feature: App activity
     And another completed app admin exists
     And I remember my current username
     When I open my profile page
-    And I navigate to the Identity section
+    And I navigate to the Account section
     And I change my username to a new one and save
     And I sign out
     And I sign in with my password

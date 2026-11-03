@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/activity", label: "Activity" },
+  { href: "/admin/security", label: "Security" },
 ];
 
 export function AdminSectionNav({ children }: AdminSectionNavProps) {

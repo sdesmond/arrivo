@@ -40,6 +40,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     ".next-e2e/**",
     ".next-e2e-bootstrap/**",
+    ".next-e2e-policy-*/**",
     ".next-validate/**",
     "out/**",
     "build/**",

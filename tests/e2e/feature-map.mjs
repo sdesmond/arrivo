@@ -47,8 +47,49 @@ const CREDENTIALS = [
   "src/lib/trusted-devices.ts",
 ];
 
+// Rules read and enforced wherever a new password is chosen, plus the live checklist that previews them. Every flow
+// that chooses a password lists these so a change to the rules re-runs that flow's scenarios.
+const PASSWORD_RULES = [
+  "src/lib/password-policy.ts",
+  "src/lib/password-policy-store.ts",
+  "src/components/arrivo/password-requirements.tsx",
+];
+
 export const FEATURE_MAP = [
+  entry("password-policy", [
+    ...PASSWORD_RULES,
+    ...CREDENTIALS,
+    "src/lib/account-lifecycle-locks.ts",
+    "src/lib/credential-authorizations.ts",
+    "src/lib/admin-recovery-issuance.ts",
+    "src/lib/admin-recovery-session.ts",
+    "src/lib/admin-recovery-completion.ts",
+    "src/lib/account-setup-session.ts",
+    "src/lib/account-setup-completion.ts",
+    "src/lib/password-reset*.ts",
+    "src/lib/app-bootstrap.ts",
+    "src/lib/app-setup.ts",
+    "src/lib/session-version.ts",
+    "src/components/arrivo/password-policy-settings.tsx",
+    "src/components/arrivo/account-setup-dialog.tsx",
+    "src/components/arrivo/auth-forms.tsx",
+    "src/components/arrivo/admin-section-nav.tsx",
+    "src/app/(app)/admin/security/**",
+    "src/app/(app)/profile/actions.ts",
+    "src/app/(app)/profile/account-section.tsx",
+    "src/app/(app)/profile/change-password-dialog.tsx",
+    "src/app/(app)/profile/page.tsx",
+    "src/app/(app)/profile/page-client.tsx",
+    "src/app/(auth)/actions.ts",
+    "src/app/(auth)/setup/**",
+    "src/app/account-setup/**",
+    "src/app/account-reset/**",
+    "src/app/account-recovery/**",
+    "tests/e2e/security-policy-fixture.ts",
+    "tests/e2e/security-policy-fixture.spec.ts",
+  ]),
   entry("admin-recovery-completion", [
+    ...PASSWORD_RULES,
     "src/lib/admin-recovery-completion.ts",
     "src/lib/admin-recovery-session.ts",
     "src/lib/credential-authorizations.ts",
@@ -71,6 +112,7 @@ export const FEATURE_MAP = [
     "tests/e2e/credential-authorization-fixture.ts",
   ]),
   entry("integrated-onboarding", [
+    ...PASSWORD_RULES,
     "src/lib/account-creation.ts",
     "src/lib/account-setup-session.ts",
     "src/lib/account-setup-completion.ts",
@@ -118,13 +160,14 @@ export const FEATURE_MAP = [
     "tests/e2e/onboarding-browser.ts",
     "src/lib/account-setup-session.ts",
     "src/lib/account-setup-completion.ts",
-    "src/lib/password-policy.ts",
+    ...PASSWORD_RULES,
     "src/app/account-setup/**",
     "src/components/arrivo/account-setup-dialog.tsx",
     "src/components/arrivo/account-setup-sign-out.tsx",
     ...CREDENTIALS,
   ]),
   entry("password-reset", [
+    ...PASSWORD_RULES,
     "src/lib/account-deletion.ts",
     "src/app/(app)/profile/actions.ts",
     "src/app/(app)/profile/security-actions.ts",
@@ -238,6 +281,7 @@ export const FEATURE_MAP = [
     "src/lib/route.ts",
   ]),
   entry("auth", [
+    ...PASSWORD_RULES,
     "src/components/arrivo/auth-forms.tsx",
     "src/components/arrivo/auth-submit-button.tsx",
     "src/components/arrivo/mfa-code-form.tsx",
@@ -248,6 +292,7 @@ export const FEATURE_MAP = [
     "src/lib/error-utils.ts",
   ]),
   entry("app-bootstrap", [
+    ...PASSWORD_RULES,
     ...CREDENTIALS,
     "src/lib/error-utils.ts",
     "src/lib/app-setup.ts",
@@ -272,6 +317,7 @@ export const FEATURE_MAP = [
     "tests/e2e/role-service-fixture.ts",
   ]),
   entry("integrated-recovery-and-deletion", [
+    ...PASSWORD_RULES,
     "tests/e2e/onboarding-browser.ts",
     "tests/e2e/steps/password-reset.steps.ts",
     "tests/e2e/steps/admin-recovery-completion.steps.ts",
@@ -423,6 +469,7 @@ export const FEATURE_MAP = [
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("profile", [
+    ...PASSWORD_RULES,
     "src/app/(app)/profile/**",
     "src/components/arrivo/avatar-stack.tsx",
     // Security tab: password change, MFA enrollment, trusted devices.

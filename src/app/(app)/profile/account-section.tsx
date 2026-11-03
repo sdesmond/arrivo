@@ -1,165 +1,93 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
-import { Trash2 } from "lucide-react";
-import { Section, Field } from "@/components/arrivo/form-section";
+import { useState, useRef } from "react";
+import { KeyRound, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { AccountDeletionTrip } from "@/data/types";
-import { changePassword } from "./actions";
+import type { AccountDeletionTrip, PasswordPolicy, UserProfile } from "@/data/types";
+import { ChangePasswordDialog } from "./change-password-dialog";
 import { DeleteAccountDialog } from "./delete-account-dialog";
+import { ProfileIdentitySection } from "./identity-section";
 
 interface ProfileAccountSectionProps {
+  user: UserProfile;
   sharedOwnedTrips?: AccountDeletionTrip[];
+  /** Rules from the server page; undefined when they could not be read. */
+  passwordPolicy?: PasswordPolicy;
+  /** Dirty means unsaved name, username or photo changes. Password input lives in a dialog and never counts. */
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function ProfileAccountSection({ sharedOwnedTrips = [], onDirtyChange }: ProfileAccountSectionProps) {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
-  const [isPwPending, startPwTransition] = useTransition();
-
+/** One Account section: who you are (name, username, photo), your password, then deleting the account. */
+export function ProfileAccountSection({
+  user,
+  sharedOwnedTrips = [],
+  passwordPolicy,
+  onDirtyChange,
+}: ProfileAccountSectionProps) {
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const passwordTriggerRef = useRef<HTMLButtonElement>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const newPasswordError =
-    newPassword.length > 0 && newPassword.length < 8 ? "Password must be at least 8 characters." : null;
-  const confirmPasswordError =
-    confirmPassword.length > 0 && confirmPassword !== newPassword ? "Passwords do not match." : null;
-
-  function computeDirty(currentPassword: string, newPassword: string, confirmPassword: string) {
-    return currentPassword.length > 0 || newPassword.length > 0 || confirmPassword.length > 0;
-  }
-
-  function handleCurrentPasswordChange(next: string) {
-    if (next === currentPassword) return;
-    setCurrentPassword(next);
-    onDirtyChange?.(computeDirty(next, newPassword, confirmPassword));
-  }
-
-  function handleNewPasswordChange(next: string) {
-    if (next === newPassword) return;
-    setNewPassword(next);
-    onDirtyChange?.(computeDirty(currentPassword, next, confirmPassword));
-  }
-
-  function handleConfirmPasswordChange(next: string) {
-    if (next === confirmPassword) return;
-    setConfirmPassword(next);
-    onDirtyChange?.(computeDirty(currentPassword, newPassword, next));
-  }
-
-  function handlePasswordSave() {
-    setPasswordError(null);
-    setPasswordSuccess(false);
-    startPwTransition(async () => {
-      const result = await changePassword({ currentPassword, newPassword });
-      if (result.error) {
-        setPasswordError(result.error);
-      } else {
-        setPasswordSuccess(true);
-        setJustSaved(true);
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        onDirtyChange?.(false);
-        setTimeout(() => setJustSaved(false), 2000);
-      }
-    });
-  }
-
-  const isDirty = computeDirty(currentPassword, newPassword, confirmPassword);
-
   return (
     <>
-      <div style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
-        <Section>
-          <Field label="Current password" htmlFor="pw-current">
-            <Input
-              id="pw-current"
-              type="password"
-              value={currentPassword}
-              onChange={(event) => handleCurrentPasswordChange(event.target.value)}
-              autoComplete="current-password"
-            />
-          </Field>
+      <div className="flex flex-col gap-6">
+        <h2
+          style={{
+            fontFamily: "var(--font-heading-family, ui-sans-serif)",
+            fontSize: "calc(18px * var(--font-scale))",
+            fontWeight: 700,
+            color: "var(--fg)",
+          }}
+        >
+          Account
+        </h2>
 
-          <Field label="New password" htmlFor="pw-new" error={newPasswordError ?? undefined}>
-            <Input
-              id="pw-new"
-              type="password"
-              value={newPassword}
-              onChange={(event) => handleNewPasswordChange(event.target.value)}
-              autoComplete="new-password"
-              aria-invalid={!!newPasswordError || undefined}
-              aria-describedby={newPasswordError ? "pw-new-error" : undefined}
-            />
-          </Field>
+        <ProfileIdentitySection user={user} onDirtyChange={onDirtyChange} />
 
-          <Field label="Confirm new password" htmlFor="pw-confirm" error={confirmPasswordError ?? undefined}>
-            <Input
-              id="pw-confirm"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => handleConfirmPasswordChange(event.target.value)}
-              autoComplete="new-password"
-              aria-invalid={!!confirmPasswordError || undefined}
-              aria-describedby={confirmPasswordError ? "pw-confirm-error" : undefined}
-            />
-          </Field>
+        <div style={{ borderTop: "1px solid var(--line)", paddingTop: 24 }}>
+          <Button
+            ref={passwordTriggerRef}
+            type="button"
+            variant="outline"
+            className="h-11 gap-2"
+            onClick={() => setPasswordOpen(true)}
+          >
+            <KeyRound size={14} strokeWidth={1.5} />
+            Change password
+          </Button>
+        </div>
 
-          {passwordError && (
-            <p style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--destructive)" }} role="alert">
-              {passwordError}
-            </p>
-          )}
-          {passwordSuccess && (
-            <p style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-2)" }} role="status">
-              Password updated.
-            </p>
-          )}
-
-          <div className="flex items-center justify-end gap-3">
-            {justSaved && (
-              <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
-                Saved
-              </span>
-            )}
-            <Button
-              size="sm"
-              onClick={handlePasswordSave}
-              disabled={isPwPending || !isDirty || !!newPasswordError || !!confirmPasswordError}
-            >
-              {isPwPending ? "Updating…" : "Update password"}
-            </Button>
-          </div>
-
-          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 16, marginTop: 8 }}>
-            <button
-              ref={deleteTriggerRef}
-              type="button"
-              onClick={() => setDeleteOpen(true)}
-              className="flex items-center gap-2 rounded-[6px] px-3 py-1.5 font-medium transition-colors"
-              style={{
-                color: "var(--destructive)",
-                background: "transparent",
-                fontSize: "calc(13px * var(--font-scale))",
-              }}
-              onMouseEnter={(event) =>
-                (event.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)")
-              }
-              onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}
-            >
-              <Trash2 size={14} strokeWidth={1.5} />
-              Delete account
-            </button>
-          </div>
-        </Section>
+        <div className="flex justify-end" style={{ borderTop: "1px solid var(--line)", paddingTop: 24, marginTop: 16 }}>
+          <button
+            ref={deleteTriggerRef}
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="flex min-h-11 min-w-11 items-center gap-2 rounded-[6px] px-3 py-1.5 font-medium transition-colors"
+            style={{
+              color: "var(--destructive)",
+              background: "transparent",
+              fontSize: "calc(13px * var(--font-scale))",
+            }}
+            onMouseEnter={(event) =>
+              (event.currentTarget.style.background = "color-mix(in srgb, var(--destructive) 10%, transparent)")
+            }
+            onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}
+          >
+            <Trash2 size={14} strokeWidth={1.5} />
+            Delete account
+          </button>
+        </div>
       </div>
+
+      <ChangePasswordDialog
+        open={passwordOpen}
+        passwordPolicy={passwordPolicy}
+        onOpenChange={(open) => {
+          setPasswordOpen(open);
+          if (!open) passwordTriggerRef.current?.focus();
+        }}
+      />
 
       <DeleteAccountDialog
         open={deleteOpen}

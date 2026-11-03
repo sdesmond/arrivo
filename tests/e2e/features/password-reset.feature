@@ -7,7 +7,7 @@ Feature: Administrator password reset
     And I generate a password reset link for the other member
     Then the other member's original password remains valid
     When I open the generated password reset link as a recipient
-    And I complete the password reset with "replacement-password-1"
+    And I complete the password reset with "replacement-pass-1"
     Then the other member's new password is saved and the link is unavailable
     When the other member signs in with the new password
     Then I should be redirected to the trips page
@@ -48,7 +48,7 @@ Feature: Administrator password reset
     When I request app management at "/admin/users"
     And I generate a password reset link for the other member
     And I open the generated password reset link as a recipient
-    And I complete the password reset with "replacement-password-1"
+    And I complete the password reset with "replacement-pass-1"
     And the other member signs in with the new password
     Then I should be asked for an authentication code
     When the other member enters their authenticator code

@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { SignInNotice, type MfaActionState, type SignInActionState } from "@/data/types";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
+import { SignInNotice, type MfaActionState, type PasswordPolicy, type SignInActionState } from "@/data/types";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { MfaCodeForm } from "./mfa-code-form";
+import { PasswordRequirements } from "./password-requirements";
 
-type ActionState = { error?: string } | undefined;
+type ActionState = { error?: string; policy?: PasswordPolicy } | undefined;
 interface SignInFormProps {
   action: (prev: SignInActionState, formData: FormData) => Promise<SignInActionState>;
   mfaAction: (prev: MfaActionState, formData: FormData) => Promise<MfaActionState>;
@@ -15,6 +15,8 @@ interface SignInFormProps {
 }
 interface AdminSetupFormProps {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Rules read by the server page; a failed submission returns the current ones. */
+  policy: PasswordPolicy;
 }
 
 const NOTICE_TEXT: Record<SignInNotice, string> = {
@@ -120,8 +122,10 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
   );
 }
 
-export function AdminSetupForm({ action }: AdminSetupFormProps) {
+export function AdminSetupForm({ action, policy }: AdminSetupFormProps) {
   const [state, formAction] = useActionState(action, undefined);
+  const [password, setPassword] = useState("");
+  const activePolicy = state?.policy ?? policy;
   const hasError = !!state?.error;
   const usernameRef = useRef<HTMLInputElement>(null);
 
@@ -150,22 +154,30 @@ export function AdminSetupForm({ action }: AdminSetupFormProps) {
             name={field.name}
             type={field.type}
             required
-            minLength={
-              field.name === "username"
-                ? USERNAME_MIN_LENGTH
-                : field.type === "password"
-                  ? PASSWORD_MIN_LENGTH
-                  : undefined
-            }
+            // No native length constraints on passwords: they count UTF-16 units, the rules count code points.
+            minLength={field.name === "username" ? USERNAME_MIN_LENGTH : undefined}
             maxLength={field.name === "username" ? USERNAME_MAX_LENGTH : undefined}
             autoComplete={field.autoComplete}
             autoCapitalize={field.name === "username" ? "none" : undefined}
             spellCheck={field.name === "username" ? false : undefined}
             className="h-11 rounded-lg border px-3"
             style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+            {...(field.name === "password"
+              ? { value: password, onChange: (event) => setPassword(event.target.value) }
+              : {})}
             aria-invalid={hasError || undefined}
-            aria-describedby={hasError ? "form-error" : undefined}
+            aria-describedby={
+              [
+                hasError ? "form-error" : undefined,
+                field.name === "password" ? "setup-password-requirements" : undefined,
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           />
+          {field.name === "password" && (
+            <PasswordRequirements id="setup-password-requirements" password={password} policy={activePolicy} />
+          )}
         </div>
       ))}
       <AuthSubmitButton label="Create admin account" />

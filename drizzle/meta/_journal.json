@@ -71,6 +71,20 @@
       "when": 1793321942865,
       "tag": "0009_productive_pet_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793724831827,
+      "tag": "0010_sturdy_vargas",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793730301121,
+      "tag": "0011_high_grim_reaper",
+      "breakpoints": true
     }
   ]
 }

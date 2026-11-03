@@ -102,8 +102,8 @@ Feature: Setup-only account context
 
     Examples:
       | name | password      | confirmation  | error                                   |
-      | Alex |               |               | Password must be at least 8 characters. |
-      | Alex | short         | short         | Password must be at least 8 characters. |
+      | Alex |               |               | Password must be 8 to 20 characters. |
+      | Alex | short         | short         | Password must be 8 to 20 characters. |
       | Alex | chosen-pass-1 | different-one | Passwords do not match.                 |
 
   Scenario: A half-finished setup resumes with the same expiry

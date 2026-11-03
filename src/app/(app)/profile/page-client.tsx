@@ -5,7 +5,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Section } from "@/components/arrivo/form-section";
 import { ThemeSelect } from "@/components/arrivo/theme-select";
 import { FontSizeSelect } from "@/components/arrivo/font-size-select";
-import { ProfileIdentitySection } from "./identity-section";
 import { LoyaltySection } from "./loyalty-section";
 import { PassportSection } from "./passport-section";
 import { WishlistSection } from "./wishlist-section";
@@ -13,16 +12,22 @@ import { CompanionsSection } from "./companions-section";
 import { ProfilePreferencesSection } from "./preferences-section";
 import { ProfileAccountSection } from "./account-section";
 import { ProfileSecuritySection } from "./security-section";
-import type { AccountDeletionTrip, MfaStatus, TrustedDeviceSummary, UserProfile, ProfileSection } from "@/data/types";
+import type {
+  AccountDeletionTrip,
+  MfaStatus,
+  PasswordPolicy,
+  TrustedDeviceSummary,
+  UserProfile,
+  ProfileSection,
+} from "@/data/types";
 
 const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
-  { value: "identity", label: "Identity" },
+  { value: "account", label: "Account" },
   { value: "traveler", label: "Traveler" },
   { value: "companions", label: "Companions" },
   { value: "preferences", label: "Preferences" },
   { value: "appearance", label: "Appearance" },
   { value: "security", label: "Security" },
-  { value: "account", label: "Account" },
 ];
 
 interface ProfilePageClientProps {
@@ -31,6 +36,8 @@ interface ProfilePageClientProps {
   trustedDevices: TrustedDeviceSummary[];
   encryptionConfigured: boolean;
   sharedOwnedTrips: AccountDeletionTrip[];
+  /** Undefined when the server could not read the rules. */
+  passwordPolicy?: PasswordPolicy;
 }
 
 export function ProfilePageClient({
@@ -39,8 +46,9 @@ export function ProfilePageClient({
   trustedDevices,
   encryptionConfigured,
   sharedOwnedTrips,
+  passwordPolicy,
 }: ProfilePageClientProps) {
-  const [activeSection, setActiveSection] = useState<ProfileSection>("identity");
+  const [activeSection, setActiveSection] = useState<ProfileSection>("account");
 
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
   const [resetKeys, setResetKeys] = useState<Record<string, number>>({});
@@ -100,11 +108,13 @@ export function ProfilePageClient({
           </TabsList>
 
           <div className="flex-1 min-w-0 mt-4 sm:mt-0 px-4 sm:px-0">
-            <TabsContent value="identity" className="w-full">
-              <ProfileIdentitySection
-                key={resetKeys.identity ?? 0}
+            <TabsContent value="account" className="w-full">
+              <ProfileAccountSection
+                key={resetKeys.account ?? 0}
                 user={user}
-                onDirtyChange={(dirty) => handleDirtyChange("identity", dirty)}
+                sharedOwnedTrips={sharedOwnedTrips}
+                passwordPolicy={passwordPolicy}
+                onDirtyChange={(dirty) => handleDirtyChange("account", dirty)}
               />
             </TabsContent>
 
@@ -156,14 +166,6 @@ export function ProfilePageClient({
                 status={mfaStatus}
                 devices={trustedDevices}
                 encryptionConfigured={encryptionConfigured}
-              />
-            </TabsContent>
-
-            <TabsContent value="account" className="w-full">
-              <ProfileAccountSection
-                key={resetKeys.account ?? 0}
-                sharedOwnedTrips={sharedOwnedTrips}
-                onDirtyChange={(dirty) => handleDirtyChange("account", dirty)}
               />
             </TabsContent>
           </div>

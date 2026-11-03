@@ -64,10 +64,29 @@ export const appState = pgTable(
     id: boolean("id").primaryKey().default(true),
     initializedAt: timestamp("initialized_at", { withTimezone: true }),
     activityRetentionDays: integer("activity_retention_days").notNull().default(90),
+    // New-password policy (GH-363). The defaults keep upgraded installs at the former minimum of 8 with nothing else
+    // required; a class minimum of 0 means that class is not required. The checks mirror validatePasswordPolicy so no
+    // write path can store an impossible policy.
+    passwordMinLength: integer("password_min_length").notNull().default(8),
+    passwordMaxLength: integer("password_max_length").notNull().default(20),
+    passwordMinUppercase: integer("password_min_uppercase").notNull().default(0),
+    passwordMinNumbers: integer("password_min_numbers").notNull().default(0),
+    passwordMinSpecial: integer("password_min_special").notNull().default(0),
   },
   (table) => [
     check("app_state_singleton", sql`${table.id}`),
     check("app_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
+    check("app_state_password_min_length", sql`${table.passwordMinLength} between 8 and 16`),
+    check("app_state_password_max_length", sql`${table.passwordMaxLength} between 15 and 20`),
+    check("app_state_password_length_order", sql`${table.passwordMinLength} <= ${table.passwordMaxLength}`),
+    check(
+      "app_state_password_class_minimums",
+      sql`${table.passwordMinUppercase} between 0 and 20 and ${table.passwordMinNumbers} between 0 and 20 and ${table.passwordMinSpecial} between 0 and 20`
+    ),
+    check(
+      "app_state_password_feasible",
+      sql`${table.passwordMinUppercase} + ${table.passwordMinNumbers} + ${table.passwordMinSpecial} <= ${table.passwordMaxLength}`
+    ),
   ]
 );
 
