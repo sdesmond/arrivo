@@ -27,6 +27,7 @@ import type {
   UpdateTripPatch,
   DeclineInvitationResult,
   DismissInvitationResult,
+  InvitableUsersResult,
   InviteContributorResult,
   LeaveTripResult,
   RescindInvitationResult,
@@ -47,6 +48,7 @@ import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { getInvitationExpiry, hasNormalizedUsername, publishInvitationChanged } from "@/lib/invitations";
+import { getInvitableUsers } from "@/lib/invitable-users";
 import {
   acceptInvitationWrite,
   ContributorChangeGuardError,
@@ -725,6 +727,13 @@ const VALID_COLLABORATOR_ROLES = Object.values(CollaboratorRole);
 
 function isCollaboratorRole(value: string): value is CollaboratorRole {
   return VALID_COLLABORATOR_ROLES.some((collaboratorRole) => collaboratorRole === value);
+}
+
+/** Registered users the share dialog's picker offers. Manager-only: it exposes the account directory. */
+export async function listInvitableUsers(tripId: string): Promise<InvitableUsersResult> {
+  const user = await requireUser();
+  await assertTripAccess(tripId, user.id!, "manager");
+  return getInvitableUsers(tripId, user.id!);
 }
 
 export async function inviteContributor(
