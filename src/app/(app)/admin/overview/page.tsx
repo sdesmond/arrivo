@@ -33,6 +33,7 @@ export default async function AdminOverviewPage() {
     ]);
   return (
     <div className="flex max-w-3xl flex-col gap-4">
+      <SupportArrivoCard />
       <section
         aria-labelledby="admin-overview-heading"
         className="rounded-lg border p-4"
@@ -55,7 +56,6 @@ export default async function AdminOverviewPage() {
           adminActions={adminActions}
         />
       </section>
-      <SupportArrivoCard />
     </div>
   );
 }
