@@ -305,6 +305,8 @@ export type PasswordPolicyCommitResult =
   | { status: "stale" | "forbidden" };
 
 export interface AppUserSummary {
+  mfaRequired?: boolean;
+  instanceMfaRequired?: boolean;
   id: string;
   username: string;
   /** Display name; omitted when the user has none. */
@@ -1549,3 +1551,14 @@ export interface TrustedDeviceSummary {
   mfaRememberedUntil?: string;
   isCurrent: boolean;
 }
+
+export interface MfaPolicy {
+  instanceRequired: boolean;
+  individualRequired: boolean;
+  required: boolean;
+  enrolled: boolean;
+  sessionVersion: number;
+}
+export type MfaPolicySaveResult =
+  | { status: "ok"; required: boolean }
+  | { status: "invalid" | "forbidden" | "stale" | "unavailable" | "key-unavailable" };

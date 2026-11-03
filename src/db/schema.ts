@@ -47,6 +47,7 @@ export const users = pgTable(
     totpSecret: text("totp_secret"),
     totpPendingSecret: text("totp_pending_secret"),
     totpLastStep: integer("totp_last_step"),
+    mfaRequired: boolean("mfa_required").default(false).notNull(),
     mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true }),
     // Sign-in identifier; stored lowercased (src/lib/username.ts).
     username: text("username").notNull(),
@@ -62,6 +63,7 @@ export const appState = pgTable(
   "app_state",
   {
     id: boolean("id").primaryKey().default(true),
+    mfaRequired: boolean("mfa_required").default(false).notNull(),
     initializedAt: timestamp("initialized_at", { withTimezone: true }),
     activityRetentionDays: integer("activity_retention_days").notNull().default(90),
     // New-password policy (GH-363). The defaults keep upgraded installs at the former minimum of 8 with nothing else
