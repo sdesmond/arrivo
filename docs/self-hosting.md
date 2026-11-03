@@ -166,7 +166,7 @@ releases (see below).
 Accounts sign in with a username. If you're updating from a release where they signed in with an email,
 each account's username is the part of its email before the `@` (with `-2`, `-3`… added where two
 collide), and people find each other to share trips by username. Let your users know; anyone can change
-their username under **Profile → Identity**.
+their username under **Profile → Account**.
 
 ## Backup and restore
 
