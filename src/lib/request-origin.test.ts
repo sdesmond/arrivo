@@ -59,14 +59,21 @@ describe("browserUrl", () => {
     expect(browserUrl("/sign-in", chained, {}).href).toBe("https://arrivo.example.com/sign-in");
   });
 
-  it("defers to req.url when NEXTAUTH_URL or AUTH_URL is set, since Auth.js already applied it there", () => {
-    const rewritten = request({ host: "127.0.0.1:4850" }, "https://arrivo.example.com/trips");
+  it("uses the configured NEXTAUTH_URL or AUTH_URL origin over req.url and request headers", () => {
+    // Route handlers outside Auth.js's wrapper see the raw listen address (HOSTNAME=0.0.0.0 in the image).
+    const listenAddress = request({ host: "evil.example" }, "http://0.0.0.0:4850/account-setup/open?token=x");
 
-    expect(browserUrl("/sign-in", rewritten, { NEXTAUTH_URL: "https://arrivo.example.com" }).href).toBe(
-      "https://arrivo.example.com/sign-in"
+    expect(browserUrl("/account-setup", listenAddress, { NEXTAUTH_URL: "https://arrivo.example.com" }).href).toBe(
+      "https://arrivo.example.com/account-setup"
     );
-    expect(browserUrl("/sign-in", rewritten, { AUTH_URL: "https://arrivo.example.com" }).href).toBe(
-      "https://arrivo.example.com/sign-in"
+    expect(browserUrl("/account-setup", listenAddress, { AUTH_URL: "https://arrivo.example.com:8443/" }).href).toBe(
+      "https://arrivo.example.com:8443/account-setup"
+    );
+  });
+
+  it("falls back to the request's address when the configured URL is unusable", () => {
+    expect(browserUrl("/sign-in", request({ host: "192.168.1.50:4850" }), { NEXTAUTH_URL: "not a url" }).href).toBe(
+      "http://192.168.1.50:4850/sign-in"
     );
   });
 

@@ -44,6 +44,14 @@ describe("GET /account-recovery/open", () => {
     expect(response.headers.get("location")).not.toContain("?");
   });
 
+  it("redirects to the configured NEXTAUTH_URL, not the server's listen address", async () => {
+    vi.stubEnv("NEXTAUTH_URL", "https://arrivo.example.com");
+    const response = await GET(
+      new Request(`http://0.0.0.0:4850/account-recovery/open?token=${TOKEN}`, { headers: { host: "localhost:4850" } })
+    );
+    expect(response.headers.get("location")).toBe("https://arrivo.example.com/account-recovery");
+  });
+
   it("sends no-store and no-referrer", async () => {
     const response = await exchange();
     expect(response.headers.get("cache-control")).toBe("no-store");
