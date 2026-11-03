@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-03
+
+### Added
+
+- User guide and self-hosting documentation at <https://sdesmond.github.io/arrivo/>.
+
+### Fixed
+
+- Account setup, password reset and recovery links no longer redirect to `http://0.0.0.0:4850` after opening when
+  `NEXTAUTH_URL` is set. Unexpired links already sent work once you update.
+
 ## [0.6.1] - 2026-11-02
 
 ### Upgrading
@@ -125,7 +136,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/sdesmond/arrivo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sdesmond/arrivo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sdesmond/arrivo/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/sdesmond/arrivo/compare/v0.5.0...v0.5.1
