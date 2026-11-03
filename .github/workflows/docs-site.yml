@@ -34,6 +34,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+          # Astro can require a newer Node patch than the runner image has cached.
+          check-latest: true
           cache: npm
           cache-dependency-path: site/package-lock.json
 
