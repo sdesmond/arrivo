@@ -55,16 +55,16 @@ function TripShareDialogContent({ tripId, onRequestClose }: TripShareDialogConte
 
       <TripShareInviteForm
         disabled={controller.isSavingChanges}
-        username={controller.username}
         error={controller.inviteError}
+        hasOtherUsers={controller.hasOtherUsers}
         isLoading={controller.inviteLoading}
-        onUsernameChange={(username) => {
-          controller.setUsername(username);
-          controller.setInviteError(null);
-        }}
         onInvite={() => void controller.handleInvite()}
         onRoleChange={controller.setRole}
+        onUserChange={controller.selectUser}
         role={controller.role}
+        selectedUser={controller.selectedUser}
+        users={controller.invitableUsers}
+        usersLoaded={controller.usersLoaded}
       />
 
       {controller.isLoading ? (

@@ -12,6 +12,7 @@ const mockRescindShareInvitation = vi.fn();
 const mockResendShareInvitation = vi.fn();
 const mockDismissShareInvitation = vi.fn();
 const mockInviteContributor = vi.fn();
+const mockListInvitableUsers = vi.fn();
 const mockSaveContributorChanges = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
 
 vi.mock("@/app/(app)/trips/actions", () => ({
   inviteContributor: (...args: unknown[]) => mockInviteContributor(...args),
+  listInvitableUsers: (...args: unknown[]) => mockListInvitableUsers(...args),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -93,6 +95,10 @@ describe("useTripShareDialogController", () => {
       invitations: [pendingInvitation],
     });
     mockInviteContributor.mockResolvedValue({ status: "invited" });
+    mockListInvitableUsers.mockResolvedValue({
+      users: [{ id: "user-alice", username: "alice" }],
+      hasOtherUsers: true,
+    });
     mockRescindShareInvitation.mockResolvedValue({ status: "success" });
     mockResendShareInvitation.mockResolvedValue({ status: "success", expiresAt: "2099-02-01T00:00:00.000Z" });
     mockDismissShareInvitation.mockResolvedValue({ status: "success" });
@@ -296,7 +302,7 @@ describe("useTripShareDialogController", () => {
         invitations: [],
       });
 
-      act(() => result.current.setUsername("new"));
+      act(() => result.current.selectUser({ id: "user-alice", username: "alice" }));
       let invitePromise: Promise<void>;
       act(() => {
         invitePromise = result.current.handleInvite();
@@ -361,6 +367,55 @@ describe("useTripShareDialogController", () => {
     });
   });
 
+  describe("invitable users", () => {
+    it("loads the picker options alongside the initial share data", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.usersLoaded).toBe(true));
+
+      expect(mockListInvitableUsers).toHaveBeenCalledWith("trip-1");
+      expect(result.current.invitableUsers).toEqual([{ id: "user-alice", username: "alice" }]);
+    });
+
+    it("reloads the options on membership-changed and drops a selection that is no longer invitable", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.usersLoaded).toBe(true));
+      act(() => result.current.selectUser({ id: "user-alice", username: "alice" }));
+      mockListInvitableUsers.mockResolvedValue({ users: [], hasOtherUsers: true });
+
+      emitTripEvent(LiveSyncEventType.MembershipChanged);
+
+      await waitFor(() => expect(result.current.invitableUsers).toEqual([]));
+      expect(result.current.selectedUser).toBeNull();
+    });
+
+    it("reloads the options after an invite so the invited user leaves the list", async () => {
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.usersLoaded).toBe(true));
+      act(() => result.current.selectUser({ id: "user-alice", username: "alice" }));
+      mockListInvitableUsers.mockClear();
+      mockListInvitableUsers.mockResolvedValue({ users: [], hasOtherUsers: true });
+
+      await act(async () => result.current.handleInvite());
+
+      expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "alice", "viewer");
+      expect(mockListInvitableUsers).toHaveBeenCalledOnce();
+      expect(result.current.invitableUsers).toEqual([]);
+      expect(result.current.selectedUser).toBeNull();
+    });
+
+    it("keeps the share data when only the options load fails", async () => {
+      mockListInvitableUsers.mockRejectedValue(new Error("directory down"));
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      await waitFor(() => expect(result.current.usersLoaded).toBe(true));
+
+      expect(toast.error).toHaveBeenCalledWith("Could not load users");
+      expect(toast.error).not.toHaveBeenCalledWith("Could not load sharing details");
+      expect(result.current.loadError).toBe(false);
+      expect(result.current.data?.collaborators).toEqual([manager]);
+    });
+  });
+
   it("suppresses a successfully rescinded invitation from an overlapping refetch", async () => {
     const refetch = createDeferred<{
       collaborators: Collaborator[];
@@ -376,7 +431,7 @@ describe("useTripShareDialogController", () => {
     const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    act(() => result.current.setUsername("new"));
+    act(() => result.current.selectUser({ id: "user-alice", username: "alice" }));
     let invitePromise: Promise<void>;
     act(() => {
       invitePromise = result.current.handleInvite();
@@ -404,7 +459,7 @@ describe("useTripShareDialogController", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await act(async () => result.current.rescindPendingInvitation(pendingInvitation));
-    act(() => result.current.setUsername("new"));
+    act(() => result.current.selectUser({ id: "user-alice", username: "alice" }));
     await act(async () => result.current.handleInvite());
 
     expect(result.current.data?.invitations).toEqual([pendingInvitation]);
@@ -426,7 +481,7 @@ describe("useTripShareDialogController", () => {
 
     act(() => {
       result.current.stageRoleChange(manager, "viewer");
-      result.current.setUsername("blocked");
+      result.current.selectUser({ id: "user-alice", username: "alice" });
     });
     await act(async () => result.current.handleInvite());
 

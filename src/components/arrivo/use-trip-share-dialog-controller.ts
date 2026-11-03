@@ -42,6 +42,11 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     };
   }, []);
   const invitationActions = useShareInvitationActions({ isCurrentRef, setData, suppressedInvitationIdsRef, tripId });
+  const inviteForm = useTripShareInviteForm({
+    tripId,
+    isBlocked: () => isSavingChangesRef.current,
+    onInvited: refreshAfterInvite,
+  });
   // True once any fetch has applied data, so a failed background refetch keeps what is on screen.
   const hasDataRef = useRef(false);
   function applyShareData(nextData: ShareDialogData): void {
@@ -77,6 +82,10 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
   async function refreshShareData(reason: ShareDataRefreshReason): Promise<boolean> {
     const sequence = ++fetchSequenceRef.current;
     const isNewest = () => isCurrentRef.current && sequence === fetchSequenceRef.current;
+    // Every membership change can alter who is invitable, so the picker reloads on the same path.
+    // It reports its own failure and never rejects, and is not awaited, so a slow directory load
+    // cannot hold up the share data refresh (or the invite that is waiting on it).
+    void inviteForm.reloadOptions();
     try {
       const nextData = await getShareDialogData(tripId);
       if (isNewest()) applyShareData(nextData);
@@ -99,11 +108,6 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
       return;
     }
     void refreshShareData("live");
-  });
-  const inviteForm = useTripShareInviteForm({
-    tripId,
-    isBlocked: () => isSavingChangesRef.current,
-    onInvited: refreshAfterInvite,
   });
   function stageRoleChange(collaborator: Collaborator, nextRole: CollaboratorRole): void {
     if (isSavingChangesRef.current) return;

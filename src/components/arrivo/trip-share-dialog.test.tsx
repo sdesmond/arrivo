@@ -8,7 +8,13 @@ import { isDismissalPress, TripShareDialog } from "./trip-share-dialog";
 
 // The share dialog joins the trip's live channel to refetch on membership changes; jsdom has no
 // EventSource, so every suite here runs against the shared mock.
+const INVITABLE_USERNAMES = ["dupe", "guest", "invitee", "nobody", "someone"];
+
 beforeEach(() => {
+  mockListInvitableUsers.mockResolvedValue({
+    users: INVITABLE_USERNAMES.map((username) => ({ id: `user-${username}`, username })),
+    hasOtherUsers: true,
+  });
   resetLiveSyncChannelsForTest();
   MockEventSource.instances = [];
   vi.stubGlobal("EventSource", MockEventSource);
@@ -24,6 +30,7 @@ const mockRescindShareInvitation = vi.fn();
 const mockResendShareInvitation = vi.fn();
 const mockDismissShareInvitation = vi.fn();
 const mockInviteContributor = vi.fn();
+const mockListInvitableUsers = vi.fn();
 const mockSaveContributorChanges = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
@@ -36,11 +43,20 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
 
 vi.mock("@/app/(app)/trips/actions", () => ({
   inviteContributor: (...args: unknown[]) => mockInviteContributor(...args),
+  listInvitableUsers: (...args: unknown[]) => mockListInvitableUsers(...args),
 }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
+
+async function pickUser(user: ReturnType<typeof userEvent.setup>, username: string): Promise<HTMLElement> {
+  const input = await screen.findByRole("combobox", { name: "Invite username" });
+  await waitFor(() => expect(input).toBeEnabled());
+  await user.click(input);
+  await user.click(await screen.findByRole("option", { name: username }));
+  return input;
+}
 
 const creator: Collaborator = {
   id: "creator-1",
@@ -150,9 +166,9 @@ describe("TripShareDialog", () => {
 
     await screen.findByText("Ada Lovelace");
 
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
-    expect(screen.getByRole("button", { name: "Invite" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
     expect(screen.queryByText("No collaborators yet.")).not.toBeInTheDocument();
   });
 
@@ -298,9 +314,7 @@ describe("TripShareDialog", () => {
     mockGetShareDialogData.mockResolvedValueOnce(initialData).mockReturnValueOnce(staleRefresh.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "guest" },
-    });
+    await pickUser(userEvent.setup(), "guest");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
     await waitFor(() => expect(mockGetShareDialogData).toHaveBeenCalledTimes(2));
 
@@ -309,7 +323,7 @@ describe("TripShareDialog", () => {
 
     staleRefresh.resolve(initialData);
 
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue(""));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue(""));
     await waitFor(() => expect(screen.queryByText("@declined")).not.toBeInTheDocument());
   });
 
@@ -396,15 +410,25 @@ describe("TripShareDialog", () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    const usernameInput = await screen.findByRole("textbox", { name: "Invite username" });
-    fireEvent.change(usernameInput, { target: { value: "invitee" } });
+    const usernameInput = await pickUser(userEvent.setup(), "invitee");
+    expect(usernameInput).toHaveValue("invitee");
+    mockListInvitableUsers.mockResolvedValue({
+      users: INVITABLE_USERNAMES.filter((username) => username !== "invitee").map((username) => ({
+        id: `user-${username}`,
+        username,
+      })),
+      hasOtherUsers: true,
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "invitee", "viewer"));
     expect(mockGetShareDialogData).toHaveBeenCalledTimes(2);
-    expect(usernameInput).toHaveValue("");
+    await waitFor(() => expect(usernameInput).toHaveValue(""));
     expect(screen.getByRole("combobox", { name: "Invite role" })).toHaveTextContent("viewer");
+    await userEvent.click(usernameInput);
+    expect(screen.queryByRole("option", { name: "invitee" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "guest" })).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
   });
 
@@ -413,16 +437,14 @@ describe("TripShareDialog", () => {
     mockInviteContributor.mockResolvedValue({ status: "resent" });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "invitee" },
-    });
+    await pickUser(userEvent.setup(), "invitee");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation resent."));
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue("");
   });
 
-  it("shows an inline error below the username input when no account matches the username", async () => {
+  it("shows an inline error, clears the pick and reloads the list when the picked account vanished", async () => {
     const { toast } = await import("sonner");
     mockInviteContributor.mockResolvedValue({
       status: "error",
@@ -431,14 +453,13 @@ describe("TripShareDialog", () => {
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "nobody" },
-    });
+    await pickUser(userEvent.setup(), "nobody");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(screen.getByText("No account found for this username.")).toBeInTheDocument());
     expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("nobody");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue(""));
+    expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
   });
 
   it("shows an error toast and keeps the input for other invite errors", async () => {
@@ -450,13 +471,11 @@ describe("TripShareDialog", () => {
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "dupe" },
-    });
+    await pickUser(userEvent.setup(), "dupe");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This person is already a collaborator on this trip"));
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("dupe");
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue("dupe");
   });
 
   it("disables the Invite button, username input, and role select while the request is in flight", async () => {
@@ -464,22 +483,21 @@ describe("TripShareDialog", () => {
     mockInviteContributor.mockReturnValue(deferred.promise);
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "invitee" },
-    });
+    await pickUser(userEvent.setup(), "invitee");
     const inviteButton = screen.getByRole("button", { name: "Invite" });
     fireEvent.click(inviteButton);
 
     await waitFor(() => expect(inviteButton).toBeDisabled());
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toBeDisabled();
     expect(screen.getByLabelText("Sending invitation")).toBeInTheDocument();
 
     deferred.resolve({ status: "invited" });
-    await waitFor(() => expect(inviteButton).toBeEnabled());
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Invite username" })).toBeEnabled());
+    // The pick is spent, so Invite waits for the next selection.
+    expect(inviteButton).toBeDisabled();
   });
 
-  it("clears the stale inline error when the user starts typing a new username", async () => {
+  it("clears the stale inline error when another user is picked", async () => {
     mockInviteContributor.mockResolvedValue({
       status: "error",
       message: "No account found for this username",
@@ -487,18 +505,31 @@ describe("TripShareDialog", () => {
     });
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "nobody" },
-    });
+    await pickUser(userEvent.setup(), "nobody");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(screen.getByText("No account found for this username.")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Invite username" }), {
-      target: { value: "someone" },
-    });
+    await pickUser(userEvent.setup(), "someone");
 
     expect(screen.queryByText("No account found for this username.")).not.toBeInTheDocument();
+  });
+
+  it("closes only the user popup on Escape, leaving the dialog open", async () => {
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<TripShareDialog open onOpenChange={onOpenChange} tripId="trip-1" />);
+    const input = await screen.findByRole("combobox", { name: "Invite username" });
+    await waitFor(() => expect(input).toBeEnabled());
+
+    await user.click(input);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(input).toHaveFocus();
   });
 
   it("shows a toast if the invite succeeds but the refetch fails", async () => {
@@ -506,14 +537,12 @@ describe("TripShareDialog", () => {
     mockGetShareDialogData.mockRejectedValueOnce(new Error("network"));
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "Invite username" }), {
-      target: { value: "invitee" },
-    });
+    await pickUser(userEvent.setup(), "invitee");
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(mockInviteContributor).toHaveBeenCalled());
     expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue("");
   });
 });
 
@@ -663,7 +692,7 @@ describe("TripShareDialog batch staging", () => {
     expect(screen.getByTitle("Close sharing dialog")).toBeDisabled();
     expect(screen.getByLabelText("Role for Grace Hopper")).toBeDisabled();
     expect(screen.getByTitle("Remove Grace Hopper")).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Invite username" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Invite username" })).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Invite role" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Invite" })).toBeDisabled();
     expect(screen.queryByLabelText("Sending invitation")).not.toBeInTheDocument();
