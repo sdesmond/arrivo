@@ -2,6 +2,7 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { collaborators, invitations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
+import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
 import { waitForServerActionResponse } from "../server-action";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
@@ -206,12 +207,48 @@ Given("there is a registered user I can invite", async ({ scenario }) => {
 When("I invite that user to the trip as an editor", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
   if (!invitee) throw new Error("No invitable user materialized for this scenario.");
-  await page.getByLabel("Invite username").fill(invitee.username);
+  await pickInviteUser(page, invitee.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
   const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
   await page.getByTitle("Invite this person to the trip").click();
   await response;
+});
+
+When("I type {string} into the invite picker", async ({ page }, text: string) => {
+  await page.getByLabel("Invite username").fill(text);
+});
+
+When("I type the active contributor's username into the invite picker", async ({ page, scenario }) => {
+  await page.getByLabel("Invite username").fill(shareHandle(scenario, ShareAccount.Active).slice(1));
+});
+
+When("I press Escape in the invite picker", async ({ page }) => {
+  await page.getByLabel("Invite username").click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.keyboard.press("Escape");
+});
+
+Then("the invite picker popup is closed but the sharing dialog stays open", async ({ page }) => {
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+  await expect(page.getByLabel("Invite username")).toBeFocused();
+});
+
+Then("the invite picker offers no match", async ({ page }) => {
+  await expect(page.getByText("No registered users found", { exact: true })).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(0);
+});
+
+Then("the Invite control is disabled", async ({ page }) => {
+  await expect(page.getByTitle("Invite this person to the trip")).toBeDisabled();
+});
+
+Then("the invited user is no longer offered in the invite picker", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
+  if (!invitee) throw new Error("No invitable user materialized for this scenario.");
+  await page.getByLabel("Invite username").fill(invitee.username);
+  await expect(page.getByText("No registered users found", { exact: true })).toBeVisible();
 });
 
 Then("I receive an invitation sent toast", async ({ page }) => {

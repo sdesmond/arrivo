@@ -173,11 +173,12 @@ Feature: App activity
     Given I am signed in as an app "admin"
     And a private itinerary exists for Activity
     And there is a registered user I can invite
+    And there is another registered user who is deleted before being invited
     When I open the sharing dialog
     And I invite that user to the trip as an editor
     Then I receive an invitation sent toast
-    When I resend the Activity invitation using both controls
-    And I try an Activity invitation for a missing account
+    When I resend the Activity invitation from its row
+    And I try an Activity invitation for the deleted account
     And I open the app Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata
     And Activity has no other invitation transitions for that trip

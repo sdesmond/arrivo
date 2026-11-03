@@ -10,6 +10,7 @@ import {
   trips,
   users,
 } from "../../../src/db/schema";
+import { pickInviteUser } from "../invite-picker";
 import { installActivityRecorderFault, type ActivityRecorderFault } from "../activity-integration-fixture";
 import { withE2EDb, type E2EDb } from "../e2e-db";
 import {
@@ -500,20 +501,25 @@ When("I rescind the Activity invitation", async ({ page, scenario }) => {
   await expect(page.getByText("Invitation rescinded.", { exact: true })).toBeVisible();
 });
 
-When("I resend the Activity invitation using both controls", async ({ page, scenario }) => {
+When("I resend the Activity invitation from its row", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
-  for (const control of ["resend", "invite"] as const) {
-    if (control === "invite") await page.getByLabel("Invite username").fill(invitee.username);
-    const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
-    await page
-      .getByTitle(control === "resend" ? `Resend invitation to @${invitee.username}` : "Invite this person to the trip")
-      .click();
-    await response;
-  }
+  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  await page.getByTitle(`Resend invitation to @${invitee.username}`).click();
+  await response;
 });
 
-When("I try an Activity invitation for a missing account", async ({ page, scenario }) => {
-  await page.getByLabel("Invite username").fill(scenario.uniqueUsername("missing"));
+Given("there is another registered user who is deleted before being invited", async ({ scenario }) => {
+  const { user } = await scenario.materialize({
+    user: { overrides: { user: { name: "Vanishing Person", initials: "VP" } }, setCurrent: false },
+  });
+  if (!user) throw new Error("Failed to materialize the vanishing user.");
+  scenario.setValue("vanishingUser", user);
+});
+
+When("I try an Activity invitation for the deleted account", async ({ page, scenario }) => {
+  const vanishing = scenario.getValue<ScenarioUserRecord>("vanishingUser")!;
+  await pickInviteUser(page, vanishing.username);
+  await withE2EDb((database) => database.delete(users).where(eq(users.id, vanishing.id)));
   const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
   await page.getByTitle("Invite this person to the trip").click();
   await response;

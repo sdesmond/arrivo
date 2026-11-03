@@ -46,6 +46,30 @@ Feature: Trip sharing dialog
     And I invite that user to the trip as an editor
     Then I receive an invitation sent toast
     And I see a pending sharing row for the invited user with the editor role
+    And the invited user is no longer offered in the invite picker
+
+  Scenario: Typing a name that matches no registered user offers nothing to invite
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I type "zzz-no-such-user" into the invite picker
+    Then the invite picker offers no match
+    And the Invite control is disabled
+
+  Scenario: Someone who already has access is not offered in the invite picker
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I type the active contributor's username into the invite picker
+    Then the invite picker offers no match
+    And the Invite control is disabled
+
+  Scenario: Escape closes only the invite picker popup
+    Given I have a trip with sharing rows
+    When I go to the current trip
+    And I open the sharing dialog
+    And I press Escape in the invite picker
+    Then the invite picker popup is closed but the sharing dialog stays open
 
   Scenario: A manager resends a pending invitation
     Given I have a trip with sharing rows

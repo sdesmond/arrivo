@@ -179,6 +179,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/admin/users/**",
   ]),
   entry("app-activity", [
+    "tests/e2e/invite-picker.ts",
     "src/lib/trip-activity.ts",
     // Bounds every trip-activity write.
     "src/lib/with-timeout.ts",
@@ -413,6 +414,7 @@ export const FEATURE_MAP = [
   ]),
   entry("packing-lists", ["src/components/arrivo/packing-list*.tsx", "src/components/arrivo/packing-lists-view.tsx"]),
   entry("pending-invitations", [
+    "tests/e2e/invite-picker.ts",
     "src/components/arrivo/pending-invitations-list.tsx",
     "src/components/arrivo/invitation-live-refresh.tsx",
     "src/lib/invitations.ts",
@@ -533,8 +535,10 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mobile-upcoming-tab.tsx",
   ]),
   entry("trip-sharing", [
+    "tests/e2e/invite-picker.ts",
     "src/app/(app)/trips/actions.ts",
     "src/lib/trip-activity.ts",
+    "src/lib/invitable-users.ts",
     "src/lib/with-timeout.ts",
     "src/components/arrivo/trip-share-dialog.tsx",
     "src/components/arrivo/trip-share-*.tsx",
