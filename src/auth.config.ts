@@ -4,17 +4,19 @@ import { isShortSessionExpired, type SessionTokenFields } from "@/lib/session-po
 
 declare module "next-auth" {
   interface Session {
-    user: DefaultSession["user"] & { id?: string; sessionVersion?: number };
+    user: DefaultSession["user"] & { id?: string; sessionVersion?: number; mfaEnrollmentRequired?: boolean };
   }
   interface User {
     sessionVersion?: number;
     deviceId?: string;
     keepSignedIn?: boolean;
+    mfaEnrollmentRequired?: boolean;
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    mfaEnrollmentRequired?: boolean;
     sessionVersion?: SessionTokenFields["sessionVersion"];
     deviceId?: SessionTokenFields["deviceId"];
     keepSignedIn?: SessionTokenFields["keepSignedIn"];
@@ -35,6 +37,7 @@ export const authConfig = {
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       session.user.sessionVersion = token.sessionVersion;
+      session.user.mfaEnrollmentRequired = token.mfaEnrollmentRequired;
       return session;
     },
   },

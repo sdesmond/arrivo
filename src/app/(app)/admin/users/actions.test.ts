@@ -39,6 +39,8 @@ vi.mock("@/lib/password-reset-issuance", () => ({ issuePasswordReset }));
 vi.mock("@/lib/account-deletion", () => ({ previewAccountDeletionAsAdmin, deleteAccountAsAdmin }));
 vi.mock("@/lib/account-deletion-effects", () => ({ runAccountDeletionEffects }));
 vi.mock("@/auth", () => ({ signOut }));
+const mfaMocks = vi.hoisted(() => ({ save: vi.fn() }));
+vi.mock("@/lib/mfa-policy", () => ({ saveMfaPolicy: mfaMocks.save }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/activity", () => ({ recordActivity }));
 vi.mock("next/server", () => ({ after: nextAfter }));
@@ -600,3 +602,32 @@ describe("checkAddedUserAction", () => {
     await expect(checkAddedUserAction("alex.q")).rejects.toThrow("unavailable");
   });
 });
+
+describe("MFA policy save", () => {
+  it("returns safe unavailable result without leaking DB errors", async () => {
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    mfaMocks.save.mockRejectedValue(new Error("private DB detail"));
+    const { saveUserMfaRequirement } = await import("./actions");
+    expect(await saveUserMfaRequirement("target", true, false)).toEqual({ status: "unavailable" });
+  });
+  it("returns committed policy even when cache revalidation fails", async () => {
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    mfaMocks.save.mockResolvedValue({ status: "ok", required: true });
+    revalidatePath.mockImplementation(() => {
+      throw new Error("cache");
+    });
+    const { saveUserMfaRequirement } = await import("./actions");
+    expect(await saveUserMfaRequirement("target", true, false)).toEqual({ status: "ok", required: true });
+  });
+});
+
+it.each([undefined, null, 42, "", "   "])(
+  "rejects invalid per-user MFA target %s without calling service",
+  async (target) => {
+    requireAdmin.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    mfaMocks.save.mockClear();
+    const { saveUserMfaRequirement } = await import("./actions");
+    expect(await saveUserMfaRequirement(target as never, true, false)).toEqual({ status: "invalid" });
+    expect(mfaMocks.save).not.toHaveBeenCalled();
+  }
+);

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   selectWhere: vi.fn(),
+  readMfaPolicy: vi.fn(),
   lockCurrentSecurityVersion: vi.fn(),
   compare: vi.fn(),
   checkThrottle: vi.fn(),
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   recordActivity: vi.fn(),
 }));
 
+vi.mock("./mfa-policy", () => ({ readMfaPolicy: mocks.readMfaPolicy }));
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn(() => ({ from: () => ({ where: mocks.selectWhere }) })),
@@ -58,6 +60,7 @@ const USER = {
 };
 
 beforeEach(() => {
+  mocks.readMfaPolicy.mockResolvedValue({ required: false, enrolled: false, sessionVersion: 2 });
   mocks.lockCurrentSecurityVersion.mockResolvedValue(true);
   mocks.rememberDevice.mockResolvedValue({ token: "device-token", deviceId: "device-9" });
   vi.mocked(cookies).mockResolvedValue({ set: mocks.cookieSet, get: vi.fn(), delete: vi.fn() } as never);
@@ -267,6 +270,7 @@ describe("authorizeCredentials — trusted devices", () => {
   });
 
   it("skips the code on a browser remembered for two-factor", async () => {
+    mocks.readMfaPolicy.mockResolvedValue({ required: true, enrolled: true, sessionVersion: 2 });
     mocks.selectWhere.mockResolvedValue([{ ...USER, mfaEnabledAt: new Date(), totpSecret: "enc" }]);
     mocks.findTrustedDevice.mockResolvedValue({ ...DEVICE, mfaRememberedUntil: new Date(Date.now() + 60_000) });
     await expect(
@@ -291,7 +295,16 @@ describe("authorizeCredentials — two-factor step", () => {
     mocks.checkThrottle.mockResolvedValue({ locked: false });
     mocks.verifyMfaTicket.mockReturnValue({ userId: "user-1", keepSignedIn: true, sessionVersion: 2 });
     mocks.selectWhere.mockResolvedValue([MFA_USER]);
+    mocks.readMfaPolicy.mockResolvedValue({ required: true, enrolled: true, sessionVersion: 2 });
     mocks.verifySecondFactor.mockResolvedValue(true);
+  });
+
+  it("refuses second-factor sign-in before consuming a code when policy is unavailable", async () => {
+    mocks.readMfaPolicy.mockRejectedValue(new Error("policy unavailable"));
+    await expect(authorizeCredentials({ mfaTicket: "ticket", code: "123456" }, request())).rejects.toThrow(
+      "policy unavailable"
+    );
+    expect(mocks.verifySecondFactor).not.toHaveBeenCalled();
   });
 
   it("signs in with a valid ticket and code", async () => {
@@ -486,6 +499,7 @@ describe("authorizeCredentials — rejection events", () => {
 
   it("records a known target for a rejected code", async () => {
     mocks.selectWhere.mockResolvedValue([MFA_USER]);
+    mocks.readMfaPolicy.mockResolvedValue({ required: true, enrolled: true, sessionVersion: 2 });
     await authorizeCredentials({ mfaTicket: "t", code: "000000" }, request());
     expect(failures()).toEqual([KNOWN]);
     expect(signInEvents()).toHaveLength(0);
@@ -510,6 +524,7 @@ describe("authorizeCredentials — rejection events", () => {
   it("does not record a failure when the password is right and a code is requested", async () => {
     mocks.compare.mockResolvedValue(true);
     mocks.selectWhere.mockResolvedValue([MFA_USER]);
+    mocks.readMfaPolicy.mockResolvedValue({ required: true, enrolled: true, sessionVersion: 2 });
     await expect(authorizeCredentials({ username: "alice", password: "pw" }, request())).rejects.toBeInstanceOf(
       MfaRequiredError
     );
@@ -521,5 +536,26 @@ describe("authorizeCredentials — rejection events", () => {
     await authorizeCredentials({ username: "alice", password: "pw" }, request());
     expect(failures()).toHaveLength(0);
     expect(signInEvents()).toHaveLength(1);
+  });
+});
+
+describe("mandatory enrollment at sign-in", () => {
+  beforeEach(() => {
+    mocks.selectWhere.mockResolvedValue([USER]);
+    mocks.compare.mockResolvedValue(true);
+    mocks.checkThrottle.mockResolvedValue({ locked: false });
+    mocks.findTrustedDevice.mockResolvedValue(null);
+  });
+  it("issues server-owned restriction ignoring forged credential", async () => {
+    mocks.readMfaPolicy.mockResolvedValue({ required: true, enrolled: false, sessionVersion: 2 });
+    await expect(
+      authorizeCredentials({ username: "alice", password: "pw", mfaEnrollmentRequired: false }, request())
+    ).resolves.toMatchObject({ mfaEnrollmentRequired: true });
+  });
+  it("refuses changed version and unavailable policy", async () => {
+    mocks.readMfaPolicy.mockResolvedValue({ required: false, enrolled: false, sessionVersion: 3 });
+    await expect(authorizeCredentials({ username: "alice", password: "pw" }, request())).resolves.toBeNull();
+    mocks.readMfaPolicy.mockRejectedValue(new Error("unavailable"));
+    await expect(authorizeCredentials({ username: "alice", password: "pw" }, request())).rejects.toThrow("unavailable");
   });
 });

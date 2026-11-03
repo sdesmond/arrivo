@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { saveMfaPolicy } from "@/lib/mfa-policy";
+import type { MfaPolicySaveResult } from "@/data/types";
 import { db } from "@/db";
 import {
   ActivityEventType,
@@ -178,4 +180,35 @@ export async function changeUserRoleAction(targetUserId: string, role: UserRole)
   }
   // The usernames are for the event only; the client gets the original result shape.
   return { ok: true, userId: outcome.userId, role: outcome.role, changed: outcome.changed };
+}
+
+export async function saveUserMfaRequirement(
+  targetUserId: string,
+  required: unknown,
+  expected: unknown
+): Promise<MfaPolicySaveResult> {
+  const actor = await requireAdmin();
+  if (typeof targetUserId !== "string" || !targetUserId.trim()) return { status: "invalid" };
+  let result: MfaPolicySaveResult;
+  try {
+    result = await saveMfaPolicy(
+      db,
+      { id: actor.id!, sessionVersion: actor.sessionVersion },
+      required,
+      expected,
+      targetUserId
+    );
+  } catch {
+    return { status: "unavailable" };
+  }
+  if (result.status === "ok") {
+    try {
+      revalidatePath("/admin/security");
+      revalidatePath("/admin/users");
+      revalidatePath("/profile");
+    } catch {
+      /* Committed policy remains authoritative. */
+    }
+  }
+  return result;
 }

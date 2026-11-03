@@ -12,9 +12,15 @@ export async function getCurrentUser() {
   return session?.user ?? null;
 }
 
-export async function requireUser() {
+export async function requireEnrollmentUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in");
+  return user;
+}
+
+export async function requireUser() {
+  const user = await requireEnrollmentUser();
+  if (user.mfaEnrollmentRequired) redirect("/mfa-enrollment");
   return user;
 }
 

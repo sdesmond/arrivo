@@ -15,6 +15,7 @@ import {
   signInTargets,
 } from "./auth-throttle";
 import { recordActivity } from "./activity";
+import { readMfaPolicy } from "./mfa-policy";
 import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
@@ -53,6 +54,7 @@ export interface AuthorizedUser {
   deviceId: string;
   // "Keep me signed in"; unticked sessions end 12 hours after sign-in (src/lib/session-policy.ts).
   keepSignedIn: boolean;
+  mfaEnrollmentRequired?: boolean;
 }
 
 // Compared against when the username is unknown, so a miss costs the same bcrypt time as a wrong password.
@@ -184,7 +186,11 @@ async function authorizePassword(username: string, password: string, keepSignedI
   if (user.mfaEnabledAt && !isMfaRemembered(device)) {
     throw new MfaRequiredError(createMfaTicket(user.id, { keepSignedIn, sessionVersion: user.sessionVersion }));
   }
-  return completeSignIn(user, request, { keepSignedIn, rememberMfa: false });
+  const policy = await readMfaPolicy(db, user.id);
+  if (policy.sessionVersion !== user.sessionVersion || policy.enrolled !== !!user.mfaEnabledAt) return null;
+  const result = await completeSignIn(user, request, { keepSignedIn, rememberMfa: false });
+  if (policy.required && !policy.enrolled) result.mfaEnrollmentRequired = true;
+  return result;
 }
 
 async function authorizeSecondFactor(ticket: string, code: string | undefined, rememberMfa: boolean, request: Request) {
@@ -213,6 +219,8 @@ async function authorizeSecondFactor(ticket: string, code: string | undefined, r
       return { user: undefined, accepted: false };
     const [user] = await transaction.select(userColumns).from(users).where(eq(users.id, userId));
     if (!user?.mfaEnabledAt) return { user, accepted: false };
+    const policy = await readMfaPolicy(transaction, userId);
+    if (!policy.enrolled || policy.sessionVersion !== sessionVersion) return { user, accepted: false };
     const accepted = await verifySecondFactor(
       { id: user.id, totpSecret: user.totpSecret, totpLastStep: user.totpLastStep },
       code,

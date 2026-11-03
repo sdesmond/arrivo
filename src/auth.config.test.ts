@@ -41,3 +41,11 @@ describe("authConfig (the proxy's database-free config)", () => {
     expect("adapter" in authConfig).toBe(false);
   });
 });
+
+it("exposes signed enrollment restriction", () => {
+  const session = { user: {}, expires: "" } as SessionArgs["session"];
+  expect(
+    authConfig.callbacks.session({ session, token: { sub: "user", mfaEnrollmentRequired: true } } as SessionArgs).user
+      .mfaEnrollmentRequired
+  ).toBe(true);
+});

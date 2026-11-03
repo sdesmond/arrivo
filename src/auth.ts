@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { authConfig } from "@/auth.config";
 import { authorizeCredentials, type AuthorizedUser } from "@/lib/authorize-credentials";
 import { isTokenRevoked } from "@/lib/session-policy";
+import { readMfaPolicy } from "@/lib/mfa-policy";
 import { getSessionState } from "@/lib/session-version";
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
@@ -22,6 +23,7 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
+        token.mfaEnrollmentRequired = user.mfaEnrollmentRequired;
         token.sessionVersion = user.sessionVersion ?? 0;
         token.deviceId = user.deviceId;
         token.keepSignedIn = user.keepSignedIn ?? true;
@@ -34,8 +36,18 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
       // src/auth.config.ts instead). Drops the token for a deleted user, after a password/two-factor change or
       // "sign out all devices", when its browser was removed, or 12 hours after an unticked "Keep me signed in"
       // (see src/lib/session-policy.ts).
-      const state = await getSessionState(token.sub, token.deviceId);
-      return isTokenRevoked(token, state) ? null : token;
+      try {
+        const state = await getSessionState(token.sub, token.deviceId);
+        if (isTokenRevoked(token, state)) return null;
+        if (token.mfaEnrollmentRequired) {
+          const policy = await readMfaPolicy(db, token.sub);
+          if (policy.sessionVersion !== token.sessionVersion || policy.enrolled) return null;
+          token.mfaEnrollmentRequired = policy.required;
+        }
+        return token;
+      } catch {
+        return null;
+      }
     },
   },
 });

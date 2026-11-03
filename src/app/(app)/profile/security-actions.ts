@@ -1,5 +1,7 @@
 "use server";
 
+import { readMfaPolicy } from "@/lib/mfa-policy";
+import { lockAppAndUsersForUpdate } from "@/lib/account-lifecycle-locks";
 import bcrypt from "bcryptjs";
 import QRCode from "qrcode";
 import { eq, sql } from "drizzle-orm";
@@ -10,7 +12,7 @@ import { signOut } from "@/auth";
 import { db } from "@/db";
 import { credentialAuthorizations, mfaRecoveryCodes, trustedDevices, users } from "@/db/schema";
 import { SignInNotice, type MfaEnrollmentStart, type SecondFactorInput } from "@/data/types";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, requireEnrollmentUser } from "@/lib/auth-helpers";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
 import { decryptField, encryptField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { generateTotpSecret, totpUri, verifyTotp } from "@/lib/mfa";
@@ -34,7 +36,7 @@ const NEEDS_KEY =
   "Two-factor authentication needs DATA_ENCRYPTION_KEY set on the server. Ask whoever runs this Arrivo install.";
 
 export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error: string }> {
-  const session = await requireUser();
+  const session = await requireEnrollmentUser();
   const userId = session.id!;
   if (!isFieldEncryptionConfigured()) return { error: NEEDS_KEY };
 
@@ -42,6 +44,11 @@ export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error
   const outcome = await db.transaction(async (transaction) => {
     if (!(await lockCurrentSecurityVersion(transaction, userId, session.sessionVersion)))
       return { error: EXPIRED_SESSION };
+    try {
+      await readMfaPolicy(transaction, userId);
+    } catch {
+      return { error: "Two-factor policy is unavailable." };
+    }
     const [user] = await transaction
       .select({ mfaEnabledAt: users.mfaEnabledAt, username: users.username })
       .from(users)
@@ -60,7 +67,7 @@ export async function startMfaEnrollment(): Promise<MfaEnrollmentStart | { error
 }
 
 export async function confirmMfaEnrollment(code: string): Promise<RecoveryCodesResult> {
-  const session = await requireUser();
+  const session = await requireEnrollmentUser();
   const userId = session.id!;
   if (!isFieldEncryptionConfigured()) return { error: NEEDS_KEY };
   const throttleTargets = [accountTarget("mfa", userId)];
@@ -71,6 +78,11 @@ export async function confirmMfaEnrollment(code: string): Promise<RecoveryCodesR
   const outcome = await db.transaction(async (transaction): Promise<RecoveryCodesResult> => {
     if (!(await lockCurrentSecurityVersion(transaction, userId, session.sessionVersion)))
       return { error: EXPIRED_SESSION };
+    try {
+      await readMfaPolicy(transaction, userId);
+    } catch {
+      return { error: "Two-factor policy is unavailable." };
+    }
     const [user] = await transaction
       .select({ mfaEnabledAt: users.mfaEnabledAt, totpPendingSecret: users.totpPendingSecret })
       .from(users)
@@ -145,6 +157,16 @@ async function changeMfa(input: SecondFactorInput, disable: boolean): Promise<Re
   const throttle = await checkThrottle(throttleTargets);
   if (throttle.locked) return { error: lockoutMessage(throttle.retryAfterSeconds) };
   const outcome = await db.transaction(async (transaction): Promise<RecoveryCodesResult> => {
+    if (disable) {
+      const scope = await lockAppAndUsersForUpdate(transaction, [userId]);
+      if (!scope.appLocked || !scope.lockedUserIds.has(userId.toLowerCase())) return { error: EXPIRED_SESSION };
+      try {
+        const policy = await readMfaPolicy(transaction, userId);
+        if (policy.required) return { error: "Two-factor authentication is required for your account." };
+      } catch {
+        return { error: "Two-factor policy is unavailable." };
+      }
+    }
     if (!(await lockCurrentSecurityVersion(transaction, userId, session.sessionVersion)))
       return { error: EXPIRED_SESSION };
     const error = await checkPasswordAndCode(transaction, userId, input);

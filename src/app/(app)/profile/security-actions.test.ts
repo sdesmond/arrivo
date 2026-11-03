@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => {
     transaction,
     selectWhere,
     requireUser: vi.fn(),
+    readMfaPolicy: vi.fn(),
+    lockApp: vi.fn(),
     signOut: vi.fn(),
     compare: vi.fn(),
     checkThrottle: vi.fn(),
@@ -53,7 +55,9 @@ vi.mock("@/db/schema", () => ({
   credentialAuthorizations: {},
   trustedDevices: {},
 }));
-vi.mock("@/lib/auth-helpers", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/auth-helpers", () => ({ requireUser: mocks.requireUser, requireEnrollmentUser: mocks.requireUser }));
+vi.mock("@/lib/mfa-policy", () => ({ readMfaPolicy: mocks.readMfaPolicy }));
+vi.mock("@/lib/account-lifecycle-locks", () => ({ lockAppAndUsersForUpdate: mocks.lockApp }));
 vi.mock("@/auth", () => ({ signOut: mocks.signOut }));
 vi.mock("bcryptjs", () => ({ default: { compare: mocks.compare } }));
 vi.mock("qrcode", () => ({ default: { toDataURL: mocks.toDataURL } }));
@@ -101,6 +105,8 @@ function codeFor(secret: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.readMfaPolicy.mockResolvedValue({ required: false });
+  mocks.lockApp.mockResolvedValue({ appLocked: true, lockedUserIds: new Set(["user-1"]) });
   vi.stubEnv("DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
   mocks.requireUser.mockResolvedValue({ id: "user-1", name: "Alice", sessionVersion: 2 });
   mocks.lockCurrentSecurityVersion.mockResolvedValue(true);
@@ -364,4 +370,28 @@ describe("without DATA_ENCRYPTION_KEY", () => {
     await expect(confirmMfaEnrollment("123456")).resolves.toEqual({ error: MFA_NEEDS_KEY });
     expect(mocks.selectWhere).not.toHaveBeenCalled();
   });
+});
+
+it("refuses disabling required MFA before consuming a second factor", async () => {
+  mocks.readMfaPolicy.mockResolvedValue({ required: true });
+  await expect(disableMfa({ password: "pw", code: "123456" })).resolves.toEqual({
+    error: "Two-factor authentication is required for your account.",
+  });
+  expect(mocks.verifySecondFactor).not.toHaveBeenCalled();
+});
+
+it.each(["start", "confirm"])("refuses %s enrollment when policy state cannot be read", async (operation) => {
+  mocks.readMfaPolicy.mockRejectedValue(new Error("missing state"));
+  expect(await (operation === "start" ? startMfaEnrollment() : confirmMfaEnrollment("123456"))).toEqual({
+    error: "Two-factor policy is unavailable.",
+  });
+  expect(mocks.updateSet).not.toHaveBeenCalled();
+});
+
+it("refuses MFA disable when authoritative requirement cannot be read", async () => {
+  mocks.readMfaPolicy.mockRejectedValue(new Error("missing singleton"));
+  await expect(disableMfa({ password: "pw", code: "123456" })).resolves.toEqual({
+    error: "Two-factor policy is unavailable.",
+  });
+  expect(mocks.verifySecondFactor).not.toHaveBeenCalled();
 });

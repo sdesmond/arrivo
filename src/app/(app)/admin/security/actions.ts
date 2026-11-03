@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { saveMfaPolicy } from "@/lib/mfa-policy";
+import type { MfaPolicySaveResult } from "@/data/types";
 import { db } from "@/db";
 import type { PasswordPolicyReadResult, PasswordPolicySaveResult } from "@/data/types";
 import { requireUser } from "@/lib/auth-helpers";
@@ -40,4 +42,24 @@ export async function refreshPasswordPolicy(): Promise<PasswordPolicyReadResult>
   } catch {
     return { status: "unavailable" };
   }
+}
+
+export async function saveMfaPolicySettings(required: unknown, expected: unknown): Promise<MfaPolicySaveResult> {
+  const actor = await requireUser();
+  let result: MfaPolicySaveResult;
+  try {
+    result = await saveMfaPolicy(db, { id: actor.id!, sessionVersion: actor.sessionVersion }, required, expected);
+  } catch {
+    return { status: "unavailable" };
+  }
+  if (result.status === "ok") {
+    try {
+      revalidatePath("/admin/security");
+      revalidatePath("/admin/users");
+      revalidatePath("/profile");
+    } catch {
+      /* Committed policy remains authoritative. */
+    }
+  }
+  return result;
 }
