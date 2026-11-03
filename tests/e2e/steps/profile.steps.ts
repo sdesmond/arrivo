@@ -21,10 +21,6 @@ Then("I should be on the profile page", async ({ page }) => {
   await expect(page).toHaveURL(/\/profile/);
 });
 
-When("I navigate to the Identity section", async ({ page }) => {
-  await page.getByRole("tab", { name: "Identity" }).click();
-});
-
 When("I navigate to the Traveler section", async ({ page }) => {
   await page.getByRole("tab", { name: "Traveler" }).click();
 });
@@ -42,7 +38,7 @@ When("I update my name to {string}", async ({ page }, name: string) => {
   await nameInput.fill(name);
 });
 
-When("I save the Identity section", async ({ page }) => {
+When("I save my Account details", async ({ page }) => {
   await page.getByRole("button", { name: "Save" }).click();
   await page.waitForTimeout(500);
 });
@@ -116,11 +112,11 @@ Then("the walk threshold should show {string}", async ({ page }, threshold: stri
   await expect(page.getByRole("combobox", { name: "Walk if closer than" })).toContainText(threshold);
 });
 
-Then("the Identity section should be active", async ({ page }) => {
-  await expect(page.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
+Then("the Account section should be active", async ({ page }) => {
+  await expect(page.getByRole("tab", { name: "Account" })).toHaveAttribute("aria-selected", "true");
 });
 
-Then("the Identity content should be visible", async ({ page }) => {
+Then("the Account content should be visible", async ({ page }) => {
   await expect(page.locator("#profile-name")).toBeVisible();
 });
 
@@ -128,7 +124,7 @@ Then("the Traveler content should be visible", async ({ page }) => {
   await expect(page.getByText("Loyalty Numbers")).toBeVisible();
 });
 
-Then("the Identity content should not be visible", async ({ page }) => {
+Then("the Account content should not be visible", async ({ page }) => {
   await expect(page.locator("#profile-name")).not.toBeVisible();
 });
 
@@ -236,6 +232,7 @@ Given("I am also signed in on a second device", async ({ page, scenario }) => {
 });
 
 When("I change my password to {string}", async ({ page, scenario }, newPassword: string) => {
+  await page.getByRole("button", { name: "Change password" }).click();
   await page.getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
   await page.getByLabel("Confirm new password").fill(newPassword);

@@ -70,7 +70,8 @@ export default defineConfig<PlaywrightTestOptions, E2EWorkerOptions>({
     { name: "setup", testMatch: /.*\.setup\.ts/, testDir: "tests/e2e" },
     // Scenario-fixture self-tests. They hit the live arrivo_e2e DB directly (no browser/auth) and
     // run here instead of as a second Vitest process so only one Vitest runs under the validator.
-    { name: "fixtures", testMatch: /scenario-fixture\.spec\.ts/, testDir: "tests/e2e" },
+    // The password-policy fixture spec creates and drops its own sibling databases instead.
+    { name: "fixtures", testMatch: /(scenario|security-policy)-fixture\.spec\.ts/, testDir: "tests/e2e" },
     {
       name: "chromium",
       testIgnore: bootstrapFeature,

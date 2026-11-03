@@ -97,7 +97,7 @@ Then("the Activity table lists a Sign-in row for that deleted member", async ({ 
 });
 
 // ── Authentication and account events ─────────────────────────────────────────────────────────────────────────
-// Also uses "I sign out" (auth.steps.ts), "I sign in with my password" (mfa.steps.ts), "I navigate to the Identity
+// Also uses "I sign out" (auth.steps.ts), "I sign in with my password" (mfa.steps.ts), "I navigate to the Account
 // section" and "I change my username to a new one and save" (profile.steps.ts), "another completed app member
 // exists" and "I promote the other app member" (app-users.steps.ts).
 
@@ -297,6 +297,7 @@ Then("the Activity table lists a Changed username row for my original username",
 
 When("I change my password", async ({ page, scenario }) => {
   await page.getByRole("tab", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Change password" }).click();
   await page.locator("#pw-current").fill(process.env.E2E_PASSWORD!);
   await page.locator("#pw-new").fill(NEW_PASSWORD);
   await page.locator("#pw-confirm").fill(NEW_PASSWORD);

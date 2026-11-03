@@ -10,7 +10,7 @@ Feature: Reset, recovery and deletion together retire a member's access without 
     When I request app management at "/admin/users"
     And I generate a password reset link for the other member
     And I open the generated password reset link as a recipient
-    And I complete the password reset with "replacement-password-1"
+    And I complete the password reset with "replacement-pass-1"
     Then the live member session reaches sign-in
     And the trusted device and recovery authorization are revoked
     And the other member's authenticator is still enrolled
@@ -29,7 +29,7 @@ Feature: Reset, recovery and deletion together retire a member's access without 
     When the operator issues a recovery link for the other member
     And I open the recovery link as the recipient
     Then the recovery form shows a new authenticator key
-    When I complete recovery with password "replacement-password-1" and the correct authenticator code
+    When I complete recovery with password "replacement-pass-1" and the correct authenticator code
     Then I see ten recovery codes once
     And the live member session reaches sign-in
     And the reset link page is unavailable

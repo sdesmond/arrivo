@@ -8,14 +8,14 @@ Feature: User profile page
 
   Scenario: Update display name
     Given I am on the profile page
-    When I navigate to the Identity section
+    When I navigate to the Account section
     And I update my name to "E2E Profile User"
-    And I save the Identity section
+    And I save my Account details
     Then my name "E2E Profile User" should appear in the sidebar
 
   Scenario: Change username and sign in with the new one
     Given I am on the profile page
-    When I navigate to the Identity section
+    When I navigate to the Account section
     And I change my username to a new one and save
     Then the sidebar should show my new username
     When I sign out
@@ -28,16 +28,16 @@ Feature: User profile page
     And I save the Preferences section
     Then the currency preference should persist after reload
 
-  Scenario: Identity section is shown by default
+  Scenario: Account section is shown by default
     Given I am on the profile page
-    Then the Identity section should be active
-    And the Identity content should be visible
+    Then the Account section should be active
+    And the Account content should be visible
 
   Scenario: Switching to Traveler section shows loyalty, passport, and wishlist
     Given I am on the profile page
     When I navigate to the Traveler section
     Then the Traveler content should be visible
-    And the Identity content should not be visible
+    And the Account content should not be visible
 
   Scenario: Getting Around preference persists across reload
     Given I am on the profile page
@@ -63,17 +63,17 @@ Feature: User profile page
 
   Scenario: Dirty-state warning appears when navigating away with unsaved changes
     Given I am on the profile page
-    When I navigate to the Identity section
+    When I navigate to the Account section
     And I type in the name field
     And I accept the unsaved-changes dialog when switching to the Preferences section
     Then I should be on the Preferences section
 
   Scenario: No dirty-state warning after discarding changes and returning to section
     Given I am on the profile page
-    When I navigate to the Identity section
+    When I navigate to the Account section
     And I type in the name field
     And I accept the unsaved-changes dialog when switching to the Traveler section
-    And I navigate to the Identity section
+    And I navigate to the Account section
     Then switching to the Traveler section should not show a warning
 
   Scenario: Loyalty number copy button changes to check icon after click
