@@ -145,7 +145,8 @@ export function validateNewPassword(
 
 /** The form field a `validateNewPassword` error belongs to. */
 export function failedPasswordField(password: string, policy: PasswordPolicy): "password" | "confirmPassword" {
-  return validatePasswordAgainstPolicy(password, policy) ? "password" : "confirmPassword";
+  if (validatePasswordAgainstPolicy(password, policy)) return "password";
+  return "confirmPassword";
 }
 
 export type PasswordPolicyValidation =
