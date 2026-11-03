@@ -114,7 +114,7 @@ Then("I see the Overview app management shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Manage app" })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "App sections" });
   await expect(navigation.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("link")).toHaveCount(3);
+  await expect(navigation.getByRole("link")).toHaveText(["Overview", "Users", "Activity", "Security"]);
 });
 
 Then("I see the Users-only app management shell", async ({ page }) => {
@@ -123,7 +123,7 @@ Then("I see the Users-only app management shell", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Users", exact: true })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "App sections" });
   await expect(navigation.getByRole("link", { name: "Users" })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("link")).toHaveCount(3);
+  await expect(navigation.getByRole("link")).toHaveText(["Overview", "Users", "Activity", "Security"]);
   await expect(navigation.getByRole("link", { name: "Activity" })).not.toHaveAttribute("aria-current", "page");
 });
 
