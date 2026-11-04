@@ -32,11 +32,13 @@ describe("RegenerateSetupLinkDialog", () => {
     const user = userEvent.setup();
     screen.getByRole("button", { name: "Generate new link: pending" }).focus();
     await user.keyboard("{Enter}");
+    // The popup mounts after a transition; callers query inside it, so wait for it here.
+    await screen.findByRole("dialog");
     return user;
   }
   async function submit() {
     const user = await open();
-    await user.click(screen.getByRole("button", { name: "Generate new link" }));
+    await user.click(await screen.findByRole("button", { name: "Generate new link" }));
     return user;
   }
   it("opens by keyboard without issuing, and Escape returns focus", async () => {
@@ -99,10 +101,10 @@ describe("RegenerateSetupLinkDialog", () => {
     await screen.findByRole("button", { name: "Check again" });
     expect(check).toHaveBeenCalledWith("target");
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: "Generate new link: pending" }));
+    await user.click(await screen.findByRole("button", { name: "Generate new link: pending" }));
     expect(screen.queryByRole("button", { name: "Generate new link" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByRole("button", { name: "Generate replacement link" })).toBeEnabled();
+    await user.click(await screen.findByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Generate replacement link" })).toBeEnabled());
     expect(generate).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "Generate replacement link" }));
     await screen.findByRole("heading", { name: "New setup link ready" });

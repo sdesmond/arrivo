@@ -59,6 +59,7 @@ async function openSetup() {
   await user.click(screen.getByRole("button", { name: "Set up two-factor authentication" }));
   // startMfaEnrollment resolves inside a transition; wait for the dialog rather than racing it.
   await screen.findByRole("dialog");
+  await screen.findByRole("button", { name: "Turn on" });
   return { user, onEnrolled };
 }
 
