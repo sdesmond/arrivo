@@ -40,7 +40,7 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
     notes: { position: "notes.position" },
     itineraryChecklists: {},
     checklistItems: {},
-    users: { id: "users.id", username: "users.username" },
+    users: { id: "users.id", username: "users.username", image: "users.image" },
     userLoyaltyNumbers: {},
     userWishlistDestinations: {},
     userCompanions: {},
@@ -635,6 +635,12 @@ describe("getTripDetail", () => {
 
     const result = await getTripDetail("trip-1", "user-1");
 
+    // Collaborator photos reach trip cards and the share dialog only through this column.
+    expect(
+      mockDbSelect.mock.calls.some(
+        ([columns]) => columns?.username === "users.username" && columns?.image === "users.image"
+      )
+    ).toBe(true);
     expect(reservationDocOrderBy).toHaveBeenCalledTimes(1);
     expect(reservationDocOrderBy.mock.calls[0]).toHaveLength(2);
     expect(result?.reservations[0]?.documents).toEqual([

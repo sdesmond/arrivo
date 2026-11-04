@@ -2,6 +2,7 @@
 
 import type { ReactElement } from "react";
 import { Lock, Trash2 } from "lucide-react";
+import { ProfileAvatar } from "@/components/arrivo/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CollaboratorRole, type Collaborator, type CollaboratorRole as CollaboratorRoleValue } from "@/data/types";
@@ -45,20 +46,17 @@ export function TripShareCollaboratorRow({
       className="flex items-center gap-2"
       style={{ padding: "6px 8px", borderRadius: 8, background: "var(--surface-2)" }}
     >
-      <span
-        className="flex shrink-0 items-center justify-center rounded-full"
-        style={{
-          width: 28,
-          height: 28,
-          fontSize: "calc(10px * var(--font-scale))",
-          fontWeight: 700,
-          letterSpacing: "0.04em",
-          background: collaborator.tint?.bg ?? "var(--accent-soft)",
+      <ProfileAvatar
+        image={collaborator.image}
+        initials={collaborator.initials}
+        size={28}
+        tint={{
+          bg: collaborator.tint?.bg ?? "var(--accent-soft)",
           color: collaborator.tint?.fg ?? "var(--accent-ink)",
         }}
-      >
-        {collaborator.initials}
-      </span>
+        fontSize="calc(10px * var(--font-scale))"
+        style={{ fontWeight: 700, letterSpacing: "0.04em" }}
+      />
       <div className="min-w-0 flex-1">
         <div
           className="flex items-center gap-1.5"

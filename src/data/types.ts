@@ -523,6 +523,8 @@ export interface UserProfile {
   id: string;
   name: string | null;
   username: string;
+  // Stored profile photo URL; null shows initials.
+  image?: string | null;
   dateFormat: string | null;
   currency: string | null;
   distanceUnit: string | null;
@@ -875,6 +877,8 @@ export interface Collaborator {
   name: string;
   // Absent once the collaborator's account was deleted.
   username?: string;
+  // The account's profile photo; absent without one or once the account was deleted.
+  image?: string;
   initials: string;
   role: CollaboratorRole;
   isCreator?: boolean;

@@ -245,6 +245,27 @@ describe("NowCard", () => {
     expect(screen.getByLabelText("Alice Smith, Bob Jones")).toBeInTheDocument();
   });
 
+  it("shows a collaborator's photo in the avatar stack, initials for the rest", () => {
+    const tripWithCollaborators: Trip = {
+      ...activeTrip,
+      collaborators: [
+        {
+          name: "Alice Smith",
+          initials: "AS",
+          username: "alice",
+          role: "editor",
+          image: "/api/storage/user-avatars/a/p.webp",
+        },
+        { name: "Bob Jones", initials: "BJ", username: "bob", role: "viewer" },
+      ],
+    };
+    render(<NowCard trip={tripWithCollaborators} todayEvents={[]} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
+    const stack = screen.getByLabelText("Alice Smith, Bob Jones");
+    expect(stack.querySelector("img")).toHaveAttribute("src", "/api/storage/user-avatars/a/p.webp");
+    expect(screen.queryByText("AS")).not.toBeInTheDocument();
+    expect(screen.getByText("BJ")).toBeInTheDocument();
+  });
+
   it("renders current event when todayEvents has a past event", () => {
     render(
       <NowCard

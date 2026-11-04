@@ -13,6 +13,26 @@ Feature: User profile page
     And I save my Account details
     Then my name "E2E Profile User" should appear in the sidebar
 
+  Scenario: Upload a profile photo
+    Given I am on the profile page
+    When I navigate to the Account section
+    And I upload a profile photo
+    Then my profile photo should be shown on the profile page
+    And the sidebar should show my profile photo
+    And hovering my profile photo should reveal its "Replace photo" control
+    When I reload the page
+    Then the sidebar should show my profile photo
+
+  Scenario: Remove a profile photo
+    Given I am on the profile page
+    When I navigate to the Account section
+    And I upload a profile photo
+    And I remove my profile photo
+    Then my initials should be shown instead of a profile photo
+    And the removed profile photo file should no longer be served
+    When I reload the page
+    Then the sidebar should not show a profile photo
+
   Scenario: Change username and sign in with the new one
     Given I am on the profile page
     When I navigate to the Account section

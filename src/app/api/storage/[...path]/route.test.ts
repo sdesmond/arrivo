@@ -68,6 +68,7 @@ describe("GET /api/storage/[...path]", () => {
     expect(response.headers.get("Content-Type")).toBe("image/jpeg");
     expect(response.headers.get("Content-Disposition")).toBe("inline");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(response.headers.get("Cache-Control")).toBeNull();
     expect(response.body).toBe(stream);
   });
 
@@ -127,6 +128,61 @@ describe("GET /api/storage/[...path]", () => {
     expect(assertTripAccess).not.toHaveBeenCalled();
   });
 
+  it("serves a user-avatar key to any signed-in user without a trip check", async () => {
+    const stream = makeStream();
+    const read = vi.fn().mockResolvedValue(stream);
+    getStorageAdapter.mockReturnValue({ read });
+
+    const response = await GET(
+      new Request("http://localhost/api/storage/user-avatars/user-2/uuid.webp") as never,
+      makeParams(["user-avatars", "user-2", "uuid.webp"])
+    );
+
+    expect(requireUser).toHaveBeenCalled();
+    expect(resolveOwningTripId).not.toHaveBeenCalled();
+    expect(assertTripAccess).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledWith("user-avatars/user-2/uuid.webp");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/webp");
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");
+  });
+
+  it("denies a user-avatar key when there is no session", async () => {
+    const redirectSignal = new Error("NEXT_REDIRECT");
+    requireUser.mockRejectedValue(redirectSignal);
+
+    await expect(
+      GET(
+        new Request("http://localhost/api/storage/user-avatars/user-2/uuid.webp") as never,
+        makeParams(["user-avatars", "user-2", "uuid.webp"])
+      )
+    ).rejects.toBe(redirectSignal);
+
+    expect(getStorageAdapter).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a malformed user-avatar key", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/storage/user-avatars/a/b/uuid.webp") as never,
+      makeParams(["user-avatars", "a", "b", "uuid.webp"])
+    );
+
+    expect(response.status).toBe(400);
+    expect(getStorageAdapter).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when a user-avatar file is missing", async () => {
+    const read = vi.fn().mockRejectedValue(new StorageNotFoundError("user-avatars/user-2/gone.webp"));
+    getStorageAdapter.mockReturnValue({ read });
+
+    const response = await GET(
+      new Request("http://localhost/api/storage/user-avatars/user-2/gone.webp") as never,
+      makeParams(["user-avatars", "user-2", "gone.webp"])
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("propagates unexpected resolver errors as 500", async () => {
     resolveOwningTripId.mockRejectedValue(new Error("Event not found"));
 
@@ -136,6 +192,20 @@ describe("GET /api/storage/[...path]", () => {
         makeParams(["event-documents", "event-1", "uuid.jpg"])
       )
     ).rejects.toThrow("Event not found");
+  });
+
+  it("returns 404 when the missing-file error comes from another module instance", async () => {
+    const foreign = new Error("trip-documents/trip-1/missing.pdf");
+    foreign.name = "StorageNotFoundError";
+    const read = vi.fn().mockRejectedValue(foreign);
+    getStorageAdapter.mockReturnValue({ read });
+
+    const response = await GET(
+      new Request("http://localhost/api/storage/trip-documents/trip-1/missing.pdf") as never,
+      makeParams(["trip-documents", "trip-1", "missing.pdf"])
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it("returns 400 when the file extension is unsupported", async () => {

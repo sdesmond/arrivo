@@ -111,7 +111,7 @@ export async function getSharedOwnedTrips(userId: string): Promise<AccountDeleti
 
 function selectCollaboratorsWithUsername() {
   return db
-    .select({ ...getTableColumns(collaborators), username: users.username })
+    .select({ ...getTableColumns(collaborators), username: users.username, image: users.image })
     .from(collaborators)
     .leftJoin(users, eq(collaborators.userId, users.id));
 }
@@ -122,6 +122,7 @@ export async function getUserById(id: string): Promise<UserProfile | null> {
       id: users.id,
       name: users.name,
       username: users.username,
+      image: users.image,
       dateFormat: users.dateFormat,
       currency: users.currency,
       distanceUnit: users.distanceUnit,

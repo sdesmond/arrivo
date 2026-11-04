@@ -23,7 +23,13 @@ const dialect = new PgDialect();
 const ME = "user-1";
 
 interface Fixture {
-  deleter?: { username?: string; role: string; passwordHash: string | null; sessionVersion?: number };
+  deleter?: {
+    username?: string;
+    role: string;
+    passwordHash: string | null;
+    sessionVersion?: number;
+    image?: string | null;
+  };
   peerAdmin?: boolean;
   appMissing?: boolean;
   userMissing?: boolean;
@@ -41,7 +47,14 @@ interface Fixture {
   rescindedInvitations?: { inviteeId: string; tripId: string }[];
   departedMemberships?: { tripId: string }[];
   /** Admin flow: rows the user lookup returns (actor and target). */
-  accounts?: { id: string; username: string; role: string; passwordHash: string | null; sessionVersion: number }[];
+  accounts?: {
+    id: string;
+    username: string;
+    role: string;
+    passwordHash: string | null;
+    sessionVersion: number;
+    image?: string | null;
+  }[];
   /** Admin flow: successive member reads; the last one repeats. */
   memberReads?: NonNullable<Fixture["members"]>[];
   missingUserIds?: string[];
@@ -970,5 +983,55 @@ describe("deleteOwnAccount locked authority", () => {
       reason: AccountDeletionFailure.Stale,
     });
     expect(writes).toEqual([]);
+  });
+});
+
+describe("account deletion — profile photo cleanup", () => {
+  const AVATAR_URL = "/api/storage/user-avatars/user-1/photo.webp";
+
+  beforeEach(() => {
+    process.env.AUTH_SECRET = "test-secret";
+  });
+  afterEach(() => {
+    delete process.env.AUTH_SECRET;
+  });
+
+  it("reports the user's own avatar for file cleanup after self-delete", async () => {
+    const { database } = createDatabase({
+      deleter: { role: UserRole.Member, passwordHash: "hash", image: AVATAR_URL },
+      ownedTrips: [SOLO_TRIP],
+      members: [{ ...SHARED_TRIP_MEMBERS[0], tripId: SOLO_TRIP.id }],
+    });
+
+    const result = await deleteOwnAccount(database, ME, [], 0);
+
+    expect(result).toMatchObject({
+      ok: true,
+      summary: { storageUrls: [SOLO_TRIP.coverImageUrl, AVATAR_URL] },
+    });
+  });
+
+  it("omits the avatar when the user has none", async () => {
+    const { database } = createDatabase({ deleter: { role: UserRole.Member, passwordHash: "hash", image: null } });
+
+    await expect(deleteOwnAccount(database, ME, [], 0)).resolves.toMatchObject({
+      ok: true,
+      summary: { storageUrls: [] },
+    });
+  });
+
+  it("reports the deleted account's avatar after admin deletion", async () => {
+    const fixture = adminFixture({
+      accounts: [adminAccount, { ...completedTarget, image: AVATAR_URL }],
+      ownedTrips: [],
+      members: [],
+    });
+    const { fingerprint } = await previewOf(fixture);
+    const { database } = createDatabase(fixture);
+
+    await expect(deleteAccountAsAdmin(database, ACTOR, TARGET_ID, fingerprint)).resolves.toMatchObject({
+      ok: true,
+      summary: { storageUrls: [AVATAR_URL] },
+    });
   });
 });

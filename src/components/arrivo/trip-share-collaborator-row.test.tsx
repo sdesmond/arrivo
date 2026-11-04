@@ -38,6 +38,28 @@ describe("TripShareCollaboratorRow", () => {
     expect(screen.getByText("@grace")).toBeInTheDocument();
   });
 
+  it("shows the collaborator's profile photo in place of initials", () => {
+    const { container } = render(
+      <TripShareCollaboratorRow
+        collaborator={{ ...editor, image: "/api/storage/user-avatars/grace/p.webp" }}
+        roleLabel={roleLabel}
+      />
+    );
+
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/storage/user-avatars/grace/p.webp");
+    expect(screen.queryByText("GH")).not.toBeInTheDocument();
+    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
+  });
+
+  it("shows initials for a collaborator without a photo or whose account is gone", () => {
+    const { container } = render(
+      <TripShareCollaboratorRow collaborator={{ ...editor, username: undefined }} roleLabel={roleLabel} />
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("GH")).toBeInTheDocument();
+  });
+
   it("omits the username line when the account is gone", () => {
     render(<TripShareCollaboratorRow collaborator={{ ...editor, username: undefined }} roleLabel={roleLabel} />);
 

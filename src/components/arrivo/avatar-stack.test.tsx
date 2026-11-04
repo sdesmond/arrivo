@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { AvatarStack } from "./avatar-stack";
 
 describe("AvatarStack", () => {
@@ -44,5 +44,42 @@ describe("AvatarStack", () => {
     render(<AvatarStack initials={["AB"]} size="md" />);
     const container = screen.getByLabelText("AB");
     expect(container).toBeInTheDocument();
+  });
+
+  it("shows a member's photo instead of initials, others keep initials", () => {
+    const { container } = render(
+      <AvatarStack initials={["AB", "CD"]} images={["/api/storage/user-avatars/u1/a.webp", null]} />
+    );
+
+    const photos = container.querySelectorAll("img");
+    expect(photos).toHaveLength(1);
+    expect(photos[0]).toHaveAttribute("src", "/api/storage/user-avatars/u1/a.webp");
+    expect(photos[0]).toHaveAttribute("alt", "");
+    expect(screen.queryByText("AB")).not.toBeInTheDocument();
+    expect(screen.getByText("CD")).toBeInTheDocument();
+  });
+
+  it("falls back to initials when a member's photo fails to load", () => {
+    const { container } = render(<AvatarStack initials={["AB"]} images={["/api/storage/user-avatars/u1/a.webp"]} />);
+
+    fireEvent.error(container.querySelector("img")!);
+
+    expect(screen.getByText("AB")).toBeInTheDocument();
+  });
+
+  it("keeps the aria-label as the names even when photos show", () => {
+    render(
+      <AvatarStack initials={["AB", "CD"]} images={["/api/storage/user-avatars/u1/a.webp"]} aria-label="Ann, Cy" />
+    );
+    expect(screen.getByLabelText("Ann, Cy")).toBeInTheDocument();
+  });
+
+  it("only uses photos for the visible members and still counts the overflow", () => {
+    const { container } = render(
+      <AvatarStack initials={["AB", "CD", "EF"]} images={[null, null, "/api/storage/user-avatars/u3/a.webp"]} max={2} />
+    );
+
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(screen.getByText("+1")).toBeInTheDocument();
   });
 });

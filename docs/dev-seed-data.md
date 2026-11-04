@@ -32,6 +32,8 @@ All five share the password `demo1234`.
 | `jordan` | Jordan Lee  | USD, owns no trips                                                                                                             | Has already declined an invitation — the share dialog's Declined row                                       |
 | `admin`  | Admin User  | USD, `MM/DD/YYYY`, app role `admin`, owns no trips                                                                             | The app administrator — exercises admin-only surfaces; every other seed account is a `member`              |
 
+Three accounts also get a profile photo — `demo`, `alex` and `sam` — while `jordan` and `admin` keep their initials, so both states show in the sidebar, trip cards and the share dialog. The photos are small AI-generated portraits embedded in `src/db/seed-data/avatars.ts` as 256×256 WebP (base64, because ESLint blocks `fs` in `src/**`). `db:seed` writes them through the storage adapter under `user-avatars/<userId>/` and sets `users.image`; on a re-run it deletes the previous seed avatars first. If `STORAGE_PROVIDER` / `STORAGE_LOCAL_ROOT_DIR` are not set, the seed prints a warning and skips the photos.
+
 Seeding also marks the app initialized (`app_state.initialized_at`, kept if already set), so public sign-up is
 closed afterward and the first-account-becomes-admin bootstrap can't create a second admin.
 

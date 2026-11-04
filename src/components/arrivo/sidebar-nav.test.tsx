@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { UserProfile } from "@/data/types";
 
 vi.mock("next-themes", () => ({
@@ -89,6 +89,20 @@ describe("SidebarNav", () => {
 
   it("derives initials from name", () => {
     render(<SidebarNav user={baseUser} />);
+    expect(screen.getByText("JD")).toBeInTheDocument();
+  });
+
+  it("shows the user's profile photo instead of initials", () => {
+    render(<SidebarNav user={{ ...baseUser, image: "/api/storage/user-avatars/user-1/p.webp" }} />);
+    const trigger = screen.getByRole("button", { name: "Account menu" });
+    expect(trigger.querySelector("img")).toHaveAttribute("src", "/api/storage/user-avatars/user-1/p.webp");
+    expect(screen.queryByText("JD")).not.toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Jane Doe");
+  });
+
+  it("falls back to initials when the profile photo fails to load", () => {
+    render(<SidebarNav user={{ ...baseUser, image: "/api/storage/user-avatars/user-1/p.webp" }} />);
+    fireEvent.error(screen.getByRole("button", { name: "Account menu" }).querySelector("img")!);
     expect(screen.getByText("JD")).toBeInTheDocument();
   });
 

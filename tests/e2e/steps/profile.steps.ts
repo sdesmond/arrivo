@@ -491,3 +491,80 @@ Then("my shared trip should no longer exist", async ({ scenario }) => {
   const remaining = await withE2EDb((db) => db.select({ id: trips.id }).from(trips).where(eq(trips.id, tripId)));
   expect(remaining).toEqual([]);
 });
+
+// A valid 1x1 PNG; the server re-encodes it to a 256x256 WebP.
+const AVATAR_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const AVATAR_URL_KEY = "avatarUrl";
+const AVATAR_URL_PREFIX = "/api/storage/user-avatars/";
+
+function sidebarAvatar(page: Page) {
+  return page.getByRole("button", { name: "Account menu", exact: true }).locator("img");
+}
+
+function profileAvatar(page: Page) {
+  return page.getByRole("tabpanel", { name: "Account" }).locator('[data-slot="profile-avatar"] img');
+}
+
+When("I upload a profile photo", async ({ page, scenario }) => {
+  const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(AVATAR_PNG_BASE64, "base64"),
+  });
+  await saved;
+  await expect(profileAvatar(page)).toHaveAttribute("src", new RegExp(`^${AVATAR_URL_PREFIX}`));
+  scenario.setValue(AVATAR_URL_KEY, await profileAvatar(page).getAttribute("src"));
+});
+
+When("I remove my profile photo", async ({ page }) => {
+  const removed = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await page.getByRole("button", { name: "Remove photo" }).click();
+  await removed;
+});
+
+Then("my profile photo should be shown on the profile page", async ({ page }) => {
+  const photo = profileAvatar(page);
+  await expect(photo).toBeVisible();
+  // The auth-gated storage route must serve the re-encoded 256x256 WebP.
+  await expect
+    .poll(() => photo.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth === 256))
+    .toBe(true);
+});
+
+Then("hovering my profile photo should reveal its {string} control", async ({ page }, label: string) => {
+  const control = page.getByRole("button", { name: label, exact: true });
+  await page.mouse.move(0, 0);
+  await expect(control).toHaveCSS("opacity", "0");
+  await control.hover();
+  await expect(control).toHaveCSS("opacity", "1");
+  // Part of the picture itself: the control sits inside the photo's bounds and is at least 44px.
+  const photoBox = (await profileAvatar(page).boundingBox())!;
+  const controlBox = (await control.boundingBox())!;
+  expect(controlBox.width).toBeGreaterThanOrEqual(44);
+  expect(controlBox.height).toBeGreaterThanOrEqual(44);
+  expect(controlBox.x).toBeGreaterThanOrEqual(photoBox.x - 1);
+  expect(controlBox.x + controlBox.width).toBeLessThanOrEqual(photoBox.x + photoBox.width + 1);
+});
+
+Then("the sidebar should show my profile photo", async ({ page }) => {
+  await expect(sidebarAvatar(page)).toHaveAttribute("src", new RegExp(`^${AVATAR_URL_PREFIX}`));
+});
+
+Then("the sidebar should not show a profile photo", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Account menu", exact: true })).toBeVisible();
+  await expect(sidebarAvatar(page)).toHaveCount(0);
+});
+
+Then("my initials should be shown instead of a profile photo", async ({ page }) => {
+  await expect(profileAvatar(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Upload photo" })).toBeVisible();
+  await expect(sidebarAvatar(page)).toHaveCount(0);
+});
+
+Then("the removed profile photo file should no longer be served", async ({ page, scenario }) => {
+  const url = scenario.getValue<string>(AVATAR_URL_KEY)!;
+  const response = await page.request.get(url);
+  expect(response.status()).toBe(404);
+});

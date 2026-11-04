@@ -151,8 +151,9 @@ describe("ChangePasswordDialog", () => {
     render(<Host />);
     await fill(user, "currentpw", "abcdefgh");
     await user.click(screen.getByRole("button", { name: "Update password" }));
+    // The action settles asynchronously; wait for the cleared state rather than asserting mid-flight.
+    await waitFor(() => expect(screen.getByLabelText("New password")).toHaveValue(""));
     expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("New password")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Update password" })).toBeDisabled();
   });
 

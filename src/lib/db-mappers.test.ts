@@ -536,6 +536,14 @@ describe("dbCollabToType", () => {
     expect(dbCollabToType(BASE_COLLAB).username).toBeUndefined();
   });
 
+  it("carries the account's photo and leaves it undefined without one", () => {
+    expect(dbCollabToType({ ...BASE_COLLAB, image: "/api/storage/user-avatars/u1/a.webp" }).image).toBe(
+      "/api/storage/user-avatars/u1/a.webp"
+    );
+    expect(dbCollabToType({ ...BASE_COLLAB, image: null }).image).toBeUndefined();
+    expect(dbCollabToType(BASE_COLLAB).image).toBeUndefined();
+  });
+
   it("null tint fields become undefined", () => {
     const result = dbCollabToType(BASE_COLLAB);
     expect(result.tintBg).toBeUndefined();
@@ -790,6 +798,13 @@ describe("dbUserToType", () => {
     expect(result.passportExpiry).toBeNull();
     expect(result.passportNationality).toBeNull();
     expect(result.knownTravelerNumber).toBeNull();
+  });
+
+  it("maps the profile photo, null when unset", () => {
+    expect(dbUserToType(BASE_USER).image).toBeNull();
+    expect(dbUserToType({ ...BASE_USER, image: "/api/storage/user-avatars/user-1/a.webp" }).image).toBe(
+      "/api/storage/user-avatars/user-1/a.webp"
+    );
   });
 
   it("decrypts encrypted passport and known traveler numbers", () => {

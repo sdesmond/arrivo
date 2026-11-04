@@ -1,13 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { Camera } from "lucide-react";
+import type { ChangeEvent } from "react";
 import { Section, Field } from "@/components/arrivo/form-section";
+import { ProfileAvatar } from "@/components/arrivo/profile-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
+import { removeAvatar, uploadAvatar } from "./avatar-actions";
 import type { UserProfile } from "@/data/types";
 import { normalizeUsername, validateUsername } from "@/lib/username";
+import {
+  assertValidAvatarUpload,
+  AVATAR_UPLOAD_ACCEPT,
+  AVATAR_UPLOAD_HINT,
+  AVATAR_UPLOAD_REJECTED_MESSAGE,
+} from "@/lib/upload-policy";
+
+// Diameter of the profile photo, in px.
+const PHOTO_SIZE = 144;
 
 interface ProfileIdentitySectionProps {
   user: UserProfile;
@@ -27,6 +40,11 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
   const [name, setName] = useState(user.name ?? "");
   const [username, setUsername] = useState(user.username);
   const [isPending, startTransition] = useTransition();
+  const [image, setImage] = useState<string | null>(user.image ?? null);
+  const [photoOperation, setPhotoOperation] = useState<"upload" | "remove" | null>(null);
+  const [isPhotoPending, startPhotoTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const initials = getInitials({ ...user, name: name || null });
 
   const isNameDirty = name !== (user.name ?? "");
@@ -60,24 +78,142 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
 
   const isDirty = isNameDirty || isUsernameDirty;
 
+  function handleChoosePhoto() {
+    if (isPhotoPending) return;
+    fileInputRef.current?.click();
+  }
+
+  function handlePhotoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
+    // Reset so choosing the same file again still fires a change event.
+    input.value = "";
+    if (!file || isPhotoPending) return;
+
+    try {
+      assertValidAvatarUpload(file);
+    } catch {
+      toast.error(AVATAR_UPLOAD_REJECTED_MESSAGE);
+      return;
+    }
+
+    setPhotoOperation("upload");
+    startPhotoTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("file", file);
+        const result = await uploadAvatar(formData);
+        if (result.ok) {
+          setImage(result.image);
+        } else {
+          toast.error(result.error);
+        }
+      } catch {
+        toast.error("Couldn't update your photo. Try again.");
+      } finally {
+        setPhotoOperation(null);
+      }
+    });
+  }
+
+  function handleRemovePhoto() {
+    if (isPhotoPending) return;
+    setPhotoOperation("remove");
+    startPhotoTransition(async () => {
+      try {
+        const result = await removeAvatar();
+        if (result.ok) {
+          setImage(result.image);
+          // The Remove button is about to unmount; keep keyboard focus inside the section.
+          uploadButtonRef.current?.focus();
+        } else {
+          toast.error(result.error);
+        }
+      } catch {
+        toast.error("Couldn't remove your photo. Try again.");
+      } finally {
+        setPhotoOperation(null);
+      }
+    });
+  }
+
   return (
     <Section>
-      <div className="flex items-center gap-4 mb-1">
-        <div
-          className="shrink-0 rounded-full flex items-center justify-center font-semibold"
-          style={{
-            width: 56,
-            height: 56,
-            background: "var(--surface-2)",
-            color: "var(--fg)",
-            fontFamily: "var(--font-body, ui-sans-serif)",
-            fontSize: "calc(20px * var(--font-scale))",
-          }}
-        >
-          {initials}
+      <div className="flex flex-col items-center gap-2 mb-1" style={{ width: PHOTO_SIZE }}>
+        <div className="relative shrink-0" style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}>
+          <ProfileAvatar
+            image={image}
+            initials={initials}
+            size={PHOTO_SIZE}
+            tint={{ bg: "var(--surface-2)", color: "var(--fg)" }}
+            fontSize="calc(52px * var(--font-scale))"
+          />
+          <button
+            ref={uploadButtonRef}
+            type="button"
+            // aria-disabled, not disabled, so keyboard focus stays on the control while a photo is uploading.
+            aria-disabled={isPhotoPending || undefined}
+            aria-describedby="profile-photo-hint"
+            onClick={handleChoosePhoto}
+            className="peer absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full opacity-0 outline-none transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:opacity-100"
+            style={{
+              background: "color-mix(in oklab, var(--fg) 55%, transparent)",
+              color: "var(--bg)",
+              fontFamily: "var(--font-body, ui-sans-serif)",
+              fontSize: "calc(13px * var(--font-scale))",
+              fontWeight: 500,
+            }}
+          >
+            <Camera size={26} strokeWidth={1.5} aria-hidden="true" />
+            {photoOperation === "upload" ? "Uploading…" : image ? "Replace photo" : "Upload photo"}
+          </button>
+          {/* Resting affordance for touch and keyboard-free use; the hover overlay replaces it. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute flex items-center justify-center rounded-full transition-opacity peer-hover:opacity-0 peer-focus-visible:opacity-0 peer-aria-disabled:opacity-0"
+            style={{
+              right: 4,
+              bottom: 4,
+              width: 34,
+              height: 34,
+              background: "var(--surface)",
+              color: "var(--fg-2)",
+              border: "1px solid var(--line)",
+            }}
+          >
+            <Camera size={18} strokeWidth={1.5} />
+          </span>
         </div>
-        <div style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", lineHeight: 1.4 }}>
-          Profile photo upload coming soon.
+        <div className="flex flex-col items-center gap-0.5 text-center">
+          {image ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-11"
+              disabled={isPhotoPending}
+              focusableWhenDisabled
+              onClick={handleRemovePhoto}
+            >
+              {photoOperation === "remove" ? "Removing…" : "Remove photo"}
+            </Button>
+          ) : null}
+          <div
+            className="whitespace-nowrap"
+            id="profile-photo-hint"
+            style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--fg-3)", lineHeight: 1.4 }}
+          >
+            {AVATAR_UPLOAD_HINT}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={AVATAR_UPLOAD_ACCEPT}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={handlePhotoSelected}
+          />
         </div>
       </div>
 

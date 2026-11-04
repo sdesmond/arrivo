@@ -10,6 +10,11 @@ vi.mock("./actions", () => ({
 }));
 import { changePassword, updateProfile } from "./actions";
 
+vi.mock("./avatar-actions", () => ({
+  uploadAvatar: vi.fn(),
+  removeAvatar: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
@@ -59,10 +64,10 @@ describe("ProfileAccountSection — one Account section", () => {
     expect(screen.queryByText(/identity/i)).not.toBeInTheDocument();
   });
 
-  it("orders the profile fields, then the change password button, then delete account", () => {
+  it("orders the photo control, profile fields, then the change password button, then delete account", () => {
     renderSection();
     const order = [
-      screen.getByText("Profile photo upload coming soon."),
+      screen.getByRole("button", { name: "Upload photo" }),
       screen.getByLabelText("Name"),
       screen.getByLabelText("Username"),
       screen.getByRole("button", { name: "Change password" }),
