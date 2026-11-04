@@ -14,13 +14,13 @@ import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import dotenv from "dotenv";
-import { chromium } from "playwright";
-import postgres from "postgres";
-import sharp from "sharp";
-
 import { applyCoverPhotos } from "./cover-photos.mjs";
 import { readSeedPassword } from "./screenshot-env.mjs";
+
+// These come from the repo root's node_modules, which the docs-site CI job doesn't install, so they load
+// inside the functions that need them: screenshots.test.mjs can then import SHOTS without them.
+const loadSharp = async () => (await import("sharp")).default;
+const loadPostgres = async () => (await import("postgres")).default;
 
 const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:3000";
 const VIEWPORT = { width: 1280, height: 900 };
@@ -192,6 +192,7 @@ async function captureTheme(browser, theme, only) {
       await settle(page);
       // WebP keeps photo covers from bloating the repo (the same shots were ~4x larger as PNG).
       const png = await page.screenshot();
+      const sharp = await loadSharp();
       await sharp(png)
         .webp({ quality: 90 })
         .toFile(join(outputDir, `${shot.name}.webp`));
@@ -202,9 +203,10 @@ async function captureTheme(browser, theme, only) {
 }
 
 async function applyPhotoCovers() {
+  const { default: dotenv } = await import("dotenv");
   dotenv.config({ path: join(REPO_ROOT, ".env"), quiet: true });
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set (expected in the repo root .env).");
-  const sql = postgres(process.env.DATABASE_URL);
+  const sql = (await loadPostgres())(process.env.DATABASE_URL);
   try {
     await applyCoverPhotos({
       photosDir: join(SCRIPT_DIR, "cover-photos"),
@@ -221,7 +223,7 @@ const ENROLLMENT_ACCOUNT = "sam";
 
 // Signing in as a seeded account with a 2FA requirement and no enrollment lands on the enrollment screen.
 async function setEnrollmentRequired(required) {
-  const sql = postgres(process.env.DATABASE_URL);
+  const sql = (await loadPostgres())(process.env.DATABASE_URL);
   try {
     await sql`update users set mfa_required = ${required} where username = ${ENROLLMENT_ACCOUNT}`;
   } finally {
@@ -234,6 +236,7 @@ async function main() {
   const only = process.argv.slice(2);
   const needsEnrollment = only.length === 0 || only.includes("mfa-enrollment");
   if (needsEnrollment) await setEnrollmentRequired(true);
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ executablePath: process.env.SCREENSHOT_CHROMIUM_PATH });
   try {
     for (const theme of THEMES) await captureTheme(browser, theme, only.length > 0 ? only : undefined);
