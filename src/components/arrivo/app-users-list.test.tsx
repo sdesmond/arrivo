@@ -17,6 +17,8 @@ vi.mock("sonner", () => ({ toast: { success } }));
 import { AppUsersList } from "./app-users-list";
 import type { ChangeUserRoleResult, AppUserSummary } from "@/data/types";
 const member: AppUserSummary = {
+  mfaRequired: false,
+  instanceMfaRequired: false,
   id: "member",
   username: "bob",
   role: "member",
@@ -244,4 +246,35 @@ describe("AppUsersList", () => {
     }
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
+});
+
+it("shows individual MFA requirement control for each account", () => {
+  render(
+    <AppUsersList
+      users={[
+        {
+          id: "user",
+          username: "alice",
+          role: "member",
+          setupComplete: true,
+          isLastCompletedAdmin: false,
+          mfaRequired: true,
+          instanceMfaRequired: false,
+        },
+      ]}
+      currentUserId="admin"
+    />
+  );
+  expect(screen.getByRole("switch", { name: "Require 2FA" })).toBeChecked();
+});
+
+it("preserves unavailable policy projections in user cards", () => {
+  render(
+    <AppUsersList
+      users={[{ id: "user", username: "unknown", role: "member", setupComplete: true, isLastCompletedAdmin: false }]}
+      currentUserId="admin"
+    />
+  );
+  expect(screen.getByRole("switch", { name: "Require 2FA" })).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByRole("alert")).toHaveTextContent("unavailable");
 });

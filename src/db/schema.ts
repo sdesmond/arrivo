@@ -52,6 +52,7 @@ export const users = pgTable(
     username: text("username").notNull(),
     // App authority: "admin" | "member" (UserRole in src/data/types.ts).
     role: text("role").default("member").notNull(),
+    mfaRequired: boolean("mfa_required").default(false).notNull(),
   },
   (table) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${table.username})`)]
 );
@@ -72,6 +73,7 @@ export const appState = pgTable(
     passwordMinUppercase: integer("password_min_uppercase").notNull().default(0),
     passwordMinNumbers: integer("password_min_numbers").notNull().default(0),
     passwordMinSpecial: integer("password_min_special").notNull().default(0),
+    mfaRequired: boolean("mfa_required").default(false).notNull(),
   },
   (table) => [
     check("app_state_singleton", sql`${table.id}`),

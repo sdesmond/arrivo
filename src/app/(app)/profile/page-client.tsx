@@ -33,6 +33,7 @@ const NAV_ITEMS: { value: ProfileSection; label: string }[] = [
 interface ProfilePageClientProps {
   user: UserProfile;
   mfaStatus: MfaStatus;
+  mfaRequired?: boolean;
   trustedDevices: TrustedDeviceSummary[];
   encryptionConfigured: boolean;
   sharedOwnedTrips: AccountDeletionTrip[];
@@ -43,6 +44,7 @@ interface ProfilePageClientProps {
 export function ProfilePageClient({
   user,
   mfaStatus,
+  mfaRequired,
   trustedDevices,
   encryptionConfigured,
   sharedOwnedTrips,
@@ -164,6 +166,7 @@ export function ProfilePageClient({
             <TabsContent value="security" className="w-full">
               <ProfileSecuritySection
                 status={mfaStatus}
+                mfaRequired={mfaRequired}
                 devices={trustedDevices}
                 encryptionConfigured={encryptionConfigured}
               />

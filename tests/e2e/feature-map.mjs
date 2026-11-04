@@ -56,6 +56,24 @@ const PASSWORD_RULES = [
 ];
 
 export const FEATURE_MAP = [
+  entry("mfa-policy", [
+    ...CREDENTIALS,
+    "src/lib/mfa-policy.ts",
+    "src/lib/session-version.ts",
+    "src/components/arrivo/mfa-policy-settings.tsx",
+    "src/components/arrivo/user-mfa-requirement.tsx",
+    "src/components/arrivo/app-users-list.tsx",
+    "src/lib/app-users.ts",
+    "src/app/mfa-enrollment/**",
+    "src/app/(app)/admin/security/**",
+    "src/app/(app)/admin/users/actions.ts",
+    "src/app/(app)/profile/security-*",
+    "src/app/(app)/profile/second-factor-dialog.tsx",
+    "src/app/(app)/profile/page.tsx",
+    "src/app/(app)/profile/page-client.tsx",
+    "src/app/(app)/profile/mfa-enrollment.tsx",
+    "tests/e2e/security-policy-fixture.ts",
+  ]),
   entry("password-policy", [
     ...PASSWORD_RULES,
     ...CREDENTIALS,

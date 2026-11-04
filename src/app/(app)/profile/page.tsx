@@ -1,3 +1,4 @@
+import { readMfaPolicy } from "@/lib/mfa-policy";
 import { cookies, headers } from "next/headers";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSharedOwnedTrips, getUserById } from "@/lib/queries";
@@ -12,12 +13,13 @@ import { ProfilePageClient } from "./page-client";
 export default async function ProfilePage() {
   const session = await requireUser();
   const deviceToken = (await cookies()).get(DEVICE_COOKIE)?.value;
-  const [user, mfaStatus, trustedDevices, sharedOwnedTrips, passwordPolicy] = await Promise.all([
+  const [user, mfaStatus, trustedDevices, sharedOwnedTrips, passwordPolicy, mfaPolicy] = await Promise.all([
     getUserById(session.id!),
     getMfaStatus(session.id!),
     listTrustedDevices(session.id!, deviceToken),
     getSharedOwnedTrips(session.id!),
     loadPasswordPolicy(db),
+    readMfaPolicy(db, session.id!),
   ]);
 
   if (!user) return null;
@@ -29,6 +31,7 @@ export default async function ProfilePage() {
     <ProfilePageClient
       user={{ ...user, currency }}
       mfaStatus={mfaStatus}
+      mfaRequired={mfaPolicy.required}
       trustedDevices={trustedDevices}
       encryptionConfigured={isFieldEncryptionConfigured()}
       sharedOwnedTrips={sharedOwnedTrips}

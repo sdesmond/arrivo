@@ -9,6 +9,8 @@ const { requireUser, database, savePolicy, readPolicy, revalidatePath } = vi.hoi
   revalidatePath: vi.fn(),
 }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser }));
+const mfaMocks = vi.hoisted(() => ({ save: vi.fn() }));
+vi.mock("@/lib/mfa-policy", () => ({ saveMfaPolicy: mfaMocks.save }));
 vi.mock("@/db", () => ({ db: database }));
 vi.mock("@/lib/password-policy-store", () => ({
   savePasswordPolicy: savePolicy,
@@ -88,5 +90,23 @@ describe("password policy actions", () => {
   it("refresh returns the saved rules to an admin", async () => {
     readPolicy.mockResolvedValue({ status: "ok", policy: STRICT });
     expect(await refreshPasswordPolicy()).toEqual({ status: "ok", policy: STRICT });
+  });
+});
+
+describe("MFA policy save", () => {
+  it("returns safe unavailable result without leaking DB errors", async () => {
+    requireUser.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    mfaMocks.save.mockRejectedValue(new Error("private DB detail"));
+    const { saveMfaPolicySettings } = await import("./actions");
+    expect(await saveMfaPolicySettings(true, false)).toEqual({ status: "unavailable" });
+  });
+  it("returns committed policy even when cache revalidation fails", async () => {
+    requireUser.mockResolvedValue({ id: "actor", sessionVersion: 2 });
+    mfaMocks.save.mockResolvedValue({ status: "ok", required: true });
+    revalidatePath.mockImplementation(() => {
+      throw new Error("cache");
+    });
+    const { saveMfaPolicySettings } = await import("./actions");
+    expect(await saveMfaPolicySettings(true, false)).toEqual({ status: "ok", required: true });
   });
 });

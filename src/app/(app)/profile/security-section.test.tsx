@@ -182,3 +182,16 @@ describe("ProfileSecuritySection", () => {
     expect(mocks.signOutEverywhere).toHaveBeenCalledOnce();
   });
 });
+
+it("explains required MFA and prevents disabling", () => {
+  render(
+    <ProfileSecuritySection
+      status={{ enabled: true, recoveryCodesRemaining: 10 }}
+      devices={[]}
+      encryptionConfigured
+      mfaRequired
+    />
+  );
+  expect(screen.getByRole("button", { name: "Turn off two-factor authentication" })).toBeDisabled();
+  expect(screen.getByText("Two-factor authentication is required for your account.")).toBeVisible();
+});

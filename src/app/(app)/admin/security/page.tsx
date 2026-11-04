@@ -1,3 +1,5 @@
+import { readMfaPolicy } from "@/lib/mfa-policy";
+import { MfaPolicySettings } from "@/components/arrivo/mfa-policy-settings";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { db } from "@/db";
@@ -15,6 +17,7 @@ export default async function AdminSecurityPage() {
     policy = { status: "unavailable" };
   }
   if (policy.status === "forbidden") notFound();
+  const mfaPolicy = await readMfaPolicy(db, user.id!).catch(() => undefined);
   return (
     <section
       aria-labelledby="admin-security-heading"
@@ -25,6 +28,7 @@ export default async function AdminSecurityPage() {
         Security
       </h2>
       <PasswordPolicySettings initial={policy} />
+      <MfaPolicySettings required={mfaPolicy?.instanceRequired} />
     </section>
   );
 }

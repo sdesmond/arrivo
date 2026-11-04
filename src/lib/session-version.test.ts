@@ -85,3 +85,8 @@ describe("session version", () => {
     await expect(lockCurrentSecurityVersion(transaction, "user-1", 1)).resolves.toBe(false);
   });
 });
+
+it("propagates unavailable authoritative session state instead of a valid default", async () => {
+  selectWhere.mockRejectedValueOnce(new Error("database unavailable"));
+  await expect(getSessionState("user", undefined)).rejects.toThrow("database unavailable");
+});

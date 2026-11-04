@@ -63,6 +63,8 @@ describe("app users", () => {
     ]);
     expect(Object.keys(select.mock.calls[0][0])).toEqual([
       "id",
+      "mfaRequired",
+      "instanceMfaRequired",
       "username",
       "name",
       "role",
@@ -80,4 +82,19 @@ describe("app users", () => {
     const text = new PgDialect().sqlToQuery(field).sql;
     expect(text).toContain('"users"."id"');
   });
+});
+
+it("projects individual and inherited requirements without secrets", () => {
+  expect(
+    toAppUserSummaries([
+      {
+        id: "user",
+        username: "alice",
+        role: "member",
+        setupComplete: true,
+        mfaRequired: true,
+        instanceMfaRequired: false,
+      },
+    ])[0]
+  ).toMatchObject({ mfaRequired: true, instanceMfaRequired: false });
 });

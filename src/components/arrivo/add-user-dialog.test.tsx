@@ -175,7 +175,7 @@ describe("AddUserDialog", () => {
       expect(addUserAction).toHaveBeenCalledOnce();
       expect(checkAddedUserAction).toHaveBeenCalledOnce();
       await user.click(screen.getByRole("button", { name: "Check again" }));
-      expect(await screen.findByRole("button", { name: "Retry creation" })).toBeEnabled();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Retry creation" })).toBeEnabled());
       expect(checkAddedUserAction).toHaveBeenLastCalledWith("alex.q");
       expect(addUserAction).toHaveBeenCalledOnce();
     }

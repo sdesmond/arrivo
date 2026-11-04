@@ -1,5 +1,6 @@
 "use client";
 
+import { UserMfaRequirement } from "./user-mfa-requirement";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -212,6 +213,11 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 />
               )
             )}
+            <UserMfaRequirement
+              userId={user.id}
+              required={user.mfaRequired}
+              instanceRequired={user.instanceMfaRequired}
+            />
             {!user.setupComplete && <RegenerateSetupLinkDialog userId={user.id} username={user.username} />}
             {user.setupComplete && user.id !== currentUserId && (
               <ResetPasswordDialog userId={user.id} username={user.username} />

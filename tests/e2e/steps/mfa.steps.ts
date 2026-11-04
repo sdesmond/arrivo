@@ -138,3 +138,10 @@ When("I turn off two-factor authentication with my password and a code", async (
   await page.waitForURL("**/sign-in?notice=*");
   scenario.signOut();
 });
+
+Then("optional two-factor enrollment is available", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Set up two-factor authentication", exact: true })).toBeEnabled();
+  await expect(page.getByText("Two-factor authentication is required for your account.", { exact: true })).toHaveCount(
+    0
+  );
+});

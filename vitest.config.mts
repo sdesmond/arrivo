@@ -18,6 +18,8 @@ export default defineConfig({
   test: {
     globals: true,
     passWithNoTests: true,
+    // Dialog tests wait on real transitions; with every core busy they intermittently miss their timeouts.
+    maxWorkers: 8,
     environment: "jsdom",
     // Hermetic unit/coverage suite only — no live database. Live-DB E2E fixture self-tests run as a
     // dedicated Playwright project (see playwright.config.ts), inside the E2E pipeline after the DB

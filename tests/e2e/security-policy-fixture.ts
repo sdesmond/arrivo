@@ -9,7 +9,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { CredentialAuthorizationPurpose, UserRole, type PasswordPolicy } from "../../src/data/types";
-import { appState, users } from "../../src/db/schema";
+import { appState } from "../../src/db/schema";
 import {
   issueCredentialAuthorization,
   type CredentialAuthorizationDatabase,
@@ -315,17 +315,11 @@ export async function createSecurityPolicyApp(options: SecurityPolicyAppOptions)
       database,
       async seedUser(seed) {
         const passwordHash = seed.password === null ? null : await bcrypt.hash(seed.password, 4);
-        const [created] = await database
-          .insert(users)
-          .values({
-            username: seed.username,
-            name: seed.name,
-            role: seed.role,
-            passwordHash,
-            dateFormat: "MM/DD/YYYY",
-            currency: "USD",
-          })
-          .returning({ id: users.id });
+        // Historical migration tests seed before new columns exist. An explicit stable projection avoids
+        // Drizzle emitting defaults for columns that belong to a later version of the schema.
+        const [created] = await client<{ id: string }[]>`insert into users
+          (username, name, role, password_hash, date_format, currency)
+          values (${seed.username}, ${seed.name}, ${seed.role}, ${passwordHash}, 'MM/DD/YYYY', 'USD') returning id`;
         return { ...seed, id: created.id };
       },
       async readPolicy() {

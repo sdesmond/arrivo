@@ -30,7 +30,7 @@ it("opens by keyboard, generates once and focuses a selectable one-time link", a
   screen.getByRole("button", { name: "Reset password: alex" }).focus();
   await user.keyboard("{Enter}");
   expect(issue).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Generate link" }));
+  await user.click(await screen.findByRole("button", { name: "Generate link" }));
   const heading = await screen.findByRole("heading", { name: "Password reset link ready" });
   await waitFor(() => expect(heading).toHaveFocus());
   expect(screen.getByText("https://arrivo.example/reset")).toHaveClass("select-text");
@@ -52,7 +52,7 @@ it("shows issuance refusal and refreshes when account state changed", async () =
   render(<ResetPasswordDialog userId="target" username="alex" />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Reset password: alex" }));
-  await user.click(screen.getByRole("button", { name: "Generate link" }));
+  await user.click(await screen.findByRole("button", { name: "Generate link" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not generate");
   expect(screen.queryByRole("button", { name: "Generate link" })).not.toBeInTheDocument();
 });
@@ -63,8 +63,8 @@ it("requires account reconciliation after an unknown result", async () => {
   render(<ResetPasswordDialog userId="target" username="alex" />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Reset password: alex" }));
-  await user.click(screen.getByRole("button", { name: "Generate link" }));
+  await user.click(await screen.findByRole("button", { name: "Generate link" }));
   await user.click(await screen.findByRole("button", { name: "Check account" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Previous result cannot be recovered");
-  expect(screen.getByRole("button", { name: "Generate link" })).toBeVisible();
+  expect(await screen.findByRole("button", { name: "Generate link" })).toBeVisible();
 });

@@ -249,9 +249,9 @@ describe("DeleteAccountDialog", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete the account. Try again.");
       expect(refresh).not.toHaveBeenCalled();
-      expect(submit()).toBeEnabled();
-      await user.click(screen.getByRole("button", { name: "Cancel" }));
-      await user.click(screen.getByRole("button", { name: "Delete account: pat" }));
+      await waitFor(() => expect(submit()).toBeEnabled());
+      await user.click(await screen.findByRole("button", { name: "Cancel" }));
+      await user.click(await screen.findByRole("button", { name: "Delete account: pat" }));
       expect(screen.queryByText("Couldn't delete the account. Try again.")).not.toBeInTheDocument();
     }
   );

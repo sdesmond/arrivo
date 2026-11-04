@@ -17,7 +17,7 @@ vi.mocked(redirect).mockImplementation(() => {
   throw new Error("NEXT_REDIRECT");
 });
 
-import { requireAdmin, assertTripAccess } from "./auth-helpers";
+import { requireAdmin, requireUser, requireEnrollmentUser, assertTripAccess } from "./auth-helpers";
 
 function mockCollaboratorRole(role: string | undefined) {
   db.select.mockReturnValue({
@@ -103,5 +103,15 @@ describe("requireAdmin", () => {
     auth.mockResolvedValue(null);
     await expect(requireAdmin()).rejects.toThrow("NEXT_REDIRECT");
     expect(db.select).not.toHaveBeenCalled();
+  });
+});
+
+describe("enrollment-only sessions", () => {
+  it("denies private access but admits enrollment", async () => {
+    const user = { id: "restricted", mfaEnrollmentRequired: true };
+    auth.mockResolvedValue({ user });
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/mfa-enrollment");
+    await expect(requireEnrollmentUser()).resolves.toEqual(user);
   });
 });

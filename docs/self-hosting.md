@@ -108,6 +108,16 @@ a fresh account setup or password reset link afterward; previously copied URLs k
   under **Profile → Security** and can remove any they don't recognize, which also signs that browser out.
 - **Keep me signed in**: ticked at sign-in, a session lasts 30 days from the last visit; unticked, it ends
   12 hours after signing in.
+- **Requiring two-factor authentication**: admins can require it for everyone under **Admin → Security**,
+  or for individual accounts under **Admin → Users**. Either requirement applies; individual settings
+  cannot exempt an account from instance policy. New and upgraded installs default to optional.
+  Requirements apply at next sign-in; existing sessions continue. Unenrolled users must finish setup
+  and save recovery codes, then sign in again before accessing private app data. A working
+  DATA_ENCRYPTION_KEY is required before enabling a requirement. Removing requirements leaves
+  enrolled two-factor authentication on. Remembered browsers keep their existing 30-day behavior.
+  Turning the instance requirement off also clears every individual requirement atomically; enrolled
+  two-factor authentication stays on. Required accounts cannot turn two-factor authentication off. Existing CLI admin recovery remains
+  available as described below.
 - **Two-factor authentication**: each user can turn it on under **Profile → Security** with any
   authenticator app, and gets ten one-time recovery codes. Ticking **Don't ask for a code on this browser
   for 30 days** at the code prompt skips the code there; anyone with that browser and the password can then

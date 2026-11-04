@@ -415,7 +415,7 @@ Then("I am on the app Overview", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "App sections" });
   await expect(navigation.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-  await expect(navigation.getByRole("link")).toHaveCount(3);
+  await expect(navigation.getByRole("link")).toHaveText(["Overview", "Users", "Activity", "Security"]);
 });
 
 Then("the Overview offers GitHub Sponsors and Ko-fi links that open in a new tab", async ({ page }) => {
