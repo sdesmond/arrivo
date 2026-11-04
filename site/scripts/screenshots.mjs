@@ -133,6 +133,8 @@ export const SHOTS = [
   { name: "admin-overview", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/overview`) },
   { name: "admin-users", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/users`) },
   { name: "admin-security", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/security`) },
+  // Needs sam to have a 2FA requirement and no enrollment; main() sets and clears that around the run.
+  { name: "mfa-enrollment", account: "sam", run: (page) => page.goto(`${BASE_URL}/mfa-enrollment`) },
   { name: "mobile-trips", account: "demo", mobile: true, run: (page) => page.goto(`${BASE_URL}/trips`) },
   {
     name: "mobile-itinerary",
@@ -205,14 +207,29 @@ async function applyPhotoCovers() {
   }
 }
 
+const ENROLLMENT_ACCOUNT = "sam";
+
+// Signing in as a seeded account with a 2FA requirement and no enrollment lands on the enrollment screen.
+async function setEnrollmentRequired(required) {
+  const sql = postgres(process.env.DATABASE_URL);
+  try {
+    await sql`update users set mfa_required = ${required} where username = ${ENROLLMENT_ACCOUNT}`;
+  } finally {
+    await sql.end();
+  }
+}
+
 async function main() {
   await applyPhotoCovers();
   const only = process.argv.slice(2);
+  const needsEnrollment = only.length === 0 || only.includes("mfa-enrollment");
+  if (needsEnrollment) await setEnrollmentRequired(true);
   const browser = await chromium.launch({ executablePath: process.env.SCREENSHOT_CHROMIUM_PATH });
   try {
     for (const theme of THEMES) await captureTheme(browser, theme, only.length > 0 ? only : undefined);
   } finally {
     await browser.close();
+    if (needsEnrollment) await setEnrollmentRequired(false);
   }
 }
 
