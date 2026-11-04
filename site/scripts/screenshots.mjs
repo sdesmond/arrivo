@@ -132,6 +132,7 @@ export const SHOTS = [
   { name: "profile", account: "demo", run: (page) => page.goto(`${BASE_URL}/profile`) },
   { name: "admin-overview", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/overview`) },
   { name: "admin-users", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/users`) },
+  { name: "admin-security", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/security`) },
   { name: "mobile-trips", account: "demo", mobile: true, run: (page) => page.goto(`${BASE_URL}/trips`) },
   {
     name: "mobile-itinerary",

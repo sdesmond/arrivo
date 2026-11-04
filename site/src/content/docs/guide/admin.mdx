@@ -35,10 +35,28 @@ Setup and reset links use the address in `NEXTAUTH_URL`, so set that to the addr
 
 ## Security
 
-**Security** sets the rules for new passwords. They apply wherever someone chooses a password: first-run setup, account setup, password reset, admin recovery and **Account** in a profile. Sign-in is never checked against them, so existing passwords keep working when you change the rules.
+<Screenshot name="admin-security" alt="Manage app Security with password rules and the two-factor authentication requirement" />
+
+**Security** sets the password rules and whether two-factor authentication is required.
+
+### Password rules
+
+These rules apply to new passwords. They apply wherever someone chooses a password: first-run setup, account setup, password reset, admin recovery and **Account** in a profile. Sign-in is never checked against them, so existing passwords keep working when you change the rules.
 
 - **Minimum length** is 8 to 16 and **Maximum length** is 15 to 20, counted in characters. The minimum can't be above the maximum.
 - **Minimum uppercase letters**, **Minimum numbers** and **Minimum special characters** each take a count from 0 to 20. 0 means not required, and those characters are still allowed. The three counts together can't exceed the maximum length.
 - Lowercase letters and spaces are always allowed. Passwords can't be longer than 72 bytes, so very long passwords of non-English characters or emoji may be refused.
 
 New installs and upgrades start at 8 to 20 characters with nothing required. Each form shows the current rules as a checklist while someone types. If another admin changes the rules while you're editing, your save is refused and the form fills in the saved values so you can review them and save again.
+
+### Requiring two-factor authentication
+
+Turn on **Require two-factor authentication for everyone** to require it for all accounts. To require it for particular people, use the **Require 2FA** switch on their card under **Users**. If the instance requirement is on, those switches are on and locked, because an individual setting can't exempt anyone from it.
+
+- Requirements apply at each person's next sign-in. Anyone already signed in stays signed in.
+- People who haven't set up two-factor authentication are taken to a setup screen first. They add an authenticator app, save their recovery codes and sign in again. Until then they can't open trips or any other private page.
+- People who already use two-factor authentication keep it, along with their recovery codes and remembered browsers.
+- Someone with a requirement on their account can't turn two-factor authentication off.
+- Turning the instance requirement off also clears every individual requirement. It doesn't switch off anyone's two-factor authentication.
+- Set `DATA_ENCRYPTION_KEY` first. Saving a requirement fails without a working key. See [Self-hosting](/arrivo/self-hosting/#configuration).
+- New installs and upgrades start with two-factor authentication optional.
