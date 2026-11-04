@@ -77,7 +77,7 @@ Feature: Activity retention and physical cleanup
     And I choose Activity retention of 30 days
     And I request shorter Activity retention
     And I confirm shorter Activity retention
-    Then retention saved 30 days is acknowledged
+    Then retention is 30 days without an inline success message
     And cleanup status is unavailable
     When I refresh cleanup status
     Then cleanup status reports expired Activity pending cleanup

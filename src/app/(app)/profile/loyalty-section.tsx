@@ -65,12 +65,13 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
               >
                 {loyaltyNumber.memberNumber}
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-lg"
                 type="button"
                 onClick={() => handleCopy(loyaltyNumber)}
                 title={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
                 aria-label={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
-                className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >
                 {copiedId === loyaltyNumber.id ? (
@@ -78,17 +79,18 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
                 ) : (
                   <Copy size={14} strokeWidth={1.5} />
                 )}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-lg"
                 type="button"
                 onClick={() => handleDelete(loyaltyNumber.id)}
                 title="Remove"
                 aria-label={`Remove ${loyaltyNumber.programName}`}
-                className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >
                 <X size={14} strokeWidth={1.5} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>

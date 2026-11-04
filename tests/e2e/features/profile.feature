@@ -61,6 +61,22 @@ Feature: User profile page
     And I navigate to the Appearance section
     Then the font size select should show "Large"
 
+  Scenario Outline: Font sizes start at the former Medium size
+    Given I am on the profile page
+    When I navigate to the Appearance section
+    And I select "<size>" as the font size
+    Then the font size should use <pixels> pixels with scale "<scale>"
+    When I reload the page
+    And I navigate to the Appearance section
+    Then the font size select should show "<size>"
+    And the font size should use <pixels> pixels with scale "<scale>"
+
+    Examples:
+      | size   | pixels | scale |
+      | Small  | 16     | 1     |
+      | Medium | 18     | 1.125 |
+      | Large  | 20     | 1.25  |
+
   Scenario: Dirty-state warning appears when navigating away with unsaved changes
     Given I am on the profile page
     When I navigate to the Account section
@@ -82,6 +98,45 @@ Feature: User profile page
     Then I should see the loyalty number "TA-123456"
     When I click the copy button for the loyalty number
     Then the copy button should show the copied state
+
+  Scenario Outline: Profile icon controls have usable targets on desktop and mobile
+    Given I am on the profile page
+    When I use a profile viewport width of <width> pixels
+    And I navigate to the Traveler section
+    And I add a wishlist destination named "Kyoto"
+    Then Traveler icon controls should be at least 44 pixels and fit within the viewport
+    When I navigate to the Companions section
+    Then Companion icon controls should be at least 44 pixels and fit within the viewport
+    When I expand the companion "Alex Companion"
+    Then Companion icon controls should be at least 44 pixels and fit within the viewport
+
+    Examples:
+      | width |
+      | 1280  |
+      | 375   |
+
+  Scenario Outline: Copy populated passport and known traveler numbers without save success messages
+    Given I am on the profile page
+    When I use a profile viewport width of <width> pixels
+    When I navigate to the Traveler section
+    Then document number copy buttons should be hidden
+    When I enter passport number "AB123456" and known traveler number "123456789"
+    Then I can copy passport number "AB123456" and known traveler number "123456789"
+    When I save my travel documents
+    Then no inline save success message should appear
+    When I reload the page
+    And I navigate to the Traveler section
+    Then I can copy passport number "AB123456" and known traveler number "123456789"
+    When I navigate to the Companions section
+    And I expand the companion "Alex Companion"
+    Then document number copy buttons should be hidden
+    When I enter passport number "CD987654" and known traveler number "987654321"
+    Then I can copy passport number "CD987654" and known traveler number "987654321"
+
+    Examples:
+      | width |
+      | 1280  |
+      | 375   |
 
   Scenario: Companions tab shows seeded companion
     Given I am on the profile page

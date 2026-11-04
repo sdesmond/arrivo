@@ -27,7 +27,6 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
   const [name, setName] = useState(user.name ?? "");
   const [username, setUsername] = useState(user.username);
   const [isPending, startTransition] = useTransition();
-  const [justSaved, setJustSaved] = useState(false);
   const initials = getInitials({ ...user, name: name || null });
 
   const isNameDirty = name !== (user.name ?? "");
@@ -55,9 +54,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
         toast.error(result.error);
         return;
       }
-      setJustSaved(true);
       onDirtyChange?.(false);
-      setTimeout(() => setJustSaved(false), 2000);
     });
   }
 
@@ -111,11 +108,6 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
       </Field>
 
       <div className="flex items-center justify-end gap-3">
-        {justSaved && (
-          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
-            Saved
-          </span>
-        )}
         <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!nameError || !!usernameError}>
           {isPending ? "Saving…" : "Save"}
         </Button>

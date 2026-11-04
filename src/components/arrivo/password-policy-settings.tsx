@@ -53,7 +53,6 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
   const [saved, setSaved] = useState<PasswordPolicy | null>(initialPolicy);
   const [draft, setDraft] = useState<Draft | null>(initialPolicy ? toDraft(initialPolicy) : null);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [invalidField, setInvalidField] = useState<PasswordPolicyField | null>(null);
   const fieldRefs = useRef<Partial<Record<PasswordPolicyField, HTMLInputElement | null>>>({});
@@ -79,7 +78,6 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
   async function save() {
     if (!saved || !draft) return;
     setError("");
-    setMessage("");
     setInvalidField(null);
     const candidate = fromDraft(draft);
     // The same validator the server runs: an impossible combination is explained here, before any request.
@@ -94,7 +92,6 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
       if (result.status === "ok") {
         setSaved(result.policy);
         setDraft(toDraft(result.policy));
-        setMessage("Password rules saved.");
       } else if (result.status === "invalid") {
         fail(result.error, result.field);
       } else if (result.status === "stale") {
@@ -198,7 +195,6 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
       <Button className="h-11 w-fit" disabled={pending} onClick={() => void save()}>
         {pending ? "Saving…" : "Save password rules"}
       </Button>

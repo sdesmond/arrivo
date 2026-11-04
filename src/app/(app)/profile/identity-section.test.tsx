@@ -138,7 +138,7 @@ describe("ProfileIdentitySection — username", () => {
 
     await user.click(screen.getByRole("button", { name: /save/i }));
     expect(updateProfile).toHaveBeenCalledWith({ name: "Alice", username: "alice.w" });
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 

@@ -60,7 +60,7 @@ When("I change my username to a new one and save", async ({ page, scenario }) =>
   const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
   await page.getByRole("button", { name: "Save" }).click();
   await saved;
-  await expect(page.getByText("Saved")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText("Saved", { exact: true })).toHaveCount(0);
   scenario.setCurrentUser({ ...user, username });
 });
 
@@ -84,9 +84,10 @@ When("I set currency to {string}", async ({ page }, currency: string) => {
 });
 
 When("I save the Preferences section", async ({ page }) => {
+  const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("button", { name: "Saving…" })).toBeVisible({ timeout: 3000 });
-  await expect(page.getByText("Saved")).toBeVisible({ timeout: 10000 });
+  await saved;
+  await expect(page.getByText("Saved", { exact: true })).toHaveCount(0);
 });
 
 Then("the currency preference should persist after reload", async ({ page }) => {
@@ -141,6 +142,17 @@ Then("the font size select should show {string}", async ({ page }, size: string)
   await expect(page.getByRole("combobox", { name: /font size/i })).toContainText(size, { ignoreCase: true });
 });
 
+Then("the font size should use {int} pixels with scale {string}", async ({ page }, pixels: number, scale: string) => {
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-size-base").trim())
+    )
+    .toBe(`${pixels}px`);
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-scale").trim()))
+    .toBe(scale);
+});
+
 When("I reload the page", async ({ page }) => {
   await page.reload();
 });
@@ -182,6 +194,89 @@ When("I click the copy button for the loyalty number", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByRole("button", { name: "Copy member number" }).click();
 });
+
+When("I use a profile viewport width of {int} pixels", async ({ page }, width: number) => {
+  await page.setViewportSize({ width, height: 900 });
+});
+
+Then("document number copy buttons should be hidden", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Copy passport number", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy known traveler number", exact: true })).toHaveCount(0);
+});
+
+When(
+  "I enter passport number {string} and known traveler number {string}",
+  async ({ page }, passportNumber: string, knownTravelerNumber: string) => {
+    await page.getByLabel("Passport number", { exact: true }).fill(passportNumber);
+    await page
+      .getByLabel("Known traveler number (TSA PreCheck / Global Entry)", { exact: true })
+      .fill(knownTravelerNumber);
+  }
+);
+
+Then(
+  "I can copy passport number {string} and known traveler number {string}",
+  async ({ page }, passportNumber: string, knownTravelerNumber: string) => {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    for (const [label, value] of [
+      ["Copy passport number", passportNumber],
+      ["Copy known traveler number", knownTravelerNumber],
+    ]) {
+      const button = page.getByRole("button", { name: label, exact: true });
+      await button.click();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(value);
+      const bounds = await button.boundingBox();
+      expect(bounds!.width).toBeGreaterThanOrEqual(44);
+      expect(bounds!.height).toBeGreaterThanOrEqual(44);
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    }
+  }
+);
+
+When("I save my travel documents", async ({ page }) => {
+  const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await saved;
+});
+
+Then("no inline save success message should appear", async ({ page }) => {
+  await expect(page.getByText("Saved", { exact: true })).toHaveCount(0);
+});
+
+When("I add a wishlist destination named {string}", async ({ page }, name: string) => {
+  const input = page.getByPlaceholder("e.g. Kyoto, Japan");
+  await input.fill(name);
+  const saved = waitForServerActionResponse(page, { pathIncludes: "/profile" });
+  await input.press("Enter");
+  await saved;
+  await expect(page.getByRole("tabpanel", { name: "Traveler" }).getByText(name, { exact: true })).toBeVisible();
+});
+
+When("I expand the companion {string}", async ({ page }, name: string) => {
+  await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
+});
+
+Then(
+  "{word} icon controls should be at least 44 pixels and fit within the viewport",
+  async ({ page }, section: string) => {
+    const panel = page.getByRole("tabpanel", { name: section === "Companion" ? "Companions" : section });
+    const controls = panel.getByRole("button", { name: /^(Copy member number|Remove|Edit |Collapse )/ });
+    await expect(controls).toHaveCount(section === "Traveler" ? 3 : 2);
+    for (const control of await controls.all()) {
+      await expect(control).toBeVisible();
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.width).toBeGreaterThanOrEqual(44);
+      expect(bounds!.height).toBeGreaterThanOrEqual(44);
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      page.viewportSize()!.width
+    );
+  }
+);
 
 Then("the copy button should show the copied state", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();

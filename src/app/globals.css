@@ -84,8 +84,8 @@
 /* ─── Light theme ─── */
 :root {
   /* Font size preference — overridden by FontSizeSelect via JS */
-  --font-size-base: 16px;
-  --font-scale: 1;
+  --font-size-base: 18px;
+  --font-scale: 1.125;
 
   /* ─── Text-size tokens (base px values; always multiply by var(--font-scale)) ─── */
   --fs-chip-name: 14px;
@@ -188,13 +188,13 @@
 
 /* ─── Font size scale overrides ─── */
 html[data-font-size="small"] {
-  --font-size-base: 13px;
-  --font-scale: 0.813;
+  --font-size-base: 16px;
+  --font-scale: 1;
 }
 
 html[data-font-size="large"] {
-  --font-size-base: 18px;
-  --font-scale: 1.125;
+  --font-size-base: 20px;
+  --font-scale: 1.25;
 }
 
 /* ─── Dark theme ─── */

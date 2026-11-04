@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Copy } from "lucide-react";
 import { Section, Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,6 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
   const [passportNationality, setPassportNationality] = useState(user.passportNationality ?? "");
   const [knownTravelerNumber, setKnownTravelerNumber] = useState(user.knownTravelerNumber ?? "");
   const [isPending, startTransition] = useTransition();
-  const [justSaved, setJustSaved] = useState(false);
 
   function computeDirty(
     passportNumber: string,
@@ -53,9 +53,7 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
         toast.error(result.error);
         return;
       }
-      setJustSaved(true);
       onDirtyChange?.(false);
-      setTimeout(() => setJustSaved(false), 2000);
     });
   }
 
@@ -64,21 +62,40 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
   return (
     <Section title="Passport & Travel Documents">
       <Field label="Passport number" htmlFor="passport-number" error={passportNumberError ?? undefined}>
-        <Input
-          id="passport-number"
-          type="text"
-          value={passportNumber}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (next === passportNumber) return;
-            setPassportNumber(next);
-            onDirtyChange?.(computeDirty(next, passportExpiry, passportNationality, knownTravelerNumber));
-          }}
-          placeholder="e.g. A12345678"
-          autoComplete="off"
-          aria-invalid={!!passportNumberError || undefined}
-          aria-describedby={passportNumberError ? "passport-number-error" : undefined}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            className="min-w-0 flex-1"
+            id="passport-number"
+            type="text"
+            value={passportNumber}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next === passportNumber) return;
+              setPassportNumber(next);
+              onDirtyChange?.(computeDirty(next, passportExpiry, passportNationality, knownTravelerNumber));
+            }}
+            placeholder="e.g. A12345678"
+            autoComplete="off"
+            aria-invalid={!!passportNumberError || undefined}
+            aria-describedby={passportNumberError ? "passport-number-error" : undefined}
+          />
+          {passportNumber.trim() && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              title="Copy passport number"
+              aria-label="Copy passport number"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(passportNumber)
+                  .catch(() => toast.error("Could not copy passport number."));
+              }}
+            >
+              <Copy strokeWidth={1.5} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </Field>
 
       <Field label="Expiry date">
@@ -111,29 +128,43 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
       </Field>
 
       <Field label="Known traveler number (TSA PreCheck / Global Entry)" htmlFor="ktn" error={ktnError ?? undefined}>
-        <Input
-          id="ktn"
-          type="text"
-          value={knownTravelerNumber}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (next === knownTravelerNumber) return;
-            setKnownTravelerNumber(next);
-            onDirtyChange?.(computeDirty(passportNumber, passportExpiry, passportNationality, next));
-          }}
-          placeholder="e.g. 123456789"
-          autoComplete="off"
-          aria-invalid={!!ktnError || undefined}
-          aria-describedby={ktnError ? "ktn-error" : undefined}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            className="min-w-0 flex-1"
+            id="ktn"
+            type="text"
+            value={knownTravelerNumber}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next === knownTravelerNumber) return;
+              setKnownTravelerNumber(next);
+              onDirtyChange?.(computeDirty(passportNumber, passportExpiry, passportNationality, next));
+            }}
+            placeholder="e.g. 123456789"
+            autoComplete="off"
+            aria-invalid={!!ktnError || undefined}
+            aria-describedby={ktnError ? "ktn-error" : undefined}
+          />
+          {knownTravelerNumber.trim() && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              title="Copy known traveler number"
+              aria-label="Copy known traveler number"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(knownTravelerNumber)
+                  .catch(() => toast.error("Could not copy known traveler number."));
+              }}
+            >
+              <Copy strokeWidth={1.5} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </Field>
 
       <div className="flex items-center justify-end gap-3">
-        {justSaved && (
-          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
-            Saved
-          </span>
-        )}
         <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || hasError}>
           {isPending ? "Saving…" : "Save"}
         </Button>

@@ -39,15 +39,16 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
               <span style={{ flex: 1, fontSize: "calc(13px * var(--font-scale))", color: "var(--fg)" }}>
                 {dest.name}
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="icon-lg"
                 type="button"
                 onClick={() => handleDelete(dest.id)}
                 title="Remove"
-                className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
                 style={{ color: "var(--fg-4)" }}
               >
                 <X size={14} strokeWidth={1.5} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>

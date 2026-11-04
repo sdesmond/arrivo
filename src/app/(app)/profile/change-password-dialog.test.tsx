@@ -143,15 +143,15 @@ describe("ChangePasswordDialog", () => {
     await user.click(screen.getByRole("button", { name: "Update password" }));
     expect(await screen.findByRole("button", { name: "Updating…" })).toBeDisabled();
     release({});
-    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
+    expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
   });
 
-  it("on success shows the notice, clears the fields and stops further submits", async () => {
+  it("on success clears the fields and stops further submits without inline success text", async () => {
     const user = userEvent.setup();
     render(<Host />);
     await fill(user, "currentpw", "abcdefgh");
     await user.click(screen.getByRole("button", { name: "Update password" }));
-    expect(await screen.findByText("Password updated.")).toHaveAttribute("role", "status");
+    expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
     expect(screen.getByLabelText("New password")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Update password" })).toBeDisabled();
   });

@@ -194,8 +194,9 @@ When("I refresh cleanup status", async ({ page }) => {
   await response;
 });
 
-Then("retention saved {int} days is acknowledged", async ({ page }, days: number) => {
-  await expect(page.getByRole("status").filter({ hasText: `Retention saved: ${days} days` })).toBeVisible();
+Then("retention is {int} days without an inline success message", async ({ page }, days: number) => {
+  await expect(page.getByText(`Saved retention: ${days} days`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`Retention saved: ${days} days`, { exact: true })).toHaveCount(0);
 });
 
 Then("cleanup status is unavailable", async ({ page }) => {

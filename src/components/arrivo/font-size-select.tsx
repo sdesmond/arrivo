@@ -5,9 +5,9 @@ import type { FontSizeValue } from "@/data/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SIZES: { value: FontSizeValue; label: string; px: string }[] = [
-  { value: "small", label: "Small", px: "13px" },
-  { value: "medium", label: "Medium", px: "16px" },
-  { value: "large", label: "Large", px: "18px" },
+  { value: "small", label: "Small", px: "16px" },
+  { value: "medium", label: "Medium", px: "18px" },
+  { value: "large", label: "Large", px: "20px" },
 ];
 
 const STORAGE_KEY = "font-size";

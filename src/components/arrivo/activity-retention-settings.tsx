@@ -25,7 +25,6 @@ export function ActivityRetentionSettings({ initial }: ActivityRetentionSettings
   const [inspection, setInspection] = useState<ActivityRetentionReadResult>(initial);
   const [pending, setPending] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const cancelRef = useRef<HTMLButtonElement>(null);
   const saveRef = useRef<HTMLButtonElement>(null);
@@ -44,12 +43,10 @@ export function ActivityRetentionSettings({ initial }: ActivityRetentionSettings
     setConfirm(false);
     setPending(true);
     setError("");
-    setMessage("");
     try {
       const result = await saveActivityRetentionPolicy(selection, saved);
       if (result.status === "ok") {
         setSaved(result.days);
-        setMessage(`Retention saved: ${result.days} days`);
         // Inspection is no longer current for this policy; a save never proves deletion finished.
         setInspection({ status: "unavailable" });
       } else {
@@ -120,7 +117,6 @@ export function ActivityRetentionSettings({ initial }: ActivityRetentionSettings
           Save retention
         </Button>
       </div>
-      {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
       <div className="grid gap-2" aria-live="polite">
         <p className="text-sm">
