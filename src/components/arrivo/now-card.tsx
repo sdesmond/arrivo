@@ -215,6 +215,7 @@ export function NowCard({
           {trip.collaborators && (
             <AvatarStack
               initials={trip.collaborators.map((collaborator) => collaborator.initials)}
+              images={trip.collaborators.map((collaborator) => collaborator.image)}
               size="sm"
               aria-label={trip.collaborators.map((collaborator) => collaborator.name).join(", ")}
             />

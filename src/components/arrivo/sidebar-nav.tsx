@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Briefcase, Clock, LayoutTemplate } from "lucide-react";
 import { AccountMenu } from "./account-menu";
 import { getAvatarTint } from "@/lib/trip-tints";
+import { ProfileAvatar } from "./profile-avatar";
 import { ArrivoBrand } from "./arrivo-brand";
 import { NavItem } from "./nav-item";
 import type { UserProfile } from "@/data/types";
@@ -81,19 +82,13 @@ export function SidebarNav({ user, invitationCount, isAdmin = false }: SidebarNa
               className="flex items-center gap-2 flex-1 min-w-0 min-h-11 rounded-md text-left hover:bg-surface-2 transition-colors px-1 py-0.5"
               aria-label="Account menu"
             >
-              <div
-                className="shrink-0 rounded-full flex items-center justify-center font-semibold"
-                style={{
-                  width: 28,
-                  height: 28,
-                  background: avatarTint.bg,
-                  color: avatarTint.color,
-                  fontFamily: "var(--font-body, ui-sans-serif)",
-                  fontSize: "calc(12px * var(--font-scale))",
-                }}
-              >
-                {initials}
-              </div>
+              <ProfileAvatar
+                image={user?.image}
+                initials={initials}
+                size={28}
+                tint={avatarTint}
+                fontSize="calc(12px * var(--font-scale))"
+              />
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-fg truncate" style={{ fontSize: "calc(13px * var(--font-scale))" }}>
                   {user?.name ?? user?.username ?? "—"}

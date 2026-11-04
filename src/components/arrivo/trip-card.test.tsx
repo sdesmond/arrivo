@@ -195,6 +195,22 @@ describe("TripCard", () => {
     expect(screen.queryByText("BJ")).not.toBeInTheDocument();
   });
 
+  it("shows a collaborator's photo, with initials for members who have none", () => {
+    const trip = {
+      ...baseTrip,
+      collaborators: [
+        { ...baseTrip.collaborators![0], image: "/api/storage/user-avatars/a/p.webp" },
+        baseTrip.collaborators![1],
+      ],
+    };
+    const { container } = render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, {
+      wrapper: Wrapper,
+    });
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/storage/user-avatars/a/p.webp");
+    expect(screen.queryByText("AS")).not.toBeInTheDocument();
+    expect(screen.getByText("BJ")).toBeInTheDocument();
+  });
+
   it("renders without docs field", () => {
     const trip = { ...baseTrip, docs: undefined };
     render(<TripCard trip={trip} {...defaultHandlers} dateFormat="MM/DD/YYYY" />, { wrapper: Wrapper });
