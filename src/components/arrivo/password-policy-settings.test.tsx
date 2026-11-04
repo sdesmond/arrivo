@@ -83,7 +83,7 @@ describe("PasswordPolicySettings", () => {
     expect(savePasswordPolicySettings).not.toHaveBeenCalled();
   });
 
-  it("saves the draft against the saved baseline and announces success", async () => {
+  it("saves the draft against the saved baseline without inline success text", async () => {
     const user = userEvent.setup();
     savePasswordPolicySettings.mockResolvedValue({ status: "ok", policy: STRICT });
     render(<PasswordPolicySettings initial={initial} />);
@@ -92,7 +92,8 @@ describe("PasswordPolicySettings", () => {
     await setCount(user, "Minimum numbers", "2");
     await setCount(user, "Minimum special characters", "2");
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Password rules saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
+    expect(screen.queryByText("Password rules saved.")).not.toBeInTheDocument();
     expect(savePasswordPolicySettings).toHaveBeenCalledWith(STRICT, DEFAULT_PASSWORD_POLICY);
     // The saved values are what the form now shows.
     expect(screen.getByLabelText("Maximum length")).toHaveValue(15);
@@ -110,7 +111,7 @@ describe("PasswordPolicySettings", () => {
     render(<PasswordPolicySettings initial={initial} />);
     await setCount(user, "Minimum length", "10");
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
-    await screen.findByText("Password rules saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
     await setCount(user, "Minimum length", "11");
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
     await waitFor(() => expect(savePasswordPolicySettings).toHaveBeenCalledTimes(2));
@@ -126,7 +127,7 @@ describe("PasswordPolicySettings", () => {
     expect(await screen.findByRole("button", { name: "Saving…" })).toBeDisabled();
     expect(screen.getByLabelText("Minimum length")).toBeDisabled();
     release({ status: "ok", policy: DEFAULT_PASSWORD_POLICY });
-    await screen.findByText("Password rules saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
   });
 
   describe("invalid rules never reach the server", () => {
@@ -192,7 +193,7 @@ describe("PasswordPolicySettings", () => {
       await setCount(user, "Minimum length", "10");
       await setCount(user, "Maximum length", "20");
       await user.click(screen.getByRole("button", { name: "Save password rules" }));
-      await screen.findByText("Password rules saved.");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
       expect(savePasswordPolicySettings).toHaveBeenCalledWith(
         { ...DEFAULT_PASSWORD_POLICY, minLength: 10 },
         DEFAULT_PASSWORD_POLICY
@@ -237,7 +238,7 @@ describe("PasswordPolicySettings", () => {
       policy: { ...DEFAULT_PASSWORD_POLICY, minLength: 12 },
     });
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
-    await screen.findByText("Password rules saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
     expect(savePasswordPolicySettings.mock.calls[1][1]).toEqual({ ...DEFAULT_PASSWORD_POLICY, minLength: 12 });
   });
 
@@ -320,7 +321,8 @@ describe("PasswordPolicySettings", () => {
       await setCount(user, label, "0");
     }
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Password rules saved.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());
+    expect(screen.queryByText("Password rules saved.")).not.toBeInTheDocument();
     expect(savePasswordPolicySettings).toHaveBeenCalledWith(cleared, STRICT);
     for (const label of ["Minimum uppercase letters", "Minimum numbers", "Minimum special characters"]) {
       expect(screen.getByLabelText(label)).toHaveValue(0);

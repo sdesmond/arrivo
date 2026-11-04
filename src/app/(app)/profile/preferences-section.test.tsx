@@ -87,6 +87,7 @@ describe("ProfilePreferencesSection", () => {
     await userEvent.click(screen.getByRole("button", { name: "Day/Month" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(vi.mocked(actions.updateProfile)).toHaveBeenCalledWith({ dateFormat: "DD/MM/YYYY" });
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
   });
 
   it("sends only currency when only currency changes", async () => {

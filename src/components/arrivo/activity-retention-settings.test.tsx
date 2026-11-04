@@ -34,13 +34,14 @@ describe("ActivityRetentionSettings", () => {
     expect(saveActivityRetentionPolicy).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByRole("button", { name: "Save retention" })).toHaveFocus());
   });
-  it("confirms shortening, acknowledges save without inferring cleanup", async () => {
+  it("confirms shortening and updates policy without inline success text or inferring cleanup", async () => {
     saveActivityRetentionPolicy.mockResolvedValue({ status: "ok", days: 30 });
     render(<ActivityRetentionSettings initial={initial} />);
     const user = await selectDays(30);
     await user.click(screen.getByRole("button", { name: "Save retention" }));
     await user.click(screen.getByRole("button", { name: "Confirm retention change" }));
-    await screen.findByText("Retention saved: 30 days");
+    await screen.findByText("Saved retention: 30 days");
+    expect(screen.queryByText("Retention saved: 30 days")).not.toBeInTheDocument();
     expect(saveActivityRetentionPolicy).toHaveBeenCalledWith(30, 90);
     expect(screen.queryByText(/No expired activity found/)).not.toBeInTheDocument();
   });
@@ -49,7 +50,8 @@ describe("ActivityRetentionSettings", () => {
     render(<ActivityRetentionSettings initial={initial} />);
     const user = await selectDays(180);
     await user.click(screen.getByRole("button", { name: "Save retention" }));
-    await screen.findByText("Retention saved: 180 days");
+    await screen.findByText("Saved retention: 180 days");
+    expect(screen.queryByText("Retention saved: 180 days")).not.toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
   it("retains failed selection, refreshes saved baseline and renews confirmation", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, X, Copy } from "lucide-react";
 import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ export interface CompanionRowProps {
 export function CompanionRow({ companion }: CompanionRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [justSaved, setJustSaved] = useState(false);
 
   const [name, setName] = useState(companion.name);
   const [age, setAge] = useState(companion.age?.toString() ?? "");
@@ -82,8 +81,6 @@ export function CompanionRow({ companion }: CompanionRowProps) {
         toast.error(result.error);
         return;
       }
-      setJustSaved(true);
-      setTimeout(() => setJustSaved(false), 2000);
       setIsExpanded(false);
       editButtonRef.current?.focus();
     });
@@ -109,32 +106,31 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             </span>
           )}
         </span>
-        {justSaved && (
-          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
-            Saved
-          </span>
-        )}
-        <button
+        <Button
+          variant="ghost"
+          size="icon-lg"
           ref={editButtonRef}
           type="button"
           onClick={isExpanded ? handleCollapse : handleExpand}
           aria-label={isExpanded ? `Collapse ${companion.name}` : `Edit ${companion.name}`}
+          title={isExpanded ? `Collapse ${companion.name}` : `Edit ${companion.name}`}
           aria-expanded={isExpanded}
-          className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
           style={{ color: "var(--fg-4)" }}
         >
           {isExpanded ? <ChevronUp size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-lg"
           type="button"
           onClick={handleDelete}
           disabled={isPending}
           aria-label={`Remove ${companion.name}`}
-          className="rounded-[4px] p-0.5 transition-colors hover:bg-surface-3"
+          title={`Remove ${companion.name}`}
           style={{ color: "var(--fg-4)" }}
         >
           <X size={14} strokeWidth={1.5} />
-        </button>
+        </Button>
       </div>
 
       {isExpanded && (
@@ -171,16 +167,35 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               htmlFor={`companion-passport-${companion.id}`}
               error={passportNumberError ?? undefined}
             >
-              <Input
-                id={`companion-passport-${companion.id}`}
-                type="text"
-                value={passportNumber}
-                onChange={(event) => setPassportNumber(event.target.value)}
-                placeholder="e.g. A12345678"
-                autoComplete="off"
-                aria-invalid={!!passportNumberError || undefined}
-                aria-describedby={passportNumberError ? `companion-passport-${companion.id}-error` : undefined}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  className="min-w-0 flex-1"
+                  id={`companion-passport-${companion.id}`}
+                  type="text"
+                  value={passportNumber}
+                  onChange={(event) => setPassportNumber(event.target.value)}
+                  placeholder="e.g. A12345678"
+                  autoComplete="off"
+                  aria-invalid={!!passportNumberError || undefined}
+                  aria-describedby={passportNumberError ? `companion-passport-${companion.id}-error` : undefined}
+                />
+                {passportNumber.trim() && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-lg"
+                    title="Copy passport number"
+                    aria-label="Copy passport number"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(passportNumber)
+                        .catch(() => toast.error("Could not copy passport number."));
+                    }}
+                  >
+                    <Copy strokeWidth={1.5} aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             </Field>
 
             <Field label="Passport expiry">
@@ -212,16 +227,35 @@ export function CompanionRow({ companion }: CompanionRowProps) {
               htmlFor={`companion-ktn-${companion.id}`}
               error={ktnError ?? undefined}
             >
-              <Input
-                id={`companion-ktn-${companion.id}`}
-                type="text"
-                value={knownTravelerNumber}
-                onChange={(event) => setKnownTravelerNumber(event.target.value)}
-                placeholder="e.g. 123456789"
-                autoComplete="off"
-                aria-invalid={!!ktnError || undefined}
-                aria-describedby={ktnError ? `companion-ktn-${companion.id}-error` : undefined}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  className="min-w-0 flex-1"
+                  id={`companion-ktn-${companion.id}`}
+                  type="text"
+                  value={knownTravelerNumber}
+                  onChange={(event) => setKnownTravelerNumber(event.target.value)}
+                  placeholder="e.g. 123456789"
+                  autoComplete="off"
+                  aria-invalid={!!ktnError || undefined}
+                  aria-describedby={ktnError ? `companion-ktn-${companion.id}-error` : undefined}
+                />
+                {knownTravelerNumber.trim() && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-lg"
+                    title="Copy known traveler number"
+                    aria-label="Copy known traveler number"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(knownTravelerNumber)
+                        .catch(() => toast.error("Could not copy known traveler number."));
+                    }}
+                  >
+                    <Copy strokeWidth={1.5} aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             </Field>
           </div>
 

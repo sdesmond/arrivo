@@ -73,6 +73,48 @@ const baseUser: UserProfile = {
 };
 
 describe("PassportSection", () => {
+  it("shows copy buttons only for populated document numbers and copies current values", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(<PassportSection user={baseUser} />);
+    expect(screen.queryByRole("button", { name: "Copy passport number" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy known traveler number" })).not.toBeInTheDocument();
+    const passport = screen.getByPlaceholderText("e.g. A12345678");
+    const traveler = screen.getByPlaceholderText("e.g. 123456789");
+    await user.type(passport, "AB123456");
+    await user.type(traveler, "123456789");
+    for (const label of ["Copy passport number", "Copy known traveler number"]) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toHaveClass("size-11");
+      expect(button).toHaveAttribute("title", label);
+      await user.click(button);
+    }
+    expect(writeText).toHaveBeenNthCalledWith(1, "AB123456");
+    expect(writeText).toHaveBeenNthCalledWith(2, "123456789");
+    await user.clear(passport);
+    expect(screen.queryByRole("button", { name: "Copy passport number" })).not.toBeInTheDocument();
+  });
+
+  it("saves traveler info without inline success text", async () => {
+    const user = userEvent.setup();
+    const onDirtyChange = vi.fn();
+    render(<PassportSection user={baseUser} onDirtyChange={onDirtyChange} />);
+    await user.type(screen.getByPlaceholderText("e.g. A12345678"), "AB123456");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
+
+  it("shows clipboard failures without a success message", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValueOnce(new Error("Clipboard unavailable"));
+    const { toast } = await import("sonner");
+    render(<PassportSection user={{ ...baseUser, passportNumber: "AB123456" }} />);
+    await user.click(screen.getByRole("button", { name: "Copy passport number" }));
+    expect(toast.error).toHaveBeenCalledWith("Could not copy passport number.");
+    expect(screen.queryByText("Copied!")).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

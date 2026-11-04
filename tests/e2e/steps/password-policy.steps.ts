@@ -142,9 +142,13 @@ When("the {string} browser tries to save invalid password rules", async ({ polic
   await policyApp.browser(label).getByRole("button", { name: "Save password rules" }).click();
 });
 
-Then("the {string} browser shows the password rules saved message", async ({ policyApp }, label: string) => {
-  await expect(policyApp.browser(label).getByRole("status").filter({ hasText: "Password rules saved." })).toBeVisible();
-});
+Then(
+  "the {string} browser finishes saving password rules without an inline success message",
+  async ({ policyApp }, label: string) => {
+    await expect(policyApp.browser(label).getByRole("button", { name: "Save password rules" })).toBeEnabled();
+    await expect(policyApp.browser(label).getByText("Password rules saved.", { exact: true })).toHaveCount(0);
+  }
+);
 
 Then(
   "the {string} browser shows the password rule values {string}",

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({
@@ -119,7 +119,7 @@ describe("ProfileAccountSection — change password dialog", () => {
     expect(within(dialog).getByRole("list", { name: "Password requirements" })).toHaveTextContent("At least 1 number");
   });
 
-  it("submits through the existing action and shows the success state", async () => {
+  it("clears password fields and prevents repeat submission without a success message", async () => {
     const user = userEvent.setup();
     renderSection();
     await user.click(screen.getByRole("button", { name: "Change password" }));
@@ -128,7 +128,13 @@ describe("ProfileAccountSection — change password dialog", () => {
     await user.type(screen.getByLabelText("Confirm new password"), "abcdefgh");
     await user.click(screen.getByRole("button", { name: "Update password" }));
     expect(changePassword).toHaveBeenCalledWith({ currentPassword: "currentpw", newPassword: "abcdefgh" });
-    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
+    await waitFor(() => {
+      for (const label of ["Current password", "New password", "Confirm new password"]) {
+        expect(screen.getByLabelText(label)).toHaveValue("");
+      }
+      expect(screen.getByRole("button", { name: "Update password" })).toBeDisabled();
+    });
+    expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
   });
 
   it("does not make the tab dirty while password fields hold input", async () => {

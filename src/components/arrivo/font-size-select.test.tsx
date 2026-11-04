@@ -22,6 +22,7 @@ describe("FontSizeSelect", () => {
   let mockSetProperty: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     localStorageMock.clear();
     delete document.documentElement.dataset.fontSize;
     mockSetProperty = vi.spyOn(document.documentElement.style, "setProperty").mockImplementation(() => {});
@@ -40,6 +41,7 @@ describe("FontSizeSelect", () => {
     render(<FontSizeSelect />);
     const trigger = await screen.findByRole("combobox", { name: /font size/i });
     expect(trigger).toHaveTextContent(/medium/i);
+    expect(mockSetProperty).toHaveBeenCalledWith("--font-size-base", "18px");
   });
 
   it("reads stored preference from localStorage on mount", async () => {
@@ -55,8 +57,19 @@ describe("FontSizeSelect", () => {
     await user.click(await screen.findByRole("combobox", { name: /font size/i }));
     await user.click(await screen.findByRole("option", { name: /small/i }));
     expect(localStorageMock.getItem("font-size")).toBe("small");
-    expect(mockSetProperty).toHaveBeenCalledWith("--font-size-base", "13px");
+    expect(mockSetProperty).toHaveBeenCalledWith("--font-size-base", "16px");
     expect(document.documentElement.dataset.fontSize).toBe("small");
+  });
+
+  it.each([
+    ["small", "16px"],
+    ["medium", "18px"],
+    ["large", "20px"],
+  ])("applies stored %s preference at %s", (size, pixels) => {
+    localStorageMock.setItem("font-size", size);
+    render(<FontSizeSelect />);
+    expect(mockSetProperty).toHaveBeenCalledWith("--font-size-base", pixels);
+    expect(document.documentElement.dataset.fontSize).toBe(size);
   });
 
   it("is disabled before hydration (useSyncExternalStore server snapshot)", () => {

@@ -57,7 +57,6 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
   const [warningThreshold, setWarningThreshold] = useState(user.warningThreshold ?? 80);
   const [dangerThreshold, setDangerThreshold] = useState(user.dangerThreshold ?? 90);
   const [isPending, startTransition] = useTransition();
-  const [justSaved, setJustSaved] = useState(false);
 
   function computeDirty(
     dateFormat: string,
@@ -230,9 +229,7 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
         toast.error(result.error);
         return;
       }
-      setJustSaved(true);
       onDirtyChange?.(false);
-      setTimeout(() => setJustSaved(false), 2000);
     });
   }
 
@@ -388,11 +385,6 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       </Section>
 
       <div className="flex items-center justify-end gap-3">
-        {justSaved && (
-          <span role="status" style={{ fontSize: "calc(12px * var(--font-scale))", color: "var(--accent-brand)" }}>
-            Saved
-          </span>
-        )}
         <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
           {isPending ? "Saving…" : "Save"}
         </Button>

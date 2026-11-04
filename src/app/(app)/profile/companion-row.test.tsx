@@ -65,6 +65,45 @@ const baseCompanion: Companion = {
 };
 
 describe("CompanionRow", () => {
+  it("copies populated companion passport and known traveler numbers", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(<CompanionRow companion={{ ...baseCompanion, knownTravelerNumber: "123456789" }} />);
+    await user.click(screen.getByRole("button", { name: "Edit Alice Travel" }));
+    await user.click(screen.getByRole("button", { name: "Copy passport number" }));
+    await user.click(screen.getByRole("button", { name: "Copy known traveler number" }));
+    expect(writeText).toHaveBeenNthCalledWith(1, "PA001");
+    expect(writeText).toHaveBeenNthCalledWith(2, "123456789");
+    await user.clear(screen.getByDisplayValue("PA001"));
+    expect(screen.queryByRole("button", { name: "Copy passport number" })).not.toBeInTheDocument();
+  });
+
+  it("saves a companion without inline success text", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: "Edit Alice Travel" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("button", { name: "Edit Alice Travel" })).toHaveFocus();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
+
+  it("provides titled 44px edit, collapse, and remove targets", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    const edit = screen.getByRole("button", { name: "Edit Alice Travel" });
+    const remove = screen.getByRole("button", { name: "Remove Alice Travel" });
+    expect(edit).toHaveClass("size-11", "shrink-0");
+    expect(remove).toHaveClass("size-11", "shrink-0");
+    expect(edit).toHaveAttribute("title", "Edit Alice Travel");
+    expect(remove).toHaveAttribute("title", "Remove Alice Travel");
+    await user.click(edit);
+    const collapse = screen.getByRole("button", { name: "Collapse Alice Travel" });
+    expect(collapse).toHaveClass("size-11");
+    expect(collapse).toHaveAttribute("title", "Collapse Alice Travel");
+    await user.click(collapse);
+    expect(screen.getByRole("button", { name: "Edit Alice Travel" })).toHaveFocus();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

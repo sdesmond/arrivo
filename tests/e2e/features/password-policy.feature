@@ -12,7 +12,7 @@ Feature: Configurable password rules
     And the "admin" browser sets "Minimum numbers" to "2"
     And the "admin" browser sets "Minimum special characters" to "2"
     And the "admin" browser saves the password rules
-    Then the "admin" browser shows the password rules saved message
+    Then the "admin" browser finishes saving password rules without an inline success message
     When the "admin" browser reloads the Security settings
     Then the "admin" browser shows the password rule values "Minimum length=8, Maximum length=15, Minimum uppercase letters=2, Minimum numbers=2, Minimum special characters=2"
     And the stored password rules are 8 to 15, requiring 2 uppercase, 2 numbers and 2 special characters
@@ -62,7 +62,7 @@ Feature: Configurable password rules
     And the "second" browser opens the Security settings
     And the "second" browser sets "Minimum length" to "10"
     And the "second" browser saves the password rules
-    Then the "second" browser shows the password rules saved message
+    Then the "second" browser finishes saving password rules without an inline success message
     When the "first" browser sets "Maximum length" to "18"
     And the "first" browser saves the password rules
     Then the "first" browser shows the password rules error "changed elsewhere"
@@ -70,7 +70,7 @@ Feature: Configurable password rules
     And the stored password rules are 10 to 20, requiring 0 uppercase, 0 numbers and 0 special characters
     When the "first" browser sets "Maximum length" to "18"
     And the "first" browser saves the password rules
-    Then the "first" browser shows the password rules saved message
+    Then the "first" browser finishes saving password rules without an inline success message
     And the stored password rules are 10 to 18, requiring 0 uppercase, 0 numbers and 0 special characters
 
   Scenario: Existing passwords outside the new limits still sign in

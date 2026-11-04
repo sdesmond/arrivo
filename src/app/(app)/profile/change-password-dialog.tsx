@@ -31,7 +31,7 @@ const TEXT_SIZE = { fontSize: "calc(12px * var(--font-scale))" };
 
 /**
  * The change-password form, in a dialog. A successful change signs the user out (the action redirects), so success
- * keeps the dialog showing "Password updated." until that navigation lands. Closing resets every field and error.
+ * keeps the submit disabled until that navigation lands. Closing resets every field and error.
  */
 export function ChangePasswordDialog({ open, onOpenChange, passwordPolicy }: ChangePasswordDialogProps) {
   // A refused save returns the rules as the server now sees them, so a stale checklist corrects itself.
@@ -162,11 +162,6 @@ export function ChangePasswordDialog({ open, onOpenChange, passwordPolicy }: Cha
           {error && (
             <p id="change-password-error" role="alert" style={{ ...TEXT_SIZE, color: "var(--destructive)" }}>
               {error}
-            </p>
-          )}
-          {success && (
-            <p role="status" style={{ ...TEXT_SIZE, color: "var(--fg-2)" }}>
-              Password updated.
             </p>
           )}
 
