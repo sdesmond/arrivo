@@ -68,6 +68,13 @@ describe("resolveOwningTripId", () => {
     await expect(resolveOwningTripId("reservation-documents/res-1/uuid.pdf")).rejects.toThrow("Reservation not found.");
   });
 
+  it("never resolves a user-avatar key to a trip", async () => {
+    await expect(resolveOwningTripId("user-avatars/user-1/uuid.webp")).rejects.toThrow(
+      "user-avatar keys have no owning trip"
+    );
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
   it("throws on a malformed key (delegated to parseUploadStorageName)", async () => {
     await expect(resolveOwningTripId("not-a-scope/foo/bar.jpg")).rejects.toThrow();
   });

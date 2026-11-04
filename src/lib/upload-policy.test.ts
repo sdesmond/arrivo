@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  assertValidAvatarUpload,
   assertValidCoverUpload,
   assertValidDocumentUpload,
+  AVATAR_UPLOAD_ACCEPT,
+  AVATAR_UPLOAD_HINT,
+  AVATAR_UPLOAD_REJECTED_MESSAGE,
   COVER_UPLOAD_HINT,
   createUploadStorageName,
   DOCUMENT_UPLOAD_HINT,
@@ -60,6 +64,43 @@ describe("upload-policy", () => {
     Object.defineProperty(file, "size", { value: 12 * 1024 * 1024 + 1 });
 
     expect(() => assertValidCoverUpload(file)).toThrow("Cover image exceeds 12 MB limit.");
+  });
+
+  it("accepts JPEG, PNG, and WebP avatar uploads", () => {
+    for (const type of ["image/jpeg", "image/png", "image/webp"]) {
+      expect(() => assertValidAvatarUpload(new File(["x"], "me", { type }))).not.toThrow();
+    }
+  });
+
+  it.each(["image/heic", "image/gif", "image/avif", "image/svg+xml", "application/pdf", ""])(
+    "rejects %s avatar uploads",
+    (type) => {
+      expect(() => assertValidAvatarUpload(new File(["x"], "me", { type }))).toThrow(
+        "Unsupported photo type. Choose JPG, PNG, or WEBP."
+      );
+    }
+  );
+
+  it("rejects avatar uploads over 5 MB and accepts exactly 5 MB", () => {
+    const atLimit = new File(["x"], "me.png", { type: "image/png" });
+    Object.defineProperty(atLimit, "size", { value: 5 * 1024 * 1024 });
+    expect(() => assertValidAvatarUpload(atLimit)).not.toThrow();
+
+    const over = new File(["x"], "me.png", { type: "image/png" });
+    Object.defineProperty(over, "size", { value: 5 * 1024 * 1024 + 1 });
+    expect(() => assertValidAvatarUpload(over)).toThrow("Photo is too large. Max 5 MB.");
+  });
+
+  it("exports avatar accept list and hint", () => {
+    expect(AVATAR_UPLOAD_ACCEPT).toBe("image/jpeg,image/png,image/webp");
+    expect(AVATAR_UPLOAD_HINT).toBe("JPG, PNG, WEBP · max 5 MB");
+    expect(AVATAR_UPLOAD_REJECTED_MESSAGE).toBe("Choose a JPG, PNG, or WEBP photo up to 5 MB.");
+  });
+
+  it("builds and parses user-avatar storage names", () => {
+    const name = createUploadStorageName("user-avatar", "user-1", "image/webp");
+    expect(name).toMatch(/^user-avatars\/user-1\/[0-9a-f-]+\.webp$/);
+    expect(parseUploadStorageName(name)).toMatchObject({ scope: "user-avatar", ownerId: "user-1" });
   });
 
   it("maps supported MIME types to stable extensions", () => {

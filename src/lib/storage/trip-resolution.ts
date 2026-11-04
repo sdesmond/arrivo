@@ -10,6 +10,9 @@ export async function resolveOwningTripId(key: string): Promise<string> {
     case "trip-document":
     case "trip-cover":
       return ownerId;
+    case "user-avatar":
+      // Avatars belong to a user, not a trip; callers must branch on scope before resolving a trip.
+      throw new Error("user-avatar keys have no owning trip");
     case "event-document": {
       const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, ownerId));
       if (!event) throw new Error("Event not found");

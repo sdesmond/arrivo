@@ -68,6 +68,7 @@ export async function deleteOwnAccount(
     const [account] = await transaction
       .select({
         username: users.username,
+        image: users.image,
         role: users.role,
         passwordHash: users.passwordHash,
         sessionVersion: users.sessionVersion,
@@ -119,6 +120,7 @@ export async function deleteOwnAccount(
       ok: true,
       summary: await removeAccount(transaction, {
         account: { id: accountId, username: account.username },
+        avatarUrl: account.image,
         ownedTrips,
         members,
         heirByTripId,
@@ -167,6 +169,8 @@ async function selectMembers(transaction: DbTransaction, tripIds: string[]): Pro
 
 interface AccountRemoval {
   account: { id: string; username: string };
+  /** The account's profile photo; its file goes with the account. */
+  avatarUrl: string | null;
   ownedTrips: OwnedTrip[];
   members: TripMember[];
   /** Trip ID to the member who takes it over; every other owned trip is deleted. */
@@ -181,7 +185,7 @@ interface AccountRemoval {
  * Authorizations and invitations addressed to the account cascade with the user row.
  */
 async function removeAccount(transaction: DbTransaction, removal: AccountRemoval): Promise<DeletedAccountSummary> {
-  const { account, ownedTrips, members, heirByTripId, clearCreators } = removal;
+  const { account, avatarUrl, ownedTrips, members, heirByTripId, clearCreators } = removal;
   const rescindedInvitations = await transaction
     .update(invitations)
     .set({ status: InvitationStatus.Rescinded })
@@ -232,6 +236,7 @@ async function removeAccount(transaction: DbTransaction, removal: AccountRemoval
     storageUrls: [
       ...deletedTripDocuments.map((tripDocument) => tripDocument.url),
       ...deletedTrips.map((trip) => trip.coverImageUrl),
+      avatarUrl,
     ].filter((url): url is string => !!url),
     account,
   };
@@ -348,6 +353,7 @@ async function lockAndResolve(
     .select({
       id: users.id,
       username: users.username,
+      image: users.image,
       role: users.role,
       passwordHash: users.passwordHash,
       sessionVersion: users.sessionVersion,
@@ -410,6 +416,7 @@ async function lockAndResolve(
     },
     removal: {
       account: { id: targetId, username: target.username },
+      avatarUrl: target.image,
       ownedTrips,
       members,
       heirByTripId: new Map(heirs),

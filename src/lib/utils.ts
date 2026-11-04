@@ -181,6 +181,7 @@ export function toHHMM(iso: string): string {
 }
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+export const MAX_AVATAR_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const MAX_COVER_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024;
 
 export function inferDocKind(mimeType: string): "pdf" | "image" | "doc" {
