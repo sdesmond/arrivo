@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-03
+
+### Upgrading
+
+- **Migrations:** three new database migrations (0010–0012) apply on start. Defaults keep current behavior: passwords
+  need 8–20 characters with no required character types, and two-factor authentication stays optional. Existing
+  passwords and sessions are unaffected.
+- **Before requiring two-factor authentication,** make sure `DATA_ENCRYPTION_KEY` is configured. Saving a requirement
+  fails without a working key.
+
+### Added
+
+- Admins can set password rules under Manage app → Security: minimum length 8–16, maximum length 15–20, and a minimum
+  count of uppercase letters, numbers and special characters (0 means not required). The rules apply when setting a
+  new password in first-admin setup, account setup, reset, recovery and Profile, with a live checklist as people type.
+  Sign-in never applies them. Passwords over 72 bytes are rejected.
+- Admins can require two-factor authentication for everyone (Manage app → Security) or for individual accounts
+  (Manage app → Users, "Require 2FA"). Requirements apply at next sign-in; existing sessions continue. People who
+  haven't enrolled must set up an authenticator app and save recovery codes, then sign in again before reaching
+  trips. Required accounts can't turn it off, and turning the instance requirement off clears individual
+  requirements without disabling enrolled two-factor authentication.
+
+### Changed
+
+- The Share dialog's invite field is now a picker of registered users, so a mistyped username can't be submitted.
+  It excludes you, current collaborators and pending invitees.
+- Profile → Identity and Account are merged into one Account tab, and Change password opens in a dialog.
+- The Support Arrivo card sits above the metrics on Admin → Overview.
+
 ## [0.6.2] - 2026-11-03
 
 ### Added
@@ -136,7 +165,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/sdesmond/arrivo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/sdesmond/arrivo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sdesmond/arrivo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sdesmond/arrivo/compare/v0.5.1...v0.6.0
