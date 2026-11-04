@@ -7,6 +7,14 @@ export class StorageNotFoundError extends Error {
   }
 }
 
+/**
+ * `instanceof` alone is not enough: the adapter is cached on `globalThis` and shared by Next's separate route and
+ * server-action bundles, each with its own copy of this class, so the name is checked too.
+ */
+export function isStorageNotFoundError(error: unknown): error is StorageNotFoundError {
+  return error instanceof StorageNotFoundError || (error instanceof Error && error.name === "StorageNotFoundError");
+}
+
 export interface StorageAdapter {
   put(key: string, file: File): Promise<string>;
   del(url: string): Promise<void>;

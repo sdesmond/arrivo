@@ -194,6 +194,20 @@ describe("GET /api/storage/[...path]", () => {
     ).rejects.toThrow("Event not found");
   });
 
+  it("returns 404 when the missing-file error comes from another module instance", async () => {
+    const foreign = new Error("trip-documents/trip-1/missing.pdf");
+    foreign.name = "StorageNotFoundError";
+    const read = vi.fn().mockRejectedValue(foreign);
+    getStorageAdapter.mockReturnValue({ read });
+
+    const response = await GET(
+      new Request("http://localhost/api/storage/trip-documents/trip-1/missing.pdf") as never,
+      makeParams(["trip-documents", "trip-1", "missing.pdf"])
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("returns 400 when the file extension is unsupported", async () => {
     const stream = makeStream();
     const read = vi.fn().mockResolvedValue(stream);

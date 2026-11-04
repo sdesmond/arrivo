@@ -15,7 +15,12 @@ vi.mock("./local-filesystem-adapter", () => ({
   createLocalFileSystemAdapter,
 }));
 
-import { __resetStorageAdapterCacheForTests, getStorageAdapter, StorageNotFoundError } from "./storage-adapter";
+import {
+  __resetStorageAdapterCacheForTests,
+  getStorageAdapter,
+  isStorageNotFoundError,
+  StorageNotFoundError,
+} from "./storage-adapter";
 
 describe("getStorageAdapter", () => {
   beforeEach(() => {
@@ -99,5 +104,26 @@ describe("StorageNotFoundError", () => {
     expect(error.message).toBe("event-documents/abc/uuid.jpg");
     expect(error.name).toBe("StorageNotFoundError");
     expect(error).toBeInstanceOf(Error);
+  });
+});
+
+describe("isStorageNotFoundError", () => {
+  it("recognizes the class", () => {
+    expect(isStorageNotFoundError(new StorageNotFoundError("a/b.webp"))).toBe(true);
+  });
+
+  // The adapter is cached on globalThis and shared across Next bundles, so the error can come from another
+  // copy of this module where `instanceof` fails.
+  it("recognizes a copy of the error from another module instance by name", () => {
+    const foreign = new Error("a/b.webp");
+    foreign.name = "StorageNotFoundError";
+    expect(foreign instanceof StorageNotFoundError).toBe(false);
+    expect(isStorageNotFoundError(foreign)).toBe(true);
+  });
+
+  it("rejects other errors and non-errors", () => {
+    expect(isStorageNotFoundError(new Error("disk failure"))).toBe(false);
+    expect(isStorageNotFoundError("StorageNotFoundError")).toBe(false);
+    expect(isStorageNotFoundError(undefined)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
-import { getStorageAdapter, StorageNotFoundError } from "@/lib/storage/storage-adapter";
+import { getStorageAdapter, isStorageNotFoundError } from "@/lib/storage/storage-adapter";
 import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { EXTENSION_MIME_TYPES, MalformedKeyError, parseUploadStorageName } from "@/lib/upload-policy";
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    if (error instanceof StorageNotFoundError) {
+    if (isStorageNotFoundError(error)) {
       return new Response("Not found", { status: 404 });
     }
     throw error;
