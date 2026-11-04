@@ -71,6 +71,27 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("TripsMobileLayout", () => {
+  it("omits unused Search action and keeps New trip working", () => {
+    const onNewTrip = vi.fn();
+    render(
+      <TripsMobileLayout
+        activeEntry={null}
+        upcomingTrips={[]}
+        unscheduledEntries={[]}
+        now={new Date(NOW_ISO)}
+        dateFormat="MM/DD/YYYY"
+        mobileTab="Upcoming"
+        onTabChange={vi.fn()}
+        onNewTrip={onNewTrip}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    expect(screen.queryByRole("button", { name: /search/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "New trip" }));
+    expect(onNewTrip).toHaveBeenCalledOnce();
+  });
+
   it("shows Unscheduled tab when unscheduled entries exist", () => {
     render(
       <TripsMobileLayout

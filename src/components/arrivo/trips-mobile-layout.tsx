@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Search, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MobileActiveTab, MobileUpcomingTab, MobileUnscheduledTab } from "@/components/arrivo/trips-mobile-tabs";
 import { type Trip, type TripListEntry } from "@/data/types";
@@ -60,9 +60,6 @@ export function TripsMobileLayout({
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon-sm" title="Search trips" style={{ minHeight: 44, minWidth: 44 }}>
-              <Search size={15} strokeWidth={1.5} />
-            </Button>
             <Button size="icon-sm" title="New trip" style={{ minHeight: 44, minWidth: 44 }} onClick={onNewTrip}>
               <Plus size={15} strokeWidth={1.5} />
             </Button>
