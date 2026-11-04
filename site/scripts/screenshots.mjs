@@ -130,6 +130,16 @@ export const SHOTS = [
   { name: "packing-templates", account: "demo", run: (page) => page.goto(`${BASE_URL}/packing`) },
   { name: "travel-history", account: "demo", run: (page) => page.goto(`${BASE_URL}/travel-history`) },
   { name: "profile", account: "demo", run: (page) => page.goto(`${BASE_URL}/profile`) },
+  {
+    name: "profile-photo",
+    account: "demo",
+    run: async (page) => {
+      await page.goto(`${BASE_URL}/profile`);
+      await settle(page);
+      // The upload control sits on the photo and only shows on hover or focus.
+      await page.getByRole("button", { name: "Replace photo" }).hover();
+    },
+  },
   { name: "admin-overview", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/overview`) },
   { name: "admin-users", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/users`) },
   { name: "admin-security", account: "admin", run: (page) => page.goto(`${BASE_URL}/admin/security`) },
