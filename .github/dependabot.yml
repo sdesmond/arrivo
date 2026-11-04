@@ -1,13 +1,12 @@
 # Majors land as individual PRs; minor/patch bumps are grouped. The cooldown keeps freshly published releases
 # (the window in which compromised packages are usually caught) out of the lockfile. Security updates ignore
-# both the schedule and the cooldown.
+# both the schedule and the cooldown; the `security` group batches them (including transitive ones) into one PR.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
@@ -21,6 +20,10 @@ updates:
         versions: [">=23"]
     # A dependency joins the first group that matches it, so the coupled sets come before the catch-alls.
     groups:
+      # Security fixes arrive immediately and ignore the schedule; one PR instead of one per vulnerable package.
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
       # Exact-pinned and versioned in lockstep.
       next:
         patterns: ["next", "eslint-config-next"]
@@ -33,6 +36,7 @@ updates:
           - "vitest"
           - "@vitest/*"
           - "@vitejs/*"
+          - "vite"
           - "@testing-library/*"
           - "jsdom"
           - "@playwright/*"
