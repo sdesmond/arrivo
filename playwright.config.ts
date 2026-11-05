@@ -17,7 +17,7 @@ const E2E_TIMEZONE = "America/Denver";
 process.env.TZ = E2E_TIMEZONE;
 
 // Two workers: four against the Next dev server produced timeouts in unrelated features on the full suite.
-const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? "2");
+const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? "3");
 const reuseExistingServer = process.env.E2E_REUSE_SERVER === "true";
 
 const testDir = defineBddConfig({
