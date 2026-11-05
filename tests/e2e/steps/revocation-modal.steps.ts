@@ -95,13 +95,16 @@ Given("I have a co-manager with a staged contributor removal in their own sessio
   await expect(coManagerPage.getByText("Will be removed on Save")).toBeVisible();
 });
 
-When("I remove the {string} from the trip and save", async ({ page, scenario }) => {
+When("I remove the {string} from the trip and save", async ({ page, scenario }, _contributorLabel: string) => {
   await removeNamedContributorAndSave(page, scenario);
 });
 
-Then("the {string} session shows a message that they were removed from the trip, naming me", async ({ scenario }) => {
-  await assertRevocationModalNamesRemover(scenario);
-});
+Then(
+  "the {string} session shows a message that they were removed from the trip, naming me",
+  async ({ scenario }, _sessionLabel: string) => {
+    await assertRevocationModalNamesRemover(scenario);
+  }
+);
 
 Then("the co-manager's session no longer shows the share dialog", async ({ scenario }) => {
   const removedPage = getRemovedPage(scenario);
@@ -132,11 +135,11 @@ Then("the staged removal was discarded", async ({ page, scenario }) => {
   await expect(page.getByTitle(`Remove ${stagedTargetName}`)).toBeVisible();
 });
 
-When("the {string} session clicks OK", async ({ scenario }) => {
+When("the {string} session clicks OK", async ({ scenario }, _sessionLabel: string) => {
   await getRemovedPage(scenario).getByRole("button", { name: "OK", exact: true }).click();
 });
 
-Then("the {string} session is on the trips page", async ({ scenario }) => {
+Then("the {string} session is on the trips page", async ({ scenario }, _sessionLabel: string) => {
   await getRemovedPage(scenario).waitForURL("**/trips");
 });
 
