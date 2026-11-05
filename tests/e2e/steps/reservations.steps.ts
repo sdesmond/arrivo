@@ -306,7 +306,7 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
 });
 
-When("I attach a file to the reservation {string}", async ({ page }) => {
+When("I attach a file to the reservation {string}", async ({ page }, _reservationName: string) => {
   await page.getByRole("button", { name: "Attach" }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "test-doc.pdf",
@@ -316,10 +316,13 @@ When("I attach a file to the reservation {string}", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Attach" }).click();
 });
 
-Then("the document {string} appears on the reservation {string}", async ({ page }, docName: string) => {
-  await page.getByRole("button", { name: /^docs?$/i }).click();
-  await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
-});
+Then(
+  "the document {string} appears on the reservation {string}",
+  async ({ page }, docName: string, _reservationName: string) => {
+    await page.getByRole("button", { name: /^docs?$/i }).click();
+    await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
+  }
+);
 
 Given(
   "the trip has a Lodging reservation and a trip-level document {string}",
