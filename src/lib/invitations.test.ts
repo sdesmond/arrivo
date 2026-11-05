@@ -67,7 +67,7 @@ describe("hasNormalizedUsername", () => {
 
 describe("getMyPendingInvitations", () => {
   function mockQueryResult(rows: unknown[]) {
-    const where = vi.fn(async (_condition: unknown) => rows);
+    const where = vi.fn<(condition: unknown) => Promise<unknown[]>>(async () => rows);
     const innerJoin2 = vi.fn(() => ({ where }));
     const innerJoin1 = vi.fn(() => ({ innerJoin: innerJoin2 }));
     const from = vi.fn(() => ({ innerJoin: innerJoin1 }));
