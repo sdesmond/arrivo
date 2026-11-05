@@ -85,7 +85,7 @@ vi.mock("@dnd-kit/utilities", () => ({
   CSS: { Transform: { toString: vi.fn(() => undefined) } },
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
+vi.mock("@/lib/route-client", () => ({
   getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
   getDayScheduleConflicts: vi.fn().mockResolvedValue([]),
 }));

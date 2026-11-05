@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { ItineraryItemType, type DayItinerary } from "@/data/types";
 import { DayCardBody } from "./day-card-body";
-import { getDayRouteSummary, getDayScheduleConflicts } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getDayRouteSummary, getDayScheduleConflicts } from "@/lib/route-client";
 
 const { mockRouterPush, mockPathname, mockSearchParams } = vi.hoisted(() => ({
   mockRouterPush: vi.fn(),
@@ -91,7 +91,7 @@ vi.mock("./day-card-bottom-add", () => ({
   ),
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
+vi.mock("@/lib/route-client", () => ({
   getDayRouteSummary: vi.fn().mockResolvedValue({ status: "unavailable" }),
   getDayScheduleConflicts: vi.fn().mockResolvedValue([]),
 }));

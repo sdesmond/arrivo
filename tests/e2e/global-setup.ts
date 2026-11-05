@@ -23,7 +23,7 @@ export default async function globalSetup() {
     TRUNCATE users, accounts, sessions, verification_tokens,
              trips, days, events, documents, collaborators, packing_items, packing_templates, packing_template_items,
              itinerary_checklists, checklist_items, itinerary_notes, user_loyalty_numbers, user_companions,
-             auth_throttle, mfa_recovery_codes, trusted_devices, app_state
+             auth_throttle, mfa_recovery_codes, trusted_devices, app_state, activity_events
     CASCADE
   `);
 

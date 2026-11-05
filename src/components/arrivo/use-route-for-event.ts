@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GeoHintStatus, RouteResult, TransitMode, TripEvent } from "@/data/types";
-import { getRouteDistanceTime } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getRouteDistanceTime } from "@/lib/route-client";
 
 const REFRESH_INTERVAL_MS = 60_000;
 const GEOLOCATION_TIMEOUT_MS = 3000;

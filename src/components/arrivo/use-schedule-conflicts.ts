@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ScheduleConflict, TransitMode, TripEvent } from "@/data/types";
-import { getDayScheduleConflicts } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getDayScheduleConflicts } from "@/lib/route-client";
 
 interface ConflictState {
   key: string;

@@ -36,8 +36,15 @@ When("I type {string} in the budget field", async ({ page }, budget: string) => 
 });
 
 When("I save", async ({ page }) => {
+  const saved = page
+    .waitForResponse((response) => response.request().method() === "POST", { timeout: 10_000 })
+    .catch(() => null);
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  // The sheet seeds its draft from the trip prop only while closed, so reopening before the revalidated trip
+  // lands (the dialog closes first) shows the old values. Wait for the action's payload, then two frames for React.
+  await (await saved)?.finished();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });
 
 Then("the trip should display {string}", async ({ page }, name: string) => {
