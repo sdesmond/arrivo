@@ -89,6 +89,17 @@ Feature: Map tab
     Then I land on the Itinerary tab with "Eiffel Tower" focused
 
   @map-itinerary-link
+  @trip-with-map-pins
+  Scenario: View in Itinerary is not undone by slow route lookups finishing afterwards
+    Given I have an existing trip with days
+    And every POST request takes 1.5 seconds to answer
+    When I open the Map tab
+    And I tap the map pin for "Eiffel Tower"
+    And I tap the View in Itinerary action in the map detail card
+    Then I land on the Itinerary tab with "Eiffel Tower" focused
+    And the URL is still on the Itinerary tab once every slow request has answered
+
+  @map-itinerary-link
   @trip-with-reservation-map-pin
   Scenario: A reservation stop's detail card has no itinerary link
     Given I have an existing trip with days

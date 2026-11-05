@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DayRouteSummary, TransitMode, TripEvent } from "@/data/types";
-import { getDayRouteSummary } from "@/app/(app)/trips/[tripId]/route-actions";
+import { getDayRouteSummary } from "@/lib/route-client";
 
 interface RouteSummaryState {
   key: string;

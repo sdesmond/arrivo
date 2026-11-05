@@ -222,3 +222,32 @@ Then("the Map tab is open with day 1 selected", async ({ page }) => {
 Then("the Whole Trip scope is selected", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Whole Trip", selected: true })).toBeVisible();
 });
+
+// A router action that finishes after a navigation used to restore the pre-navigation URL. Delaying every POST
+// keeps the itinerary's route lookups (and any other action) in flight across the tap, which is what exposed it.
+const slowRequests = new WeakMap<Page, Set<Promise<void>>>();
+
+Given("every POST request takes {float} seconds to answer", async ({ page }, seconds: number) => {
+  const inFlight = new Set<Promise<void>>();
+  slowRequests.set(page, inFlight);
+  await page.route("**/*", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const answered = (async () => {
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+      await route.continue().catch(() => undefined);
+    })();
+    inFlight.add(answered);
+    await answered;
+    inFlight.delete(answered);
+  });
+});
+
+Then("the URL is still on the Itinerary tab once every slow request has answered", async ({ page }) => {
+  const inFlight = slowRequests.get(page);
+  if (!inFlight) throw new Error("Slow requests were not enabled for this scenario.");
+  while (inFlight.size > 0) await Promise.all([...inFlight]);
+  // Let the browser deliver the last responses and the router apply them.
+  await page.waitForTimeout(1_000);
+  await expect(page).toHaveURL(/[?&]tab=itin/, { timeout: 1_000 });
+  await expect(page).toHaveURL(/[?&]focus=/, { timeout: 1_000 });
+});
