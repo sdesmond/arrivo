@@ -6,7 +6,7 @@ const { mockGetRouteDistanceTime } = vi.hoisted(() => ({
   mockGetRouteDistanceTime: vi.fn(),
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/route-actions", () => ({
+vi.mock("@/lib/route-client", () => ({
   getRouteDistanceTime: mockGetRouteDistanceTime,
 }));
 
