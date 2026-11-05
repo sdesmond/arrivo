@@ -160,7 +160,13 @@ Then("I do not see the cover options control", async ({ page }) => {
 When("I open trip options for {string}", async ({ page }, tripName: string) => {
   const tripCard = page.locator("a[href^='/trips/']").filter({ hasText: tripName }).first();
   await expect(tripCard).toBeVisible();
-  await tripCard.getByTitle("Trip options").click();
+  const trigger = tripCard.getByTitle("Trip options");
+  const menu = page.getByRole("menu");
+  // A click before hydration opens nothing; retry only while the menu is closed so a slow open is never toggled shut.
+  await expect(async () => {
+    if (!(await menu.isVisible())) await trigger.click();
+    await expect(menu).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
 });
 
 function eventRow(page: Page, eventName: string) {

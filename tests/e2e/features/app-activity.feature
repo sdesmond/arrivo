@@ -175,10 +175,12 @@ Feature: App activity
     And there is a registered user I can invite
     And there is another registered user who is deleted before being invited
     When I open the sharing dialog
+    # Rejected first: an invite or resend emits a live-sync reload that, landing after the account is deleted,
+    # drops the stale pick and disables Invite.
+    And I try an Activity invitation for the deleted account
     And I invite that user to the trip as an editor
     Then I receive an invitation sent toast
     When I resend the Activity invitation from its row
-    And I try an Activity invitation for the deleted account
     And I open the app Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata
     And Activity has no other invitation transitions for that trip
