@@ -18,6 +18,9 @@ updates:
       # Runtime is Node 22 (.nvmrc, Dockerfile); move @types/node with the runtime, not ahead of it.
       - dependency-name: "@types/node"
         versions: [">=23"]
+      # TS 7 is outside typescript-eslint's peer range (<6.1.0); stay on 6.x until it supports 7.
+      - dependency-name: typescript
+        versions: [">=7"]
     # A dependency joins the first group that matches it, so the coupled sets come before the catch-alls.
     groups:
       # Security fixes arrive immediately and ignore the schedule; one PR instead of one per vulnerable package.
