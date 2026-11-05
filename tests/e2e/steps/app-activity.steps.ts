@@ -458,8 +458,14 @@ When("I add a private expense for Activity", async ({ page, scenario }) => {
 
 When("I add a private reservation for Activity", async ({ page, scenario }) => {
   const trip = scenario.currentTrip!;
-  await page.getByRole("button", { name: "Reservations", exact: true }).click();
-  await page.getByRole("button", { name: "Add Reservation" }).click();
+  const addReservation = page.getByRole("button", { name: "Add Reservation" });
+  // A tab click before the page hydrates does nothing; re-click (a no-op once the tab is active) until its content shows.
+  await expect(async () => {
+    if (!(await addReservation.isVisible()))
+      await page.getByRole("button", { name: "Reservations", exact: true }).click();
+    await expect(addReservation).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  await addReservation.click();
   await page.getByRole("menuitem", { name: "Flight" }).click();
   await page.getByLabel("Provider *").fill(PRIVATE_RESERVATION_PROVIDER);
   const since = Date.now();
