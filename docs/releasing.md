@@ -37,6 +37,12 @@ entries under **Unreleased** and lists the PRs it treated as internal. Read the 
 carry on with the steps above. PR descriptions that say what operators will notice, and what they must do, make the
 draft better.
 
+The same skill then checks the docs site (`site/`) against every visible change and writes what is missing: new
+sections or pages, corrected text, self-hosting changes in [self-hosting.md](./self-hosting.md), and new or refreshed
+screenshots (see `site/scripts/screenshots.mjs`). Commit those edits on the release branch with the changelog, so one
+merge ships both; the docs site deploys automatically from `main`. Its report lists the pages and screenshots it
+touched and any visible change it left undocumented.
+
 The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. npm and
 `next build` run natively for both architectures (only the arm64 runner stage's package install is
 emulated), so a release takes roughly 10–15 minutes; follow it under the repository's **Actions** tab.
