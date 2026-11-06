@@ -78,8 +78,10 @@ function SyncProblemBadge({ status, animate }: SyncProblemBadgeProps): ReactElem
 
   const handleOpenChange: TooltipOpenChange = (nextOpen, details) => {
     // The primitive's only open paths are mouse hover and focus, and it *closes* on a trigger
-    // press — which would leave a touch user with no way to read the label. Toggle on press.
-    setTooltipOpen(details.reason === "trigger-press" ? (open) => !open : nextOpen);
+    // press — which would leave a touch user with no way to read the label. A press while open
+    // closes it; a press while closed is opened by the trigger's onClick below, because Base UI
+    // no longer reports a press on a closed tooltip through onOpenChange.
+    setTooltipOpen(details.reason === "trigger-press" ? false : nextOpen);
   };
 
   // Recovery unmounts this badge. If it still held focus, hand focus to the main region instead of
@@ -104,6 +106,9 @@ function SyncProblemBadge({ status, animate }: SyncProblemBadgeProps): ReactElem
           textClassName
         )}
         data-testid="sync-status-trigger"
+        onClick={() => {
+          if (!tooltipOpen) setTooltipOpen(true);
+        }}
         style={{ border: "1px solid var(--line)" }}
         type="button"
       >

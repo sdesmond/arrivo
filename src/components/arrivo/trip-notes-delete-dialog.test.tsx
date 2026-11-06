@@ -24,7 +24,7 @@ describe("TripNotesDeleteDialog", () => {
     );
 
     const cancelButton = await screen.findByRole("button", { name: "Cancel" });
-    expect(cancelButton).toHaveFocus();
+    await waitFor(() => expect(cancelButton).toHaveFocus());
     expect(screen.getByRole("heading", { name: "Delete Pack sunscreen?" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
