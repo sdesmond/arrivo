@@ -286,6 +286,31 @@ describe("createLocalFileSystemAdapter", () => {
       expect(console.warn).toHaveBeenCalled();
     });
 
+    it.each([
+      "/api/storage/../outside.txt",
+      "/api/storage/trip-documents/../../outside.txt",
+      "/api/storage//outside.txt",
+    ])("refuses to delete outside the storage root for %s", async (url) => {
+      const storageRoot = join(rootDir, "uploads");
+      await mkdir(storageRoot);
+      await writeFile(join(rootDir, "outside.txt"), "keep me");
+      const adapter = createLocalFileSystemAdapter(storageRoot);
+
+      await expect(adapter.del(url)).resolves.toBeUndefined();
+
+      expect(await readFile(join(rootDir, "outside.txt"), "utf-8")).toBe("keep me");
+      expect(unlinkMock).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalled();
+    });
+
+    it("refuses to delete the storage root itself", async () => {
+      const adapter = createLocalFileSystemAdapter(rootDir);
+
+      await adapter.del("/api/storage/");
+
+      expect(unlinkMock).not.toHaveBeenCalled();
+    });
+
     it("does not throw and logs a warning when unlink rejects with a non-ENOENT error (EACCES)", async () => {
       const adapter = createLocalFileSystemAdapter(rootDir);
       const file = makeFile("doc.pdf", "content");
@@ -314,6 +339,28 @@ describe("createLocalFileSystemAdapter", () => {
       const adapter = createLocalFileSystemAdapter(rootDir);
 
       await expect(adapter.read("trip-documents/trip-1/nope.pdf")).rejects.toBeInstanceOf(StorageNotFoundError);
+    });
+
+    it("treats keys that escape the storage root as not found without reading them", async () => {
+      const storageRoot = join(rootDir, "uploads");
+      await mkdir(storageRoot);
+      await writeFile(join(rootDir, "outside.txt"), "secret");
+      const adapter = createLocalFileSystemAdapter(storageRoot);
+
+      await expect(adapter.read("../outside.txt")).rejects.toBeInstanceOf(StorageNotFoundError);
+    });
+  });
+
+  describe("put containment", () => {
+    it("rejects keys that escape the storage root without writing", async () => {
+      const storageRoot = join(rootDir, "uploads");
+      await mkdir(storageRoot);
+      const adapter = createLocalFileSystemAdapter(storageRoot);
+
+      await expect(adapter.put("../escaped.txt", makeFile("escaped.txt", "x"))).rejects.toThrow(
+        "outside the storage root"
+      );
+      await expect(readFile(join(rootDir, "escaped.txt"))).rejects.toThrow();
     });
   });
 });
