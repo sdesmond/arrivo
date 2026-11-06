@@ -4,7 +4,7 @@ import { createElement, useEffect, useId, useMemo, useRef, useState, useSyncExte
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useRouter } from "next/navigation";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
