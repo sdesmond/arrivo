@@ -1,6 +1,8 @@
 "use server";
 
 import { requireUser } from "@/lib/auth-helpers";
+import { assertWithinRateLimit } from "@/lib/rate-limit";
+import { MAX_COVER_SEARCH_PAGE, MAX_COVER_SEARCH_PAGE_SIZE } from "@/lib/validation-limits";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import type { CoverImageSearchResult } from "@/data/types";
@@ -73,7 +75,8 @@ export async function resolveDestinationCenter(destinationName: string): Promise
   const token = process.env.MAPBOX_ACCESS_TOKEN;
   if (!token) return null;
 
-  await requireUser();
+  const user = await requireUser();
+  assertWithinRateLimit("mapboxSearch", user.id!);
 
   const sessionToken = crypto.randomUUID();
   const search = new SearchBoxCore({ accessToken: token });
@@ -123,19 +126,21 @@ export async function searchCoverImages(
     throw new Error("Search query must not be empty");
   }
 
-  if (page < 1) {
-    throw new Error("Search page must be at least 1");
+  if (!Number.isInteger(page) || page < 1 || page > MAX_COVER_SEARCH_PAGE) {
+    throw new Error(`Search page must be a whole number from 1 to ${MAX_COVER_SEARCH_PAGE}`);
   }
 
-  if (perPage < 1) {
-    throw new Error("Search page size must be at least 1");
+  if (!Number.isInteger(perPage) || perPage < 1 || perPage > MAX_COVER_SEARCH_PAGE_SIZE) {
+    throw new Error(`Search page size must be a whole number from 1 to ${MAX_COVER_SEARCH_PAGE_SIZE}`);
   }
 
-  await requireUser();
+  const user = await requireUser();
 
   if (process.env.E2E_UNSPLASH_STUB === "true") {
     return buildE2EUnsplashStub(query, page, perPage);
   }
+
+  assertWithinRateLimit("unsplashSearch", user.id!);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);

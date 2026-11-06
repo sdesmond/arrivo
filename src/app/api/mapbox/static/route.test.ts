@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 
 const { requireUser } = vi.hoisted(() => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser }));
+const { rateLimitedResponse } = vi.hoisted(() => ({ rateLimitedResponse: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimitedResponse }));
 import { GET } from "./route";
 
 function buildRequest(query: string): NextRequest {
@@ -15,6 +17,7 @@ describe("GET /api/mapbox/static", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitedResponse.mockReturnValue(null);
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-token");
     requireUser.mockResolvedValue({ id: "user-1" });
@@ -31,6 +34,16 @@ describe("GET /api/mapbox/static", () => {
 
     await expect(GET(buildRequest("lat=10&lng=20"))).rejects.toBe(redirectSignal);
 
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the 429 without calling Mapbox once the user's tile budget is spent", async () => {
+    rateLimitedResponse.mockReturnValue(new Response("slow down", { status: 429 }));
+
+    const response = await GET(buildRequest("lat=10&lng=20"));
+
+    expect(response.status).toBe(429);
+    expect(rateLimitedResponse).toHaveBeenCalledWith("mapboxStatic", "user-1");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -7,6 +7,8 @@ const { requireUser, assertTripAccess, getRouteDistanceTime } = vi.hoisted(() =>
   getRouteDistanceTime: vi.fn(),
 }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser, assertTripAccess }));
+const { rateLimitedResponse } = vi.hoisted(() => ({ rateLimitedResponse: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimitedResponse }));
 vi.mock("@/lib/route", () => ({ getRouteDistanceTime }));
 import { POST } from "./route";
 
@@ -23,6 +25,7 @@ function post(payload: unknown): Request {
 describe("POST /api/trips/[tripId]/routing/distance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitedResponse.mockReturnValue(null);
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     getRouteDistanceTime.mockResolvedValue({ status: "ready", distanceMeters: 500, durationSeconds: 300 });
@@ -57,6 +60,14 @@ describe("POST /api/trips/[tripId]/routing/distance", () => {
   it("propagates denied access without computing a route", async () => {
     assertTripAccess.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
     await expect(POST(post(body), { params })).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(getRouteDistanceTime).not.toHaveBeenCalled();
+  });
+
+  it("returns the 429 and skips the Mapbox lookup once the user's routing budget is spent", async () => {
+    rateLimitedResponse.mockReturnValue(new Response("slow down", { status: 429 }));
+    const response = await POST(post(body), { params });
+    expect(response.status).toBe(429);
+    expect(rateLimitedResponse).toHaveBeenCalledWith("mapboxRouting", "user-1");
     expect(getRouteDistanceTime).not.toHaveBeenCalled();
   });
 });

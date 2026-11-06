@@ -18,6 +18,7 @@ import {
   readJsonObject,
   routeJson,
 } from "./route-request";
+import { MAX_ROUTE_EVENTS } from "./validation-limits";
 
 const event = { id: "event-1", name: "Museum", position: 0, locationLat: 48.85, locationLng: 2.35 };
 
@@ -92,6 +93,12 @@ describe("parseDayRouteBody", () => {
     expect(
       parseDayRouteBody({ events: [], transitMode: "walk", walkThresholdMeters: null })?.walkThresholdMeters
     ).toBeNull();
+  });
+
+  it("accepts exactly the maximum number of events and rejects one more", () => {
+    const atCap = Array.from({ length: MAX_ROUTE_EVENTS }, (_, index) => ({ ...event, id: `event-${index}` }));
+    expect(parseDayRouteBody({ events: atCap, transitMode: "walk" })?.events).toHaveLength(MAX_ROUTE_EVENTS);
+    expect(parseDayRouteBody({ events: [...atCap, event], transitMode: "walk" })).toBeNull();
   });
 
   it.each([

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
+import { rateLimitedResponse } from "@/lib/rate-limit";
 
 const MAPBOX_STATIC_STYLE = "mapbox/outdoors-v12";
 const MAPBOX_STATIC_ZOOM = 10;
@@ -30,7 +31,9 @@ function parseCoordinate(value: string | null, axis: "lat" | "lng") {
 
 export async function GET(request: NextRequest) {
   // Spends the server's Mapbox quota, so it must not be an open proxy.
-  await requireUser();
+  const user = await requireUser();
+  const limited = rateLimitedResponse("mapboxStatic", user.id!);
+  if (limited) return limited;
 
   const lat = parseCoordinate(request.nextUrl.searchParams.get("lat"), "lat");
   const lng = parseCoordinate(request.nextUrl.searchParams.get("lng"), "lng");

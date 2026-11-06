@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { events as eventsTable } from "@/db/schema";
 import { TransitMode } from "@/data/types";
 import type { GeoCoords, TripEvent } from "@/data/types";
+import { MAX_ROUTE_EVENTS } from "@/lib/validation-limits";
 
 interface DistanceBody {
   origin: GeoCoords;
@@ -64,7 +65,8 @@ export function parseDistanceBody(body: Record<string, unknown>): DistanceBody |
 
 export function parseDayRouteBody(body: Record<string, unknown>): DayRouteBody | null {
   const { events, transitMode, walkThresholdMeters } = body;
-  if (!Array.isArray(events) || !events.every((event) => typeof event?.id === "string")) return null;
+  if (!Array.isArray(events) || events.length > MAX_ROUTE_EVENTS) return null;
+  if (!events.every((event) => typeof event?.id === "string")) return null;
   if (!isTransitMode(transitMode)) return null;
   if (walkThresholdMeters != null && typeof walkThresholdMeters !== "number") return null;
   return { events: events as TripEvent[], transitMode, walkThresholdMeters: walkThresholdMeters ?? null };

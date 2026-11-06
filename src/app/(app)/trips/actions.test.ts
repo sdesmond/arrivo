@@ -27,6 +27,9 @@ const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoiste
 }));
 vi.mock("@/lib/trip-activity", () => ({ recordTripCreated, recordTripUpdated, recordTripInvitation }));
 
+const { assertWithinRateLimit } = vi.hoisted(() => ({ assertWithinRateLimit: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ assertWithinRateLimit }));
+
 const { getInvitableUsers } = vi.hoisted(() => ({ getInvitableUsers: vi.fn() }));
 vi.mock("@/lib/invitable-users", () => ({ getInvitableUsers }));
 
@@ -165,7 +168,8 @@ import {
   updatePackingItem,
   updateTripMetadata,
 } from "./actions";
-import { searchCoverImages } from "./cover-image-search-actions";
+import { resolveDestinationCenter, searchCoverImages } from "./cover-image-search-actions";
+import { MAX_COVER_SEARCH_PAGE, MAX_COVER_SEARCH_PAGE_SIZE } from "@/lib/validation-limits";
 import {
   LiveSyncEventType,
   TransitMode,
@@ -4140,5 +4144,83 @@ describe("saveTripListAsTemplate", () => {
     saveTripListAsTemplateAction.mockRejectedValueOnce(new Error("Template name is required"));
 
     await expect(saveTripListAsTemplate("trip-1", "   ")).rejects.toThrow("Template name is required");
+  });
+});
+
+describe("Mapbox and Unsplash proxy budgets and caps", () => {
+  const mockFetch = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("MAPBOX_ACCESS_TOKEN", "test-mapbox-token");
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-unsplash-key");
+    requireUser.mockResolvedValue({ id: "user-1" });
+    assertWithinRateLimit.mockImplementation(() => undefined);
+    mockSearchBoxSuggest.mockResolvedValue({ suggestions: [] });
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const overBudget = () =>
+    assertWithinRateLimit.mockImplementation(() => {
+      throw new Error("Too many requests. Try again in a moment.");
+    });
+
+  it.each([
+    ["searchLocations", () => searchLocations("Tokyo", "sess")],
+    ["searchAddressLocations", () => searchAddressLocations("Tokyo", "sess")],
+    ["retrieveLocation", () => retrieveLocation("mapbox-id", "sess")],
+    ["resolveDestinationCenter", () => resolveDestinationCenter("Tokyo")],
+  ])("%s spends the signed-in user's Mapbox search budget before calling Mapbox", async (_name, call) => {
+    overBudget();
+
+    await expect(call()).rejects.toThrow("Too many requests");
+
+    expect(assertWithinRateLimit).toHaveBeenCalledWith("mapboxSearch", "user-1");
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
+    expect(mockSearchBoxRetrieve).not.toHaveBeenCalled();
+  });
+
+  it("searchCoverImages spends the Unsplash budget before calling Unsplash", async () => {
+    overBudget();
+
+    await expect(searchCoverImages("Tokyo")).rejects.toThrow("Too many requests");
+
+    expect(assertWithinRateLimit).toHaveBeenCalledWith("unsplashSearch", "user-1");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("searchCoverImages leaves the E2E stub outside the budget", async () => {
+    vi.stubEnv("E2E_UNSPLASH_STUB", "true");
+
+    await searchCoverImages("Tokyo", { perPage: 2 });
+
+    expect(assertWithinRateLimit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["perPage above the Unsplash maximum", { perPage: MAX_COVER_SEARCH_PAGE_SIZE + 1 }],
+    ["a fractional perPage", { perPage: 2.5 }],
+    ["page above the cap", { page: MAX_COVER_SEARCH_PAGE + 1 }],
+    ["a fractional page", { page: 1.5 }],
+    ["NaN perPage", { perPage: Number.NaN }],
+  ])("searchCoverImages rejects %s before spending a request", async (_label, options) => {
+    await expect(searchCoverImages("Tokyo", options)).rejects.toThrow(/Search page/);
+
+    expect(assertWithinRateLimit).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("searchCoverImages accepts the largest page and page size", async () => {
+    await searchCoverImages("Tokyo", { page: MAX_COVER_SEARCH_PAGE, perPage: MAX_COVER_SEARCH_PAGE_SIZE });
+
+    expect(mockFetch.mock.calls[0][0]).toContain(
+      `page=${MAX_COVER_SEARCH_PAGE}&per_page=${MAX_COVER_SEARCH_PAGE_SIZE}`
+    );
   });
 });
