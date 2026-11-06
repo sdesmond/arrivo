@@ -47,6 +47,14 @@ export const MAX_BUDGET_TOTAL = 1_000_000_000;
 /** Longest typed budget: the ceiling's digits plus ".xx". */
 export const MAX_BUDGET_INPUT_LENGTH = String(MAX_BUDGET_TOTAL).length + 3;
 export const MAX_EXPENSE_AMOUNT = 50000;
+/** Sign-in fields are generous (legacy passwords, stray whitespace) but bounded so junk never reaches the DB or bcrypt. */
+export const SIGN_IN_USERNAME_MAX_LENGTH = 64;
+export const SIGN_IN_PASSWORD_MAX_LENGTH = 128;
+/** Most events one routing request may carry; a day holds far fewer, and each costs a Mapbox call. */
+export const MAX_ROUTE_EVENTS = 100;
+/** Unsplash itself caps `per_page` at 30. */
+export const MAX_COVER_SEARCH_PAGE_SIZE = 30;
+export const MAX_COVER_SEARCH_PAGE = 50;
 export const MAX_COMPANIONS = 20;
 export const MAX_COMPANION_AGE = 120;
 export const MAX_WALK_THRESHOLD_METERS = 5000;

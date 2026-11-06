@@ -64,7 +64,9 @@ async function fetchRates(fromCurrency: string, toCurrencies: string[], date: st
     return Object.fromEntries(toCurrencies.map((currency) => [currency, baseRates[currency] ?? 1]));
   }
 
-  const url = `${FRANKFURTER_BASE}?date=${date}&base=${fromCurrency}&quotes=${toCurrencies.join(",")}`;
+  // Codes are encoded one by one so only the separating commas stay literal; a crafted code can't add parameters.
+  const quotes = toCurrencies.map(encodeURIComponent).join(",");
+  const url = `${FRANKFURTER_BASE}?date=${encodeURIComponent(date)}&base=${encodeURIComponent(fromCurrency)}&quotes=${quotes}`;
   const response = await fetch(url);
 
   if (!response.ok) {
