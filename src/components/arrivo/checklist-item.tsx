@@ -6,6 +6,7 @@ import { ListChecks, Trash2, ChevronDown, CheckCheck } from "lucide-react";
 import type { Checklist } from "@/data/types";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ChecklistItemProps {
   checklist: Checklist;
@@ -203,6 +204,7 @@ export function ChecklistItem({
             <input
               autoFocus
               value={draftTitle}
+              maxLength={FIELD_LIMITS.checklistTitle}
               placeholder="Add title..."
               onChange={(event) => setDraftTitle(event.target.value)}
               onBlur={saveTitle}
@@ -279,6 +281,7 @@ export function ChecklistItem({
             <input
               autoFocus={!!isDraft}
               value={itemInput}
+              maxLength={FIELD_LIMITS.checklistItem}
               placeholder="Add an item…"
               onChange={(event) => setItemInput(event.target.value)}
               onKeyDown={handleItemKeyDown}

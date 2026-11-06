@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface EventDocRowProps {
   doc: Document;
@@ -131,6 +132,7 @@ export function EventDocRow({ doc }: EventDocRowProps) {
         <input
           autoFocus
           value={editName}
+          maxLength={FIELD_LIMITS.documentName}
           onChange={(event) => setEditName(event.target.value)}
           onBlur={handleSave}
           onKeyDown={handleRenameKeyDown}

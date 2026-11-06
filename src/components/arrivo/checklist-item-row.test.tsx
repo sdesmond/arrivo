@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ChecklistItem as ChecklistEntry } from "@/data/types";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { TripEditAccessProvider } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const item: ChecklistEntry = { id: "item-1", checklistId: "cl-1", content: "Sunscreen", isChecked: false };
 
@@ -74,5 +75,13 @@ describe("ChecklistItemRow", () => {
       await user.click(screen.getByText("Sunscreen"));
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("ChecklistItemRow length limit", () => {
+  it("caps the edit input at the shared checklist item limit", () => {
+    render(<ChecklistItemRow item={item} onUpdate={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Sunscreen" }), { key: "Enter" });
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.checklistItem));
   });
 });

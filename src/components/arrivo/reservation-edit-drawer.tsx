@@ -20,6 +20,7 @@ import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actio
 import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
 import { combineDateAndTimeToIso } from "@/lib/utils";
 import { FileText } from "lucide-react";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationEditDrawerProps {
   tripId: string;
@@ -203,6 +204,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 ref={providerInputRef}
                 className="h-9"
                 value={provider}
+                maxLength={FIELD_LIMITS.provider}
                 onChange={(event) => setProvider(event.target.value)}
                 aria-required="true"
                 aria-invalid={!!providerError}
@@ -279,6 +281,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 id="reservation-confirmation-code"
                 className="h-9"
                 value={confirmationCode}
+                maxLength={FIELD_LIMITS.confirmationCode}
                 onChange={(event) => setConfirmationCode(event.target.value)}
                 disabled={saving}
               />
@@ -290,6 +293,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                   id="reservation-service-number"
                   className="h-9"
                   value={serviceNumber}
+                  maxLength={FIELD_LIMITS.serviceNumber}
                   onChange={(event) => setServiceNumber(event.target.value)}
                   disabled={saving}
                 />
@@ -302,6 +306,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
                 className="w-full rounded-lg border border-input bg-transparent px-3 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
                 style={{ minHeight: 72 }}
                 value={notes}
+                maxLength={FIELD_LIMITS.reservationNotes}
                 onChange={(event) => setNotes(event.target.value)}
                 disabled={saving}
               />

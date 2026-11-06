@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { NoteItem } from "./note-item";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import type { ItineraryNote } from "@/data/types";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const note: ItineraryNote = {
   id: "note-1",
@@ -188,5 +189,13 @@ describe("NoteItem for a viewer", () => {
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
     await user.click(screen.getByText("Remember to bring sunscreen"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("NoteItem length limit", () => {
+  it("caps the note textarea at the shared itinerary note limit", () => {
+    const draftNote: ItineraryNote = { id: "draft", content: "", position: 0 };
+    render(<NoteItem note={draftNote} isDraft onCreate={vi.fn()} onCancelDraft={vi.fn()} />);
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.itineraryNote));
   });
 });

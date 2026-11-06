@@ -9,6 +9,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { NewTripDraft } from "@/data/types";
+import { FIELD_LIMITS, MAX_BUDGET_INPUT_LENGTH } from "@/lib/validation-limits";
 import { useLocationAutocomplete } from "./use-location-autocomplete";
 
 export interface NewTripDialogProps {
@@ -128,6 +129,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                   id="new-trip-title"
                   ref={titleRef}
                   value={draft.title}
+                  maxLength={FIELD_LIMITS.tripName}
                   aria-invalid={titleError ? true : undefined}
                   aria-describedby={titleError ? "new-trip-title-error" : undefined}
                   onChange={(event) => {
@@ -142,6 +144,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                   <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                     <Input
                       id="new-trip-destination"
+                      maxLength={FIELD_LIMITS.destination}
                       role="combobox"
                       aria-autocomplete="list"
                       aria-busy={suggestionsLoading || retrieveLoading}
@@ -266,6 +269,7 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
                 <Input
                   id="new-trip-budget"
                   inputMode="decimal"
+                  maxLength={MAX_BUDGET_INPUT_LENGTH}
                   placeholder="Optional amount"
                   value={draft.budgetAmount ?? ""}
                   onChange={(event) =>

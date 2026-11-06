@@ -65,6 +65,7 @@ import {
   promoteReservationDocToTrip,
 } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -209,5 +210,14 @@ describe("ReservationDocRow", () => {
     await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+  });
+});
+
+describe("ReservationDocRow rename limit", () => {
+  it("caps the rename input at the shared document name limit", async () => {
+    const user = userEvent.setup();
+    render(<ReservationDocRow doc={makeDoc()} />);
+    await user.click(screen.getByText("Confirmation.pdf"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
   });
 });

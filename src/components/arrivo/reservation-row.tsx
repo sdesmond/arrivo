@@ -30,6 +30,7 @@ import {
 } from "@/data/types";
 import { formatCurrencyChipAmount } from "@/lib/currencies";
 import { cn, combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationRowProps {
   reservation: Reservation;
@@ -310,6 +311,7 @@ export function ReservationRow({
           <ReservationInlineTextField
             value={provider}
             ariaLabel="Provider"
+            maxLength={FIELD_LIMITS.provider}
             placeholder=""
             displayStyle={TITLE_DISPLAY_STYLE}
             inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
@@ -322,6 +324,7 @@ export function ReservationRow({
             <ReservationInlineTextField
               value={serviceNumber ?? ""}
               ariaLabel={serviceNumberLabel}
+              maxLength={FIELD_LIMITS.serviceNumber}
               placeholder={`Add ${serviceNumberLabel.toLowerCase()}`}
               displayStyle={TITLE_DISPLAY_STYLE}
               inputStyle={TITLE_INPUT_STYLE}
@@ -535,6 +538,7 @@ export function ReservationRow({
       <ReservationInlineTextField
         value={notes ?? ""}
         ariaLabel="Notes"
+        maxLength={FIELD_LIMITS.reservationNotes}
         placeholder="Add notes"
         multiline
         displayStyle={{
@@ -619,6 +623,7 @@ export function ReservationRow({
       />
       <ReservationFieldDialog
         title="Confirmation code"
+        maxLength={FIELD_LIMITS.confirmationCode}
         value={confirmationCode}
         placeholder="Enter confirmation code"
         open={showConfirmationCodeDialog}

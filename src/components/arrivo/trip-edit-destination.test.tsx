@@ -17,6 +17,7 @@ vi.mock("sonner", () => ({
 
 import { TripEditDestination, type TripEditDestinationProps } from "./trip-edit-destination";
 import { toast } from "sonner";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const defaultProps = {
   value: "",
@@ -349,5 +350,12 @@ describe("TripEditDestination", () => {
       expect(mockRetrieveLocation).toHaveBeenCalled();
     });
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("TripEditDestination maxLength", () => {
+  it("caps the destination at the shared destination limit", () => {
+    render(<TripEditDestination {...defaultProps} />);
+    expect(screen.getByRole("combobox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.destination));
   });
 });

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ReservationType } from "@/data/types";
 import { ReservationEditDrawer } from "./reservation-edit-drawer";
 import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -433,5 +434,20 @@ describe("ReservationEditDrawer", () => {
     expect(
       screen.getByText("Attach a hotel confirmation, receipt, or other reservation document.")
     ).toBeInTheDocument();
+  });
+});
+
+describe("ReservationEditDrawer length limits", () => {
+  it("caps provider, confirmation code and notes at the shared limits", () => {
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Lodging} open onOpenChange={vi.fn()} />);
+    expect(screen.getByLabelText("Provider *")).toHaveAttribute("maxLength", String(FIELD_LIMITS.provider));
+    expect(screen.getByLabelText("Confirmation code (Optional)")).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.confirmationCode)
+    );
+    expect(screen.getByLabelText("Notes (Optional)")).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.reservationNotes)
+    );
   });
 });

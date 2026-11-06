@@ -1,6 +1,7 @@
 "use client";
 
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface PlaceRowNoteEditorProps {
   note?: string;
@@ -40,6 +41,7 @@ export function PlaceRowNoteEditor({
       <textarea
         autoFocus
         value={draftNote}
+        maxLength={FIELD_LIMITS.eventNote}
         onChange={(event) => onDraftChange(event.target.value)}
         onBlur={onSave}
         onKeyDown={(event) => {

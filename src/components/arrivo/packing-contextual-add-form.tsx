@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Rea
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ContextualAddFormProps {
   placeholder: string;
@@ -70,7 +71,7 @@ export function ContextualAddForm({
         autoFocus={autoFocus}
         className="h-9 flex-1 rounded-xl border-0 px-3 text-sm shadow-none"
         disabled={isAdding}
-        maxLength={30}
+        maxLength={FIELD_LIMITS.packingItemText}
         placeholder={placeholder}
         style={{ background: "var(--surface-2)", color: "var(--fg)" }}
         value={value}

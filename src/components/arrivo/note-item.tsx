@@ -5,6 +5,7 @@ import { FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 interface NoteItemProps {
   note: ItineraryNote;
@@ -80,6 +81,7 @@ export function NoteItem({
           autoFocus
           placeholder="Add a note…"
           value={draft}
+          maxLength={FIELD_LIMITS.itineraryNote}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {

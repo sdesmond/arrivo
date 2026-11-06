@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlaceRowNameField } from "./place-row-name-field";
 import { TripEditAccessProvider } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const defaultProps = {
   isEditingName: false,
@@ -91,5 +92,12 @@ describe("PlaceRowNameField for a viewer", () => {
     await user.click(screen.getByText("Tokyo Tower"));
     fireEvent.keyDown(screen.getByText("Tokyo Tower"), { key: "Enter" });
     expect(onStartEdit).not.toHaveBeenCalled();
+  });
+});
+
+describe("PlaceRowNameField length limit", () => {
+  it("caps the name input at the shared event name limit", () => {
+    render(<PlaceRowNameField {...defaultProps} isEditingName />);
+    expect(screen.getByDisplayValue("Tokyo Tower")).toHaveAttribute("maxLength", String(FIELD_LIMITS.eventName));
   });
 });

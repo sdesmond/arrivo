@@ -12,6 +12,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export type TripNotesEditorCommitResult = "saved" | "failed" | "clean";
 
@@ -216,6 +217,7 @@ function TripNotesEditorComponent(
         aria-describedby={error ? "trip-note-editor-error" : undefined}
         disabled={isSaving}
         value={title}
+        maxLength={FIELD_LIMITS.noteTitle}
         onChange={(event) => handleTitleChange(event.target.value)}
         onKeyDown={handleTitleKeyDown}
         placeholder="Title"
@@ -226,6 +228,7 @@ function TripNotesEditorComponent(
         aria-describedby={error ? "trip-note-editor-error" : undefined}
         disabled={isSaving}
         value={body}
+        maxLength={FIELD_LIMITS.noteBody}
         onChange={(event) => handleBodyChange(event.target.value)}
         placeholder="Write a note…"
         rows={2}

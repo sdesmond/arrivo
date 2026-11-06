@@ -13,6 +13,7 @@ interface ReservationFieldDialogBaseProps {
   subtitle?: string;
   placeholder?: string;
   inputStyle?: CSSProperties;
+  maxLength?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -121,6 +122,7 @@ export function ReservationFieldDialog(props: ReservationFieldDialogProps) {
         ) : (
           <Input
             placeholder={props.placeholder}
+            maxLength={props.maxLength}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {

@@ -26,6 +26,7 @@ import { TripDateChangeConfirmationDialog } from "@/components/arrivo/trip-date-
 import { TripCurrencyChangeDialog } from "@/components/arrivo/trip-currency-change-dialog";
 import { hasCurrencyChangeMismatch } from "@/lib/budget";
 import { cn } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 interface TripEditSheetProps {
   trip: Trip | null;
@@ -84,6 +85,7 @@ export function TripEditSheet({
   }, [open, trip]);
 
   if (!draft) return null;
+  const nameError = draft.name.trim() ? "" : "Enter a trip name.";
   const isDirty = destinationPatch !== undefined || JSON.stringify(draft) !== JSON.stringify(createTripDraft(trip));
   function set<K extends keyof Trip>(key: K, value: Trip[K]) {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -177,8 +179,16 @@ export function TripEditSheet({
 
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-6">
             <Section title="Basic">
-              <Field label="Trip name">
-                <Input disabled={isBusy} value={draft.name} onChange={(event) => set("name", event.target.value)} />
+              <Field label="Trip name" htmlFor="trip-edit-name" error={nameError}>
+                <Input
+                  id="trip-edit-name"
+                  disabled={isBusy}
+                  value={draft.name}
+                  maxLength={FIELD_LIMITS.tripName}
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? "trip-edit-name-error" : undefined}
+                  onChange={(event) => set("name", event.target.value)}
+                />
               </Field>
             </Section>
 
@@ -252,7 +262,7 @@ export function TripEditSheet({
                 <Button
                   ref={saveButtonRef}
                   loading={saving}
-                  disabled={isDeleting || !isDirty}
+                  disabled={isDeleting || !isDirty || !!nameError}
                   onClick={handleSaveClick}
                 >
                   Save changes

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReservationFieldDialog } from "./reservation-field-dialog";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
@@ -331,5 +332,14 @@ describe("ReservationFieldDialog", () => {
     expect(onSave).toHaveBeenCalledWith({
       address: "1 World Way, Los Angeles, CA",
     });
+  });
+});
+
+describe("ReservationFieldDialog maxLength", () => {
+  it("applies maxLength to the text input", () => {
+    render(
+      <ReservationFieldDialog title="Confirmation code" maxLength={64} open onOpenChange={vi.fn()} onSave={vi.fn()} />
+    );
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", "64");
   });
 });

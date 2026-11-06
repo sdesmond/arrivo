@@ -12,6 +12,7 @@ export interface ReservationInlineTextFieldProps {
   icon?: ReactNode;
   displayStyle?: React.CSSProperties;
   inputStyle?: React.CSSProperties;
+  maxLength?: number;
   renderDisplay?: (value: string) => ReactNode;
   onSave: (value: string) => Promise<void>;
 }
@@ -39,6 +40,7 @@ export function ReservationInlineTextField({
   icon,
   displayStyle,
   inputStyle,
+  maxLength,
   renderDisplay,
   onSave,
 }: ReservationInlineTextFieldProps) {
@@ -116,6 +118,7 @@ export function ReservationInlineTextField({
           autoFocus
           aria-label={ariaLabel}
           value={draft}
+          maxLength={maxLength}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleTextareaKeyDown}
           onBlur={handleBlur}
@@ -135,6 +138,7 @@ export function ReservationInlineTextField({
         autoFocus
         aria-label={ariaLabel}
         value={draft}
+        maxLength={maxLength}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={handleInputKeyDown}
         onBlur={handleBlur}

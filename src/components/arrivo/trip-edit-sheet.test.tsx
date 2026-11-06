@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("@/components/ui/date-range-picker", () => ({
   DateRangePicker: ({
@@ -288,6 +289,26 @@ describe("TripEditSheet", () => {
     await user.type(nameInput, "Kyoto Journey");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Kyoto Journey" }));
+  });
+
+  it("caps the trip name at the shared limit", () => {
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByLabelText("Trip name")).toHaveAttribute("maxLength", String(FIELD_LIMITS.tripName));
+  });
+
+  it("shows an inline error and blocks Save when the trip name is blank", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+
+    await user.clear(screen.getByLabelText("Trip name"));
+    expect(screen.getByRole("status")).toHaveTextContent("Enter a trip name.");
+    expect(screen.getByLabelText("Trip name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Trip name"), "   ");
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("resets the trip dates after closing and reopening without saving", async () => {

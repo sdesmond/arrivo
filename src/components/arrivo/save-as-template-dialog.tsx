@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface SaveAsTemplateDialogProps {
   open: boolean;
@@ -87,7 +88,7 @@ export function SaveAsTemplateDialog({ open, onClose, onSave, itemCount }: SaveA
               className="h-11"
               placeholder="e.g. Beach Holiday"
               value={name}
-              maxLength={30}
+              maxLength={FIELD_LIMITS.templateName}
               onChange={(event) => handleNameChange(event.target.value)}
               onKeyDown={handleInputKeyDown}
               style={{ color: "var(--fg)" }}
