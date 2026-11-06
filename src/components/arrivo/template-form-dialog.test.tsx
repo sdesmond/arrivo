@@ -79,6 +79,42 @@ describe("TemplateFormDialog", () => {
     expect(screen.getByLabelText("Template name")).toHaveValue("Carry-on Only");
   });
 
+  it("keeps the rename submit disabled until the name actually changes", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <TemplateFormDialog mode="rename" initialName="Beach Weekend" open onOpenChange={vi.fn()} onSubmit={onSubmit} />
+    );
+
+    const submit = screen.getByRole("button", { name: "Save name" });
+    expect(submit).toBeDisabled();
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const input = screen.getByLabelText("Template name");
+    await user.type(input, "!");
+    expect(submit).toBeEnabled();
+
+    await user.type(input, "{Backspace}");
+    expect(submit).toBeDisabled();
+  });
+
+  it("keeps the submit label and marks it busy while pending", () => {
+    render(
+      <TemplateFormDialog
+        mode="rename"
+        initialName="Beach Weekend"
+        open
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+        isPending
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Save name" })).toHaveAttribute("aria-busy", "true");
+  });
+
   it("calls onOpenChange(false) when cancel is clicked", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

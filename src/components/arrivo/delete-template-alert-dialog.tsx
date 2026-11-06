@@ -41,12 +41,12 @@ export function DeleteTemplateAlertDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={isDeleting}
+            loading={isDeleting}
             onClick={() => {
               void onConfirm();
             }}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            Delete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

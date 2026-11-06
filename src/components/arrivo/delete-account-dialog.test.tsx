@@ -214,7 +214,7 @@ describe("DeleteAccountDialog", () => {
     await screen.findByText(/2 trips/);
 
     await user.click(submit());
-    expect(screen.getByRole("button", { name: "Deleting…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("dialog")).toBeVisible();

@@ -167,14 +167,8 @@ export function AddUserDialog({ triggerLabel = "Add User" }: AddUserDialogProps)
                 Check again
               </Button>
             ) : (
-              <Button className="h-11" type="submit" form="add-user-form" disabled={busy}>
-                {phase === "creating"
-                  ? "Creating…"
-                  : phase === "checking"
-                    ? "Checking…"
-                    : phase === "absent"
-                      ? "Retry creation"
-                      : "Create account"}
+              <Button className="h-11" type="submit" form="add-user-form" loading={busy}>
+                {phase === "absent" ? "Retry creation" : "Create account"}
               </Button>
             ))}
         </DialogFooter>

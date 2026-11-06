@@ -115,14 +115,16 @@ describe("AddUserDialog", () => {
       })
     );
     const user = await submit();
-    expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create account" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create account" })).toHaveAttribute("aria-busy", "true");
     await user.keyboard("{Escape}");
     await user.click(document.querySelector('[data-slot="dialog-overlay"]')!);
     expect(screen.getByRole("dialog")).toBeVisible();
     await act(async () => {
       rejectCreation(new Error("private"));
     });
-    expect(screen.getByRole("button", { name: "Checking…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create account" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create account" })).toHaveAttribute("aria-busy", "true");
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeVisible();
     await act(async () => {

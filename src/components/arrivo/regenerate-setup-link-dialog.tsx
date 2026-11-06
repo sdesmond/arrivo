@@ -158,14 +158,8 @@ export function RegenerateSetupLinkDialog({ userId, username }: RegenerateSetupL
                 Check again
               </Button>
             ) : (
-              <Button className="h-11" disabled={busy} onClick={generate}>
-                {phase === "generating"
-                  ? "Generating…"
-                  : phase === "checking"
-                    ? "Checking…"
-                    : phase === "reconciled"
-                      ? "Generate replacement link"
-                      : "Generate new link"}
+              <Button className="h-11" loading={busy} onClick={generate}>
+                {phase === "reconciled" ? "Generate replacement link" : "Generate new link"}
               </Button>
             ))}
         </DialogFooter>

@@ -116,7 +116,9 @@ Then("the day cards have the stagger animation class", async ({ page }) => {
 });
 
 Then("the Create button is not clickable during submission", async ({ page }) => {
-  await expect(page.getByRole("dialog").getByRole("button", { name: /creating/i })).toBeDisabled({ timeout: 1000 });
+  const createButton = page.getByRole("dialog").getByRole("button", { name: "Create", exact: true });
+  await expect(createButton).toBeDisabled({ timeout: 1000 });
+  await expect(createButton).toHaveAttribute("aria-busy", "true");
 });
 
 Then("the destination suggestions appear", async ({ page }) => {

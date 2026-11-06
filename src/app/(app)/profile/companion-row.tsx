@@ -66,6 +66,15 @@ export function CompanionRow({ companion }: CompanionRowProps) {
 
   const hasError = !!(nameError || ageError || passportNumberError || passportNationalityError || ktnError);
 
+  const isDirty =
+    name.trim() !== companion.name ||
+    age !== (companion.age?.toString() ?? "") ||
+    passportNumber !== (companion.passportNumber ?? "") ||
+    passportExpiry !== (companion.passportExpiry ?? undefined) ||
+    passportNationality !== (companion.passportNationality ?? "") ||
+    knownTravelerNumber !== (companion.knownTravelerNumber ?? "") ||
+    username !== (companion.username ?? "");
+
   function handleSave() {
     startTransition(async () => {
       const patch: UpdateCompanionPatch = {
@@ -285,8 +294,8 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             <Button size="sm" variant="ghost" onClick={handleCollapse} disabled={isPending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={isPending || !name.trim() || hasError}>
-              {isPending ? "Saving…" : "Save"}
+            <Button size="sm" onClick={handleSave} loading={isPending} disabled={!isDirty || !name.trim() || hasError}>
+              Save
             </Button>
           </div>
         </div>

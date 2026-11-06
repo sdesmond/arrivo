@@ -120,7 +120,7 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
         <Button
           variant="outline"
           className="h-11 w-fit"
-          disabled={pending}
+          loading={pending}
           onClick={() => {
             setPending(true);
             void refresh().finally(() => setPending(false));
@@ -195,8 +195,8 @@ export function PasswordPolicySettings({ initial }: PasswordPolicySettingsProps)
           {error}
         </p>
       )}
-      <Button className="h-11 w-fit" disabled={pending} onClick={() => void save()}>
-        {pending ? "Saving…" : "Save password rules"}
+      <Button className="h-11 w-fit" loading={pending} onClick={() => void save()}>
+        Save password rules
       </Button>
     </section>
   );

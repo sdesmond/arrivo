@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Camera } from "lucide-react";
+import { Camera, LoaderCircle } from "lucide-react";
 import type { ChangeEvent } from "react";
 import { Section, Field } from "@/components/arrivo/form-section";
 import { ProfileAvatar } from "@/components/arrivo/profile-avatar";
@@ -164,8 +164,17 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
               fontWeight: 500,
             }}
           >
-            <Camera size={26} strokeWidth={1.5} aria-hidden="true" />
-            {photoOperation === "upload" ? "Uploading…" : image ? "Replace photo" : "Upload photo"}
+            {photoOperation === "upload" ? (
+              <LoaderCircle
+                size={26}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="animate-spin motion-reduce:animate-none"
+              />
+            ) : (
+              <Camera size={26} strokeWidth={1.5} aria-hidden="true" />
+            )}
+            {image ? "Replace photo" : "Upload photo"}
           </button>
           {/* Resting affordance for touch and keyboard-free use; the hover overlay replaces it. */}
           <span
@@ -191,11 +200,12 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
               size="sm"
               variant="ghost"
               className="h-11"
+              loading={photoOperation === "remove"}
               disabled={isPhotoPending}
               focusableWhenDisabled
               onClick={handleRemovePhoto}
             >
-              {photoOperation === "remove" ? "Removing…" : "Remove photo"}
+              Remove photo
             </Button>
           ) : null}
           <div
@@ -244,8 +254,13 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
       </Field>
 
       <div className="flex items-center justify-end gap-3">
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || !!nameError || !!usernameError}>
-          {isPending ? "Saving…" : "Save"}
+        <Button
+          size="sm"
+          onClick={handleSave}
+          loading={isPending}
+          disabled={!isDirty || !!nameError || !!usernameError}
+        >
+          Save
         </Button>
       </div>
     </Section>

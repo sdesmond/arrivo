@@ -83,10 +83,10 @@ describe("RegenerateSetupLinkDialog", () => {
       })
     );
     const user = await submit();
-    expect(screen.getByRole("button", { name: "Generating…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Generate new link" })).toBeDisabled();
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Generating…" }));
+    await user.click(screen.getByRole("button", { name: "Generate new link" }));
     expect(generate).toHaveBeenCalledOnce();
     await act(async () => {
       finish(success);

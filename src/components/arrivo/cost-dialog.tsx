@@ -95,6 +95,15 @@ export function CostDialog({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [defaultCurrency, defaultDate, expense, open]);
 
+  // Adding is always savable (validation explains what's missing); editing needs a change.
+  const isChanged =
+    !expense ||
+    amount !== String(expense.amount) ||
+    currency !== expense.currency ||
+    category !== expense.category ||
+    date !== expense.date ||
+    note.trim() !== (expense.note ?? "").trim();
+
   async function handleSave(): Promise<void> {
     const parsedAmount = Number.parseFloat(amount);
     const nextAmountError = Number.isFinite(parsedAmount) ? undefined : "Amount is required.";
@@ -221,7 +230,7 @@ export function CostDialog({
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
+            <Button onClick={() => void handleSave()} loading={saving} disabled={!isChanged}>
               Save
             </Button>
           </div>

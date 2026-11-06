@@ -34,7 +34,7 @@ describe("AccountSetupSignOut", () => {
       />
     );
     await user.click(screen.getByRole("button"));
-    expect(await screen.findByRole("button", { name: "Please wait…" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Sign out and continue" })).toBeDisabled();
     await act(async () => release(undefined));
   });
 });

@@ -329,8 +329,8 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
+            <Button onClick={handleSave} loading={saving}>
+              Save
             </Button>
           </div>
         </DrawerFooter>

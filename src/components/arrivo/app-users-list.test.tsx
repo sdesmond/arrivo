@@ -211,7 +211,8 @@ describe("AppUsersList", () => {
     await user.click(screen.getByRole("combobox", { name: "Role: bob" }));
     await user.click(await screen.findByRole("option", { name: "Admin" }));
     await user.click(await screen.findByRole("button", { name: "Make admin" }));
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make admin" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make admin" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Role: bob", hidden: true })).toHaveTextContent("Member");
     expect(success).not.toHaveBeenCalled();

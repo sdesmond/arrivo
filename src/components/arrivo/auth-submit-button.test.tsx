@@ -19,10 +19,10 @@ describe("AuthSubmitButton", () => {
     expect(button).toHaveAttribute("type", "submit");
   });
 
-  it("disables itself and says so while the form submits", () => {
+  it("keeps its label, disables itself, and shows it is busy while the form submits", () => {
     formStatus.pending = true;
     render(<AuthSubmitButton label="Verify" />);
-    const button = screen.getByRole("button", { name: "Please wait…" });
+    const button = screen.getByRole("button", { name: "Verify" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "true");
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, X } from "lucide-react";
+import { X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Button } from "@/components/ui/button";
@@ -280,15 +280,8 @@ export function NewTripDialog({ open, onOpenChange, onCreate, isPending = false 
             <Button type="button" variant="ghost" onClick={closeDialog}>
               Cancel
             </Button>
-            <Button type="submit" disabled={draft.title.trim().length === 0 || isPending || retrieveLoading}>
-              {isPending ? (
-                <span className="inline-flex items-center gap-2">
-                  <LoaderCircle className="size-4 animate-spin" strokeWidth={1.5} />
-                  Creating...
-                </span>
-              ) : (
-                "Create"
-              )}
+            <Button type="submit" loading={isPending} disabled={draft.title.trim().length === 0 || retrieveLoading}>
+              Create
             </Button>
           </DialogFooter>
         </form>

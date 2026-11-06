@@ -166,8 +166,8 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
       </Field>
 
       <div className="flex items-center justify-end gap-3">
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty || hasError}>
-          {isPending ? "Saving…" : "Save"}
+        <Button size="sm" onClick={handleSave} loading={isPending} disabled={!isDirty || hasError}>
+          Save
         </Button>
       </div>
     </Section>

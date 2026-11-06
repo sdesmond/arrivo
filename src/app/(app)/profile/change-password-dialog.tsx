@@ -169,8 +169,8 @@ export function ChangePasswordDialog({ open, onOpenChange, passwordPolicy }: Cha
             <Button type="button" variant="outline" className="h-11" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="h-11" disabled={isPending || success || !activePolicy}>
-              {isPending ? "Updating…" : "Update password"}
+            <Button type="submit" className="h-11" loading={isPending} disabled={success || !activePolicy}>
+              Update password
             </Button>
           </DialogFooter>
         </form>

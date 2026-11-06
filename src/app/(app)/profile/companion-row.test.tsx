@@ -98,6 +98,7 @@ describe("CompanionRow", () => {
     const user = userEvent.setup();
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: "Edit Alice Travel" }));
+    await user.type(screen.getByDisplayValue("Alice Travel"), "!");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByRole("button", { name: "Edit Alice Travel" })).toHaveFocus();
     expect(screen.queryByText("Saved")).not.toBeInTheDocument();
@@ -162,8 +163,24 @@ describe("CompanionRow", () => {
     const user = userEvent.setup();
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    await user.type(screen.getByDisplayValue("Alice Travel"), "!");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-    expect(updateCompanion).toHaveBeenCalledWith("c1", expect.objectContaining({ name: "Alice Travel" }));
+    expect(updateCompanion).toHaveBeenCalledWith("c1", expect.objectContaining({ name: "Alice Travel!" }));
+  });
+
+  it("keeps Save disabled until a field changes and disables it again when the change is reverted", async () => {
+    const user = userEvent.setup();
+    render(<CompanionRow companion={baseCompanion} />);
+    await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    const save = screen.getByRole("button", { name: /^save$/i });
+    expect(save).toBeDisabled();
+
+    const nameInput = screen.getByDisplayValue("Alice Travel");
+    await user.type(nameInput, "!");
+    expect(save).toBeEnabled();
+
+    await user.type(nameInput, "{Backspace}");
+    expect(save).toBeDisabled();
   });
 
   it("calls updateCompanion with updated expiry from DatePicker", async () => {
@@ -202,6 +219,7 @@ describe("CompanionRow", () => {
     const user = userEvent.setup();
     render(<CompanionRow companion={baseCompanion} />);
     await user.click(screen.getByRole("button", { name: /edit alice travel/i }));
+    await user.type(screen.getByDisplayValue("Alice Travel"), "!");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(toast.error).toHaveBeenCalledWith("Companion name must be 50 characters or fewer.");
   });

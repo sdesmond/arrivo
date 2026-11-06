@@ -27,9 +27,7 @@ interface DeleteAccountDialogProps {
 }
 
 type ReviewState =
-  | { status: "loading" }
-  | { status: "failed" }
-  | { status: "ready"; preview: AdminDeletionPreview; changed: boolean };
+  { status: "loading" } | { status: "failed" } | { status: "ready"; preview: AdminDeletionPreview; changed: boolean };
 
 // Module-level so the ref identity is stable and focus moves only when the dialog opens.
 function focusOnMount(node: HTMLButtonElement | null) {
@@ -213,8 +211,8 @@ export function DeleteAccountDialog({
               Try again
             </Button>
           )}
-          <Button className="h-11" disabled={isPending || !ready} onClick={confirmDelete}>
-            {isPending ? "Deleting…" : "Delete account"}
+          <Button className="h-11" loading={isPending} disabled={!ready} onClick={confirmDelete}>
+            Delete account
           </Button>
         </DialogFooter>
       </DialogContent>

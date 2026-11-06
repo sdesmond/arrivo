@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
@@ -490,7 +490,9 @@ describe("TripDetailClient", () => {
       const dialog = await openLeaveDialog(user);
       await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
 
-      expect(await within(dialog).findByRole("button", { name: "Leaving..." })).toBeDisabled();
+      const leaving = within(dialog).getByRole("button", { name: "Leave trip" });
+      await waitFor(() => expect(leaving).toHaveAttribute("aria-busy", "true"));
+      expect(leaving).toBeDisabled();
       expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
       expect(mockRouterReplace).not.toHaveBeenCalled();
     });
@@ -558,7 +560,9 @@ describe("TripDetailClient", () => {
     async function confirmThenForceClose(user: ReturnType<typeof userEvent.setup>) {
       const dialog = await openLeaveDialog(user);
       await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
-      await within(dialog).findByRole("button", { name: "Leaving..." });
+      await waitFor(() =>
+        expect(within(dialog).getByRole("button", { name: "Leave trip" })).toHaveAttribute("aria-busy", "true")
+      );
 
       const onSelfRoleChanged = mockUseTripLiveRefresh.mock.calls.at(-1)?.[1] as () => void;
       act(() => onSelfRoleChanged());

@@ -126,10 +126,10 @@ export function ProfileSecuritySection({
           <Button
             variant="outline"
             className="h-11"
-            disabled={isSignOutPending}
+            loading={isSignOutPending}
             onClick={() => startSignOutTransition(() => signOutEverywhere())}
           >
-            {isSignOutPending ? "Signing out…" : "Sign out all devices"}
+            Sign out all devices
           </Button>
         </div>
       </Section>

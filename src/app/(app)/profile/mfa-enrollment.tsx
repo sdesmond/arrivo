@@ -152,9 +152,10 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
             <Button
               className="h-11"
               onClick={handleConfirm}
-              disabled={isPending || !/^\d{6}$/.test(code.replace(/\s/g, ""))}
+              loading={isPending}
+              disabled={!/^\d{6}$/.test(code.replace(/\s/g, ""))}
             >
-              {isPending ? "Checking…" : "Turn on"}
+              Turn on
             </Button>
           </DialogFooter>
         </DialogContent>

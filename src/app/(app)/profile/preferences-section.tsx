@@ -385,8 +385,8 @@ export function ProfilePreferencesSection({ user, onDirtyChange }: ProfilePrefer
       </Section>
 
       <div className="flex items-center justify-end gap-3">
-        <Button size="sm" onClick={handleSave} disabled={isPending || !isDirty}>
-          {isPending ? "Saving…" : "Save"}
+        <Button size="sm" onClick={handleSave} loading={isPending} disabled={!isDirty}>
+          Save
         </Button>
       </div>
     </Section>
