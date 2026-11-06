@@ -1727,6 +1727,27 @@ describe("removeDocument", () => {
   });
 });
 
+describe("attachTripDocToEvent scoping", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  it("rejects a document that is not in the event's trip", async () => {
+    const whereSpy = vi.fn(() => ({ returning: vi.fn(async () => []) }));
+    mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: whereSpy })) });
+
+    await expect(attachTripDocToEvent("other-trip-doc", "event-1")).rejects.toThrow("Document not found.");
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+    expect(mockPublishTripEvent).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
 describe("publishItineraryChanged regression coverage", () => {
   // These actions each end by publishing ItineraryChanged for their trip. Rather than a bespoke
   // describe block per action duplicating the same assert-and-mock boilerplate, this table drives
@@ -1922,7 +1943,9 @@ describe("publishItineraryChanged regression coverage", () => {
       tripId: "trip-1",
       run: () => {
         mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
+        mockDbUpdate.mockReturnValue({
+          set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "doc-1" }]) })) })),
+        });
         return attachTripDocToEvent("doc-1", "event-1");
       },
     },
