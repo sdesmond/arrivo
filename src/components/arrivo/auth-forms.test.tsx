@@ -16,7 +16,8 @@ vi.mock("react", async (importOriginal) => {
 
 import { SignInForm, AdminSetupForm } from "./auth-forms";
 import { DEFAULT_PASSWORD_POLICY, SignInNotice, type PasswordPolicy } from "@/data/types";
-import { SIGN_IN_PASSWORD_MAX_LENGTH, SIGN_IN_USERNAME_MAX_LENGTH } from "@/lib/validation-limits";
+import { USERNAME_MAX_LENGTH } from "@/lib/username";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
 
 const noopAction = vi.fn(async () => undefined);
 
@@ -35,7 +36,7 @@ describe("SignInForm", () => {
 
   it("caps username and password at the sign-in limits the server enforces", () => {
     render(<SignInForm action={noopAction} mfaAction={noopAction} />);
-    expect(screen.getByLabelText("Username")).toHaveAttribute("maxlength", String(SIGN_IN_USERNAME_MAX_LENGTH));
+    expect(screen.getByLabelText("Username")).toHaveAttribute("maxlength", String(USERNAME_MAX_LENGTH));
     expect(screen.getByLabelText("Password")).toHaveAttribute("maxlength", String(SIGN_IN_PASSWORD_MAX_LENGTH));
   });
 

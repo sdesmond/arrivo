@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { SignInNotice, type MfaActionState, type PasswordPolicy, type SignInActionState } from "@/data/types";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
-import { SIGN_IN_PASSWORD_MAX_LENGTH, SIGN_IN_USERNAME_MAX_LENGTH } from "@/lib/validation-limits";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { MfaCodeForm } from "./mfa-code-form";
 import { PasswordRequirements } from "./password-requirements";
@@ -80,7 +80,7 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
           name="username"
           type="text"
           required
-          maxLength={SIGN_IN_USERNAME_MAX_LENGTH}
+          maxLength={USERNAME_MAX_LENGTH}
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}

@@ -47,7 +47,8 @@ import { inspect } from "node:util";
 import { cookies } from "next/headers";
 import { AuthErrorCode } from "@/data/types";
 import { LockedOutError, MfaRequiredError, authorizeCredentials } from "./authorize-credentials";
-import { SIGN_IN_PASSWORD_MAX_LENGTH, SIGN_IN_USERNAME_MAX_LENGTH } from "./validation-limits";
+import { USERNAME_MAX_LENGTH } from "./username";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "./validation-limits";
 
 const USER = {
   id: "user-1",
@@ -119,7 +120,7 @@ describe("authorizeCredentials — password step", () => {
   });
 
   it("rejects an oversize username or password before the throttle, database or bcrypt", async () => {
-    const longUsername = "a".repeat(SIGN_IN_USERNAME_MAX_LENGTH + 1);
+    const longUsername = "a".repeat(USERNAME_MAX_LENGTH + 1);
     const longPassword = "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1);
     await expect(authorizeCredentials({ username: longUsername, password: "pw" }, request())).resolves.toBeNull();
     await expect(authorizeCredentials({ username: "alice", password: longPassword }, request())).resolves.toBeNull();
@@ -129,10 +130,10 @@ describe("authorizeCredentials — password step", () => {
     expect(failures()).toHaveLength(2);
   });
 
-  it("accepts a username and password exactly at the sign-in caps", async () => {
+  it("accepts a username at the limit once surrounding whitespace is trimmed, and a password at its cap", async () => {
     mocks.selectWhere.mockResolvedValue([]);
     await authorizeCredentials(
-      { username: "a".repeat(SIGN_IN_USERNAME_MAX_LENGTH), password: "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH) },
+      { username: " " + "a".repeat(USERNAME_MAX_LENGTH) + " ", password: "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH) },
       request()
     );
     expect(mocks.checkThrottle).toHaveBeenCalled();
