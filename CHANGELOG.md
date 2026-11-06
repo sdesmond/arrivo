@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-05
+
+### Added
+
+- People can add a profile photo (Profile → hover or focus the picture to upload or replace it, Remove sits underneath).
+  JPG, PNG or WEBP up to 5 MB; the server crops it square, re-encodes it to a 256×256 WebP and never keeps the
+  original. Photos show on the profile page, sidebar, trip cards, now-card stacks and the Share dialog, with initials
+  when there is no photo. Any signed-in user can see any other user's photo. Files are stored in the existing storage
+  folder under `user-avatars/` and are deleted with the account.
+- Passport and Known Traveler Numbers have copy buttons.
+
+### Changed
+
+- Text is larger. The Small, Medium and Large font sizes are now 16, 18 and 20 px (previously 13, 16 and 18), and the
+  default moves from 16 to 18 px, so everyone sees larger text until they pick a size.
+- Icon controls for loyalty programs, wishlist items and companions on Profile are now 44 px tall and wide.
+- Saving on Profile, and saving retention or password rules under Manage app, no longer shows a separate success
+  message. Buttons still show a pending label while saving, and errors still appear.
+- Maps use MapLibre GL 6.
+
+### Fixed
+
+- Copy buttons (Profile, recovery codes, setup links and the two-factor setup key) now work when Arrivo is served
+  over plain HTTP, such as a LAN address, where browsers withhold the Clipboard API. They fall back to selecting and
+  copying the text, and the loyalty copy button no longer says "Copied!" when the copy failed.
+- Tapping **View in Itinerary** on a map pin no longer jumps back to the Map tab a few seconds later.
+- The unavailable search button no longer appears on mobile Trips.
+
+### Security
+
+- Updated Auth.js (`next-auth` 5.0.0-beta.32), which fixes advisories including two rated critical: authentication
+  checks that failed open after a configuration error, and an email-address normalization bypass. Updated MapLibre GL to
+  6, which fixes a critical XSS sanitizer bypass, and `nanoid` and `source-map-js` (both high).
+
 ## [0.7.0] - 2026-11-03
 
 ### Upgrading
@@ -165,7 +199,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/sdesmond/arrivo/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/sdesmond/arrivo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/sdesmond/arrivo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sdesmond/arrivo/compare/v0.6.0...v0.6.1
