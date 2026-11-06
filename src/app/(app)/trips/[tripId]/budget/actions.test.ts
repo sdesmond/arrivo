@@ -5,10 +5,12 @@ const {
   assertTripAccess,
   convertDual,
   db,
+  eventsTable,
   expensesTable,
   recalculate,
   recordTripUpdated,
   requireUser,
+  reservationsTable,
   revalidatePath,
   tripsTable,
   usersTable,
@@ -22,7 +24,9 @@ const {
     transaction: vi.fn(),
     update: vi.fn(),
   },
+  eventsTable: { id: "events.id", tripId: "events.tripId" },
   expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
+  reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
   recalculate: vi.fn(),
   recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
@@ -41,7 +45,9 @@ vi.mock("@/db", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
+  events: eventsTable,
   expenses: expensesTable,
+  reservations: reservationsTable,
   trips: tripsTable,
   users: usersTable,
 }));
@@ -73,6 +79,11 @@ function mockCurrencyLookups(budgetCurrency: string | null, profileCurrency: str
   db.select
     .mockReturnValueOnce(createSelectMock([{ budgetCurrency }]))
     .mockReturnValueOnce(createSelectMock([{ currency: profileCurrency }]));
+}
+
+/** Satisfy the same-trip check for an expense's event/reservation link. */
+function mockLinkLookup(rows: unknown[] = [{ id: "link-1" }]) {
+  db.select.mockReturnValueOnce(createSelectMock(rows));
 }
 
 describe("budget actions", () => {
@@ -110,6 +121,7 @@ describe("budget actions", () => {
   });
 
   it("creates an expense after auth checks and revalidates the trip", async () => {
+    mockLinkLookup();
     mockCurrencyLookups("USD", "USD");
 
     const result = await createExpense("trip-1", {
@@ -249,6 +261,7 @@ describe("budget actions", () => {
   });
 
   it("accepts an amount exactly at the 50,000 ceiling", async () => {
+    mockLinkLookup();
     mockCurrencyLookups("USD", "USD");
 
     const result = await createExpense("trip-1", {
@@ -263,6 +276,7 @@ describe("budget actions", () => {
   });
 
   it("stores dual conversions when the entry currency differs from the trip and profile currencies", async () => {
+    mockLinkLookup();
     mockCurrencyLookups("EUR", "GBP");
     convertDual.mockResolvedValue({
       EUR: { convertedAmount: 92, rate: 0.92 },
@@ -289,6 +303,7 @@ describe("budget actions", () => {
   });
 
   it("stores null conversions and makes no API call when the entry currency matches both targets", async () => {
+    mockLinkLookup();
     mockCurrencyLookups("USD", "USD");
 
     await createExpense("trip-1", {
@@ -309,6 +324,7 @@ describe("budget actions", () => {
   });
 
   it("saves the expense unconverted with a conversionError flag when conversion fails", async () => {
+    mockLinkLookup();
     mockCurrencyLookups("EUR", "GBP");
     convertDual.mockRejectedValue(new Error("Frankfurter unavailable"));
 
@@ -329,6 +345,62 @@ describe("budget actions", () => {
       convertedCurrencyProfile: null,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("rejects creating an expense linked to an event outside the trip", async () => {
+    mockLinkLookup([]);
+
+    await expect(
+      createExpense("trip-1", {
+        eventId: "other-trip-event",
+        category: ExpenseCategory.Food,
+        amount: 10,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Event not found.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("rejects creating an expense linked to a reservation outside the trip", async () => {
+    mockLinkLookup([]);
+
+    await expect(
+      createExpense("trip-1", {
+        reservationId: "other-trip-reservation",
+        category: ExpenseCategory.Food,
+        amount: 10,
+        currency: "USD",
+        date: "2026-08-01",
+      })
+    ).rejects.toThrow("Reservation not found.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects re-linking an expense to an event outside its trip", async () => {
+    db.select.mockReturnValueOnce(
+      createSelectMock([{ tripId: "trip-1", amount: "100", currency: "USD", date: "2026-08-01" }])
+    );
+    mockLinkLookup([]);
+
+    await expect(updateExpense("expense-1", { eventId: "other-trip-event" })).rejects.toThrow("Event not found.");
+
+    expect(db.update).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("allows clearing an expense link without a lookup", async () => {
+    db.select.mockReturnValueOnce(
+      createSelectMock([{ tripId: "trip-1", amount: "100", currency: "USD", date: "2026-08-01" }])
+    );
+
+    await updateExpense("expense-1", { eventId: null, reservationId: null });
+
+    expect(db.select).toHaveBeenCalledTimes(1);
+    expect(updatedExpenseValues).toMatchObject({ eventId: null, reservationId: null });
   });
 
   it("updates an expense after loading trip ownership", async () => {

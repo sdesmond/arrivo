@@ -1,9 +1,9 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { expenses, trips, users } from "@/db/schema";
+import { events, expenses, reservations, trips, users } from "@/db/schema";
 import { ExpenseCategory, type CreateExpenseInput, type UpdateExpensePatch } from "@/data/types";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { convertDual, recalculate } from "@/lib/currency";
@@ -129,6 +129,31 @@ function validateCreateExpenseInput(input: CreateExpenseInput): void {
   }
 }
 
+/**
+ * An expense may only link to an event or reservation of its own trip. Ids come from the client, so
+ * an editor on one trip could otherwise attach spend to (and read names via) another trip's rows.
+ */
+async function assertLinkTargetsInTrip(
+  tripId: string,
+  links: { eventId?: string | null; reservationId?: string | null }
+): Promise<void> {
+  if (links.eventId) {
+    const [event] = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.id, links.eventId), eq(events.tripId, tripId)));
+    if (!event) throw new Error("Event not found.");
+  }
+
+  if (links.reservationId) {
+    const [reservation] = await db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(and(eq(reservations.id, links.reservationId), eq(reservations.tripId, tripId)));
+    if (!reservation) throw new Error("Reservation not found.");
+  }
+}
+
 export async function createExpense(
   tripId: string,
   input: CreateExpenseInput
@@ -136,6 +161,7 @@ export async function createExpense(
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
   validateCreateExpenseInput(input);
+  await assertLinkTargetsInTrip(tripId, input);
 
   const currency = input.currency.trim().toUpperCase();
   const { fields, conversionError } = await computeConversions(tripId, user.id!, input.amount, currency, input.date);
@@ -196,6 +222,8 @@ export async function updateExpense(
   if (patch.currency !== undefined && patch.currency !== null && !patch.currency.trim()) {
     throw new Error("Currency is required.");
   }
+
+  await assertLinkTargetsInTrip(expenseRow.tripId, patch);
 
   const updates: Partial<typeof expenses.$inferInsert> = {
     updatedAt: new Date(),
