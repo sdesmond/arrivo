@@ -51,6 +51,7 @@ vi.mock("@/components/arrivo/form-section", () => ({
 
 import { CompanionRow } from "./companion-row";
 import type { Companion } from "@/data/types";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const baseCompanion: Companion = {
   id: "c1",
@@ -76,6 +77,21 @@ describe("CompanionRow", () => {
     expect(writeText).toHaveBeenNthCalledWith(2, "123456789");
     await user.clear(screen.getByDisplayValue("PA001"));
     expect(screen.queryByRole("button", { name: "Copy passport number" })).not.toBeInTheDocument();
+  });
+
+  it("copies through the fallback when the Clipboard API is unavailable", async () => {
+    const user = userEvent.setup();
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      render(<CompanionRow companion={{ ...baseCompanion, knownTravelerNumber: "123456789" }} />);
+      await user.click(screen.getByRole("button", { name: "Edit Alice Travel" }));
+      await user.click(screen.getByRole("button", { name: "Copy passport number" }));
+      await user.click(screen.getByRole("button", { name: "Copy known traveler number" }));
+      expect(execCommand).toHaveBeenCalledTimes(2);
+      expect(execCommand).toHaveBeenCalledWith("copy");
+    } finally {
+      restore();
+    }
   });
 
   it("saves a companion without inline success text", async () => {

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SetupLinkResult } from "./setup-link-result";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const result = {
   username: "newcomer",
@@ -33,6 +34,19 @@ describe("SetupLinkResult", () => {
 
     expect(writeText).toHaveBeenCalledWith(result.setupUrl);
     expect(await screen.findByText("Link copied.")).toBeVisible();
+  });
+
+  it("copies the link through the fallback when the Clipboard API is unavailable", async () => {
+    const user = userEvent.setup();
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      render(<SetupLinkResult {...result} />);
+      await user.click(screen.getByRole("button", { name: "Copy link" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(await screen.findByText("Link copied.")).toBeVisible();
+    } finally {
+      restore();
+    }
   });
 
   it("falls back to manual copy when the clipboard rejects", async () => {

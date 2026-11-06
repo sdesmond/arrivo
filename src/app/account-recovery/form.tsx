@@ -7,6 +7,7 @@ import type { AdminRecoveryActionState, PasswordPolicy } from "@/data/types";
 import { AuthSubmitButton } from "@/components/arrivo/auth-submit-button";
 import { PasswordRequirements } from "@/components/arrivo/password-requirements";
 import { RecoveryCodesStep } from "./codes-step";
+import { copyText } from "@/lib/clipboard";
 
 interface AdminRecoveryFormProps {
   action: (previous: AdminRecoveryActionState, form: FormData) => Promise<AdminRecoveryActionState>;
@@ -35,10 +36,9 @@ export function AdminRecoveryForm({ action, secret, qrDataUrl, policy }: AdminRe
   if (state && "recoveryCodes" in state) return <RecoveryCodesStep codes={state.recoveryCodes} />;
 
   async function handleCopyKey() {
-    try {
-      await navigator.clipboard.writeText(secret);
+    if (await copyText(secret)) {
       toast.success("Setup key copied.");
-    } catch {
+    } else {
       toast.error("Couldn't copy. Select the key and copy it yourself.");
     }
   }

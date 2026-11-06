@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { X, Plus, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
 import type { LoyaltyNumber } from "@/data/types";
+import { copyText } from "@/lib/clipboard";
 
 interface LoyaltySectionProps {
   loyaltyNumbers: LoyaltyNumber[];
@@ -41,8 +43,11 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
     });
   }
 
-  function handleCopy(ln: LoyaltyNumber) {
-    navigator.clipboard.writeText(ln.memberNumber);
+  async function handleCopy(ln: LoyaltyNumber) {
+    if (!(await copyText(ln.memberNumber))) {
+      toast.error("Could not copy member number.");
+      return;
+    }
     setCopiedId(ln.id);
     setTimeout(() => setCopiedId(null), 1500);
   }

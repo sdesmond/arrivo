@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PASSWORD_POLICY, type PasswordPolicy } from "@/data/types";
 import { AdminRecoveryForm } from "./form";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const PROPS = { secret: "JBSWY3DPEHPK3PXP", qrDataUrl: "data:image/png;base64,AAAA", policy: DEFAULT_PASSWORD_POLICY };
 
@@ -86,6 +87,17 @@ describe("AdminRecoveryForm", () => {
     render(<AdminRecoveryForm action={vi.fn()} {...PROPS} />);
     await userEvent.click(screen.getByRole("button", { name: "Copy key" }));
     expect(writeText).toHaveBeenCalledWith(PROPS.secret);
+  });
+
+  it("copies the setup key through the fallback when the Clipboard API is unavailable", async () => {
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      render(<AdminRecoveryForm action={vi.fn()} {...PROPS} />);
+      await userEvent.click(screen.getByRole("button", { name: "Copy key" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+    } finally {
+      restore();
+    }
   });
 
   it("survives a refused clipboard", async () => {

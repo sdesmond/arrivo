@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { copyText } from "@/lib/clipboard";
 
 interface RecoveryCodesDialogProps {
   codes: string[] | null;
@@ -21,10 +22,9 @@ export function RecoveryCodesDialog({ codes, onDone }: RecoveryCodesDialogProps)
   const text = codes?.join("\n") ?? "";
 
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       toast.success("Recovery codes copied.");
-    } catch {
+    } else {
       toast.error("Couldn't copy. Select the codes and copy them yourself.");
     }
   }

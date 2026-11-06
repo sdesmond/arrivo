@@ -48,6 +48,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { MfaEnrollment } from "./mfa-enrollment";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const SETUP = { secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", qrDataUrl: "data:image/png;base64,QR" };
 
@@ -177,6 +178,19 @@ describe("MfaEnrollment", () => {
     await user.click(copy);
     expect(writeText).toHaveBeenCalledWith(SETUP.secret);
     expect(mocks.toast.success).toHaveBeenCalled();
+  });
+
+  it("copies the setup key through the fallback when the Clipboard API is unavailable", async () => {
+    const { user } = await openSetup();
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      await user.click(screen.getByRole("button", { name: "Copy key" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(mocks.toast.success).toHaveBeenCalled();
+      expect(mocks.toast.error).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
   });
 
   it("tells the user when copying the key fails", async () => {
