@@ -1,6 +1,8 @@
 // Single source of truth for input caps. Server actions validate against these and client forms read them
 // for `maxLength`, so the two halves can't drift. Pure module: safe to import from client components.
 
+import { PASSWORD_POLICY_BOUNDS } from "@/data/types";
+
 export const FIELD_LIMITS = {
   tripName: 100,
   destination: 200,
@@ -47,6 +49,16 @@ export const MAX_BUDGET_TOTAL = 1_000_000_000;
 /** Longest typed budget: the ceiling's digits plus ".xx". */
 export const MAX_BUDGET_INPUT_LENGTH = String(MAX_BUDGET_TOTAL).length + 3;
 export const MAX_EXPENSE_AMOUNT = 50000;
+/**
+ * Longest password sign-in and delete-account re-entry accept: the most the password rules can ever allow, so no
+ * password set under them is refused. One value for the server checks and the inputs' `maxLength`.
+ */
+export const SIGN_IN_PASSWORD_MAX_LENGTH = PASSWORD_POLICY_BOUNDS.maxLength.max;
+/** Most events one routing request may carry; a day holds far fewer, and each costs a Mapbox call. */
+export const MAX_ROUTE_EVENTS = 100;
+/** Unsplash itself caps `per_page` at 30. */
+export const MAX_COVER_SEARCH_PAGE_SIZE = 30;
+export const MAX_COVER_SEARCH_PAGE = 50;
 export const MAX_COMPANIONS = 20;
 export const MAX_COMPANION_AGE = 120;
 export const MAX_WALK_THRESHOLD_METERS = 5000;

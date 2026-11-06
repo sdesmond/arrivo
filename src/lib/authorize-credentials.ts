@@ -20,7 +20,8 @@ import { createMfaTicket, verifyMfaTicket } from "./mfa";
 import { verifySecondFactor } from "./mfa-store";
 import { isHttpsRequest } from "./request-origin";
 import { lockCurrentSecurityVersion } from "./session-version";
-import { normalizeUsername, validateUsername } from "./username";
+import { normalizeUsername, USERNAME_MAX_LENGTH, validateUsername } from "./username";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "./validation-limits";
 import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_MAX_AGE_SECONDS,
@@ -259,6 +260,11 @@ export async function authorizeCredentials(
   const password = stringField(credentials.password);
   if (!username || !password) {
     recordRejection(await lookupByUsername(username));
+    return null;
+  }
+  // Oversize input can't match an account; stop before it reaches the throttle table, a query or bcrypt.
+  if (normalizeUsername(username).length > USERNAME_MAX_LENGTH || password.length > SIGN_IN_PASSWORD_MAX_LENGTH) {
+    recordRejection(undefined);
     return null;
   }
   return authorizePassword(username, password, booleanField(credentials.keepSignedIn), request);

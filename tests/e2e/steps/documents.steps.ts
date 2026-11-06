@@ -4,6 +4,21 @@ import { withE2EDb } from "../e2e-db";
 import { E2E_DOCUMENT } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
 
+// Uploads are checked against the file's first bytes, so each fixture carries the real signature of its type.
+const FILE_SIGNATURES: Record<string, Buffer> = {
+  "application/pdf": Buffer.from("%PDF-1.4 %%EOF"),
+  "image/png": Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    "base64"
+  ),
+  "image/jpeg": Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]),
+};
+
+// An unsupported type is refused on its MIME type alone, so any bytes do.
+function bufferFor(mimeType: string): Buffer {
+  return FILE_SIGNATURES[mimeType] ?? Buffer.from("file content");
+}
+
 Given("I am on the Documents tab", async ({ page }) => {
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.locator("#doc-upload")).toBeAttached({ timeout: 10_000 });
@@ -33,7 +48,7 @@ When("I upload a file named {string} with MIME type {string}", async ({ page }, 
   await fileInput.setInputFiles({
     name: filename,
     mimeType,
-    buffer: Buffer.from("file content"),
+    buffer: bufferFor(mimeType),
   });
 });
 

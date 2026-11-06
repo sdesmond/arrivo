@@ -8,6 +8,8 @@ const { requireUser, assertTripAccess, assertEventsBelongToTrip, getDayScheduleC
   getDayScheduleConflicts: vi.fn(),
 }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser, assertTripAccess }));
+const { rateLimitedResponse } = vi.hoisted(() => ({ rateLimitedResponse: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimitedResponse }));
 vi.mock("@/lib/route", () => ({ getDayScheduleConflicts }));
 vi.mock("@/lib/route-request", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/route-request")>()),
@@ -29,6 +31,7 @@ function post(payload: unknown): Request {
 describe("POST /api/trips/[tripId]/routing/conflicts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitedResponse.mockReturnValue(null);
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
     assertEventsBelongToTrip.mockResolvedValue(undefined);
@@ -68,6 +71,14 @@ describe("POST /api/trips/[tripId]/routing/conflicts", () => {
     assertTripAccess.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
     await expect(POST(post(body), { params })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(assertEventsBelongToTrip).not.toHaveBeenCalled();
+    expect(getDayScheduleConflicts).not.toHaveBeenCalled();
+  });
+
+  it("returns the 429 and skips the Mapbox lookup once the user's routing budget is spent", async () => {
+    rateLimitedResponse.mockReturnValue(new Response("slow down", { status: 429 }));
+    const response = await POST(post(body), { params });
+    expect(response.status).toBe(429);
+    expect(rateLimitedResponse).toHaveBeenCalledWith("mapboxRouting", "user-1");
     expect(getDayScheduleConflicts).not.toHaveBeenCalled();
   });
 });

@@ -339,6 +339,7 @@ Given("another completed app admin exists", async ({ scenario }) => {
 When("I delete my account", async ({ page, scenario }) => {
   await page.getByRole("tab", { name: "Account" }).click();
   await page.getByRole("button", { name: "Delete account", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
   const response = waitForServerActionResponse(page, { pathIncludes: "/profile", timeoutMs: 15_000, required: false });
   await page.getByRole("dialog").getByRole("button", { name: "Delete account", exact: true }).click();
   await response;

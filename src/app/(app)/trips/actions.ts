@@ -39,6 +39,7 @@ import type {
 } from "@/data/types";
 import { CollaboratorRole, TransitMode, TripDateConflictResolution } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
+import { assertWithinRateLimit } from "@/lib/rate-limit";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import { deriveGraphicCover, detectPreferredCurrency, stableStringify, toLocalDateKey } from "@/lib/utils";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
@@ -1181,7 +1182,8 @@ export async function searchLocations(query: string, sessionToken: string): Prom
     throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
   }
 
-  await requireUser();
+  const user = await requireUser();
+  assertWithinRateLimit("mapboxSearch", user.id!);
 
   const search = new SearchBoxCore({ accessToken: token });
   const controller = new AbortController();
@@ -1243,7 +1245,8 @@ export async function searchAddressLocations(query: string, sessionToken: string
     throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
   }
 
-  await requireUser();
+  const user = await requireUser();
+  assertWithinRateLimit("mapboxSearch", user.id!);
 
   const search = new SearchBoxCore({ accessToken: token });
   const controller = new AbortController();
@@ -1293,7 +1296,8 @@ export async function retrieveLocation(mapboxId: string, sessionToken: string): 
     throw new Error("MAPBOX_ACCESS_TOKEN is not configured");
   }
 
-  await requireUser();
+  const user = await requireUser();
+  assertWithinRateLimit("mapboxSearch", user.id!);
 
   const search = new SearchBoxCore({ accessToken: token });
   const controller = new AbortController();

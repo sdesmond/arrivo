@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as navigation from "next/navigation";
 import { CollaboratorRole, TripDeletionAction } from "@/data/types";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
 import type { AccountDeletionTrip } from "@/data/types";
 
 const { mockDeleteAccount, router } = vi.hoisted(() => ({
@@ -48,12 +49,71 @@ function renderDialog(sharedTrips: AccountDeletionTrip[] = [LISBON, KYOTO]) {
   return { ...view, onOpenChange };
 }
 
+async function confirmWithPassword(user: ReturnType<typeof userEvent.setup>, password = "correct-password") {
+  await user.type(screen.getByLabelText("Current password"), password);
+  await user.click(screen.getByRole("button", { name: "Delete account" }));
+}
+
 describe("DeleteAccountDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // The global next/navigation mock builds a fresh router per call; pin one so calls can be asserted.
     vi.spyOn(navigation, "useRouter").mockReturnValue(router as unknown as ReturnType<typeof navigation.useRouter>);
     mockDeleteAccount.mockResolvedValue({ status: "success" });
+  });
+
+  it("asks for the current password and keeps Delete account disabled until one is typed", async () => {
+    const user = userEvent.setup();
+    renderDialog([]);
+
+    const password = screen.getByLabelText("Current password");
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveAttribute("autocomplete", "current-password");
+    expect(password).toHaveAttribute("maxlength", String(SIGN_IN_PASSWORD_MAX_LENGTH));
+    expect(password).toHaveClass("h-11");
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
+
+    await user.type(password, "hunter2hunter2");
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeEnabled();
+  });
+
+  it("submits on Enter from the password field", async () => {
+    const user = userEvent.setup();
+    renderDialog([]);
+
+    await user.type(screen.getByLabelText("Current password"), "correct-password{Enter}");
+
+    expect(mockDeleteAccount).toHaveBeenCalledWith([], "correct-password");
+  });
+
+  it("marks the password invalid and keeps the dialog open when it is wrong", async () => {
+    const user = userEvent.setup();
+    mockDeleteAccount.mockResolvedValue({
+      status: "error",
+      message: "Current password is incorrect.",
+      field: "password",
+    });
+    renderDialog([]);
+
+    await confirmWithPassword(user, "nope");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Current password is incorrect.");
+    expect(router.push).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Current password")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not flag the password for an unrelated refusal", async () => {
+    const user = userEvent.setup();
+    mockDeleteAccount.mockResolvedValue({ status: "error", message: "Nope." });
+    renderDialog([]);
+
+    await confirmWithPassword(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nope.");
+    expect(screen.getByLabelText("Current password")).not.toHaveAttribute("aria-invalid");
   });
 
   it("shows one owner picker per shared trip, labelled by the trip and preselected to the suggested heir", () => {
@@ -84,12 +144,15 @@ describe("DeleteAccountDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await confirmWithPassword(user);
 
-    expect(mockDeleteAccount).toHaveBeenCalledWith([
-      { tripId: "trip-lisbon", action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" },
-      { tripId: "trip-kyoto", action: TripDeletionAction.Transfer, newOwnerUserId: "user-grace" },
-    ]);
+    expect(mockDeleteAccount).toHaveBeenCalledWith(
+      [
+        { tripId: "trip-lisbon", action: TripDeletionAction.Transfer, newOwnerUserId: "user-bo" },
+        { tripId: "trip-kyoto", action: TripDeletionAction.Transfer, newOwnerUserId: "user-grace" },
+      ],
+      "correct-password"
+    );
     expect(router.push).toHaveBeenCalledWith("/sign-in");
   });
 
@@ -105,12 +168,15 @@ describe("DeleteAccountDialog", () => {
     expect(screen.getByRole("combobox", { name: /Kyoto Adventure/ })).toHaveTextContent("Delete this trip");
     expect(screen.getByText("Everyone on this trip will lose access.")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await confirmWithPassword(user);
 
-    expect(mockDeleteAccount).toHaveBeenCalledWith([
-      { tripId: "trip-lisbon", action: TripDeletionAction.Transfer, newOwnerUserId: "user-ada" },
-      { tripId: "trip-kyoto", action: TripDeletionAction.Delete },
-    ]);
+    expect(mockDeleteAccount).toHaveBeenCalledWith(
+      [
+        { tripId: "trip-lisbon", action: TripDeletionAction.Transfer, newOwnerUserId: "user-ada" },
+        { tripId: "trip-kyoto", action: TripDeletionAction.Delete },
+      ],
+      "correct-password"
+    );
   });
 
   it("falls back to the new suggestion when a chosen heir is no longer on the trip after a refresh", async () => {
@@ -137,7 +203,7 @@ describe("DeleteAccountDialog", () => {
     });
     renderDialog();
 
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await confirmWithPassword(user);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Your shared trips changed. Review them and try again.");
     expect(router.refresh).toHaveBeenCalled();
@@ -149,7 +215,7 @@ describe("DeleteAccountDialog", () => {
     mockDeleteAccount.mockResolvedValue({ status: "error", message: "Nope." });
     renderDialog();
 
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await confirmWithPassword(user);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Nope.");
     expect(router.refresh).not.toHaveBeenCalled();
@@ -160,7 +226,7 @@ describe("DeleteAccountDialog", () => {
     mockDeleteAccount.mockReturnValue(new Promise(() => {}));
     renderDialog();
 
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await confirmWithPassword(user);
 
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("button", { name: "Delete account" })).toBeDisabled();

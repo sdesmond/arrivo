@@ -4,6 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { recordTripUpdated } = vi.hoisted(() => ({ recordTripUpdated: vi.fn() }));
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
+const { assertUploadContentMatchesType } = vi.hoisted(() => ({
+  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
+}));
+vi.mock("@/lib/upload-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
+  assertUploadContentMatchesType,
+}));
+
 const {
   mockAssertTripAccess,
   mockDbInsert,

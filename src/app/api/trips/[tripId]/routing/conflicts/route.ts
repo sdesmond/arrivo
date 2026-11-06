@@ -1,5 +1,6 @@
 import "server-only";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
+import { rateLimitedResponse } from "@/lib/rate-limit";
 import { getDayScheduleConflicts } from "@/lib/route";
 import {
   assertEventsBelongToTrip,
@@ -15,6 +16,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   const user = await requireUser();
   const { tripId } = await params;
   await assertTripAccess(tripId, user.id!, "viewer");
+  const limited = rateLimitedResponse("mapboxRouting", user.id!);
+  if (limited) return limited;
 
   const body = await readJsonObject(request);
   const parsed = body && parseDayRouteBody(body);

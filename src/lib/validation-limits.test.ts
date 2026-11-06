@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PASSWORD_POLICY_BOUNDS } from "@/data/types";
 import {
   FIELD_LIMITS,
   isUuid,
@@ -9,6 +10,7 @@ import {
   MAX_EXPENSE_AMOUNT,
   MAX_ITINERARY_POSITION,
   overLimitMessage,
+  SIGN_IN_PASSWORD_MAX_LENGTH,
   validateExpenseAmountInput,
 } from "./validation-limits";
 
@@ -86,5 +88,12 @@ describe("validateExpenseAmountInput", () => {
     ["50000.01", "Amount must be 50,000 or less."],
   ])("rejects %j", (raw, message) => {
     expect(validateExpenseAmountInput(raw).error).toBe(message);
+  });
+});
+
+describe("SIGN_IN_PASSWORD_MAX_LENGTH", () => {
+  it("is the longest password the rules can allow, so sign-in never refuses one set under them", () => {
+    expect(SIGN_IN_PASSWORD_MAX_LENGTH).toBe(30);
+    expect(SIGN_IN_PASSWORD_MAX_LENGTH).toBe(PASSWORD_POLICY_BOUNDS.maxLength.max);
   });
 });

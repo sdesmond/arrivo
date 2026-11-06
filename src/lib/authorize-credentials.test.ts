@@ -47,6 +47,8 @@ import { inspect } from "node:util";
 import { cookies } from "next/headers";
 import { AuthErrorCode } from "@/data/types";
 import { LockedOutError, MfaRequiredError, authorizeCredentials } from "./authorize-credentials";
+import { USERNAME_MAX_LENGTH } from "./username";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "./validation-limits";
 
 const USER = {
   id: "user-1",
@@ -115,6 +117,26 @@ describe("authorizeCredentials — password step", () => {
   it("returns null without checking anything when fields are missing", async () => {
     await expect(authorizeCredentials({ username: "alice" }, request())).resolves.toBeNull();
     expect(mocks.checkThrottle).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversize username or password before the throttle, database or bcrypt", async () => {
+    const longUsername = "a".repeat(USERNAME_MAX_LENGTH + 1);
+    const longPassword = "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1);
+    await expect(authorizeCredentials({ username: longUsername, password: "pw" }, request())).resolves.toBeNull();
+    await expect(authorizeCredentials({ username: "alice", password: longPassword }, request())).resolves.toBeNull();
+    expect(mocks.checkThrottle).not.toHaveBeenCalled();
+    expect(mocks.selectWhere).not.toHaveBeenCalled();
+    expect(mocks.compare).not.toHaveBeenCalled();
+    expect(failures()).toHaveLength(2);
+  });
+
+  it("accepts a username at the limit once surrounding whitespace is trimmed, and a password at its cap", async () => {
+    mocks.selectWhere.mockResolvedValue([]);
+    await authorizeCredentials(
+      { username: " " + "a".repeat(USERNAME_MAX_LENGTH) + " ", password: "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH) },
+      request()
+    );
+    expect(mocks.checkThrottle).toHaveBeenCalled();
   });
 
   it("records a failure on a wrong password", async () => {

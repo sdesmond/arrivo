@@ -434,6 +434,26 @@ When("I open the delete account dialog", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Delete account?" })).toBeVisible();
 });
 
+When("I try to delete my account with the password {string}", async ({ page }, password: string) => {
+  const dialog = page.getByRole("dialog", { name: "Delete account?" });
+  await dialog.getByLabel("Current password").fill(password);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/profile", timeoutMs: 15_000 });
+  await dialog.getByRole("button", { name: "Delete account" }).click();
+  await response;
+});
+
+Then("the delete account dialog should say the password is incorrect", async ({ page }) => {
+  const dialog = page.getByRole("dialog", { name: "Delete account?" });
+  await expect(dialog.getByRole("alert")).toHaveText("Current password is incorrect.");
+  await expect(dialog.getByLabel("Current password")).toHaveAttribute("aria-invalid", "true");
+});
+
+Then("my account should still exist", async ({ page }) => {
+  await expect(page).not.toHaveURL(/\/sign-in/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/profile/);
+});
+
 When("I choose {string} for {string}", async ({ page }, optionLabel: string, tripName: string) => {
   const picker = page.getByRole("dialog").getByRole("combobox", { name: new RegExp(tripName) });
   await picker.click();
@@ -442,6 +462,7 @@ When("I choose {string} for {string}", async ({ page }, optionLabel: string, tri
 });
 
 When("I confirm deleting my account", async ({ page, scenario }) => {
+  await page.getByRole("dialog").getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
   await page.getByRole("dialog").getByRole("button", { name: "Delete account" }).click();
   // Success answers the action POST with signOut's 303, sent only after the transaction commits, so
   // landing on sign-in already proves persistence (waitForServerActionResponse would reject the 303).

@@ -73,11 +73,9 @@ export type CredentialAuthorizationFailure = {
   reason: "invalid" | "forbidden" | "app-unavailable" | "retry";
 };
 export type IssueCredentialAuthorizationResult =
-  | { ok: true; token: string; expiresAt: string }
-  | CredentialAuthorizationFailure;
+  { ok: true; token: string; expiresAt: string } | CredentialAuthorizationFailure;
 export type ValidateCredentialAuthorizationResult =
-  | { ok: true; account: CredentialAuthorizationAccount }
-  | CredentialAuthorizationFailure;
+  { ok: true; account: CredentialAuthorizationAccount } | CredentialAuthorizationFailure;
 export type ConsumeCredentialAuthorizationResult = { ok: true } | CredentialAuthorizationFailure;
 export type CredentialSecurityClock = () => Date;
 export interface AdminRecoveryIssuanceInput {
@@ -93,8 +91,7 @@ export type AdminRecoveryIssuanceOutcome =
 
 /** Browser-side replacement-MFA enrollment of a recovery authorization; the secret is shown for QR/key entry only. */
 export type AdminRecoveryEnrollmentResult =
-  | { ok: true; secret: string; username: string }
-  | { ok: false; reason: "unavailable" | "retry" | "needs-key" };
+  { ok: true; secret: string; username: string } | { ok: false; reason: "unavailable" | "retry" | "needs-key" };
 export interface AdminRecoveryCompletionInput {
   token: string;
   passwordHash: string;
@@ -116,8 +113,7 @@ export interface BootstrapAccountValues {
 }
 
 export type AccountSetupActionState =
-  | { error: string; field: "name" | "password" | "confirmPassword"; name: string; policy?: PasswordPolicy }
-  | undefined;
+  { error: string; field: "name" | "password" | "confirmPassword"; name: string; policy?: PasswordPolicy } | undefined;
 
 export type BootstrapResult = { ok: true; userId: string; username: string } | { ok: false; reason: "closed" };
 
@@ -242,11 +238,9 @@ export interface ActivityRetentionInspection {
   checkedAt: string;
 }
 export type ActivityRetentionReadResult =
-  | ({ status: "ok" } & ActivityRetentionInspection)
-  | { status: "forbidden" | "unavailable" };
+  ({ status: "ok" } & ActivityRetentionInspection) | { status: "forbidden" | "unavailable" };
 export type ActivityRetentionSaveResult =
-  | { status: "ok"; days: ActivityRetentionDays }
-  | { status: "invalid" | "stale" | "forbidden" | "unavailable" };
+  { status: "ok"; days: ActivityRetentionDays } | { status: "invalid" | "stale" | "forbidden" | "unavailable" };
 export type ActivityRetentionCommitResult =
   | { status: "ok"; days: ActivityRetentionDays; changed: boolean; actor: ActivityIdentity }
   | { status: "invalid" | "stale" | "forbidden" };
@@ -259,7 +253,7 @@ export type ActivityRetentionCommitResult =
 export interface PasswordPolicy {
   /** Code points, 8-16. */
   minLength: number;
-  /** Code points, 15-20, at least `minLength`. */
+  /** Code points, 15-30, at least `minLength`. */
   maxLength: number;
   /** Required ASCII uppercase letters, 0-20. */
   minUppercase: number;
@@ -271,7 +265,7 @@ export interface PasswordPolicy {
 
 export const PASSWORD_POLICY_BOUNDS = {
   minLength: { min: 8, max: 16 },
-  maxLength: { min: 15, max: 20 },
+  maxLength: { min: 15, max: 30 },
   classMinimum: { min: 0, max: 20 },
 } as const;
 
@@ -293,8 +287,7 @@ export interface ChangePasswordResult {
 }
 
 export type PasswordPolicyReadResult =
-  | { status: "ok"; policy: PasswordPolicy }
-  | { status: "forbidden" | "unavailable" };
+  { status: "ok"; policy: PasswordPolicy } | { status: "forbidden" | "unavailable" };
 export type PasswordPolicySaveResult =
   | { status: "ok"; policy: PasswordPolicy }
   | { status: "invalid"; error: string; field?: PasswordPolicyField }
@@ -351,8 +344,7 @@ export type PasswordResetLinkResult =
   | { ok: true; userId: string; username: string; resetUrl: string; expiresAt: string }
   | { ok: false; reason: RegenerateSetupLinkFailure; message?: string };
 export type PasswordResetActionState =
-  | { error: string; field: "password" | "confirmPassword"; policy?: PasswordPolicy }
-  | undefined;
+  { error: string; field: "password" | "confirmPassword"; policy?: PasswordPolicy } | undefined;
 export interface SetupLinkTargetState {
   userId: string;
   state: "unfinished" | "completed" | "missing";
@@ -387,8 +379,7 @@ export interface ChangeUserRoleInput {
 
 // `changed` is false when the target already held the requested role.
 export type ChangeUserRoleResult =
-  | { ok: true; userId: string; role: UserRole; changed: boolean }
-  | { ok: false; reason: RoleChangeFailure };
+  { ok: true; userId: string; role: UserRole; changed: boolean } | { ok: false; reason: RoleChangeFailure };
 
 /** What the service returns: the client-facing result plus usernames read under the lock, for the post-commit event. */
 export type ChangeUserRoleOutcome =
@@ -927,8 +918,7 @@ export type ContributorChange =
   | { type: "remove"; collaboratorId: string };
 
 export type SaveContributorChangesResult =
-  | { status: "success" }
-  | { status: "error"; message: string; stale?: boolean };
+  { status: "success" } | { status: "error"; message: string; stale?: boolean };
 
 // `stale` marks a caller whose membership was already gone (concurrent removal, forged trip id) —
 // the client returns to the trips list rather than reporting a successful exit.
@@ -984,11 +974,12 @@ export interface DeletedAccountSummary {
 }
 
 export type DeleteOwnAccountResult =
-  | { ok: true; summary: DeletedAccountSummary }
-  | { ok: false; reason: AccountDeletionFailure };
+  { ok: true; summary: DeletedAccountSummary } | { ok: false; reason: AccountDeletionFailure };
 
 // `stale` means the shared trips changed after the dialog loaded; the client refreshes and asks again.
-export type DeleteAccountResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
+// `field: "password"` marks a failed re-authentication, so the dialog can flag the password input.
+export type DeleteAccountResult =
+  { status: "success" } | { status: "error"; message: string; stale?: boolean; field?: "password" };
 
 export const AdminDeletionFailure = {
   Forbidden: "forbidden",
@@ -1013,8 +1004,7 @@ export interface AdminDeletionPreview {
 }
 
 export type AdminDeletionPreviewResult =
-  | { ok: true; preview: AdminDeletionPreview }
-  | { ok: false; reason: AdminDeletionFailure };
+  { ok: true; preview: AdminDeletionPreview } | { ok: false; reason: AdminDeletionFailure };
 
 /** `preview` accompanies `changed` when the outcomes moved since review: the admin must confirm the new one. */
 export type AdminDeletionFailureResult = { ok: false; reason: AdminDeletionFailure; preview?: AdminDeletionPreview };
@@ -1304,8 +1294,7 @@ export interface TripDateChangeConfirmation {
 }
 
 export type UpdateTripMetadataResult =
-  | { status: "saved" }
-  | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
+  { status: "saved" } | { status: "confirmation-required"; confirmation: TripDateChangeConfirmation };
 
 export const TripCurrencyChangeMode = {
   Convert: "convert",
@@ -1364,11 +1353,7 @@ export interface InviteContributorInput {
 }
 
 export type InviteContributorErrorCode =
-  | "invalid-role"
-  | "self-invite"
-  | "no-account"
-  | "already-collaborator"
-  | "invite-conflict";
+  "invalid-role" | "self-invite" | "no-account" | "already-collaborator" | "invite-conflict";
 
 export type InviteContributorResult =
   | { status: "invited" }

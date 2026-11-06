@@ -197,6 +197,7 @@ describe("validatePasswordPolicy", () => {
   it("accepts the extremes of every range", () => {
     expect(validatePasswordPolicy({ ...DEFAULT_PASSWORD_POLICY, minLength: 16, maxLength: 16 }).ok).toBe(true);
     expect(validatePasswordPolicy({ ...DEFAULT_PASSWORD_POLICY, minLength: 8, maxLength: 15 }).ok).toBe(true);
+    expect(validatePasswordPolicy({ ...DEFAULT_PASSWORD_POLICY, minLength: 8, maxLength: 30 }).ok).toBe(true);
     expect(validatePasswordPolicy({ ...DEFAULT_PASSWORD_POLICY, minNumbers: 20, maxLength: 20 }).ok).toBe(true);
   });
   it.each([[null], [undefined], ["policy"], [42], [[]]])("rejects non-object %j", (value) => {
@@ -210,7 +211,7 @@ describe("validatePasswordPolicy", () => {
     ["minLength", undefined],
     ["minLength", Number.NaN],
     ["maxLength", 14],
-    ["maxLength", 21],
+    ["maxLength", 31],
     ["maxLength", 15.5],
     ["maxLength", "20"],
     ["maxLength", undefined],

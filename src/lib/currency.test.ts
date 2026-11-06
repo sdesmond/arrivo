@@ -100,6 +100,16 @@ describe("lib/currency", () => {
       });
     });
 
+    it("percent-encodes currency codes so a crafted value cannot add query parameters", async () => {
+      const fetchSpy = mockFetchRates({}, "USD", PAST);
+
+      await convertDual(10, "USD&date=2000-01-01", ["EUR&base=XXX"], PAST).catch(() => undefined);
+
+      expect(lastFetchUrl(fetchSpy)).toBe(
+        `https://api.frankfurter.dev/v2/rates?date=${PAST}&base=USD%26date%3D2000-01-01&quotes=EUR%26base%3DXXX`
+      );
+    });
+
     it("fetches both targets in a single call with comma-joined symbols", async () => {
       const fetchSpy = mockFetchRates({ EUR: 0.92, GBP: 0.79 });
 

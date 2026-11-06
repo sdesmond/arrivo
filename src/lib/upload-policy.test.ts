@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertValidAvatarUpload,
   assertValidCoverUpload,
+  assertUploadContentMatchesType,
   assertValidDocumentUpload,
   AVATAR_UPLOAD_ACCEPT,
   AVATAR_UPLOAD_HINT,
@@ -190,5 +192,65 @@ describe("upload-policy", () => {
 
   it("getMimeTypeForExtension throws for an unknown extension", () => {
     expect(() => getMimeTypeForExtension("exe")).toThrow("Unsupported storage file extension: exe");
+  });
+});
+
+const ascii = (text: string) => Array.from(text, (character) => character.charCodeAt(0));
+const bytesFile = (bytes: number[], type: string, name = "upload.bin") =>
+  new File([new Uint8Array(bytes)], name, { type });
+const isoBmff = (brand: string) => [0, 0, 0, 24, ...ascii("ftyp"), ...ascii(brand), 0, 0, 0, 0, ...ascii("mif1")];
+const SIGNATURES: Record<string, number[]> = {
+  "application/pdf": ascii("%PDF-1.7 "),
+  "image/jpeg": [0xff, 0xd8, 0xff, 0xe0, 0, 0x10],
+  "image/png": [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0],
+  "image/gif": ascii("GIF89a"),
+  "image/webp": [...ascii("RIFF"), 1, 2, 3, 4, ...ascii("WEBPVP8 ")],
+  "image/heic": isoBmff("heic"),
+  "image/heif": isoBmff("heic"),
+  "image/avif": isoBmff("avif"),
+};
+
+describe("assertUploadContentMatchesType", () => {
+  it.each(Object.entries(SIGNATURES))("accepts real %s bytes", async (type, bytes) => {
+    await expect(assertUploadContentMatchesType(bytesFile(bytes, type))).resolves.toBeUndefined();
+  });
+
+  it("accepts a PDF whose header sits after leading junk, as Acrobat does", async () => {
+    const bytes = [...ascii("  junk "), 10, 10, ...ascii("%PDF-1.4")];
+    await expect(assertUploadContentMatchesType(bytesFile(bytes, "application/pdf"))).resolves.toBeUndefined();
+  });
+
+  it.each(["heic", "heix", "hevc", "mif1", "msf1"])("accepts the %s brand as HEIC", async (brand) => {
+    await expect(assertUploadContentMatchesType(bytesFile(isoBmff(brand), "image/heic"))).resolves.toBeUndefined();
+  });
+
+  it("accepts the avis brand as AVIF", async () => {
+    await expect(assertUploadContentMatchesType(bytesFile(isoBmff("avis"), "image/avif"))).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["HTML named .png", ascii("<html><script>alert(1)</script>"), "image/png"],
+    ["plain text claiming PDF", ascii("just some words"), "application/pdf"],
+    ["a PNG claiming JPEG", SIGNATURES["image/png"], "image/jpeg"],
+    ["a JPEG claiming PDF", SIGNATURES["image/jpeg"], "application/pdf"],
+    ["an SVG claiming PNG", ascii('<svg xmlns="http://www.w3.org/2000/svg"/>'), "image/png"],
+    ["a RIFF WAV claiming WEBP", [...ascii("RIFF"), 1, 2, 3, 4, ...ascii("WAVEfmt ")], "image/webp"],
+    ["an AVIF claiming HEIC", isoBmff("avif"), "image/heic"],
+    ["a HEIC claiming AVIF", isoBmff("heic"), "image/avif"],
+    ["an empty file", [], "image/jpeg"],
+    ["a file shorter than its signature", [0x89, 0x50], "image/png"],
+    ["bytes under an unknown type", ascii("MZ"), "application/x-msdownload"],
+  ])("rejects %s", async (_label, bytes, type) => {
+    await expect(assertUploadContentMatchesType(bytesFile(bytes, type))).rejects.toThrow(
+      "File contents don't match its type."
+    );
+  });
+
+  it("only reads the start of a large file", async () => {
+    const file = bytesFile(SIGNATURES["image/png"], "image/png");
+    const slice = vi.spyOn(file, "slice");
+    await assertUploadContentMatchesType(file);
+    expect(slice).toHaveBeenCalledWith(0, expect.any(Number));
+    expect(slice.mock.calls[0][1]).toBeLessThanOrEqual(4096);
   });
 });

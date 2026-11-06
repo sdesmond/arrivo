@@ -705,6 +705,8 @@ export const SHARED_GLOBS = [
   "src/lib/utils.ts",
   // Response headers on every route, applied from next.config.ts.
   "src/lib/security-headers.ts",
+  // Per-user budgets on the Mapbox/Unsplash proxies: location search, cover search, static tiles and routing.
+  "src/lib/rate-limit.ts",
   // Input caps and schemas behind the trip, itinerary and reservation actions and their forms.
   "src/lib/validation-limits.ts",
   "src/lib/validation-schemas.ts",

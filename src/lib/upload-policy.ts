@@ -119,6 +119,45 @@ export function assertValidDocumentUpload(file: File): void {
   }
 }
 
+// The browser's `file.type` is only a claim from the uploader. Read the file's first bytes and require the format
+// they show to be the one claimed, so an HTML or script file can't be stored and served under an image or PDF type.
+const SIGNATURE_READ_BYTES = 1024;
+const CONTENT_MISMATCH_ERROR = "File contents don't match its type.";
+const ISO_BMFF_SHARED_BRANDS = ["mif1", "msf1"];
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", ...ISO_BMFF_SHARED_BRANDS];
+const AVIF_BRANDS = ["avif", "avis", ...ISO_BMFF_SHARED_BRANDS];
+
+function asciiAt(bytes: Uint8Array, offset: number, length: number): string {
+  return String.fromCharCode(...bytes.subarray(offset, offset + length));
+}
+
+function startsWithBytes(bytes: Uint8Array, signature: number[]): boolean {
+  return bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
+}
+
+function hasIsoBmffBrand(bytes: Uint8Array, brands: string[]): boolean {
+  return asciiAt(bytes, 4, 4) === "ftyp" && brands.includes(asciiAt(bytes, 8, 4));
+}
+
+const CONTENT_SIGNATURE_CHECKS: Record<string, (bytes: Uint8Array) => boolean> = {
+  // Readers accept the header anywhere in the first KiB, so leading junk is allowed.
+  "application/pdf": (bytes) => asciiAt(bytes, 0, bytes.length).includes("%PDF-"),
+  "image/jpeg": (bytes) => startsWithBytes(bytes, [0xff, 0xd8, 0xff]),
+  "image/png": (bytes) => startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  "image/gif": (bytes) => ["GIF87a", "GIF89a"].includes(asciiAt(bytes, 0, 6)),
+  "image/webp": (bytes) => asciiAt(bytes, 0, 4) === "RIFF" && asciiAt(bytes, 8, 4) === "WEBP",
+  "image/heic": (bytes) => hasIsoBmffBrand(bytes, HEIC_BRANDS),
+  "image/heif": (bytes) => hasIsoBmffBrand(bytes, HEIC_BRANDS),
+  "image/avif": (bytes) => hasIsoBmffBrand(bytes, AVIF_BRANDS),
+};
+
+export async function assertUploadContentMatchesType(file: File): Promise<void> {
+  const matches = CONTENT_SIGNATURE_CHECKS[file.type];
+  if (!matches) throw new Error(CONTENT_MISMATCH_ERROR);
+  const head = new Uint8Array(await file.slice(0, SIGNATURE_READ_BYTES).arrayBuffer());
+  if (!matches(head)) throw new Error(CONTENT_MISMATCH_ERROR);
+}
+
 export function assertValidAvatarUpload(file: File): void {
   if (!AVATAR_UPLOAD_MIME_TYPE_SET.has(file.type)) {
     throw new Error(AVATAR_UPLOAD_TYPE_ERROR);

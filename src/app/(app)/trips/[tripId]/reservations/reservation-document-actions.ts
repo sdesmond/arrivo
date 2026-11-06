@@ -9,7 +9,11 @@ import { inferDocKind, formatFileSize } from "@/lib/utils";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { recordTripUpdated } from "@/lib/trip-activity";
-import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
+import {
+  assertUploadContentMatchesType,
+  assertValidDocumentUpload,
+  createUploadStorageName,
+} from "@/lib/upload-policy";
 
 async function getReservationTripId(reservationId: string): Promise<string> {
   const [reservation] = await db
@@ -26,6 +30,7 @@ export async function uploadReservationDocument(reservationId: string, formData:
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("No file provided.");
   assertValidDocumentUpload(file);
+  await assertUploadContentMatchesType(file);
 
   const kind = inferDocKind(file.type);
   const storageName = createUploadStorageName("reservation-document", reservationId, file.type);
