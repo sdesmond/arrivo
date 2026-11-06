@@ -141,7 +141,6 @@ export function DeleteAccountDialog({
       }
       if (outcome.ok) {
         deleted.current = true;
-        toast.success(setupComplete ? "Account deleted." : "Unfinished account deleted.");
         router.refresh();
         setOpen(false);
         return;

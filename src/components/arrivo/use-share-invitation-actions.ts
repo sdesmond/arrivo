@@ -85,7 +85,6 @@ export function useShareInvitationActions({
             ? { ...currentData, invitations: currentData.invitations.filter((item) => item.id !== invitation.id) }
             : currentData
         );
-        toast.success(action === "rescind" ? "Invitation rescinded." : "Invitation dismissed.");
       } catch {
         if (isCurrentRef.current) {
           toast.error(action === "rescind" ? "Could not rescind invitation." : "Could not dismiss invitation.");

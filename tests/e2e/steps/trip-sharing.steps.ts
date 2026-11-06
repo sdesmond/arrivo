@@ -251,8 +251,10 @@ Then("the invited user is no longer offered in the invite picker", async ({ page
   await expect(page.getByText("No registered users found", { exact: true })).toBeVisible();
 });
 
-Then("I receive an invitation sent toast", async ({ page }) => {
-  await expect(page.getByText("Invitation sent.")).toBeVisible();
+Then("the invited user is listed as a pending invitation", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY);
+  if (!invitee) throw new Error("No invitable user materialized for this scenario.");
+  await expect(page.getByTitle(`Rescind invitation to @${invitee.username}`)).toBeVisible();
 });
 
 Then("I see a pending sharing row for the invited user with the editor role", async ({ page, scenario }) => {
@@ -281,7 +283,6 @@ When("I rescind the pending sharing invitation", async ({ page, scenario }) => {
 
 Then("I do not see the pending sharing row", async ({ page, scenario }) => {
   await expect(page.getByText(shareHandle(scenario, ShareAccount.Pending), { exact: true })).not.toBeVisible();
-  await expect(page.getByText("Invitation rescinded.")).toBeVisible();
 });
 
 When("I dismiss the declined sharing invitation", async ({ page, scenario }) => {
@@ -290,7 +291,6 @@ When("I dismiss the declined sharing invitation", async ({ page, scenario }) => 
 
 Then("I do not see the declined sharing row", async ({ page, scenario }) => {
   await expect(page.getByText(shareHandle(scenario, ShareAccount.Declined), { exact: true })).not.toBeVisible();
-  await expect(page.getByText("Invitation dismissed.")).toBeVisible();
 });
 
 Then("dismissed sharing invitation remains removed after reopening dialog", async ({ page, scenario }) => {
@@ -317,10 +317,6 @@ Then("the sharing Save control is disabled", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
 });
 
-Then("I do not receive a contributor changes toast", async ({ page }) => {
-  await expect(page.getByText("Contributor changes saved.")).not.toBeVisible();
-});
-
 When("I cancel the contributor changes", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
 });
@@ -328,15 +324,10 @@ When("I cancel the contributor changes", async ({ page }) => {
 Then("the active sharing row still shows the editor role", async ({ page, scenario }) => {
   const row = page.getByText(shareHandle(scenario, ShareAccount.Active), { exact: true }).locator("..").locator("..");
   await expect(row).toContainText("Editor");
-  await expect(page.getByText("Contributor changes saved.")).not.toBeVisible();
 });
 
 When("I save the contributor changes", async ({ page }) => {
   await page.getByRole("button", { name: "Save", exact: true }).click();
-});
-
-Then("I receive a contributor changes toast", async ({ page }) => {
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
 });
 
 Then("I do not see the removed additional sharing contributor", async ({ page, scenario }) => {
@@ -462,7 +453,7 @@ When("the invited user declines the invitation from their dashboard", async ({ p
   await expect(sharingRowFor(page, invitee.username)).toContainText("Pending");
 
   await inviteePage.getByTitle(`Decline invitation to ${trip.name}`).click();
-  await expect(inviteePage.getByText("Invitation declined.", { exact: true })).toBeVisible();
+  await expect(inviteePage.getByTitle(`Decline invitation to ${trip.name}`)).toBeHidden();
 });
 
 When("the sharing contributor leaves the trip", async ({ page, scenario }) => {

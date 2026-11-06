@@ -226,7 +226,7 @@ describe("TripShareDialog", () => {
     expect(screen.getByTitle("Dismiss invitation to @declined")).toBeEnabled();
   });
 
-  it("dismisses a declined invitation, removes its row, and shows a confirmation", async () => {
+  it("dismisses a declined invitation and removes its row without a confirmation toast", async () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
@@ -234,7 +234,7 @@ describe("TripShareDialog", () => {
 
     await waitFor(() => expect(mockDismissShareInvitation).toHaveBeenCalledWith("trip-1", "declined-1"));
     expect(screen.queryByText("@declined")).not.toBeInTheDocument();
-    expect(toast.success).toHaveBeenCalledWith("Invitation dismissed.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("keeps a declined invitation and shows an error when dismissal fails", async () => {
@@ -362,7 +362,7 @@ describe("TripShareDialog", () => {
 
     await waitFor(() => expect(mockRescindShareInvitation).toHaveBeenCalledWith("trip-1", "pending-1"));
     expect(screen.queryByText("@pending")).not.toBeInTheDocument();
-    expect(toast.success).toHaveBeenCalledWith("Invitation rescinded.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows an error toast when a pending resend action fails", async () => {
@@ -406,7 +406,7 @@ describe("TripShareDialog", () => {
     expect(rescindButton).toBeEnabled();
   });
 
-  it("invites a user, refetches data, clears the username, resets role, and shows a success toast", async () => {
+  it("invites a user, refetches data, clears the username, and resets role without a success toast", async () => {
     const { toast } = await import("sonner");
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
@@ -429,7 +429,7 @@ describe("TripShareDialog", () => {
     await userEvent.click(usernameInput);
     expect(screen.queryByRole("option", { name: "invitee" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "guest" })).toBeInTheDocument();
-    expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows Invitation resent toast when inviteContributor returns resent", async () => {
@@ -532,7 +532,7 @@ describe("TripShareDialog", () => {
     expect(input).toHaveFocus();
   });
 
-  it("shows a toast if the invite succeeds but the refetch fails", async () => {
+  it("clears the username without a toast if the invite succeeds but the refetch fails", async () => {
     const { toast } = await import("sonner");
     mockGetShareDialogData.mockRejectedValueOnce(new Error("network"));
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
@@ -541,7 +541,7 @@ describe("TripShareDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Invite" }));
 
     await waitFor(() => expect(mockInviteContributor).toHaveBeenCalled());
-    expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
+    expect(toast.success).not.toHaveBeenCalled();
     expect(screen.getByRole("combobox", { name: "Invite username" })).toHaveValue("");
   });
 });

@@ -103,7 +103,7 @@ export function TripDetailClient({
 
   const [dialogResetNonce, setDialogResetNonce] = useState(0);
 
-  const leave = useLeaveTrip({ tripId: trip.id, tripName: trip.name });
+  const leave = useLeaveTrip({ tripId: trip.id });
 
   function forceCloseRoleGatedDialogs(): void {
     setSharingTrip(false);

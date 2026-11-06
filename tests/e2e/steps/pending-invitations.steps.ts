@@ -112,10 +112,6 @@ Then("I am redirected to the trip {string}", async ({ page }, tripName: string) 
   await expect(page.getByRole("heading", { level: 1, name: tripName })).toBeVisible();
 });
 
-Then("I see the toast {string}", async ({ page }, message: string) => {
-  await expect(page.getByText(message, { exact: true })).toBeVisible({ timeout: 10_000 });
-});
-
 Then("the Trips nav badge shows {string} pending invitation", async ({ page }, count: string) => {
   await expect(page.getByRole("link", { name: `Trips, ${count} pending invitations`, exact: true })).toBeVisible();
 });
@@ -166,7 +162,7 @@ When("I invite the watching user to my trip as an editor", async ({ page, scenar
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
   await page.getByTitle("Invite this person to the trip").click();
-  await expect(page.getByText("Invitation sent.")).toBeVisible();
+  await expect(page.getByTitle(`Rescind invitation to @${watchingUser.username}`)).toBeVisible();
 });
 
 Then("the watching user sees my trip invitation without reloading", async ({ scenario }) => {
@@ -188,11 +184,10 @@ When("I rescind the watching user's invitation", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
   const rescindPosted = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
   await page.getByTitle(`Rescind invitation to @${watchingUser.username}`).click();
-  // The toast is short-lived: watch for it while the POST is in flight instead of after it settles.
-  await Promise.all([
-    rescindPosted,
-    expect(page.getByText("Invitation rescinded.")).toBeVisible({ timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS }),
-  ]);
+  await rescindPosted;
+  await expect(page.getByTitle(`Rescind invitation to @${watchingUser.username}`)).toBeHidden({
+    timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+  });
 });
 
 Then("the watching user's invitation disappears without reloading", async ({ scenario }) => {

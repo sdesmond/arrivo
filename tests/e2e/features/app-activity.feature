@@ -151,7 +151,7 @@ Feature: App activity
     And there is a registered user I can invite
     When I open the sharing dialog
     And I invite that user to the trip as an editor
-    Then I receive an invitation sent toast
+    Then the invited user is listed as a pending invitation
     When the Activity invitee accepts their real invitation
     And I open the app Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata
@@ -163,7 +163,7 @@ Feature: App activity
     And there is a registered user I can invite
     When I open the sharing dialog
     And I invite that user to the trip as an editor
-    Then I receive an invitation sent toast
+    Then the invited user is listed as a pending invitation
     When I rescind the Activity invitation
     And I open the app Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata
@@ -179,7 +179,7 @@ Feature: App activity
     # drops the stale pick and disables Invite.
     And I try an Activity invitation for the deleted account
     And I invite that user to the trip as an editor
-    Then I receive an invitation sent toast
+    Then the invited user is listed as a pending invitation
     When I resend the Activity invitation from its row
     And I open the app Activity page
     Then Activity lists one "Created invitation" transition without invitation metadata

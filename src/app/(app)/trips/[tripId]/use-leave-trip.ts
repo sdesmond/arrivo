@@ -7,10 +7,9 @@ import { leaveTrip } from "@/app/(app)/trips/actions";
 
 interface UseLeaveTripOptions {
   tripId: string;
-  tripName: string;
 }
 
-export function useLeaveTrip({ tripId, tripName }: UseLeaveTripOptions) {
+export function useLeaveTrip({ tripId }: UseLeaveTripOptions) {
   const router = useRouter();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -49,7 +48,6 @@ export function useLeaveTrip({ tripId, tripName }: UseLeaveTripOptions) {
       const result = await leaveTrip(tripId);
       if (result.status === "success") {
         // Stay in the pending state until navigation unmounts this page, so the action can't re-fire.
-        toast.success(`You left ${tripName}.`);
         router.replace("/trips");
         return;
       }

@@ -468,7 +468,7 @@ describe("TripDetailClient", () => {
       expect(mockRouterReplace).not.toHaveBeenCalled();
     });
 
-    it("leaves the trip, confirms it, and returns to the trips list on success", async () => {
+    it("leaves the trip and returns to the trips list on success without a confirmation toast", async () => {
       mockLeaveTrip.mockResolvedValue({ status: "success" });
       const user = userEvent.setup();
       renderAs();
@@ -478,7 +478,7 @@ describe("TripDetailClient", () => {
 
       expect(mockLeaveTrip).toHaveBeenCalledExactlyOnceWith("trip-1");
       expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
-      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+      expect(mockToastSuccess).not.toHaveBeenCalled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
 
@@ -614,7 +614,7 @@ describe("TripDetailClient", () => {
       });
 
       expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
-      expect(mockToastSuccess).toHaveBeenCalledWith("You left Tokyo.");
+      expect(mockToastSuccess).not.toHaveBeenCalled();
     });
 
     it("still returns to the trips list when a superseded leave turns out stale", async () => {

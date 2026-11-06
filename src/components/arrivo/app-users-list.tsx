@@ -4,7 +4,6 @@ import { UserMfaRequirement } from "./user-mfa-requirement";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -206,7 +205,6 @@ export function AppUsersList({ users, currentUserId }: AppUsersListProps) {
                 <RoleControl
                   user={user}
                   onSuccess={(role) => {
-                    toast.success("Role updated.");
                     if (user.id === currentUserId && role === UserRole.Member) router.push("/profile");
                     else router.refresh();
                   }}

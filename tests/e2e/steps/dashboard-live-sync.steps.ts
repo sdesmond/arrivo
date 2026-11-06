@@ -53,7 +53,7 @@ When("I demote the dashboard contributor to viewer and save", async ({ page, sce
   await page.getByLabel(`Role for ${contributorName}`).click();
   await page.getByRole("option", { name: "Viewer" }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 });
 
 Then("the contributor's dashboard no longer offers Edit trip without reloading", async ({ scenario }) => {
@@ -84,7 +84,7 @@ When("I remove the dashboard contributor from the trip and save", async ({ page,
   await openShareDialog(page, scenario);
   await page.getByTitle(`Remove ${contributorName}`).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 });
 
 Then("the dashboard contributor sees a message that they were removed from the trip", async ({ scenario }) => {

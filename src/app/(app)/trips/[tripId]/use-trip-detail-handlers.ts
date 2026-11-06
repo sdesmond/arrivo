@@ -266,13 +266,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
             confirmation,
             currencyChangeMode === TripCurrencyChangeMode.Convert
           );
-          if (currencyChangeMode && result.status === "saved") {
-            toast.success(
-              currencyChangeMode === TripCurrencyChangeMode.Convert
-                ? "Currency and conversions updated."
-                : "Trip currency changed."
-            );
-          }
           resolve(result);
         } catch (error) {
           if (currencyChangeMode) {

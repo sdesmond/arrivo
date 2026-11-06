@@ -238,7 +238,9 @@ describe("AppUsersList", () => {
     await user.click(await screen.findByRole("option", { name: role === "admin" ? "Member" : "Admin" }));
     expect(await screen.findByText(/private trips/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: action }));
-    await waitFor(() => expect(success).toHaveBeenCalled());
+    await waitFor(() => expect(id === "self" ? push : refresh).toHaveBeenCalled());
+    // The control already shows the new role, so no "Role updated" toast.
+    expect(success).not.toHaveBeenCalled();
     expect(changeUserRoleAction).toHaveBeenCalledWith(id, role === "admin" ? "member" : "admin");
     if (id === "self") expect(push).toHaveBeenCalledWith("/profile");
     else {

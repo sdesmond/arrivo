@@ -72,7 +72,8 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
         }
         return;
       }
-      toast.success(result.status === "resent" ? "Invitation resent." : "Invitation sent.");
+      // A new invitation shows up as a pending row; only a resend leaves nothing visible behind.
+      if (result.status === "resent") toast.success("Invitation resent.");
       await onInvited();
       setSelectedUser(null);
       setRole(CollaboratorRole.Viewer);

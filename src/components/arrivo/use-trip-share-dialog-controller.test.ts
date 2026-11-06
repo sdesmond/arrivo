@@ -365,6 +365,20 @@ describe("useTripShareDialogController", () => {
       expect(onRequestClose).toHaveBeenCalledOnce();
       expect(mockGetShareDialogData).toHaveBeenCalledOnce();
     });
+
+    it("closes after a successful save without a confirmation toast", async () => {
+      vi.mocked(toast.success).mockClear();
+      mockSaveContributorChanges.mockResolvedValue({ status: "success" });
+      const onRequestClose = vi.fn();
+      const { result } = renderHook(() => useTripShareDialogController({ onRequestClose, tripId: "trip-1" }));
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      act(() => result.current.stageRoleChange(manager, "editor"));
+
+      await act(async () => result.current.handleSaveChanges());
+
+      expect(onRequestClose).toHaveBeenCalledOnce();
+      expect(toast.success).not.toHaveBeenCalled();
+    });
   });
 
   describe("invitable users", () => {
