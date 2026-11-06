@@ -28,15 +28,16 @@ export const FIELD_LIMITS = {
   packingListName: 30,
   packingItemText: 30,
   templateName: 30,
+  expenseNote: 500,
+  profileName: 100,
+  passportNumber: 20,
+  passportNationality: 50,
+  knownTravelerNumber: 20,
+  companionName: 50,
   loyaltyProgram: 100,
-  loyaltyNumber: 100,
-  wishlistDestination: 200,
-  wishlistNote: 1000,
-  companionName: 100,
-  expenseDescription: 200,
+  loyaltyNumber: 50,
+  wishlistDestination: 100,
   countryCode: 2,
-  currencyCode: 3,
-  coordinateLabel: 200,
 } as const;
 
 export type FieldLimitKey = keyof typeof FIELD_LIMITS;
@@ -44,8 +45,10 @@ export type FieldLimitKey = keyof typeof FIELD_LIMITS;
 /** Postgres `numeric(12,2)` holds < 10^10; keep a round, human ceiling well inside it. */
 export const MAX_BUDGET_TOTAL = 1_000_000_000;
 export const MAX_EXPENSE_AMOUNT = 50000;
+export const MAX_COMPANIONS = 20;
+export const MAX_COMPANION_AGE = 120;
+export const MAX_WALK_THRESHOLD_METERS = 5000;
 export const MAX_ITINERARY_POSITION = 10_000;
-export const MAX_COORDINATE_LIST = 100;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;

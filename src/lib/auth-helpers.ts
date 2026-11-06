@@ -6,6 +6,7 @@ import { collaborators } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { CollaboratorRole } from "@/data/types";
 import { isAppAdmin } from "@/lib/app-roles";
+import { isUuid } from "@/lib/validation-limits";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -38,6 +39,8 @@ export async function assertTripAccess(
   userId: string,
   minRole: CollaboratorRole = "viewer"
 ): Promise<CollaboratorRole> {
+  // A malformed id can't name a trip; deny it here rather than letting Postgres reject the cast with a 500.
+  if (!isUuid(tripId)) notFound();
   const roleRank = { viewer: 0, editor: 1, manager: 2 };
   const [collab] = await db
     .select({ role: collaborators.role })

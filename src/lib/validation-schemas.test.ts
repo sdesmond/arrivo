@@ -119,6 +119,10 @@ describe("createEventSchema / updateEventSchema", () => {
     expect(() => parseInput(updateEventSchema, { locationLat: Number.NaN })).toThrow("Latitude");
   });
 
+  it("treats an empty event time as unset", () => {
+    expect(parseInput(updateEventSchema, { startAt: "", endAt: "" })).toEqual({ startAt: "", endAt: "" });
+  });
+
   it("bounds insertAtPosition", () => {
     expect(() => parseInput(createEventSchema, { name: "a", insertAtPosition: -1 })).toThrow("position");
     expect(() => parseInput(createEventSchema, { name: "a", insertAtPosition: 1.5 })).toThrow("position");
@@ -163,6 +167,9 @@ describe("reservation schemas", () => {
     expect(() => parseInput(createReservationSchema, { ...base, startAt: "x" })).toThrow("Invalid start time.");
     expect(() => parseInput(createReservationSchema, { ...base, endAt: "x" })).toThrow("Invalid end time.");
     expect(() => parseInput(updateReservationSchema, { provider: " " })).toThrow("Provider is required.");
+    expect(() => parseInput(updateReservationSchema, { startAt: "x" })).toThrow("Invalid start date and time.");
+    expect(() => parseInput(updateReservationSchema, { endAt: "x" })).toThrow("Invalid end date and time.");
+    expect(parseInput(updateReservationSchema, { startAt: "", endAt: "" })).toEqual({ startAt: "", endAt: "" });
   });
 
   it("caps free text and coordinates", () => {

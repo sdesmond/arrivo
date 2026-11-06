@@ -99,9 +99,10 @@ export const updateTripSchema = z.object({
   transitMode: transitModeField.nullable().optional(),
 });
 
+// Events treat an empty time as "no time set", so "" is allowed alongside a real datetime.
 const eventFields = {
-  startAt: isoDateTime("Invalid start time.").optional(),
-  endAt: isoDateTime("Invalid end time.").optional(),
+  startAt: isoDateTime("Invalid start time.").or(z.literal("")).optional(),
+  endAt: isoDateTime("Invalid end time.").or(z.literal("")).optional(),
   locationName: text("Location name", FIELD_LIMITS.locationName).optional(),
   locationAddress: text("Location address", FIELD_LIMITS.locationAddress).optional(),
   locationLat: latitude.optional(),
@@ -137,6 +138,10 @@ export const createTripNoteSchema = z.object({
 export const updateTripNoteSchema = createTripNoteSchema;
 
 export const itineraryNoteContentSchema = text("Note", FIELD_LIMITS.itineraryNote);
+export const checklistTitleSchema = text("Checklist title", FIELD_LIMITS.checklistTitle).optional();
+export const checklistItemContentSchema = text("Checklist item", FIELD_LIMITS.checklistItem);
+export const documentNameSchema = requiredText("Document name", FIELD_LIMITS.documentName);
+export const itineraryPositionSchema = position;
 
 const reservationType = z.custom<ReservationType>(
   (value) => typeof value === "string" && (Object.values(ReservationType) as string[]).includes(value),
@@ -144,8 +149,6 @@ const reservationType = z.custom<ReservationType>(
 );
 
 const reservationFields = {
-  startAt: isoDateTime("Invalid start time.").optional(),
-  endAt: isoDateTime("Invalid end time.").optional(),
   startAddress: text("Start address", FIELD_LIMITS.locationAddress).optional(),
   startLocationName: text("Start location name", FIELD_LIMITS.locationName).optional(),
   startLocationLat: latitude.optional(),
@@ -162,11 +165,16 @@ const reservationFields = {
 export const createReservationSchema = z.object({
   type: reservationType,
   provider: requiredText("Provider", FIELD_LIMITS.provider),
+  startAt: isoDateTime("Invalid start time.").optional(),
+  endAt: isoDateTime("Invalid end time.").optional(),
   ...reservationFields,
 });
 
 export const updateReservationSchema = z.object({
   provider: requiredText("Provider", FIELD_LIMITS.provider).optional(),
+  // An empty time clears the field on update.
+  startAt: isoDateTime("Invalid start date and time.").or(z.literal("")).optional(),
+  endAt: isoDateTime("Invalid end date and time.").or(z.literal("")).optional(),
   ...reservationFields,
 });
 
@@ -174,7 +182,7 @@ export const addDocumentSchema = z.object({
   tripId: z.string().optional(),
   eventId: z.string().optional(),
   reservationId: z.string().optional(),
-  name: requiredText("Document name", FIELD_LIMITS.documentName),
+  name: documentNameSchema,
   kind: requiredText("Kind", FIELD_LIMITS.documentKind),
   size: text("Size", FIELD_LIMITS.documentSize).optional(),
   url: z.string().optional(),

@@ -5,7 +5,6 @@ import {
   isValidIsoDate,
   isValidIsoDateTime,
   MAX_BUDGET_TOTAL,
-  MAX_COORDINATE_LIST,
   MAX_EXPENSE_AMOUNT,
   MAX_ITINERARY_POSITION,
   overLimitMessage,
@@ -62,7 +61,6 @@ describe("limits", () => {
     expect(MAX_BUDGET_TOTAL).toBeLessThan(10 ** 10);
     expect(MAX_EXPENSE_AMOUNT).toBe(50000);
     expect(MAX_ITINERARY_POSITION).toBeGreaterThan(0);
-    expect(MAX_COORDINATE_LIST).toBeGreaterThan(0);
   });
 
   it("formats an over-limit message", () => {

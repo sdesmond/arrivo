@@ -27,63 +27,74 @@ function mockCollaboratorRole(role: string | undefined) {
   });
 }
 
+const TRIP_ID = "123e4567-e89b-12d3-a456-426614174000";
+
 describe("assertTripAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  it.each(["trip-1", "", "../etc/passwd", "1; drop table trips"])(
+    "denies a malformed trip id %j without querying the database",
+    async (tripId) => {
+      await expect(assertTripAccess(tripId, "user-1", "viewer")).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(mockNotFound).toHaveBeenCalled();
+      expect(db.select).not.toHaveBeenCalled();
+    }
+  );
+
   it("denies a manager-gated action for a user whose role is editor", async () => {
     mockCollaboratorRole("editor");
 
-    await expect(assertTripAccess("trip-1", "user-1", "manager")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "manager")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockNotFound).toHaveBeenCalled();
   });
 
   it("grants a viewer-gated action for a user whose role is manager and resolves that role", async () => {
     mockCollaboratorRole("manager");
 
-    await expect(assertTripAccess("trip-1", "user-1", "viewer")).resolves.toBe("manager");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "viewer")).resolves.toBe("manager");
     expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   it("resolves the collaborator's own role, not the minimum requested role", async () => {
     mockCollaboratorRole("editor");
 
-    await expect(assertTripAccess("trip-1", "user-1", "viewer")).resolves.toBe("editor");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "viewer")).resolves.toBe("editor");
   });
 
   it("resolves the viewer role for a viewer-gated call", async () => {
     mockCollaboratorRole("viewer");
 
-    await expect(assertTripAccess("trip-1", "user-1")).resolves.toBe("viewer");
+    await expect(assertTripAccess(TRIP_ID, "user-1")).resolves.toBe("viewer");
     expect(mockNotFound).not.toHaveBeenCalled();
   });
 
   it("denies an editor-gated action for a user whose role is viewer", async () => {
     mockCollaboratorRole("viewer");
 
-    await expect(assertTripAccess("trip-1", "user-1", "editor")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "editor")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockNotFound).toHaveBeenCalled();
   });
 
   it("denies a manager-gated action for a user whose role is viewer", async () => {
     mockCollaboratorRole("viewer");
 
-    await expect(assertTripAccess("trip-1", "user-1", "manager")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "manager")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockNotFound).toHaveBeenCalled();
   });
 
   it("denies access for a user with an invalid legacy owner role", async () => {
     mockCollaboratorRole("owner");
 
-    await expect(assertTripAccess("trip-1", "user-1", "viewer")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(assertTripAccess(TRIP_ID, "user-1", "viewer")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mockNotFound).toHaveBeenCalled();
   });
 
   it("does not grant private trip access through app admin authority", async () => {
     auth.mockResolvedValue({ user: { id: "admin-1", role: "admin" } });
     mockCollaboratorRole(undefined);
-    await expect(assertTripAccess("private-trip", "admin-1")).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(assertTripAccess(TRIP_ID, "admin-1")).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });
 
