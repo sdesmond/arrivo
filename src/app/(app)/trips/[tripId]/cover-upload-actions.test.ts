@@ -55,6 +55,14 @@ vi.mock("@/lib/trip-events", () => ({
   publishTripEvent,
 }));
 
+const { assertUploadContentMatchesType } = vi.hoisted(() => ({
+  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
+}));
+vi.mock("@/lib/upload-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
+  assertUploadContentMatchesType,
+}));
+
 import { uploadCoverImage } from "./cover-upload-actions";
 import { LiveSyncEventType } from "@/data/types";
 
@@ -85,6 +93,18 @@ describe("uploadCoverImage", () => {
         where: vi.fn(async () => undefined),
       })),
     });
+  });
+
+  it("rejects a file whose bytes are not the image type it claims, before storing anything", async () => {
+    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
+    const formData = new FormData();
+    formData.append("file", makeFile("cover.png", "image/png"));
+
+    await expect(uploadCoverImage("trip-1", formData)).rejects.toThrow("File contents don't match its type.");
+
+    expect(assertUploadContentMatchesType).toHaveBeenCalledTimes(1);
+    expect(adapterPut).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported cover MIME types before uploading", async () => {

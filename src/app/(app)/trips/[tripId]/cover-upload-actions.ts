@@ -8,7 +8,7 @@ import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { publishTripEvent } from "@/lib/trip-events";
-import { assertValidCoverUpload, createUploadStorageName } from "@/lib/upload-policy";
+import { assertUploadContentMatchesType, assertValidCoverUpload, createUploadStorageName } from "@/lib/upload-policy";
 import { LiveSyncEventType } from "@/data/types";
 
 export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
@@ -19,6 +19,7 @@ export async function uploadCoverImage(tripId: string, formData: FormData): Prom
   if (!(file instanceof File)) throw new Error("No file provided");
 
   assertValidCoverUpload(file);
+  await assertUploadContentMatchesType(file);
 
   const storageName = createUploadStorageName("trip-cover", tripId, file.type);
   let url: string;

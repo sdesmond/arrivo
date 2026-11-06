@@ -9,7 +9,11 @@ import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { publishTripEvent } from "@/lib/trip-events";
 import { formatFileSize, inferDocKind } from "@/lib/utils";
-import { assertValidDocumentUpload, createUploadStorageName } from "@/lib/upload-policy";
+import {
+  assertUploadContentMatchesType,
+  assertValidDocumentUpload,
+  createUploadStorageName,
+} from "@/lib/upload-policy";
 import { LiveSyncEventType } from "@/data/types";
 
 export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
@@ -20,6 +24,7 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   if (!(file instanceof File)) throw new Error("No file provided");
 
   assertValidDocumentUpload(file);
+  await assertUploadContentMatchesType(file);
 
   const name = file.name;
   const kind = inferDocKind(file.type);
@@ -40,6 +45,7 @@ export async function uploadDocumentToEvent(eventId: string, formData: FormData)
   if (!(file instanceof File)) throw new Error("No file provided");
 
   assertValidDocumentUpload(file);
+  await assertUploadContentMatchesType(file);
 
   const name = file.name;
   const kind = inferDocKind(file.type);

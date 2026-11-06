@@ -311,7 +311,7 @@ When("I attach a file to the reservation {string}", async ({ page }, _reservatio
   await page.locator('input[type="file"]').setInputFiles({
     name: "test-doc.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from("PDF content"),
+    buffer: Buffer.from("%PDF-1.4 PDF content %%EOF"),
   });
   await page.getByRole("dialog").getByRole("button", { name: "Attach" }).click();
 });

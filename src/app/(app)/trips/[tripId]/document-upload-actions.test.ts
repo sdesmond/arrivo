@@ -58,6 +58,14 @@ vi.mock("@/lib/trip-events", () => ({
   publishTripEvent,
 }));
 
+const { assertUploadContentMatchesType } = vi.hoisted(() => ({
+  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
+}));
+vi.mock("@/lib/upload-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
+  assertUploadContentMatchesType,
+}));
+
 import { uploadDocument, uploadDocumentToEvent } from "./document-upload-actions";
 import { LiveSyncEventType } from "@/data/types";
 
@@ -78,6 +86,18 @@ describe("uploadDocument", () => {
     db.insert.mockReturnValue({
       values: vi.fn(async () => undefined),
     });
+  });
+
+  it("rejects a file whose bytes are not the type it claims, before upload or DB work", async () => {
+    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
+    const formData = new FormData();
+    formData.append("file", makeFile("evil.pdf", "application/pdf"));
+
+    await expect(uploadDocument("trip-1", formData)).rejects.toThrow("File contents don't match its type.");
+
+    expect(adapterPut).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported MIME types before upload or DB work", async () => {
@@ -140,6 +160,18 @@ describe("uploadDocumentToEvent", () => {
         where: vi.fn(async () => [{ tripId: "trip-1" }]),
       })),
     });
+  });
+
+  it("rejects a file whose bytes are not the type it claims, before upload or DB work", async () => {
+    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
+    const formData = new FormData();
+    formData.append("file", makeFile("evil.pdf", "application/pdf"));
+
+    await expect(uploadDocumentToEvent("event-1", formData)).rejects.toThrow("File contents don't match its type.");
+
+    expect(adapterPut).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported MIME types before upload or DB work", async () => {

@@ -59,6 +59,14 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
+const { assertUploadContentMatchesType } = vi.hoisted(() => ({
+  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
+}));
+vi.mock("@/lib/upload-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
+  assertUploadContentMatchesType,
+}));
+
 import {
   uploadReservationDocument,
   removeReservationDocument,
@@ -86,6 +94,18 @@ describe("uploadReservationDocument", () => {
     adapterPut.mockResolvedValue("https://blob.example.com/doc.pdf");
     adapterDel.mockResolvedValue(undefined);
     db.insert.mockReturnValue({ values: async () => undefined });
+  });
+
+  it("rejects a file whose bytes are not the type it claims, before storing or resolving the reservation", async () => {
+    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
+    const form = new FormData();
+    form.append("file", makeFile("evil.pdf", 100));
+
+    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("File contents don't match its type.");
+
+    expect(adapterPut).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("throws when the owning reservation cannot be resolved", async () => {
