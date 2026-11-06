@@ -34,10 +34,24 @@ describe("SignInForm", () => {
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
-  it("caps username and password at the sign-in limits the server enforces", () => {
+  it("caps the username at the limit the server enforces", () => {
     render(<SignInForm action={noopAction} mfaAction={noopAction} />);
     expect(screen.getByLabelText("Username")).toHaveAttribute("maxlength", String(USERNAME_MAX_LENGTH));
-    expect(screen.getByLabelText("Password")).toHaveAttribute("maxlength", String(SIGN_IN_PASSWORD_MAX_LENGTH));
+  });
+
+  it("caps the password at the server's limit in characters, with no native maxLength to miscount emoji", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm action={noopAction} mfaAction={noopAction} />);
+    const password = screen.getByLabelText("Password");
+    expect(password).not.toHaveAttribute("maxlength");
+
+    await user.type(password, "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 5));
+    expect(password).toHaveValue("p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH));
+
+    await user.clear(password);
+    await user.click(password);
+    await user.paste("😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 2));
+    expect(password).toHaveValue("😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH));
   });
 
   it("renders submit button", () => {

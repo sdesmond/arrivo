@@ -943,6 +943,15 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
       );
     });
 
+    it("counts the password length in characters, so a full-length emoji password is still checked", async () => {
+      const emojiPassword = "😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH);
+
+      await deleteAccount([], emojiPassword);
+
+      expect(bcrypt.compare).toHaveBeenCalledWith(emojiPassword, "stored-hash");
+      expect(mockDeleteOwnAccount).toHaveBeenCalled();
+    });
+
     it("refuses a wrong password, counts the failure and deletes nothing", async () => {
       vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
@@ -963,6 +972,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
       ["not a string", 12345],
       ["empty", ""],
       ["oversize", "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1)],
+      ["oversize in emoji", "😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1)],
     ])("refuses a %s password without running bcrypt", async (_label, password) => {
       await expect(deleteAccount([], password as unknown as string)).resolves.toEqual({
         status: "error",

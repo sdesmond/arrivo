@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TripDeletionAction } from "@/data/types";
 import type { AccountDeletionTrip, TripDeletionChoice } from "@/data/types";
-import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
+import { clampSignInPassword } from "@/lib/validation-limits";
 import { deleteAccount } from "./actions";
 
 // User ids are UUIDs, so this can never collide with a collaborator option.
@@ -58,6 +58,16 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
     });
   }
 
+  // The typed password must not outlive the dialog: closing wipes it, and so does a failed attempt.
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setCurrentPassword("");
+      setPasswordInvalid(false);
+      setErrorMessage(null);
+    }
+    onOpenChange(nextOpen);
+  }
+
   function handleConfirm() {
     if (!currentPassword) return;
     setErrorMessage(null);
@@ -69,6 +79,7 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
       if (result.status === "error") {
         setErrorMessage(result.message);
         setPasswordInvalid(result.field === "password");
+        if (result.field === "password") setCurrentPassword("");
         if (result.stale) router.refresh();
         return;
       }
@@ -79,7 +90,7 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
   const hasSharedTrips = sharedTrips.length > 0;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Delete account?</DialogTitle>
@@ -164,11 +175,11 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
             className="h-11"
             type="password"
             value={currentPassword}
-            maxLength={SIGN_IN_PASSWORD_MAX_LENGTH}
+            // No `maxLength`: it counts UTF-16 units, the cap counts characters.
             disabled={isPending}
             autoComplete="current-password"
             aria-invalid={passwordInvalid || undefined}
-            onChange={(event) => setCurrentPassword(event.target.value)}
+            onChange={(event) => setCurrentPassword(clampSignInPassword(event.target.value))}
             onKeyDown={(event) => {
               if (event.key === "Enter") handleConfirm();
             }}
@@ -182,7 +193,7 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} autoFocus>
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending} autoFocus>
             Cancel
           </Button>
           <Button variant="destructive" onClick={handleConfirm} loading={isPending} disabled={!currentPassword}>

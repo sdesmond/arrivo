@@ -107,7 +107,7 @@ function joinWithAnd(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
-/** One sentence naming every active requirement, e.g. "8 to 20 characters, with at least 1 number". */
+/** One sentence naming every active requirement, e.g. "8 to 20 characters, with at least 1 number" (the default maximum is 20; an admin can raise it to 30). */
 export function passwordRequirementsSentence(policy: PasswordPolicy): string {
   const [length, ...classes] = describePasswordRequirements(policy);
   const parts = classes.map((requirement) => requirement.label.toLowerCase());
@@ -150,8 +150,7 @@ export function failedPasswordField(password: string, policy: PasswordPolicy): "
 }
 
 export type PasswordPolicyValidation =
-  | { ok: true; policy: PasswordPolicy }
-  | { ok: false; error: string; field?: PasswordPolicyField };
+  { ok: true; policy: PasswordPolicy } | { ok: false; error: string; field?: PasswordPolicyField };
 
 const POLICY_KEYS = Object.keys(DEFAULT_PASSWORD_POLICY) as PasswordPolicyField[];
 

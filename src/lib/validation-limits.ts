@@ -54,6 +54,23 @@ export const MAX_EXPENSE_AMOUNT = 50000;
  * password set under them is refused. One value for the server checks and the inputs' `maxLength`.
  */
 export const SIGN_IN_PASSWORD_MAX_LENGTH = PASSWORD_POLICY_BOUNDS.maxLength.max;
+/**
+ * Whether a password is within the sign-in cap. Counts characters like the password rules do, so a password made
+ * of emoji that the rules allow isn't refused; `String.length` and `maxLength` count UTF-16 units and would.
+ */
+export function isWithinSignInPasswordLimit(password: string): boolean {
+  if (password.length <= SIGN_IN_PASSWORD_MAX_LENGTH) return true;
+  // A character is at most two units, so more than twice the cap is over it without counting.
+  if (password.length > SIGN_IN_PASSWORD_MAX_LENGTH * 2) return false;
+  return Array.from(password).length <= SIGN_IN_PASSWORD_MAX_LENGTH;
+}
+
+/** Trims typed or pasted text to the sign-in cap by whole characters. The inputs use this instead of `maxLength`. */
+export function clampSignInPassword(password: string): string {
+  if (isWithinSignInPasswordLimit(password)) return password;
+  return Array.from(password).slice(0, SIGN_IN_PASSWORD_MAX_LENGTH).join("");
+}
+
 /** Most events one routing request may carry; a day holds far fewer, and each costs a Mapbox call. */
 export const MAX_ROUTE_EVENTS = 100;
 /** Unsplash itself caps `per_page` at 30. */
