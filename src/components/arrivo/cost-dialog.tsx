@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listSupportedCurrencies } from "@/lib/currencies";
+import { FIELD_LIMITS, validateExpenseAmountInput } from "@/lib/validation-limits";
 import { type CreateExpenseInput, type Expense, type ExpenseCategory } from "@/data/types";
 
 const currencyOptions = listSupportedCurrencies();
@@ -105,8 +106,8 @@ export function CostDialog({
     note.trim() !== (expense.note ?? "").trim();
 
   async function handleSave(): Promise<void> {
-    const parsedAmount = Number.parseFloat(amount);
-    const nextAmountError = Number.isFinite(parsedAmount) ? undefined : "Amount is required.";
+    const { amount: parsedAmount, error: validationError } = validateExpenseAmountInput(amount);
+    const nextAmountError = Number.isFinite(Number.parseFloat(amount)) ? validationError : "Amount is required.";
     const nextCategoryError = category ? undefined : "Category is required.";
 
     setAmountError(nextAmountError);
@@ -210,6 +211,7 @@ export function CostDialog({
           <FieldRow label="Note">
             <textarea
               value={note}
+              maxLength={FIELD_LIMITS.expenseNote}
               onChange={(event) => setNote(event.target.value)}
               className={TEXTAREA_CLASS_NAME}
               style={{ borderColor: "var(--input)" }}

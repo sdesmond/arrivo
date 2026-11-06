@@ -6,6 +6,7 @@ import { TripAddExpenseModal } from "./trip-add-expense-modal";
 import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
 import { pickSelectOption } from "@/test-utils/pick-select-option";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const { createExpense, updateExpense, deleteExpense } = vi.hoisted(() => ({
   createExpense: vi.fn(),
@@ -139,6 +140,14 @@ describe("TripAddExpenseModal", () => {
 
     await waitFor(() => expect(screen.getByText("Amount must be 50,000 or less.")).toBeInTheDocument());
     expect(createExpense).not.toHaveBeenCalled();
+  });
+
+  it("caps the note at the shared expense note limit", () => {
+    render(<TripAddExpenseModal tripId="trip-1" open onOpenChange={vi.fn()} />, { wrapper: Wrapper });
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.expenseNote)
+    );
   });
 
   it("rejects a save with no category selected", async () => {

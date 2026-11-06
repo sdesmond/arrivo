@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { updateCompanion, deleteCompanion } from "./actions";
 import type { Companion, UpdateCompanionPatch } from "@/data/types";
 import { copyToClipboard } from "@/lib/clipboard";
+import { FIELD_LIMITS, MAX_COMPANION_AGE, overLimitMessage } from "@/lib/validation-limits";
 
 export interface CompanionRowProps {
   companion: Companion;
@@ -51,7 +52,10 @@ export function CompanionRow({ companion }: CompanionRowProps) {
     }
   }
 
-  const nameError = name.trim().length > 50 ? "Companion name must be 50 characters or fewer." : null;
+  const nameError =
+    name.trim().length > FIELD_LIMITS.companionName
+      ? overLimitMessage("Companion name", FIELD_LIMITS.companionName)
+      : null;
 
   const parsedAge = age ? parseInt(age, 10) : null;
   const ageError =
@@ -59,10 +63,18 @@ export function CompanionRow({ companion }: CompanionRowProps) {
       ? "Age must be between 0 and 120."
       : null;
 
-  const passportNumberError = passportNumber.length > 20 ? "Passport number must be 20 characters or fewer." : null;
+  const passportNumberError =
+    passportNumber.length > FIELD_LIMITS.passportNumber
+      ? overLimitMessage("Passport number", FIELD_LIMITS.passportNumber)
+      : null;
   const passportNationalityError =
-    passportNationality.length > 50 ? "Nationality must be 50 characters or fewer." : null;
-  const ktnError = knownTravelerNumber.length > 20 ? "Known traveler number must be 20 characters or fewer." : null;
+    passportNationality.length > FIELD_LIMITS.passportNationality
+      ? overLimitMessage("Nationality", FIELD_LIMITS.passportNationality)
+      : null;
+  const ktnError =
+    knownTravelerNumber.length > FIELD_LIMITS.knownTravelerNumber
+      ? overLimitMessage("Known traveler number", FIELD_LIMITS.knownTravelerNumber)
+      : null;
 
   const hasError = !!(nameError || ageError || passportNumberError || passportNationalityError || ktnError);
 
@@ -164,7 +176,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                 id={`companion-age-${companion.id}`}
                 type="number"
                 min={0}
-                max={120}
+                max={MAX_COMPANION_AGE}
                 value={age}
                 onChange={(event) => setAge(event.target.value)}
                 aria-invalid={!!ageError || undefined}

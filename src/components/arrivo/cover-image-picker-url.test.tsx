@@ -7,6 +7,7 @@ vi.mock("sonner", () => ({
   toast: { error: (...args: unknown[]) => toastError(...args), success: vi.fn() },
 }));
 
+import { MAX_URL_LENGTH } from "@/lib/url-policy";
 import { CoverImagePickerUrl } from "./cover-image-picker-url";
 
 const defaultProps = {
@@ -70,5 +71,24 @@ describe("CoverImagePickerUrl", () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Please enter a valid URL."));
     expect(defaultProps.onImageSelected).not.toHaveBeenCalled();
+  });
+
+  it.each(["JavaScript:alert(1)", "data:text/html,hi", "ftp://example.com/a.png", "//evil.example/a.png"])(
+    "rejects non-http(s) URL %j",
+    async (value) => {
+      const user = userEvent.setup();
+      render(<CoverImagePickerUrl {...defaultProps} />);
+
+      await user.type(screen.getByRole("textbox"), value);
+      await user.click(screen.getByRole("button", { name: /apply/i }));
+
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith("Please enter a valid URL."));
+      expect(defaultProps.onImageSelected).not.toHaveBeenCalled();
+    }
+  );
+
+  it("caps the URL at the shared maximum length", () => {
+    render(<CoverImagePickerUrl {...defaultProps} />);
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(MAX_URL_LENGTH));
   });
 });

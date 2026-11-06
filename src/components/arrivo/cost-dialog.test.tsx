@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { CostDialog } from "./cost-dialog";
 import { pickSelectOption } from "@/test-utils/pick-select-option";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({
@@ -64,6 +65,30 @@ describe("CostDialog", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(screen.getByText("Category is required.")).toBeInTheDocument());
+  });
+
+  it.each([
+    ["0", "Amount must be greater than 0."],
+    ["50000.01", "Amount must be 50,000 or less."],
+  ])("rejects amount %j with an inline message instead of calling onSave", async (typed, message) => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<CostDialog open onOpenChange={vi.fn()} onSave={onSave} />, { wrapper: Wrapper });
+
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), typed);
+    await pickSelectOption(user, /select category/i, "Food");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("caps the note at the shared expense note limit", () => {
+    render(<CostDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />, { wrapper: Wrapper });
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.expenseNote)
+    );
   });
 
   it("submits a structured expense payload", async () => {

@@ -4,10 +4,12 @@ import {
   isUuid,
   isValidIsoDate,
   isValidIsoDateTime,
+  MAX_BUDGET_INPUT_LENGTH,
   MAX_BUDGET_TOTAL,
   MAX_EXPENSE_AMOUNT,
   MAX_ITINERARY_POSITION,
   overLimitMessage,
+  validateExpenseAmountInput,
 } from "./validation-limits";
 
 describe("isUuid", () => {
@@ -59,11 +61,30 @@ describe("limits", () => {
 
   it("keeps numeric bounds inside numeric(12,2)", () => {
     expect(MAX_BUDGET_TOTAL).toBeLessThan(10 ** 10);
+    expect(MAX_BUDGET_INPUT_LENGTH).toBe(13);
     expect(MAX_EXPENSE_AMOUNT).toBe(50000);
     expect(MAX_ITINERARY_POSITION).toBeGreaterThan(0);
   });
 
   it("formats an over-limit message", () => {
     expect(overLimitMessage("Trip name", 100)).toBe("Trip name must be 100 characters or fewer.");
+  });
+});
+
+describe("validateExpenseAmountInput", () => {
+  it("accepts a positive amount within the ceiling", () => {
+    expect(validateExpenseAmountInput("12.5")).toEqual({ amount: 12.5 });
+    expect(validateExpenseAmountInput("50000")).toEqual({ amount: 50000 });
+  });
+
+  it.each([
+    ["", "Amount must be greater than 0."],
+    ["abc", "Amount must be greater than 0."],
+    ["0", "Amount must be greater than 0."],
+    ["-3", "Amount must be greater than 0."],
+    ["1.234", "Amount must have at most 2 decimal places."],
+    ["50000.01", "Amount must be 50,000 or less."],
+  ])("rejects %j", (raw, message) => {
+    expect(validateExpenseAmountInput(raw).error).toBe(message);
   });
 });

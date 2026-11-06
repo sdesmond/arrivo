@@ -44,6 +44,8 @@ export type FieldLimitKey = keyof typeof FIELD_LIMITS;
 
 /** Postgres `numeric(12,2)` holds < 10^10; keep a round, human ceiling well inside it. */
 export const MAX_BUDGET_TOTAL = 1_000_000_000;
+/** Longest typed budget: the ceiling's digits plus ".xx". */
+export const MAX_BUDGET_INPUT_LENGTH = String(MAX_BUDGET_TOTAL).length + 3;
 export const MAX_EXPENSE_AMOUNT = 50000;
 export const MAX_COMPANIONS = 20;
 export const MAX_COMPANION_AGE = 120;
@@ -75,6 +77,26 @@ export function isValidIsoDate(value: string): boolean {
 export function isValidIsoDateTime(value: string): boolean {
   if (!ISO_DATE_TIME_PATTERN.test(value)) return false;
   return !Number.isNaN(new Date(value).getTime());
+}
+
+/** Client-side mirror of the server's expense amount rules; `amount` is NaN when the input can't be saved. */
+export function validateExpenseAmountInput(rawAmount: string): { amount: number; error?: string } {
+  const decimalPart = rawAmount.split(".")[1];
+  if (decimalPart && decimalPart.length > 2) {
+    return { amount: Number.NaN, error: "Amount must have at most 2 decimal places." };
+  }
+
+  const amount = Number.parseFloat(rawAmount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { amount: Number.NaN, error: "Amount must be greater than 0." };
+  }
+
+  if (amount > MAX_EXPENSE_AMOUNT) {
+    return { amount, error: "Amount must be 50,000 or less." };
+  }
+
+  return { amount };
 }
 
 export function overLimitMessage(label: string, limit: number): string {

@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { X, Plus, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
 import type { LoyaltyNumber } from "@/data/types";
 import { copyToClipboard } from "@/lib/clipboard";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 interface LoyaltySectionProps {
   loyaltyNumbers: LoyaltyNumber[];
@@ -29,15 +31,23 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
     const prog = program.trim();
     const num = memberNum.trim();
     startAdd(async () => {
-      await addLoyaltyNumber({ programName: prog, memberNumber: num });
-      setProgram("");
-      setMemberNum("");
+      try {
+        await addLoyaltyNumber({ programName: prog, memberNumber: num });
+        setProgram("");
+        setMemberNum("");
+      } catch {
+        toast.error("Could not add loyalty number.");
+      }
     });
   }
 
   function handleDelete(id: string) {
     startAdd(async () => {
-      await deleteLoyaltyNumber(id);
+      try {
+        await deleteLoyaltyNumber(id);
+      } catch {
+        toast.error("Could not remove loyalty number.");
+      }
     });
   }
 
@@ -94,6 +104,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           type="text"
           placeholder="Program name"
           value={program}
+          maxLength={FIELD_LIMITS.loyaltyProgram}
           onChange={(event) => setProgram(event.target.value)}
           className="flex-1 rounded-[6px] px-2.5 py-1.5 outline-none transition-colors"
           style={INPUT_STYLE}
@@ -102,6 +113,7 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
           type="text"
           placeholder="Member #"
           value={memberNum}
+          maxLength={FIELD_LIMITS.loyaltyNumber}
           onChange={(event) => setMemberNum(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") handleAdd();

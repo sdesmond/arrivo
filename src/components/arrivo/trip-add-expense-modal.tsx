@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listSupportedCurrencies } from "@/lib/currencies";
+import { FIELD_LIMITS, validateExpenseAmountInput } from "@/lib/validation-limits";
 import { type Expense, type ExpenseCategory } from "@/data/types";
 
 const currencyOptions = listSupportedCurrencies();
-const MAX_EXPENSE_AMOUNT = 50000;
 
 const FIELD_LABEL_STYLE: React.CSSProperties = {
   fontFamily: "var(--font-mono-family, ui-monospace)",
@@ -52,25 +52,6 @@ function FieldRow({ children, label, error }: RowProps): ReactElement {
       ) : null}
     </div>
   );
-}
-
-function validateAmountInput(rawAmount: string): { amount: number; error?: string } {
-  const decimalPart = rawAmount.split(".")[1];
-  if (decimalPart && decimalPart.length > 2) {
-    return { amount: Number.NaN, error: "Amount must have at most 2 decimal places." };
-  }
-
-  const amount = Number.parseFloat(rawAmount);
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { amount: Number.NaN, error: "Amount must be greater than 0." };
-  }
-
-  if (amount > MAX_EXPENSE_AMOUNT) {
-    return { amount, error: "Amount must be 50,000 or less." };
-  }
-
-  return { amount };
 }
 
 export interface TripAddExpenseModalProps {
@@ -129,7 +110,7 @@ export function TripAddExpenseModal({
       return;
     }
 
-    const { amount: parsedAmount, error: nextAmountError } = validateAmountInput(amount);
+    const { amount: parsedAmount, error: nextAmountError } = validateExpenseAmountInput(amount);
     const nextCategoryError = category ? undefined : "Category is required.";
 
     setAmountError(nextAmountError);
@@ -245,6 +226,7 @@ export function TripAddExpenseModal({
           <FieldRow label="Note">
             <textarea
               value={note}
+              maxLength={FIELD_LIMITS.expenseNote}
               onChange={(event) => setNote(event.target.value)}
               className={TEXTAREA_CLASS_NAME}
               style={{ borderColor: "var(--input)" }}
