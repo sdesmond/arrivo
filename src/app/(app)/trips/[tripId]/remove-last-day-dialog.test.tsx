@@ -27,7 +27,7 @@ describe("RemoveLastDayDialog", () => {
 
   it("shows the pending state and blocks both actions while removing", () => {
     render(<RemoveLastDayDialog open removingDay onCancel={vi.fn()} onConfirm={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Removing Day..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove Day" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 });

@@ -99,14 +99,14 @@ describe("NewTripDialog", () => {
     const user = userEvent.setup();
     render(<NewTripDialog open onOpenChange={vi.fn()} isPending />);
     await user.type(screen.getByLabelText(/title/i), "Paris");
-    expect(screen.getByRole("button", { name: /creating/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
-  it("shows Creating text on Create button when isPending=true", async () => {
+  it("keeps the Create label and marks the button busy when isPending=true", async () => {
     const user = userEvent.setup();
     render(<NewTripDialog open onOpenChange={vi.fn()} isPending />);
     await user.type(screen.getByLabelText(/title/i), "Paris");
-    expect(screen.getByRole("button", { name: /creating/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows inline validation when form is submitted with a whitespace-only title", async () => {

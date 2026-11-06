@@ -162,7 +162,6 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
       // Success closes the dialog, so any membership change missed mid-save is moot.
       missedLiveRefreshRef.current = false;
       setStagedChanges({});
-      toast.success("Contributor changes saved.");
       onRequestClose();
     } catch {
       if (isCurrentRef.current) toast.error("Could not save changes.");

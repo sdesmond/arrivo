@@ -1,6 +1,7 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState, type ReactElement } from "react";
+import { forwardRef, useImperativeHandle, useState, type ReactElement } from "react";
+import { toast } from "sonner";
 import {
   RemovePackingSectionMode,
   type PackingItem,
@@ -50,14 +51,7 @@ export const PackingListDialogs = forwardRef<PackingListDialogsHandle, PackingLi
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogKey, setDialogKey] = useState(0);
     const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-    const [resultNotice, setResultNotice] = useState<PullTemplatesResult | null>(null);
     const [isRemovingSection, setIsRemovingSection] = useState(false);
-
-    useEffect(() => {
-      if (!resultNotice) return;
-      const timer = setTimeout(() => setResultNotice(null), 4000);
-      return () => clearTimeout(timer);
-    }, [resultNotice]);
 
     useImperativeHandle(ref, () => ({
       openPullDialog: () => {
@@ -72,7 +66,10 @@ export const PackingListDialogs = forwardRef<PackingListDialogsHandle, PackingLi
       try {
         const result = await onPullTemplates(templateIds);
         if (result) {
-          setResultNotice(result);
+          // Added items appear in the list; only skipped duplicates leave nothing visible behind.
+          if (result.skipped > 0) {
+            toast.info(`${result.skipped} duplicate ${result.skipped === 1 ? "item" : "items"} skipped`);
+          }
           setDialogOpen(false);
         }
         return result;
@@ -106,17 +103,6 @@ export const PackingListDialogs = forwardRef<PackingListDialogsHandle, PackingLi
 
     return (
       <>
-        {resultNotice && (
-          <div
-            role="status"
-            className="rounded-2xl border p-3 text-sm"
-            style={{ background: "var(--surface)", borderColor: "var(--line)", color: "var(--fg)" }}
-          >
-            {resultNotice.added} item(s) added
-            {resultNotice.skipped > 0 ? `, ${resultNotice.skipped} duplicate(s) skipped` : ""}
-          </div>
-        )}
-
         {onPullTemplates && (
           <TemplatePullDialog
             key={dialogKey}

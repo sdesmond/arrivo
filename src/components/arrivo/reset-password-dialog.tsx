@@ -111,8 +111,8 @@ export function ResetPasswordDialog({ userId, username }: ResetPasswordDialogPro
             {result || phase === "changed" ? "Close" : "Cancel"}
           </Button>
           {!result && phase !== "changed" && (
-            <Button className="h-11" disabled={pending} onClick={phase === "uncertain" ? check : generate}>
-              {pending ? "Working…" : phase === "uncertain" ? "Check account" : "Generate link"}
+            <Button className="h-11" loading={pending} onClick={phase === "uncertain" ? check : generate}>
+              {phase === "uncertain" ? "Check account" : "Generate link"}
             </Button>
           )}
         </DialogFooter>

@@ -56,13 +56,13 @@ export function LeaveTripAlertDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={isLeaving}
+            loading={isLeaving}
             style={ACTION_TARGET_STYLE}
             onClick={() => {
               void onConfirm();
             }}
           >
-            {isLeaving ? "Leaving..." : "Leave trip"}
+            Leave trip
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

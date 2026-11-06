@@ -113,8 +113,8 @@ export function ChangeRoleDialog({
           >
             Cancel
           </Button>
-          <Button className="h-11" disabled={isPending} onClick={handleConfirm}>
-            {isPending ? "Saving…" : action}
+          <Button className="h-11" loading={isPending} onClick={handleConfirm}>
+            {action}
           </Button>
         </DialogFooter>
       </DialogContent>

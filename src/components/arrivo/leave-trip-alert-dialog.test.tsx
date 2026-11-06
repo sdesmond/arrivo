@@ -95,7 +95,7 @@ describe("LeaveTripAlertDialog", () => {
 
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("button", { name: "Leaving..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Leave trip" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
 
     await user.keyboard("{Escape}");

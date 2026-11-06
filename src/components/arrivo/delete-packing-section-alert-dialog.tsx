@@ -50,16 +50,16 @@ export function DeletePackingSectionAlertDialog({
               void onMoveItems();
             }}
           >
-            {isDeleting ? "Working..." : "Keep Items"}
+            Keep Items
           </AlertDialogAction>
           <AlertDialogAction
             variant="destructive"
-            disabled={isDeleting}
+            loading={isDeleting}
             onClick={() => {
               void onDeleteItems();
             }}
           >
-            {isDeleting ? "Working..." : "Delete Items"}
+            Delete Items
           </AlertDialogAction>
           <AlertDialogCancel variant="ghost" className="col-span-2 sm:col-span-1 sm:order-first" disabled={isDeleting}>
             Cancel

@@ -1,5 +1,8 @@
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { copyText } from "./clipboard";
+import { COPIED_MESSAGE, copyText, copyToClipboard } from "./clipboard";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 type ExecCommand = (command: string) => boolean;
 
@@ -120,5 +123,46 @@ describe("copyText", () => {
     await copyText("secret");
 
     expect(parent).toBe(dialog);
+  });
+});
+
+describe("copyToClipboard", () => {
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    setExecCommand(undefined);
+  });
+
+  afterEach(() => {
+    if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+    else delete (navigator as unknown as Record<string, unknown>).clipboard;
+    setExecCommand(undefined);
+    document.body.innerHTML = "";
+  });
+
+  it("uses one shared success message", () => {
+    expect(COPIED_MESSAGE).toBe("Copied to clipboard");
+  });
+
+  it("copies the text and shows the shared success toast", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+
+    await expect(copyToClipboard("AB123456", "Could not copy.")).resolves.toBe(true);
+
+    expect(writeText).toHaveBeenCalledWith("AB123456");
+    expect(toast.success).toHaveBeenCalledWith("Copied to clipboard");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("shows the caller's failure message when nothing reached the clipboard", async () => {
+    setClipboard(undefined);
+
+    await expect(copyToClipboard("secret", "Couldn't copy. Select it and copy it yourself.")).resolves.toBe(false);
+
+    expect(toast.error).toHaveBeenCalledWith("Couldn't copy. Select it and copy it yourself.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

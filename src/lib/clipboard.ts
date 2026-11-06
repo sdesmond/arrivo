@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 // `navigator.clipboard` only exists in a secure context (HTTPS or localhost). A self-hosted install
 // reached over plain HTTP at a LAN address has none, so copy buttons would throw. Try the Clipboard API,
 // then fall back to selecting a hidden field and `document.execCommand("copy")`. Resolves true when the
@@ -13,6 +15,17 @@ export async function copyText(text: string): Promise<boolean> {
   }
 
   return copyWithSelection(text);
+}
+
+export const COPIED_MESSAGE = "Copied to clipboard";
+
+// Copying leaves nothing visible behind, so every copy button confirms the same way: one shared success
+// toast, or the caller's own failure message (usually telling the user how to copy by hand).
+export async function copyToClipboard(text: string, failureMessage: string): Promise<boolean> {
+  const copied = await copyText(text);
+  if (copied) toast.success(COPIED_MESSAGE);
+  else toast.error(failureMessage);
+  return copied;
 }
 
 function copyWithSelection(text: string): boolean {

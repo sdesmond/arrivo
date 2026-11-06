@@ -31,13 +31,15 @@ vi.mock("@/components/ui/alert-dialog", () => ({
   AlertDialogAction: ({
     children,
     disabled,
+    loading,
     onClick,
   }: {
     children: ReactNode;
     disabled?: boolean;
+    loading?: boolean;
     onClick?: () => void;
   }) => (
-    <button disabled={disabled} onClick={onClick}>
+    <button disabled={disabled || loading} aria-busy={loading || undefined} onClick={onClick}>
       {children}
     </button>
   ),
@@ -116,8 +118,8 @@ describe("DeletePackingSectionAlertDialog", () => {
     );
 
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: "Working..." })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: "Working..." })[0]).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: "Working..." })[1]).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Keep Items" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete Items" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete Items" })).toHaveAttribute("aria-busy", "true");
   });
 });

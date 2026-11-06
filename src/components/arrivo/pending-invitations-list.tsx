@@ -51,7 +51,6 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
       setPendingId(null);
       if (result.status === "declined") {
         setDeclinedIds((current) => new Set(current).add(invitation.id));
-        toast.success("Invitation declined.");
         return;
       }
       toast.error(result.message);

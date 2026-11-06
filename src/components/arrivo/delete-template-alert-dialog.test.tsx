@@ -29,13 +29,15 @@ vi.mock("@/components/ui/alert-dialog", () => ({
   AlertDialogAction: ({
     children,
     disabled,
+    loading,
     onClick,
   }: {
     children: React.ReactNode;
     disabled?: boolean;
+    loading?: boolean;
     onClick?: () => void;
   }) => (
-    <button disabled={disabled} onClick={onClick}>
+    <button disabled={disabled || loading} aria-busy={loading || undefined} onClick={onClick}>
       {children}
     </button>
   ),
@@ -86,7 +88,7 @@ describe("DeleteTemplateAlertDialog", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Deleting..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 });

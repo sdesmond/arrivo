@@ -158,7 +158,8 @@ describe("DeleteAccountDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(remove).toHaveBeenCalledWith("target", "first-fingerprint");
     expect(refresh).toHaveBeenCalledOnce();
-    expect(success).toHaveBeenCalledWith("Account deleted.");
+    // The row disappears (or the admin is signed out), so no "Account deleted" toast.
+    expect(success).not.toHaveBeenCalled();
   });
 
   it("uses the unfinished wording for a pending account", async () => {
@@ -168,7 +169,8 @@ describe("DeleteAccountDialog", () => {
 
     await user.click(submit());
 
-    await waitFor(() => expect(success).toHaveBeenCalledWith("Unfinished account deleted."));
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(success).not.toHaveBeenCalled();
   });
 
   it("moves focus to the supplied target when the deleted row's trigger is gone", async () => {
@@ -204,7 +206,8 @@ describe("DeleteAccountDialog", () => {
     await user.click(submit());
 
     await waitFor(() => expect(remove).toHaveBeenLastCalledWith("target", "second-fingerprint"));
-    await waitFor(() => expect(success).toHaveBeenCalled());
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(success).not.toHaveBeenCalled();
   });
 
   it("blocks duplicate requests and dismissal while deleting", async () => {
@@ -214,7 +217,7 @@ describe("DeleteAccountDialog", () => {
     await screen.findByText(/2 trips/);
 
     await user.click(submit());
-    expect(screen.getByRole("button", { name: "Deleting…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("dialog")).toBeVisible();

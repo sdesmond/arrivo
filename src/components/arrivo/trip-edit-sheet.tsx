@@ -84,6 +84,7 @@ export function TripEditSheet({
   }, [open, trip]);
 
   if (!draft) return null;
+  const isDirty = destinationPatch !== undefined || JSON.stringify(draft) !== JSON.stringify(createTripDraft(trip));
   function set<K extends keyof Trip>(key: K, value: Trip[K]) {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
@@ -248,8 +249,13 @@ export function TripEditSheet({
                 <Button variant="ghost" onClick={onClose} disabled={isBusy}>
                   Cancel
                 </Button>
-                <Button ref={saveButtonRef} disabled={isBusy} onClick={handleSaveClick}>
-                  {saving ? "Saving..." : "Save changes"}
+                <Button
+                  ref={saveButtonRef}
+                  loading={saving}
+                  disabled={isDeleting || !isDirty}
+                  onClick={handleSaveClick}
+                >
+                  Save changes
                 </Button>
               </div>
             </div>

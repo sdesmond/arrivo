@@ -9,7 +9,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { updateCompanion, deleteCompanion } from "./actions";
 import type { Companion, UpdateCompanionPatch } from "@/data/types";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export interface CompanionRowProps {
   companion: Companion;
@@ -65,6 +65,15 @@ export function CompanionRow({ companion }: CompanionRowProps) {
   const ktnError = knownTravelerNumber.length > 20 ? "Known traveler number must be 20 characters or fewer." : null;
 
   const hasError = !!(nameError || ageError || passportNumberError || passportNationalityError || ktnError);
+
+  const isDirty =
+    name.trim() !== companion.name ||
+    age !== (companion.age?.toString() ?? "") ||
+    passportNumber !== (companion.passportNumber ?? "") ||
+    passportExpiry !== (companion.passportExpiry ?? undefined) ||
+    passportNationality !== (companion.passportNationality ?? "") ||
+    knownTravelerNumber !== (companion.knownTravelerNumber ?? "") ||
+    username !== (companion.username ?? "");
 
   function handleSave() {
     startTransition(async () => {
@@ -188,9 +197,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                     title="Copy passport number"
                     aria-label="Copy passport number"
                     onClick={() => {
-                      void copyText(passportNumber).then((copied) => {
-                        if (!copied) toast.error("Could not copy passport number.");
-                      });
+                      void copyToClipboard(passportNumber, "Could not copy passport number.");
                     }}
                   >
                     <Copy strokeWidth={1.5} aria-hidden="true" />
@@ -248,9 +255,7 @@ export function CompanionRow({ companion }: CompanionRowProps) {
                     title="Copy known traveler number"
                     aria-label="Copy known traveler number"
                     onClick={() => {
-                      void copyText(knownTravelerNumber).then((copied) => {
-                        if (!copied) toast.error("Could not copy known traveler number.");
-                      });
+                      void copyToClipboard(knownTravelerNumber, "Could not copy known traveler number.");
                     }}
                   >
                     <Copy strokeWidth={1.5} aria-hidden="true" />
@@ -285,8 +290,8 @@ export function CompanionRow({ companion }: CompanionRowProps) {
             <Button size="sm" variant="ghost" onClick={handleCollapse} disabled={isPending}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={isPending || !name.trim() || hasError}>
-              {isPending ? "Saving…" : "Save"}
+            <Button size="sm" onClick={handleSave} loading={isPending} disabled={!isDirty || !name.trim() || hasError}>
+              Save
             </Button>
           </div>
         </div>

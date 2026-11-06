@@ -124,10 +124,11 @@ When("the Add User response is lost after account creation", async ({ page, scen
   await page.getByRole("textbox", { name: "Username" }).fill(username);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   try {
-    await expect(page.getByRole("button", { name: "Checking…" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeDisabled();
+    // The label no longer changes between creating and checking, so wait for the check request itself.
+    await expect.poll(() => postCount).toBe(2);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toBeVisible();
-    expect(postCount).toBe(2);
   } finally {
     releaseCheck();
   }

@@ -141,7 +141,7 @@ describe("ChangePasswordDialog", () => {
     render(<Host />);
     await fill(user, "currentpw", "abcdefgh");
     await user.click(screen.getByRole("button", { name: "Update password" }));
-    expect(await screen.findByRole("button", { name: "Updating…" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Update password" })).toBeDisabled();
     release({});
     expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
   });

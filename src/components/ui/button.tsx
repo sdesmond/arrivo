@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
+import { LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -38,13 +39,43 @@ const buttonVariants = cva(
   }
 );
 
+interface ButtonProps extends ButtonPrimitive.Props, VariantProps<typeof buttonVariants> {
+  /** Keeps the label, disables the button, and overlays an indeterminate spinner. */
+  loading?: boolean;
+}
+
 function Button({
   className,
   variant = "default",
   size = "default",
+  loading = false,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
-  return <ButtonPrimitive data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+}: ButtonProps) {
+  return (
+    <ButtonPrimitive
+      data-slot="button"
+      aria-busy={loading || undefined}
+      className={cn(buttonVariants({ variant, size, className }), loading && "relative disabled:opacity-100")}
+      {...props}
+      disabled={props.disabled || loading}
+    >
+      {loading ? (
+        <>
+          <span className="inline-flex items-center justify-center opacity-0" style={{ gap: "inherit" }}>
+            {children}
+          </span>
+          <LoaderCircle
+            aria-hidden="true"
+            strokeWidth={1.5}
+            className="absolute animate-spin motion-reduce:animate-none"
+          />
+        </>
+      ) : (
+        children
+      )}
+    </ButtonPrimitive>
+  );
 }
 
 export { Button, buttonVariants };

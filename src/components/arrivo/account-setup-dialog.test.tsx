@@ -104,14 +104,12 @@ describe("AccountSetupDialog", () => {
 
     it("refreshes the checklist from the current rules a refused submission returns", async () => {
       const user = userEvent.setup();
-      const action = vi.fn(
-        async (): Promise<AccountSetupActionState> => ({
-          error: "Password must be 12 to 20 characters.",
-          field: "password",
-          name: "Alex",
-          policy: { ...DEFAULT_PASSWORD_POLICY, minLength: 12 },
-        })
-      );
+      const action = vi.fn(async (): Promise<AccountSetupActionState> => ({
+        error: "Password must be 12 to 20 characters.",
+        field: "password",
+        name: "Alex",
+        policy: { ...DEFAULT_PASSWORD_POLICY, minLength: 12 },
+      }));
       render(<AccountSetupDialog username="pending-person" action={action} policy={DEFAULT_PASSWORD_POLICY} />);
       await fillAndSubmit(user);
       await waitFor(() => expect(screen.getByRole("list")).toHaveTextContent("12 to 20 characters"));
@@ -144,7 +142,7 @@ describe("AccountSetupDialog", () => {
     );
     render(<AccountSetupDialog username="pending-person" action={action} policy={DEFAULT_PASSWORD_POLICY} />);
     await fillAndSubmit(user);
-    expect(await screen.findByRole("button", { name: "Please wait…" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Save and continue" })).toBeDisabled();
     release();
   });
 });

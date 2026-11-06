@@ -112,7 +112,7 @@ describe("useShareInvitationActions", () => {
     expect(mockRescindShareInvitation).toHaveBeenCalledWith("trip-1", "invite-1");
     expect(result.current.data?.invitations).toEqual([declinedInvitation]);
     expect(suppressedInvitationIdsRef.current.has("invite-1")).toBe(true);
-    expect(toast.success).toHaveBeenCalledWith("Invitation rescinded.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("removes and suppresses a dismissed invitation", async () => {
@@ -123,7 +123,7 @@ describe("useShareInvitationActions", () => {
     expect(mockDismissShareInvitation).toHaveBeenCalledWith("trip-1", "invite-2");
     expect(result.current.data?.invitations).toEqual([pendingInvitation]);
     expect(suppressedInvitationIdsRef.current.has("invite-2")).toBe(true);
-    expect(toast.success).toHaveBeenCalledWith("Invitation dismissed.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("leaves null data alone when a removal succeeds before data loaded", async () => {

@@ -93,16 +93,16 @@ describe("PendingInvitationsList", () => {
     expect(screen.getByText("Kyoto Trip")).toBeInTheDocument();
   });
 
-  it("shows a success toast and removes the row on a successful decline", async () => {
+  it("removes the row on a successful decline without a confirmation toast", async () => {
     const user = userEvent.setup();
     vi.mocked(declineInvitation).mockResolvedValue({ status: "declined" });
 
     render(<PendingInvitationsList invitations={[INVITATION]} />);
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation declined."));
     await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
     expect(declineInvitation).toHaveBeenCalledWith("invite-1");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows an error toast and keeps the row when decline fails", async () => {

@@ -60,7 +60,7 @@ describe("RecoveryCodesDialog", () => {
     render(<RecoveryCodesDialog codes={CODES} onDone={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Copy codes" }));
     expect(writeText).toHaveBeenCalledWith("aaaaa-bbbbb\nccccc-ddddd");
-    expect(toast.success).toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Copied to clipboard");
   });
 
   it("copies the codes through the fallback when the Clipboard API is unavailable", async () => {
@@ -70,7 +70,7 @@ describe("RecoveryCodesDialog", () => {
       render(<RecoveryCodesDialog codes={CODES} onDone={vi.fn()} />);
       await user.click(screen.getByRole("button", { name: "Copy codes" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
-      expect(toast.success).toHaveBeenCalled();
+      expect(toast.success).toHaveBeenCalledWith("Copied to clipboard");
       expect(toast.error).not.toHaveBeenCalled();
     } finally {
       restore();

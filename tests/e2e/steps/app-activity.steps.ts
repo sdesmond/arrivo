@@ -505,7 +505,7 @@ When("I rescind the Activity invitation", async ({ page, scenario }) => {
   const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
   await page.getByTitle(`Rescind invitation to @${invitee.username}`).click();
   await response;
-  await expect(page.getByText("Invitation rescinded.", { exact: true })).toBeVisible();
+  await expect(page.getByTitle(`Rescind invitation to @${invitee.username}`)).toBeHidden();
 });
 
 When("I resend the Activity invitation from its row", async ({ page, scenario }) => {

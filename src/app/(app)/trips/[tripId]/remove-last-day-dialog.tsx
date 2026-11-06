@@ -40,8 +40,8 @@ export function RemoveLastDayDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={removingDay}>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={removingDay} onClick={onConfirm}>
-            {removingDay ? "Removing Day..." : "Remove Day"}
+          <AlertDialogAction variant="destructive" loading={removingDay} onClick={onConfirm}>
+            Remove Day
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

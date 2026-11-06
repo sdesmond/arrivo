@@ -255,10 +255,11 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.type(screen.getByDisplayValue("Tokyo Adventure"), "!");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(onSave).toHaveBeenCalledOnce();
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
-    expect(patch.name).toBe("Tokyo Adventure");
+    expect(patch.name).toBe("Tokyo Adventure!");
     expect(patch.startDate).toBe("2026-06-01");
     expect(patch.endDate).toBe("2026-06-10");
     expect(patch.budgetTotal).toBe(3000);
@@ -272,6 +273,7 @@ describe("TripEditSheet", () => {
     render(
       <TripEditSheet currencyOptions={currencyOptions} trip={tripWithCover} open onClose={vi.fn()} onSave={onSave} />
     );
+    await user.type(screen.getByDisplayValue("Tokyo Adventure"), "!");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
     expect(patch).not.toHaveProperty("coverImageUrl");
@@ -472,13 +474,39 @@ describe("TripEditSheet", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("disables save controls and shows Saving... while the trip save is pending", () => {
+  it("disables save controls and keeps the Save label while the trip save is pending", () => {
     render(
       <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} saving />
     );
 
-    expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+    const saveButton = screen.getByRole("button", { name: "Save changes" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-busy", "true");
     expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
+  });
+
+  it("keeps Save disabled until something changes and disables it again when the change is reverted", async () => {
+    const user = userEvent.setup();
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    const saveButton = screen.getByRole("button", { name: "Save changes" });
+    expect(saveButton).toBeDisabled();
+
+    const nameInput = screen.getByDisplayValue("Tokyo Adventure");
+    await user.type(nameInput, "!");
+    expect(saveButton).toBeEnabled();
+
+    await user.type(nameInput, "{Backspace}");
+    expect(saveButton).toBeDisabled();
+  });
+
+  it("enables Save after picking a destination", async () => {
+    const user = userEvent.setup();
+    render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "select-destination" }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
   it("renders an icon-only delete button, left-aligned with the Cancel/Save group, when onDelete is provided", () => {
@@ -649,6 +677,7 @@ describe("TripEditSheet", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={onSave} />);
+    await user.type(screen.getByDisplayValue("Tokyo Adventure"), "!");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     const patch: UpdateTripPatch = onSave.mock.calls[0][0];
     expect(patch.destinationName).toBeUndefined();
@@ -733,6 +762,7 @@ describe("TripEditSheet", () => {
         />
       );
 
+      await user.type(screen.getByDisplayValue("Tokyo Adventure"), "!");
       await user.click(screen.getByRole("button", { name: /save changes/i }));
 
       expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetTotal: 3000 }));

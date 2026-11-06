@@ -30,7 +30,7 @@ async function removeNamedContributorAndSave(page: Page, scenario: ScenarioFixtu
 
   await page.getByTitle(`Remove ${removedName}`).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 }
 
 function revocationModal(page: Page) {

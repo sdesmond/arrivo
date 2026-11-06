@@ -160,8 +160,8 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} autoFocus>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleConfirm} disabled={isPending}>
-            {isPending ? "Deleting…" : "Delete account"}
+          <Button variant="destructive" onClick={handleConfirm} loading={isPending}>
+            Delete account
           </Button>
         </DialogFooter>
       </DialogContent>

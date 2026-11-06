@@ -278,8 +278,8 @@ Then(
   }
 );
 
-Then("the copy button should show the copied state", async ({ page }) => {
-  await expect(page.getByRole("button", { name: "Copied!" })).toBeVisible();
+Then("I see the copied to clipboard toast", async ({ page }) => {
+  await expect(page.getByText("Copied to clipboard")).toBeVisible();
 });
 
 When("I navigate to the Companions section", async ({ page }) => {

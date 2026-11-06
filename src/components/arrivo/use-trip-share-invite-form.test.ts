@@ -167,7 +167,7 @@ describe("useTripShareInviteForm", () => {
   });
 
   describe("inviting", () => {
-    it("sends the selected username with the chosen role, toasts, refreshes and resets", async () => {
+    it("sends the selected username with the chosen role, refreshes and resets without a toast", async () => {
       mockInviteContributor.mockResolvedValue({ status: "invited" });
       const onInvited = vi.fn();
       const { result } = await setupWithUsers({ onInvited });
@@ -179,7 +179,7 @@ describe("useTripShareInviteForm", () => {
       await act(async () => result.current.handleInvite());
 
       expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "alice", CollaboratorRole.Editor);
-      expect(toast.success).toHaveBeenCalledWith("Invitation sent.");
+      expect(toast.success).not.toHaveBeenCalled();
       expect(onInvited).toHaveBeenCalledOnce();
       expect(result.current.selectedUser).toBeNull();
       expect(result.current.role).toBe(CollaboratorRole.Viewer);

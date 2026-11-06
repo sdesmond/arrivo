@@ -211,7 +211,8 @@ describe("AppUsersList", () => {
     await user.click(screen.getByRole("combobox", { name: "Role: bob" }));
     await user.click(await screen.findByRole("option", { name: "Admin" }));
     await user.click(await screen.findByRole("button", { name: "Make admin" }));
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make admin" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Make admin" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Role: bob", hidden: true })).toHaveTextContent("Member");
     expect(success).not.toHaveBeenCalled();
@@ -237,7 +238,9 @@ describe("AppUsersList", () => {
     await user.click(await screen.findByRole("option", { name: role === "admin" ? "Member" : "Admin" }));
     expect(await screen.findByText(/private trips/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: action }));
-    await waitFor(() => expect(success).toHaveBeenCalled());
+    await waitFor(() => expect(id === "self" ? push : refresh).toHaveBeenCalled());
+    // The control already shows the new role, so no "Role updated" toast.
+    expect(success).not.toHaveBeenCalled();
     expect(changeUserRoleAction).toHaveBeenCalledWith(id, role === "admin" ? "member" : "admin");
     if (id === "self") expect(push).toHaveBeenCalledWith("/profile");
     else {

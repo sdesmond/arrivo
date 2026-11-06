@@ -32,6 +32,7 @@ export function TemplateFormDialog({
   const [name, setName] = useState(initialName ?? "");
 
   const trimmedName = name.trim();
+  const isChanged = mode === "create" || trimmedName !== (initialName ?? "").trim();
   const showNameError = name.length > 0 && trimmedName.length === 0;
   const title = mode === "create" ? "New template" : "Rename template";
   const description =
@@ -42,7 +43,7 @@ export function TemplateFormDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isPending || !trimmedName) return;
+    if (isPending || !trimmedName || !isChanged) return;
     void onSubmit(trimmedName);
   }
 
@@ -84,8 +85,8 @@ export function TemplateFormDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || trimmedName.length === 0}>
-              {isPending ? "Saving..." : submitLabel}
+            <Button type="submit" loading={isPending} disabled={trimmedName.length === 0 || !isChanged}>
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>

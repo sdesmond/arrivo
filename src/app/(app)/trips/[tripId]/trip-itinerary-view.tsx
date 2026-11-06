@@ -242,9 +242,9 @@ export function TripItineraryView({
           );
         })}
         {canEdit && (
-          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} disabled={addingDay || removingDay}>
+          <Button className="min-h-11 w-full sm:w-auto" onClick={onAddDay} loading={addingDay} disabled={removingDay}>
             <Plus data-icon="inline-start" strokeWidth={1.5} />
-            {addingDay ? "Adding Day..." : "Add Day"}
+            Add Day
           </Button>
         )}
       </div>

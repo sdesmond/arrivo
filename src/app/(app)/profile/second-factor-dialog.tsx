@@ -111,9 +111,10 @@ export function SecondFactorDialog({ kind, onCancel, onConfirm }: SecondFactorDi
               type="submit"
               variant={kind === "disable" ? "destructive" : "default"}
               className="h-11"
-              disabled={isPending || !password || !code}
+              loading={isPending}
+              disabled={!password || !code}
             >
-              {isPending ? "Checking…" : copy?.action}
+              {copy?.action}
             </Button>
           </DialogFooter>
         </form>

@@ -118,13 +118,14 @@ describe("PasswordPolicySettings", () => {
     expect(savePasswordPolicySettings.mock.calls[1][1]).toEqual({ ...DEFAULT_PASSWORD_POLICY, minLength: 10 });
   });
 
-  it("disables the controls and shows a pending label while saving", async () => {
+  it("disables the controls and keeps the label while saving", async () => {
     const user = userEvent.setup();
     let release: (value: unknown) => void = () => {};
     savePasswordPolicySettings.mockReturnValue(new Promise((resolve) => (release = resolve)));
     render(<PasswordPolicySettings initial={initial} />);
     await user.click(screen.getByRole("button", { name: "Save password rules" }));
-    expect(await screen.findByRole("button", { name: "Saving…" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Save password rules" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByLabelText("Minimum length")).toBeDisabled();
     release({ status: "ok", policy: DEFAULT_PASSWORD_POLICY });
     await waitFor(() => expect(screen.getByRole("button", { name: "Save password rules" })).toBeEnabled());

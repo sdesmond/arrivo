@@ -132,7 +132,7 @@ describe("TripItineraryView", () => {
     props.addingDay = true;
     render(<TripItineraryView {...props} />);
 
-    expect(screen.getByRole("button", { name: "Adding Day..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add Day" })).toBeDisabled();
   });
 
   it("passes removal only to the last day and deletes an empty final day without dialog", async () => {

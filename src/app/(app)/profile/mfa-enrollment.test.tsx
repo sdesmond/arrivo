@@ -177,7 +177,7 @@ describe("MfaEnrollment", () => {
     expect(copy).toHaveClass("size-11");
     await user.click(copy);
     expect(writeText).toHaveBeenCalledWith(SETUP.secret);
-    expect(mocks.toast.success).toHaveBeenCalled();
+    expect(mocks.toast.success).toHaveBeenCalledWith("Copied to clipboard");
   });
 
   it("copies the setup key through the fallback when the Clipboard API is unavailable", async () => {
@@ -186,7 +186,7 @@ describe("MfaEnrollment", () => {
     try {
       await user.click(screen.getByRole("button", { name: "Copy key" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
-      expect(mocks.toast.success).toHaveBeenCalled();
+      expect(mocks.toast.success).toHaveBeenCalledWith("Copied to clipboard");
       expect(mocks.toast.error).not.toHaveBeenCalled();
     } finally {
       restore();

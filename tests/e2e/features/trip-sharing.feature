@@ -44,8 +44,7 @@ Feature: Trip sharing dialog
     When I go to the current trip
     And I open the sharing dialog
     And I invite that user to the trip as an editor
-    Then I receive an invitation sent toast
-    And I see a pending sharing row for the invited user with the editor role
+    Then I see a pending sharing row for the invited user with the editor role
     And the invited user is no longer offered in the invite picker
 
   Scenario: Typing a name that matches no registered user offers nothing to invite
@@ -99,7 +98,6 @@ Feature: Trip sharing dialog
     And I open the sharing dialog
     And I stage a role change on the active sharing row to viewer
     Then I see contributor change Save and Cancel controls
-    And I do not receive a contributor changes toast
     When I cancel the contributor changes
     Then the sharing dialog is closed
     When I open the sharing dialog
@@ -114,8 +112,7 @@ Feature: Trip sharing dialog
     And I stage the removal of the additional sharing contributor
     Then I see contributor change Save and Cancel controls
     When I save the contributor changes
-    Then I receive a contributor changes toast
-    And the sharing dialog is closed
+    Then the sharing dialog is closed
     When I open the sharing dialog
     Then I do not see the removed additional sharing contributor
     And the active sharing row role is updated to viewer

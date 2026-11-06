@@ -80,7 +80,7 @@ When("I demote the contributor to viewer and save", async ({ page, scenario }) =
   await page.getByLabel(`Role for ${contributorName}`).click();
   await page.getByRole("option", { name: "Viewer" }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 });
 
 Then("the contributor's open trip page no longer shows a {string} tab", async ({ scenario }, tabName: string) => {
@@ -120,7 +120,7 @@ When("I demote the manager contributor to editor and save", async ({ page, scena
   await page.getByLabel(`Role for ${contributorName}`).click();
   await page.getByRole("option", { name: "Editor" }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Contributor changes saved.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 });
 
 Then("the contributor's open trip page no longer shows the sharing dialog", async ({ scenario }) => {

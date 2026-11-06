@@ -134,6 +134,43 @@ describe("CostDialog", () => {
     expect(screen.getByRole("textbox", { name: "Note" })).toHaveValue("Patio table");
   });
 
+  it("keeps Save disabled for an existing expense until a field changes", async () => {
+    const user = userEvent.setup();
+    render(
+      <CostDialog
+        open
+        expense={{
+          id: "expense-1",
+          tripId: "trip-1",
+          category: "food",
+          amount: 25,
+          currency: "EUR",
+          date: "2026-08-01",
+          note: "Patio table",
+        }}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+
+    const note = screen.getByRole("textbox", { name: "Note" });
+    await user.type(note, "!");
+    expect(save).toBeEnabled();
+
+    await user.type(note, "{Backspace}");
+    expect(save).toBeDisabled();
+  });
+
+  it("keeps Save enabled when adding so validation can explain what is missing", () => {
+    render(<CostDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />, { wrapper: Wrapper });
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   it("clears validation after typing amount and picking a category", async () => {
     const user = userEvent.setup();
     render(<CostDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />, { wrapper: Wrapper });

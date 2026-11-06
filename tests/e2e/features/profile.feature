@@ -112,12 +112,12 @@ Feature: User profile page
     And I navigate to the Account section
     Then switching to the Traveler section should not show a warning
 
-  Scenario: Loyalty number copy button changes to check icon after click
+  Scenario: Copying a loyalty number confirms with a toast
     Given I am on the profile page
     When I navigate to the Traveler section
     Then I should see the loyalty number "TA-123456"
     When I click the copy button for the loyalty number
-    Then the copy button should show the copied state
+    Then I see the copied to clipboard toast
 
   Scenario Outline: Profile icon controls have usable targets on desktop and mobile
     Given I am on the profile page

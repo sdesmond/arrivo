@@ -335,8 +335,9 @@ describe("ProfileIdentitySection — profile photo", () => {
 
     chooseFile(getFileInput(container), pngFile());
 
-    const pending = await screen.findByRole("button", { name: "Uploading…" });
-    expect(pending).toHaveAttribute("aria-disabled", "true");
+    const pending = screen.getByRole("button", { name: "Upload photo" });
+    await waitFor(() => expect(pending).toHaveAttribute("aria-disabled", "true"));
+    expect(pending.querySelector("svg.animate-spin")).not.toBeNull();
     expect(document.activeElement).toBe(pending);
     await user.click(pending);
     expect(click).not.toHaveBeenCalled();
@@ -368,9 +369,11 @@ describe("ProfileIdentitySection — profile photo", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove photo" }));
 
-    expect(await screen.findByRole("button", { name: "Removing…" })).toHaveAttribute("aria-disabled", "true");
+    const removeButton = screen.getByRole("button", { name: "Remove photo" });
+    await waitFor(() => expect(removeButton).toHaveAttribute("aria-busy", "true"));
+    expect(removeButton).toHaveAttribute("aria-disabled", "true");
     await act(async () => finish({ ok: true, image: null }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Removing…" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument());
   });
 
   it("keeps the photo and shows an error when removal fails", async () => {
@@ -433,7 +436,9 @@ describe("ProfileIdentitySection — profile photo", () => {
 
     chooseFile(getFileInput(container), pngFile());
 
-    expect(await screen.findByRole("button", { name: "Uploading…" })).toHaveClass("aria-disabled:opacity-100");
+    const uploadButton = screen.getByRole("button", { name: "Upload photo" });
+    await waitFor(() => expect(uploadButton).toHaveAttribute("aria-disabled", "true"));
+    expect(uploadButton).toHaveClass("aria-disabled:opacity-100");
   });
 
   it("makes the in-picture control and the Remove button at least 44px", () => {

@@ -10,12 +10,11 @@ Feature: Pending Invitations
     When I accept the invitation to "Kyoto Adventure"
     Then I am redirected to the trip "Kyoto Adventure"
 
-  Scenario: Declining a pending invitation shows a toast and removes the row
+  Scenario: Declining a pending invitation removes the row
     Given I have a pending invitation to "Oslo Weekend" from "Bo Nilsen"
     When I open the trips dashboard
     And I decline the invitation to "Oslo Weekend"
-    Then I see the toast "Invitation declined."
-    And the pending invitation row for "Oslo Weekend" is gone
+    Then the pending invitation row for "Oslo Weekend" is gone
 
   Scenario: The sidebar badge shows the pending invitation count
     Given I have a pending invitation to "Lisbon Escape" from "Cy Torres"

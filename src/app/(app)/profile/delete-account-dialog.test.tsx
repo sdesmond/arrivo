@@ -163,7 +163,7 @@ describe("DeleteAccountDialog", () => {
     await user.click(screen.getByRole("button", { name: "Delete account" }));
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: "Deleting…" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Delete account" })).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 

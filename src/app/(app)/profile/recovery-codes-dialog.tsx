@@ -1,6 +1,5 @@
 "use client";
 
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface RecoveryCodesDialogProps {
   codes: string[] | null;
@@ -22,11 +21,7 @@ export function RecoveryCodesDialog({ codes, onDone }: RecoveryCodesDialogProps)
   const text = codes?.join("\n") ?? "";
 
   async function handleCopy() {
-    if (await copyText(text)) {
-      toast.success("Recovery codes copied.");
-    } else {
-      toast.error("Couldn't copy. Select the codes and copy them yourself.");
-    }
+    await copyToClipboard(text, "Couldn't copy. Select the codes and copy them yourself.");
   }
 
   function handleDownload() {

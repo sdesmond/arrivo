@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 import { LoyaltySection } from "./loyalty-section";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("./actions", () => ({
   addLoyaltyNumber: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("./actions", () => ({
 const LOYALTY_NUMBER = { id: "loyalty-1", programName: "Test Airlines", memberNumber: "TA-123456", position: 0 };
 
 describe("LoyaltySection icon controls", () => {
-  it("keeps copy and remove targets at 44px, including copied feedback", async () => {
+  it("keeps copy and remove targets at 44px and confirms the copy with the shared toast", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(
@@ -33,7 +33,8 @@ describe("LoyaltySection icon controls", () => {
 
     await user.click(copy);
     expect(writeText).toHaveBeenCalledWith("TA-123456");
-    expect(screen.getByRole("button", { name: "Copied!" })).toHaveClass("size-11");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
+    expect(screen.getByRole("button", { name: "Copy member number" })).toHaveClass("size-11");
   });
 
   it("copies through the fallback when the Clipboard API is unavailable", async () => {
@@ -43,7 +44,7 @@ describe("LoyaltySection icon controls", () => {
       render(<LoyaltySection loyaltyNumbers={[LOYALTY_NUMBER]} />);
       await user.click(screen.getByRole("button", { name: "Copy member number" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
-      expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
     } finally {
       restore();
     }
@@ -52,13 +53,14 @@ describe("LoyaltySection icon controls", () => {
   it("reports a failed copy instead of confirming it", async () => {
     const user = userEvent.setup();
     vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
     const { restore } = stubPlainHttpClipboard();
     Object.defineProperty(document, "execCommand", { value: vi.fn(() => false), configurable: true, writable: true });
     try {
       render(<LoyaltySection loyaltyNumbers={[LOYALTY_NUMBER]} />);
       await user.click(screen.getByRole("button", { name: "Copy member number" }));
       expect(toast.error).toHaveBeenCalledWith("Could not copy member number.");
-      expect(screen.queryByRole("button", { name: "Copied!" })).not.toBeInTheDocument();
+      expect(toast.success).not.toHaveBeenCalled();
     } finally {
       restore();
     }
