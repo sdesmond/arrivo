@@ -22,7 +22,12 @@ const {
     update: vi.fn(),
     delete: vi.fn(),
   },
-  documentsTable: { id: "documents.id", reservationId: "documents.reservationId", url: "documents.url" },
+  documentsTable: {
+    id: "documents.id",
+    tripId: "documents.tripId",
+    reservationId: "documents.reservationId",
+    url: "documents.url",
+  },
   getStorageAdapter: vi.fn(),
   recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
@@ -427,9 +432,16 @@ describe("attachTripDocToReservation", () => {
     expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
-  it("checks editor access before attaching", async () => {
-    const setSpy = vi.fn(() => ({ where: async () => undefined }));
+  function mockDocUpdate(rows: { id: string }[]) {
+    const returning = vi.fn(async () => rows);
+    const where = vi.fn(() => ({ returning }));
+    const setSpy = vi.fn(() => ({ where }));
     db.update.mockReturnValue({ set: setSpy });
+    return { setSpy, where };
+  }
+
+  it("checks editor access before attaching", async () => {
+    mockDocUpdate([{ id: "doc-1" }]);
 
     await attachTripDocToReservation("doc-1", "res-1");
 
@@ -437,13 +449,20 @@ describe("attachTripDocToReservation", () => {
   });
 
   it("sets the reservationId on the document and revalidates the trip path", async () => {
-    const setSpy = vi.fn(() => ({ where: async () => undefined }));
-    db.update.mockReturnValue({ set: setSpy });
+    const { setSpy } = mockDocUpdate([{ id: "doc-1" }]);
 
     await attachTripDocToReservation("doc-1", "res-1");
 
     expect(setSpy).toHaveBeenCalledWith({ reservationId: "res-1" });
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("rejects a document that belongs to another trip", async () => {
+    mockDocUpdate([]);
+
+    await expect(attachTripDocToReservation("other-trip-doc", "res-1")).rejects.toThrow("Document not found.");
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

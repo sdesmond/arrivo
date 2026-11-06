@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gt, max, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
@@ -58,11 +58,39 @@ async function assertItemOwnership(itemId: string, userId: string): Promise<{ te
   return item;
 }
 
+type TemplateQueryExecutor = Pick<typeof db, "select">;
+
+/** Section (label) ids arrive from the client; each must be a section row of this same template. */
+async function assertLabelsInTemplate(
+  executor: TemplateQueryExecutor,
+  templateId: string,
+  labelIds: (string | null | undefined)[]
+): Promise<void> {
+  const uniqueLabelIds = [...new Set(labelIds.filter((labelId): labelId is string => Boolean(labelId)))];
+  if (uniqueLabelIds.length === 0) return;
+
+  const found = await executor
+    .select({ id: packingTemplateItems.id })
+    .from(packingTemplateItems)
+    .where(
+      and(
+        eq(packingTemplateItems.templateId, templateId),
+        eq(packingTemplateItems.isLabel, true),
+        inArray(packingTemplateItems.id, uniqueLabelIds)
+      )
+    );
+
+  if (found.length !== uniqueLabelIds.length) {
+    throw new Error("Invalid labelId.");
+  }
+}
+
 async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
   const user = await requireUser();
   await assertTemplateOwnership(templateId, user.id!);
   const text = normalizeItemText(input.text);
   const labelId = input.isLabel ? null : (input.labelId ?? null);
+  await assertLabelsInTemplate(db, templateId, [labelId]);
 
   let newItem: { id: string } | undefined;
 
@@ -254,6 +282,11 @@ async function reorderTemplateItemsImpl(
 
   await db.transaction(async (tx) => {
     await lockPackingTemplateForUpdate(tx, templateId);
+    await assertLabelsInTemplate(
+      tx,
+      templateId,
+      ordered.map((item) => item.labelId)
+    );
 
     for (const item of ordered) {
       await tx

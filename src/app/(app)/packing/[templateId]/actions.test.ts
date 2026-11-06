@@ -94,6 +94,17 @@ describe("template item actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
   });
 
+  it("rejects add when labelId is not a section of the template", async () => {
+    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }])).mockReturnValueOnce(mockSelectWhere([]));
+
+    await expect(addTemplateItem("template-1", { text: "Visa", labelId: "other-template-label" })).rejects.toThrow(
+      "Invalid labelId."
+    );
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("sanitizes unexpected addTemplateItem failures", async () => {
     db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
 
@@ -141,7 +152,9 @@ describe("template item actions", () => {
   });
 
   it("inserts after a target item and shifts later positions", async () => {
-    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
+    db.select
+      .mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]))
+      .mockReturnValueOnce(mockSelectWhere([{ id: "label-1" }]));
 
     const insertReturning = vi.fn().mockResolvedValue([{ id: "item-2" }]);
     const tx = {
@@ -299,6 +312,7 @@ describe("template item actions", () => {
     const set = vi.fn(() => ({ where }));
     const tx = {
       execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([{ id: "label-1" }])),
       update: vi.fn(() => ({ set })),
     };
 
@@ -318,6 +332,25 @@ describe("template item actions", () => {
       { type: "eq", left: packingTemplateItems.templateId, right: "template-1" }
     );
     expect(revalidatePath).toHaveBeenCalledWith("/packing/template-1");
+  });
+
+  it("rejects reorder when a labelId is not a section of the template", async () => {
+    db.select.mockReturnValueOnce(mockSelectWhere([{ id: "template-1" }]));
+
+    const set = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
+    const tx = {
+      execute: vi.fn().mockResolvedValue([{ id: "template-1" }]),
+      select: vi.fn().mockReturnValueOnce(mockSelectWhere([])),
+      update: vi.fn(() => ({ set })),
+    };
+    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
+
+    await expect(
+      reorderTemplateItems("template-1", [{ id: "item-1", labelId: "other-template-label", position: 0 }])
+    ).rejects.toThrow("Invalid labelId.");
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("sanitizes unexpected reorderTemplateItems failures", async () => {

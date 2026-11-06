@@ -1,10 +1,16 @@
 import type { NextRequest } from "next/server";
+import { requireUser } from "@/lib/auth-helpers";
 
 const MAPBOX_STATIC_STYLE = "mapbox/outdoors-v12";
 const MAPBOX_STATIC_ZOOM = 10;
 const MAPBOX_STATIC_SIZE = "600x400@2x";
 
 function parseCoordinate(value: string | null, axis: "lat" | "lng") {
+  // Number(null) and Number("") are 0, so a missing or empty param would otherwise pass as the equator/meridian.
+  if (value === null || value.trim() === "") {
+    return null;
+  }
+
   const numericValue = Number(value);
 
   if (!Number.isFinite(numericValue)) {
@@ -23,6 +29,9 @@ function parseCoordinate(value: string | null, axis: "lat" | "lng") {
 }
 
 export async function GET(request: NextRequest) {
+  // Spends the server's Mapbox quota, so it must not be an open proxy.
+  await requireUser();
+
   const lat = parseCoordinate(request.nextUrl.searchParams.get("lat"), "lat");
   const lng = parseCoordinate(request.nextUrl.searchParams.get("lng"), "lng");
 

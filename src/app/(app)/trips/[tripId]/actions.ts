@@ -881,7 +881,13 @@ export async function attachTripDocToEvent(docId: string, eventId: string): Prom
   const user = await requireUser();
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(documents).set({ eventId }).where(eq(documents.id, docId));
+  // Scope the doc to the event's trip: an editor on one trip must not re-point another trip's document.
+  const attached = await db
+    .update(documents)
+    .set({ eventId })
+    .where(and(eq(documents.id, docId), eq(documents.tripId, tripId)))
+    .returning({ id: documents.id });
+  if (attached.length === 0) throw new Error("Document not found.");
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
