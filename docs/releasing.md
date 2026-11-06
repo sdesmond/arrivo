@@ -40,7 +40,8 @@ draft better.
 The same skill then checks the docs site (`site/`) against every visible change and writes what is missing: new
 sections or pages, corrected text, self-hosting changes in [self-hosting.md](./self-hosting.md), and new or refreshed
 screenshots (see `site/scripts/screenshots.mjs`). Commit those edits on the release branch with the changelog, so one
-merge ships both; the docs site deploys automatically from `main`. Its report lists the pages and screenshots it
+merge ships both. The docs site deploys to GitHub Pages when the `vX.Y.Z` tag is pushed (or when the `Docs site`
+workflow is run by hand), not on merge, so those docs go live with the tag. Its report lists the pages and screenshots it
 touched and any visible change it left undocumented.
 
 The workflow publishes the image as `X.Y.Z`, `X.Y`, `latest` and `sha-<commit>`. npm and

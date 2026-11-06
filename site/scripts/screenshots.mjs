@@ -104,12 +104,30 @@ export const SHOTS = [
     },
   },
   {
+    name: "profile-traveler",
+    account: "demo",
+    run: async (page) => {
+      await page.goto(`${BASE_URL}/profile`);
+      await settle(page);
+      await page.getByText("Traveler", { exact: true }).first().click();
+    },
+  },
+  {
     name: "profile-preferences",
     account: "demo",
     run: async (page) => {
       await page.goto(`${BASE_URL}/profile`);
       await settle(page);
       await page.getByText("Preferences", { exact: true }).first().click();
+    },
+  },
+  {
+    name: "profile-appearance",
+    account: "demo",
+    run: async (page) => {
+      await page.goto(`${BASE_URL}/profile`);
+      await settle(page);
+      await page.getByText("Appearance", { exact: true }).first().click();
     },
   },
   {
