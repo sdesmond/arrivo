@@ -171,7 +171,7 @@ test.describe("E2E password-policy fixture", () => {
       () => client`update app_state set password_min_length = 7`,
       () => client`update app_state set password_min_length = 17`,
       () => client`update app_state set password_max_length = 14`,
-      () => client`update app_state set password_max_length = 21`,
+      () => client`update app_state set password_max_length = 31`,
       () => client`update app_state set password_min_length = 16, password_max_length = 15`,
       () => client`update app_state set password_min_uppercase = -1`,
       () => client`update app_state set password_min_special = 21`,

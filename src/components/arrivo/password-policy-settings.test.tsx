@@ -43,7 +43,7 @@ describe("PasswordPolicySettings", () => {
     }
     // Only the length fields carry a range hint; the class minimums have no extra helper text.
     expect(screen.getByLabelText("Minimum length")).toHaveAccessibleDescription("8 to 16");
-    expect(screen.getByLabelText("Maximum length")).toHaveAccessibleDescription("15 to 20");
+    expect(screen.getByLabelText("Maximum length")).toHaveAccessibleDescription("15 to 30");
     expect(screen.getByLabelText("Minimum numbers")).not.toHaveAttribute("aria-describedby");
     expect(screen.queryByText(/not required/)).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("PasswordPolicySettings", () => {
         /add up to 16/,
       ],
       ["fraction", { "Minimum length": "8.5" }, "Minimum length", /whole number from 8 to 16/],
-      ["blank", { "Maximum length": "" }, "Maximum length", /whole number from 15 to 20/],
+      ["blank", { "Maximum length": "" }, "Maximum length", /whole number from 15 to 30/],
       [
         "out of range minimum",
         { "Minimum uppercase letters": "21" },

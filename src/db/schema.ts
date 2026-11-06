@@ -79,7 +79,7 @@ export const appState = pgTable(
     check("app_state_singleton", sql`${table.id}`),
     check("app_state_activity_retention_days", sql`${table.activityRetentionDays} in (30, 90, 180, 365)`),
     check("app_state_password_min_length", sql`${table.passwordMinLength} between 8 and 16`),
-    check("app_state_password_max_length", sql`${table.passwordMaxLength} between 15 and 20`),
+    check("app_state_password_max_length", sql`${table.passwordMaxLength} between 15 and 30`),
     check("app_state_password_length_order", sql`${table.passwordMinLength} <= ${table.passwordMaxLength}`),
     check(
       "app_state_password_class_minimums",

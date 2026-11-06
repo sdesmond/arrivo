@@ -253,7 +253,7 @@ export type ActivityRetentionCommitResult =
 export interface PasswordPolicy {
   /** Code points, 8-16. */
   minLength: number;
-  /** Code points, 15-20, at least `minLength`. */
+  /** Code points, 15-30, at least `minLength`. */
   maxLength: number;
   /** Required ASCII uppercase letters, 0-20. */
   minUppercase: number;
@@ -265,7 +265,7 @@ export interface PasswordPolicy {
 
 export const PASSWORD_POLICY_BOUNDS = {
   minLength: { min: 8, max: 16 },
-  maxLength: { min: 15, max: 20 },
+  maxLength: { min: 15, max: 30 },
   classMinimum: { min: 0, max: 20 },
 } as const;
 

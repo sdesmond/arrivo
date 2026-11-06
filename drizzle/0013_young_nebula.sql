@@ -1,0 +1,2 @@
+ALTER TABLE "app_state" DROP CONSTRAINT "app_state_password_max_length";--> statement-breakpoint
+ALTER TABLE "app_state" ADD CONSTRAINT "app_state_password_max_length" CHECK ("app_state"."password_max_length" between 15 and 30);
