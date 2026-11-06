@@ -131,7 +131,6 @@ When("I pull the template onto the trip", async ({ page }) => {
   await checkTemplate(dialog, E2E_TEMPLATE_PULL.name);
   await page.getByRole("button", { name: /Pull selected/ }).click();
   await expect(dialog).toBeHidden({ timeout: 10_000 });
-  await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
 });
 
 When("I pull both templates onto the trip", async ({ page }) => {
@@ -144,7 +143,6 @@ When("I pull both templates onto the trip", async ({ page }) => {
   await checkTemplate(dialog, E2E_TEMPLATE_PULL_2.name);
   await page.getByRole("button", { name: /Pull selected/ }).click();
   await expect(dialog).toBeHidden({ timeout: 10_000 });
-  await expect(page.getByText(/item\(s\) added/)).toBeVisible({ timeout: 10_000 });
 });
 
 Then("I should see a pull templates option in the overflow menu", async ({ page }) => {
@@ -159,5 +157,5 @@ Then("the packing list should contain {string} exactly once", async ({ page }, n
 });
 
 Then("I should see a duplicate notice", async ({ page }) => {
-  await expect(page.getByText(/duplicate\(s\) skipped/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/duplicate items? skipped/)).toBeVisible({ timeout: 10_000 });
 });

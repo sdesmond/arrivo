@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import * as React from "react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSortableMock = vi.hoisted(() =>
@@ -14,6 +15,8 @@ const useSortableMock = vi.hoisted(() =>
 );
 
 const dndContextState = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+
+vi.mock("sonner", () => ({ toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: (props: { children: ReactNode }) => {
@@ -992,7 +995,7 @@ describe("PackingListView", () => {
     expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
   });
 
-  it("shows result notice after successful pull and hides the dialog", async () => {
+  it("closes the dialog and toasts the skipped duplicates after a pull", async () => {
     const user = userEvent.setup();
     const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
 
@@ -1013,11 +1016,63 @@ describe("PackingListView", () => {
     await user.click(screen.getByRole("button", { name: "Pull templates" }));
     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
 
-    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith("1 duplicate item skipped"));
     expect(screen.queryByRole("dialog", { name: "Pull from templates" })).not.toBeInTheDocument();
+    // The added items are visible in the list, so there is no "items added" banner.
+    expect(screen.queryByText(/item\(s\) added/)).not.toBeInTheDocument();
   });
 
-  it("shows no result notice when pull returns undefined", async () => {
+  it("pluralizes the skipped-duplicates toast", async () => {
+    const user = userEvent.setup();
+    const onPullTemplates = vi.fn().mockResolvedValue({ added: 1, skipped: 4 });
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull templates" }));
+    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith("4 duplicate items skipped"));
+  });
+
+  it("shows no toast when a pull skips nothing", async () => {
+    const user = userEvent.setup();
+    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 0 });
+
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={groupedItems}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+        templates={[{ id: "t1", name: "Beach Weekend" }]}
+        onPullTemplates={onPullTemplates}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pull templates" }));
+    await user.click(screen.getByRole("button", { name: "Trigger pull" }));
+
+    await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Pull from templates" })).not.toBeInTheDocument());
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("shows no toast and keeps the dialog open when pull returns undefined", async () => {
     const user = userEvent.setup();
     const onPullTemplates = vi.fn().mockResolvedValue(undefined);
 
@@ -1039,36 +1094,9 @@ describe("PackingListView", () => {
     await user.click(screen.getByRole("button", { name: "Trigger pull" }));
 
     await waitFor(() => expect(onPullTemplates).toHaveBeenCalledWith(["t1"]));
-    expect(screen.queryByText(/item\(s\) added/)).not.toBeInTheDocument();
+    expect(toast.info).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Pull from templates" })).toBeInTheDocument();
   });
-
-  it("auto-dismisses the result notice after four seconds", async () => {
-    const onPullTemplates = vi.fn().mockResolvedValue({ added: 3, skipped: 1 });
-
-    render(
-      <PackingListView
-        tripId="trip-1"
-        items={groupedItems}
-        onAddItem={createAddItemHandler()}
-        onRemoveItem={createRemoveItemHandler()}
-        onToggleItem={createToggleItemHandler()}
-        onReorderItems={vi.fn()}
-        onEditItem={vi.fn()}
-        templates={[{ id: "t1", name: "Beach Weekend" }]}
-        onPullTemplates={onPullTemplates}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Pull templates" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Trigger pull" }));
-
-    await waitFor(() => expect(screen.getByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).toBeInTheDocument());
-    await waitFor(
-      () => expect(screen.queryByText(/3 item\(s\) added, 1 duplicate\(s\) skipped/)).not.toBeInTheDocument(),
-      { timeout: 4500 }
-    );
-  }, 7000);
 
   // ── Story 3.3 — AC #1: Announcement rollback on failure ──────────────────────
 
