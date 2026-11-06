@@ -6,31 +6,17 @@ import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
-import { ReservationType, type CreateReservationInput, type UpdateReservationPatch } from "@/data/types";
+import type { ReservationType, CreateReservationInput, UpdateReservationPatch } from "@/data/types";
+import { createReservationSchema, parseInput, updateReservationSchema } from "@/lib/validation-schemas";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { REQUIRES_END_AT } from "@/components/arrivo/reservation-type-badge";
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { extendTripDateRange } from "./reservation-date-range";
 
-export async function createReservation(tripId: string, input: CreateReservationInput): Promise<void> {
+export async function createReservation(tripId: string, rawInput: CreateReservationInput): Promise<void> {
   const user = await requireUser();
+  const input = parseInput(createReservationSchema, rawInput);
   await assertTripAccess(tripId, user.id!, "editor");
-
-  if (!Object.values(ReservationType).includes(input.type)) {
-    throw new Error("Invalid reservation type.");
-  }
-
-  if (!input.provider.trim()) {
-    throw new Error("Provider is required.");
-  }
-
-  if (input.startAt !== undefined && Number.isNaN(new Date(input.startAt).getTime())) {
-    throw new Error("Invalid start time.");
-  }
-
-  if (input.endAt !== undefined && Number.isNaN(new Date(input.endAt).getTime())) {
-    throw new Error("Invalid end time.");
-  }
 
   if (REQUIRES_END_AT.includes(input.type) && !input.endAt) {
     throw new Error("An end date and time is required for this reservation type.");
@@ -83,8 +69,9 @@ export async function createReservation(tripId: string, input: CreateReservation
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateReservation(reservationId: string, patch: UpdateReservationPatch): Promise<void> {
+export async function updateReservation(reservationId: string, rawPatch: UpdateReservationPatch): Promise<void> {
   const user = await requireUser();
+  const patch = parseInput(updateReservationSchema, rawPatch);
 
   const [existingReservation] = await db
     .select({ tripId: reservations.tripId })
@@ -95,18 +82,6 @@ export async function updateReservation(reservationId: string, patch: UpdateRese
   }
 
   await assertTripAccess(existingReservation.tripId, user.id!, "editor");
-
-  if (patch.provider !== undefined && !patch.provider.trim()) {
-    throw new Error("Provider is required.");
-  }
-
-  if (patch.startAt && Number.isNaN(new Date(patch.startAt).getTime())) {
-    throw new Error("Invalid start date and time.");
-  }
-
-  if (patch.endAt && Number.isNaN(new Date(patch.endAt).getTime())) {
-    throw new Error("Invalid end date and time.");
-  }
 
   await db.transaction(async (transaction) => {
     await lockTripForUpdate(transaction, existingReservation.tripId);

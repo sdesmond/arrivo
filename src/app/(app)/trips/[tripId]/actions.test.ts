@@ -532,6 +532,61 @@ describe("updateDay", () => {
   });
 });
 
+describe("input validation", () => {
+  const over = (limit: number) => "x".repeat(limit + 1);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  it("rejects an oversize or blank event name before touching the database", async () => {
+    await expect(createEvent("day-1", { name: over(200) })).rejects.toThrow("Event name must be 200 characters");
+    await expect(createEvent("day-1", { name: "  " })).rejects.toThrow("Event name is required.");
+    await expect(updateEvent("event-1", { name: over(200) })).rejects.toThrow("Event name must be 200 characters");
+
+    expect(mockDbSelect).not.toHaveBeenCalled();
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects unparseable event times and out-of-range coordinates", async () => {
+    await expect(createEvent("day-1", { name: "a", startAt: "not-a-date" })).rejects.toThrow("Invalid start time.");
+    await expect(updateEvent("event-1", { endAt: "2026-13-40T00:00:00Z" })).rejects.toThrow("Invalid end time.");
+    await expect(updateEvent("event-1", { locationLat: 123 })).rejects.toThrow("Latitude");
+    await expect(createEvent("day-1", { name: "a", insertAtPosition: -4 })).rejects.toThrow("Invalid position.");
+
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversize day text", async () => {
+    await expect(updateDay("day-1", { label: over(100) })).rejects.toThrow("Day label must be 100 characters");
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversize itinerary notes, checklist text and trip notes", async () => {
+    await expect(createNote("day-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
+    await expect(updateNote("note-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
+    await expect(createChecklistItem("list-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
+    await expect(updateChecklistItem("item-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
+    await expect(updateChecklistTitle("list-1", over(200))).rejects.toThrow("Checklist title must be 200 characters");
+    await expect(createTripNote("trip-1", { body: over(10000) })).rejects.toThrow("Note body must be 10000 characters");
+    await expect(updateTripNote("note-1", { title: over(200) })).rejects.toThrow("Title must be 200 characters");
+
+    expect(mockDbSelect).not.toHaveBeenCalled();
+    expect(mockDbTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversize document names and kinds", async () => {
+    await expect(addDocument({ tripId: "trip-1", name: over(200), kind: "pdf" })).rejects.toThrow("Document name");
+    await expect(addDocument({ tripId: "trip-1", name: "a", kind: "" })).rejects.toThrow("Kind is required.");
+    await expect(renameDocument("doc-1", over(200))).rejects.toThrow("Document name must be 200 characters");
+    expect(mockDbSelect).not.toHaveBeenCalled();
+  });
+});
+
 describe("deleteEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();

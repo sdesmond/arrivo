@@ -9,6 +9,7 @@ import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
 import { convertDual, recalculate } from "@/lib/currency";
 import { dbExpenseToType } from "@/lib/db-mappers";
 import { recordTripUpdated } from "@/lib/trip-activity";
+import { FIELD_LIMITS, isValidIsoDate, MAX_EXPENSE_AMOUNT, overLimitMessage } from "@/lib/validation-limits";
 
 const VALID_EXPENSE_CATEGORIES = new Set(Object.values(ExpenseCategory));
 
@@ -91,8 +92,6 @@ function validateExpenseCategory(category: string): asserts category is CreateEx
   }
 }
 
-const MAX_EXPENSE_AMOUNT = 50000;
-
 function validateAmount(amount: number): void {
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("Amount must be greater than 0.");
@@ -110,8 +109,14 @@ function validateAmount(amount: number): void {
 }
 
 function validateDate(value: string): void {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (!isValidIsoDate(value)) {
     throw new Error("Date is required.");
+  }
+}
+
+function validateNote(note: string | null | undefined): void {
+  if (note && note.length > FIELD_LIMITS.expenseNote) {
+    throw new Error(overLimitMessage("Note", FIELD_LIMITS.expenseNote));
   }
 }
 
@@ -123,6 +128,7 @@ function validateCreateExpenseInput(input: CreateExpenseInput): void {
   validateExpenseCategory(input.category);
   validateAmount(input.amount);
   validateDate(input.date);
+  validateNote(input.note);
 
   if (input.eventId && input.reservationId) {
     throw new Error("Expense cannot be linked to both an event and a reservation.");
@@ -218,6 +224,8 @@ export async function updateExpense(
   if (patch.date !== undefined) {
     validateDate(patch.date);
   }
+
+  validateNote(patch.note);
 
   if (patch.currency !== undefined && patch.currency !== null && !patch.currency.trim()) {
     throw new Error("Currency is required.");

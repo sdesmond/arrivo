@@ -36,6 +36,14 @@ import {
 } from "@/lib/password-policy";
 import { readPasswordPolicy } from "@/lib/password-policy-store";
 import { normalizeUsername, validateUsername } from "@/lib/username";
+import {
+  FIELD_LIMITS,
+  isValidIsoDate,
+  MAX_COMPANION_AGE,
+  MAX_COMPANIONS,
+  MAX_WALK_THRESHOLD_METERS,
+  overLimitMessage,
+} from "@/lib/validation-limits";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
 import { lockCurrentSecurityVersion } from "@/lib/session-version";
@@ -49,7 +57,6 @@ import type {
   TripDeletionChoice,
 } from "@/data/types";
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COMPANION_LIMIT_EXCEEDED = "CAP_EXCEEDED";
 const TRAVEL_DOCUMENTS_NEED_KEY = "Saving travel documents needs DATA_ENCRYPTION_KEY set on the server.";
 
@@ -90,20 +97,22 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
   // Trim name and validate the trimmed value; normalize empty string to null
   const trimmedName = patch.name !== undefined ? patch.name.trim() : undefined;
-  if (trimmedName !== undefined && trimmedName.length > 100) {
-    return { error: "Name must be 100 characters or fewer." };
+  if (trimmedName !== undefined && trimmedName.length > FIELD_LIMITS.profileName) {
+    return { error: overLimitMessage("Name", FIELD_LIMITS.profileName) };
   }
   const usernameError = patch.username !== undefined ? validateUsername(patch.username) : null;
   if (usernameError) return { error: usernameError };
   if (patch.passportNumber !== undefined && patch.passportNumber !== null) {
-    if (patch.passportNumber.length > 20) return { error: "Passport number must be 20 characters or fewer." };
+    if (patch.passportNumber.length > FIELD_LIMITS.passportNumber)
+      return { error: overLimitMessage("Passport number", FIELD_LIMITS.passportNumber) };
   }
   if (patch.passportNationality !== undefined && patch.passportNationality !== null) {
-    if (patch.passportNationality.length > 50) return { error: "Nationality must be 50 characters or fewer." };
+    if (patch.passportNationality.length > FIELD_LIMITS.passportNationality)
+      return { error: overLimitMessage("Nationality", FIELD_LIMITS.passportNationality) };
   }
   if (patch.knownTravelerNumber !== undefined && patch.knownTravelerNumber !== null) {
-    if (patch.knownTravelerNumber.length > 20)
-      return { error: "Known traveler number must be 20 characters or fewer." };
+    if (patch.knownTravelerNumber.length > FIELD_LIMITS.knownTravelerNumber)
+      return { error: overLimitMessage("Known traveler number", FIELD_LIMITS.knownTravelerNumber) };
   }
   if (patch.currency !== undefined && patch.currency !== "") {
     if (!/^[A-Z]{3}$/.test(patch.currency)) return { error: "Currency must be a 3-letter ISO code." };
@@ -124,8 +133,8 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
     if (!Number.isInteger(patch.walkThresholdMeters) || patch.walkThresholdMeters <= 0) {
       return { error: "Walk threshold must be a positive integer." };
     }
-    if (patch.walkThresholdMeters > 5000) {
-      return { error: "Walk threshold must be 5000 meters or less." };
+    if (patch.walkThresholdMeters > MAX_WALK_THRESHOLD_METERS) {
+      return { error: `Walk threshold must be ${MAX_WALK_THRESHOLD_METERS} meters or less.` };
     }
   }
   if (patch.defaultCoverType !== undefined) {
@@ -134,7 +143,7 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
       return { error: "Invalid cover type." };
     }
   }
-  if (patch.passportExpiry !== undefined && !DATE_RE.test(patch.passportExpiry)) {
+  if (patch.passportExpiry !== undefined && !isValidIsoDate(patch.passportExpiry)) {
     return { error: "Passport expiry must be a valid date (YYYY-MM-DD)." };
   }
   if (patch.warningThreshold !== undefined && (patch.warningThreshold < 0 || patch.warningThreshold > 100)) {
@@ -197,8 +206,12 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
 export async function addLoyaltyNumber(input: AddLoyaltyNumberInput): Promise<void> {
   const session = await requireUser();
-  if (input.programName.length > 100) throw new Error("Program name must be 100 characters or fewer.");
-  if (input.memberNumber.length > 50) throw new Error("Member number must be 50 characters or fewer.");
+  if (input.programName.length > FIELD_LIMITS.loyaltyProgram) {
+    throw new Error(overLimitMessage("Program name", FIELD_LIMITS.loyaltyProgram));
+  }
+  if (input.memberNumber.length > FIELD_LIMITS.loyaltyNumber) {
+    throw new Error(overLimitMessage("Member number", FIELD_LIMITS.loyaltyNumber));
+  }
   const userId = session.id!;
   await db.transaction(async (transaction) => {
     await lockUserForUpdate(transaction, userId);
@@ -227,7 +240,9 @@ export async function deleteLoyaltyNumber(id: string): Promise<void> {
 
 export async function addWishlistDestination(input: AddWishlistDestinationInput): Promise<void> {
   const session = await requireUser();
-  if (input.name.length > 100) throw new Error("Destination name must be 100 characters or fewer.");
+  if (input.name.length > FIELD_LIMITS.wishlistDestination) {
+    throw new Error(overLimitMessage("Destination name", FIELD_LIMITS.wishlistDestination));
+  }
   const userId = session.id!;
   await db.transaction(async (transaction) => {
     await lockUserForUpdate(transaction, userId);
@@ -323,7 +338,9 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
 
   const trimmedName = input.name?.trim() ?? "";
   if (!trimmedName) return { error: "Companion name is required." };
-  if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
+  if (trimmedName.length > FIELD_LIMITS.companionName) {
+    return { error: overLimitMessage("Companion name", FIELD_LIMITS.companionName) };
+  }
 
   try {
     await db.transaction(async (transaction) => {
@@ -333,7 +350,7 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
         .select({ count: sql<number>`count(*)::int` })
         .from(userCompanions)
         .where(eq(userCompanions.userId, userId));
-      if (count >= 20) {
+      if (count >= MAX_COMPANIONS) {
         throw new Error(COMPANION_LIMIT_EXCEEDED);
       }
 
@@ -351,7 +368,7 @@ export async function addCompanion(input: AddCompanionInput): Promise<{ error?: 
     });
   } catch (error) {
     if (error instanceof Error && error.message === COMPANION_LIMIT_EXCEEDED) {
-      return { error: "Companion limit reached (20 maximum)." };
+      return { error: `Companion limit reached (${MAX_COMPANIONS} maximum).` };
     }
     return { error: "Something went wrong." };
   }
@@ -365,14 +382,16 @@ export async function updateCompanion(id: string, patch: UpdateCompanionPatch): 
   const trimmedName = patch.name !== undefined ? patch.name.trim() : undefined;
   if (trimmedName !== undefined) {
     if (!trimmedName) return { error: "Companion name is required." };
-    if (trimmedName.length > 50) return { error: "Companion name must be 50 characters or fewer." };
-  }
-  if (patch.age !== undefined && patch.age !== null) {
-    if (!Number.isInteger(patch.age) || patch.age < 0 || patch.age > 120) {
-      return { error: "Age must be between 0 and 120." };
+    if (trimmedName.length > FIELD_LIMITS.companionName) {
+      return { error: overLimitMessage("Companion name", FIELD_LIMITS.companionName) };
     }
   }
-  if (patch.passportExpiry !== undefined && !DATE_RE.test(patch.passportExpiry)) {
+  if (patch.age !== undefined && patch.age !== null) {
+    if (!Number.isInteger(patch.age) || patch.age < 0 || patch.age > MAX_COMPANION_AGE) {
+      return { error: `Age must be between 0 and ${MAX_COMPANION_AGE}.` };
+    }
+  }
+  if (patch.passportExpiry !== undefined && !isValidIsoDate(patch.passportExpiry)) {
     return { error: "Passport expiry must be a valid date (YYYY-MM-DD)." };
   }
 

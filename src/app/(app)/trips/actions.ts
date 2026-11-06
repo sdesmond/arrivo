@@ -61,6 +61,7 @@ import {
 } from "@/lib/membership-writes";
 import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
 import { normalizeUsername } from "@/lib/username";
+import { createTripSchema, parseInput, updateTripSchema } from "@/lib/validation-schemas";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
@@ -297,16 +298,11 @@ async function summarizeRemovedDayContent(
   };
 }
 
-export async function createTrip(input: CreateTripInput): Promise<{ tripId: string }> {
+export async function createTrip(rawInput: CreateTripInput): Promise<{ tripId: string }> {
   const sessionUser = await requireUser();
+  const input = parseInput(createTripSchema, rawInput);
   const acceptLanguage = (await headers()).get("accept-language") ?? "";
 
-  if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
-    throw new Error("Invalid start date format. Expected YYYY-MM-DD.");
-  }
-  if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
-    throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
-  }
   // No upload can exist before the trip does, so only external links and built-in graphics are valid here.
   if (input.coverImageUrl) assertValidCoverImageUrl(input.coverImageUrl);
 
@@ -401,12 +397,13 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
 
 export async function updateTripMetadata(
   tripId: string,
-  patch: UpdateTripPatch,
+  rawPatch: UpdateTripPatch,
   resolution?: TripDateConflictResolution,
   expectedConfirmation?: TripDateChangeConfirmation,
   convertCurrency?: boolean
 ): Promise<UpdateTripMetadataResult> {
   const user = await requireUser();
+  const patch = parseInput(updateTripSchema, rawPatch);
   await assertTripAccess(tripId, user.id!, "editor");
   if (patch.coverImageUrl) assertValidCoverImageUrl(patch.coverImageUrl, tripId);
   const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
