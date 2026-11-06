@@ -215,9 +215,25 @@ describe("assertUploadContentMatchesType", () => {
     await expect(assertUploadContentMatchesType(bytesFile(bytes, type))).resolves.toBeUndefined();
   });
 
-  it("accepts a PDF whose header sits after leading junk, as Acrobat does", async () => {
-    const bytes = [...ascii("  junk "), 10, 10, ...ascii("%PDF-1.4")];
+  it.each([
+    ["a UTF-8 BOM", [0xef, 0xbb, 0xbf, ...ascii("%PDF-1.4")]],
+    ["blank lines", [10, 13, 10, ...ascii("%PDF-1.4")]],
+    ["a BOM and blank lines", [0xef, 0xbb, 0xbf, 13, 10, ...ascii("%PDF-1.4")]],
+    ["NUL padding", [0, 0, 0, ...ascii("%PDF-1.7")]],
+  ])("accepts a PDF with %s before the header", async (_label, bytes) => {
     await expect(assertUploadContentMatchesType(bytesFile(bytes, "application/pdf"))).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["an HTML comment carrying the marker", ascii("<!-- %PDF-1.4 --><script>alert(1)</script>")],
+    ["text before the header", ascii("junk %PDF-1.4")],
+    ["the marker deep in the file", [...ascii("<html>".padEnd(500, " ")), ...ascii("%PDF-1.4")]],
+    ["too much filler before the header", [...Array.from({ length: 17 }, () => 0x20), ...ascii("%PDF-1.4")]],
+    ["a header that is only %PDF", ascii("%PDF")],
+  ])("rejects a PDF claim backed by %s", async (_label, bytes) => {
+    await expect(assertUploadContentMatchesType(bytesFile(bytes, "application/pdf"))).rejects.toThrow(
+      "File contents don't match its type."
+    );
   });
 
   it.each(["heic", "heix", "hevc", "mif1", "msf1"])("accepts the %s brand as HEIC", async (brand) => {
