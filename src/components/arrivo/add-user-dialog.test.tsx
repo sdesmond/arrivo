@@ -3,12 +3,14 @@ import { Component, type ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as navigation from "next/navigation";
+import { toast } from "sonner";
 import { AddUserFailure, type AddUserResult } from "@/data/types";
 const { addUserAction, checkAddedUserAction } = vi.hoisted(() => ({
   addUserAction: vi.fn(),
   checkAddedUserAction: vi.fn(),
 }));
 vi.mock("@/app/(app)/admin/users/actions", () => ({ addUserAction, checkAddedUserAction }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { AddUserDialog } from "./add-user-dialog";
 
 class FrameworkErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -71,7 +73,7 @@ describe("AddUserDialog", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith(success.setupUrl);
-    expect(screen.getByRole("status")).toHaveTextContent("Link copied.");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
     await user.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Add User" })).toHaveFocus());
     await user.click(screen.getByRole("button", { name: "Add User" }));
@@ -83,7 +85,9 @@ describe("AddUserDialog", () => {
     if (mode === "missing") vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
     else vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("private"));
     await user.click(await screen.findByRole("button", { name: "Copy link" }));
-    expect(await screen.findByText("Couldn't copy. Select the link and copy it manually.")).toBeVisible();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't copy. Select the link and copy it manually.")
+    );
     expect(screen.getByText(success.setupUrl)).toBeVisible();
     vi.unstubAllGlobals();
   });

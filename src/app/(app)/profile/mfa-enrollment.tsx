@@ -2,7 +2,6 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Copy } from "lucide-react";
-import { toast } from "sonner";
 import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import type { MfaEnrollmentStart } from "@/data/types";
 import { confirmMfaEnrollment, startMfaEnrollment } from "./security-actions";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface MfaEnrollmentProps {
   onEnrolled: (recoveryCodes: string[]) => void;
@@ -71,11 +70,7 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
   }
 
   async function handleCopyKey() {
-    if (await copyText(setup!.secret)) {
-      toast.success("Setup key copied.");
-    } else {
-      toast.error("Couldn't copy. Select the key and copy it yourself.");
-    }
+    await copyToClipboard(setup!.secret, "Couldn't copy. Select the key and copy it yourself.");
   }
 
   const errorMessage = error && (

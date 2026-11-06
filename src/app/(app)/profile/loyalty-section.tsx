@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { X, Plus, Copy, Check } from "lucide-react";
-import { toast } from "sonner";
+import { X, Plus, Copy } from "lucide-react";
 import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
 import type { LoyaltyNumber } from "@/data/types";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface LoyaltySectionProps {
   loyaltyNumbers: LoyaltyNumber[];
@@ -24,7 +23,6 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
   const [program, setProgram] = useState("");
   const [memberNum, setMemberNum] = useState("");
   const [isAdding, startAdd] = useTransition();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   function handleAdd() {
     if (!program.trim() || !memberNum.trim()) return;
@@ -43,13 +41,8 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
     });
   }
 
-  async function handleCopy(ln: LoyaltyNumber) {
-    if (!(await copyText(ln.memberNumber))) {
-      toast.error("Could not copy member number.");
-      return;
-    }
-    setCopiedId(ln.id);
-    setTimeout(() => setCopiedId(null), 1500);
+  function handleCopy(ln: LoyaltyNumber) {
+    void copyToClipboard(ln.memberNumber, "Could not copy member number.");
   }
 
   return (
@@ -75,15 +68,11 @@ export function LoyaltySection({ loyaltyNumbers }: LoyaltySectionProps) {
                 size="icon-lg"
                 type="button"
                 onClick={() => handleCopy(loyaltyNumber)}
-                title={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
-                aria-label={copiedId === loyaltyNumber.id ? "Copied!" : "Copy member number"}
+                title="Copy member number"
+                aria-label="Copy member number"
                 style={{ color: "var(--fg-4)" }}
               >
-                {copiedId === loyaltyNumber.id ? (
-                  <Check size={14} strokeWidth={1.5} />
-                ) : (
-                  <Copy size={14} strokeWidth={1.5} />
-                )}
+                <Copy size={14} strokeWidth={1.5} />
               </Button>
               <Button
                 variant="ghost"

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({
@@ -114,6 +114,7 @@ describe("PassportSection", () => {
       render(<PassportSection user={{ ...baseUser, passportNumber: "AB123456" }} />);
       await user.click(screen.getByRole("button", { name: "Copy passport number" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
       expect(toast.error).not.toHaveBeenCalled();
     } finally {
       restore();
@@ -127,7 +128,7 @@ describe("PassportSection", () => {
     render(<PassportSection user={{ ...baseUser, passportNumber: "AB123456" }} />);
     await user.click(screen.getByRole("button", { name: "Copy passport number" }));
     expect(toast.error).toHaveBeenCalledWith("Could not copy passport number.");
-    expect(screen.queryByText("Copied!")).not.toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   beforeEach(() => {

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({
@@ -75,6 +75,8 @@ describe("CompanionRow", () => {
     await user.click(screen.getByRole("button", { name: "Copy known traveler number" }));
     expect(writeText).toHaveBeenNthCalledWith(1, "PA001");
     expect(writeText).toHaveBeenNthCalledWith(2, "123456789");
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
     await user.clear(screen.getByDisplayValue("PA001"));
     expect(screen.queryByRole("button", { name: "Copy passport number" })).not.toBeInTheDocument();
   });

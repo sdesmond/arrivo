@@ -2,8 +2,14 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as navigation from "next/navigation";
-const { generate, check, notify } = vi.hoisted(() => ({ generate: vi.fn(), check: vi.fn(), notify: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { info: notify } }));
+const { generate, check, notify, copied, copyFailed } = vi.hoisted(() => ({
+  generate: vi.fn(),
+  check: vi.fn(),
+  notify: vi.fn(),
+  copied: vi.fn(),
+  copyFailed: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: { info: notify, success: copied, error: copyFailed } }));
 vi.mock("@/app/(app)/admin/users/actions", () => ({
   regenerateSetupLinkAction: generate,
   checkSetupLinkTargetAction: check,
@@ -63,7 +69,7 @@ describe("RegenerateSetupLinkDialog", () => {
     const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(copy).toHaveBeenCalledWith(success.setupUrl);
-    expect(screen.getByRole("status")).toHaveTextContent("Link copied.");
+    await waitFor(() => expect(copied).toHaveBeenCalledWith("Copied to clipboard"));
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Generate new link: pending" }));
     expect(screen.queryByText(success.setupUrl)).not.toBeInTheDocument();
@@ -72,7 +78,9 @@ describe("RegenerateSetupLinkDialog", () => {
     const user = await submit();
     vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
     await user.click(await screen.findByRole("button", { name: "Copy link" }));
-    expect(await screen.findByText("Couldn't copy. Select the link and copy it manually.")).toBeVisible();
+    await waitFor(() =>
+      expect(copyFailed).toHaveBeenCalledWith("Couldn't copy. Select the link and copy it manually.")
+    );
     expect(screen.getByText(success.setupUrl)).toBeVisible();
   });
   it("blocks duplicate requests and dismissal while pending", async () => {

@@ -2,12 +2,11 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Copy } from "lucide-react";
-import { toast } from "sonner";
 import type { AdminRecoveryActionState, PasswordPolicy } from "@/data/types";
 import { AuthSubmitButton } from "@/components/arrivo/auth-submit-button";
 import { PasswordRequirements } from "@/components/arrivo/password-requirements";
 import { RecoveryCodesStep } from "./codes-step";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface AdminRecoveryFormProps {
   action: (previous: AdminRecoveryActionState, form: FormData) => Promise<AdminRecoveryActionState>;
@@ -36,11 +35,7 @@ export function AdminRecoveryForm({ action, secret, qrDataUrl, policy }: AdminRe
   if (state && "recoveryCodes" in state) return <RecoveryCodesStep codes={state.recoveryCodes} />;
 
   async function handleCopyKey() {
-    if (await copyText(secret)) {
-      toast.success("Setup key copied.");
-    } else {
-      toast.error("Couldn't copy. Select the key and copy it yourself.");
-    }
+    await copyToClipboard(secret, "Couldn't copy. Select the key and copy it yourself.");
   }
   const describedBy = (field: string) => (failure?.field === field ? "recovery-error" : undefined);
   const invalid = (field: string) => (failure?.field === field ? true : undefined);

@@ -1,8 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SetupLinkResult } from "./setup-link-result";
 import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const result = {
   username: "newcomer",
@@ -13,6 +16,8 @@ const result = {
 describe("SetupLinkResult", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
   });
 
   it("shows the username, expiry and link", () => {
@@ -25,7 +30,7 @@ describe("SetupLinkResult", () => {
     expect(expiry).toHaveTextContent(new Date(result.expiresAt).toLocaleString());
   });
 
-  it("copies the link and confirms", async () => {
+  it("copies the link and confirms with the shared toast", async () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     render(<SetupLinkResult {...result} />);
@@ -33,7 +38,8 @@ describe("SetupLinkResult", () => {
     await user.click(screen.getByRole("button", { name: "Copy link" }));
 
     expect(writeText).toHaveBeenCalledWith(result.setupUrl);
-    expect(await screen.findByText("Link copied.")).toBeVisible();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("copies the link through the fallback when the Clipboard API is unavailable", async () => {
@@ -43,7 +49,7 @@ describe("SetupLinkResult", () => {
       render(<SetupLinkResult {...result} />);
       await user.click(screen.getByRole("button", { name: "Copy link" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
-      expect(await screen.findByText("Link copied.")).toBeVisible();
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Copied to clipboard"));
     } finally {
       restore();
     }
@@ -56,6 +62,8 @@ describe("SetupLinkResult", () => {
 
     await user.click(screen.getByRole("button", { name: "Copy link" }));
 
-    expect(await screen.findByText("Couldn't copy. Select the link and copy it manually.")).toBeVisible();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't copy. Select the link and copy it manually.")
+    );
   });
 });

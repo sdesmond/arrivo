@@ -9,7 +9,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface PassportSectionProps {
   user: UserProfile;
@@ -88,9 +88,7 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
               title="Copy passport number"
               aria-label="Copy passport number"
               onClick={() => {
-                void copyText(passportNumber).then((copied) => {
-                  if (!copied) toast.error("Could not copy passport number.");
-                });
+                void copyToClipboard(passportNumber, "Could not copy passport number.");
               }}
             >
               <Copy strokeWidth={1.5} aria-hidden="true" />
@@ -154,9 +152,7 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
               title="Copy known traveler number"
               aria-label="Copy known traveler number"
               onClick={() => {
-                void copyText(knownTravelerNumber).then((copied) => {
-                  if (!copied) toast.error("Could not copy known traveler number.");
-                });
+                void copyToClipboard(knownTravelerNumber, "Could not copy known traveler number.");
               }}
             >
               <Copy strokeWidth={1.5} aria-hidden="true" />

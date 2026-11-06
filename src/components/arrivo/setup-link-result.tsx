@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { copyText } from "@/lib/clipboard";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface SetupLinkResultProps {
   username: string;
@@ -12,12 +11,8 @@ interface SetupLinkResultProps {
 }
 
 export function SetupLinkResult({ username, expiresAt, setupUrl }: SetupLinkResultProps) {
-  const [copyMessage, setCopyMessage] = useState("");
-
-  async function copyLink() {
-    setCopyMessage(
-      (await copyText(setupUrl)) ? "Link copied." : "Couldn't copy. Select the link and copy it manually."
-    );
+  function copyLink() {
+    void copyToClipboard(setupUrl, "Couldn't copy. Select the link and copy it manually.");
   }
 
   return (
@@ -41,7 +36,6 @@ export function SetupLinkResult({ username, expiresAt, setupUrl }: SetupLinkResu
       >
         <Copy strokeWidth={1.5} />
       </Button>
-      {copyMessage && <p role="status">{copyMessage}</p>}
     </div>
   );
 }
