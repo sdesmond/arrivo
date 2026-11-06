@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { copyText } from "@/lib/clipboard";
 
 interface RecoveryCodesStepProps {
   codes: string[];
@@ -22,10 +23,9 @@ export function RecoveryCodesStep({ codes }: RecoveryCodesStepProps) {
   }, []);
 
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       toast.success("Recovery codes copied.");
-    } catch {
+    } else {
       toast.error("Couldn't copy. Select the codes and copy them yourself.");
     }
   }

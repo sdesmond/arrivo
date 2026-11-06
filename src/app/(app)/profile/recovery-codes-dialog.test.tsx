@@ -35,6 +35,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { RecoveryCodesDialog } from "./recovery-codes-dialog";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const CODES = ["aaaaa-bbbbb", "ccccc-ddddd"];
 
@@ -60,6 +61,20 @@ describe("RecoveryCodesDialog", () => {
     await user.click(screen.getByRole("button", { name: "Copy codes" }));
     expect(writeText).toHaveBeenCalledWith("aaaaa-bbbbb\nccccc-ddddd");
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("copies the codes through the fallback when the Clipboard API is unavailable", async () => {
+    const user = userEvent.setup();
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      render(<RecoveryCodesDialog codes={CODES} onDone={vi.fn()} />);
+      await user.click(screen.getByRole("button", { name: "Copy codes" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(toast.success).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
   });
 
   it("tells the user when copying fails", async () => {

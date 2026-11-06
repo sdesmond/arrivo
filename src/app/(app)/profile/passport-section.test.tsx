@@ -53,6 +53,7 @@ vi.mock("@/components/arrivo/form-section", () => ({
 
 import { PassportSection } from "./passport-section";
 import type { UserProfile } from "@/data/types";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const baseUser: UserProfile = {
   id: "u1",
@@ -103,6 +104,20 @@ describe("PassportSection", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
+
+  it("copies through the fallback when the Clipboard API is unavailable", async () => {
+    const user = userEvent.setup();
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      const { toast } = await import("sonner");
+      render(<PassportSection user={{ ...baseUser, passportNumber: "AB123456" }} />);
+      await user.click(screen.getByRole("button", { name: "Copy passport number" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(toast.error).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
   });
 
   it("shows clipboard failures without a success message", async () => {

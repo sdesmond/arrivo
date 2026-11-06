@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import type { MfaEnrollmentStart } from "@/data/types";
 import { confirmMfaEnrollment, startMfaEnrollment } from "./security-actions";
+import { copyText } from "@/lib/clipboard";
 
 interface MfaEnrollmentProps {
   onEnrolled: (recoveryCodes: string[]) => void;
@@ -70,10 +71,9 @@ export function MfaEnrollment({ onEnrolled }: MfaEnrollmentProps) {
   }
 
   async function handleCopyKey() {
-    try {
-      await navigator.clipboard.writeText(setup!.secret);
+    if (await copyText(setup!.secret)) {
       toast.success("Setup key copied.");
-    } catch {
+    } else {
       toast.error("Couldn't copy. Select the key and copy it yourself.");
     }
   }

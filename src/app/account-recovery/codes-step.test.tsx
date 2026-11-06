@@ -6,6 +6,7 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import { RecoveryCodesStep } from "./codes-step";
+import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
 
 const CODES = ["aaaaa-bbbbb", "ccccc-ddddd"];
 
@@ -34,6 +35,17 @@ describe("RecoveryCodesStep", () => {
     render(<RecoveryCodesStep codes={CODES} />);
     await userEvent.click(screen.getByRole("button", { name: "Copy codes" }));
     expect(writeText).toHaveBeenCalledWith(CODES.join("\n"));
+  });
+
+  it("copies the codes through the fallback when the Clipboard API is unavailable", async () => {
+    const { execCommand, restore } = stubPlainHttpClipboard();
+    try {
+      render(<RecoveryCodesStep codes={CODES} />);
+      await userEvent.click(screen.getByRole("button", { name: "Copy codes" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+    } finally {
+      restore();
+    }
   });
 
   it("survives a refused clipboard", async () => {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { copyText } from "@/lib/clipboard";
 
 interface SetupLinkResultProps {
   username: string;
@@ -14,12 +15,9 @@ export function SetupLinkResult({ username, expiresAt, setupUrl }: SetupLinkResu
   const [copyMessage, setCopyMessage] = useState("");
 
   async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(setupUrl);
-      setCopyMessage("Link copied.");
-    } catch {
-      setCopyMessage("Couldn't copy. Select the link and copy it manually.");
-    }
+    setCopyMessage(
+      (await copyText(setupUrl)) ? "Link copied." : "Couldn't copy. Select the link and copy it manually."
+    );
   }
 
   return (
