@@ -1,0 +1,79 @@
+// Single source of truth for input caps. Server actions validate against these and client forms read them
+// for `maxLength`, so the two halves can't drift. Pure module: safe to import from client components.
+
+export const FIELD_LIMITS = {
+  tripName: 100,
+  destination: 200,
+  tripNotes: 5000,
+  tag: 30,
+  tagCount: 20,
+  eventName: 200,
+  locationName: 200,
+  locationAddress: 300,
+  confirmationCode: 64,
+  serviceNumber: 64,
+  provider: 200,
+  reservationNotes: 5000,
+  eventNote: 5000,
+  dayLabel: 100,
+  dayText: 300,
+  noteTitle: 200,
+  noteBody: 10000,
+  itineraryNote: 5000,
+  checklistTitle: 200,
+  checklistItem: 300,
+  documentName: 200,
+  documentKind: 50,
+  documentSize: 50,
+  packingListName: 30,
+  packingItemText: 30,
+  templateName: 30,
+  loyaltyProgram: 100,
+  loyaltyNumber: 100,
+  wishlistDestination: 200,
+  wishlistNote: 1000,
+  companionName: 100,
+  expenseDescription: 200,
+  countryCode: 2,
+  currencyCode: 3,
+  coordinateLabel: 200,
+} as const;
+
+export type FieldLimitKey = keyof typeof FIELD_LIMITS;
+
+/** Postgres `numeric(12,2)` holds < 10^10; keep a round, human ceiling well inside it. */
+export const MAX_BUDGET_TOTAL = 1_000_000_000;
+export const MAX_EXPENSE_AMOUNT = 50000;
+export const MAX_ITINERARY_POSITION = 10_000;
+export const MAX_COORDINATE_LIST = 100;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
+
+export function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
+/** `YYYY-MM-DD` that is a real calendar date (rejects `2026-99-99` and `2027-02-29`). */
+export function isValidIsoDate(value: string): boolean {
+  const match = ISO_DATE_PATTERN.exec(value);
+  if (!match) return false;
+  const [, year, month, day] = match;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return (
+    parsed.getUTCFullYear() === Number(year) &&
+    parsed.getUTCMonth() === Number(month) - 1 &&
+    parsed.getUTCDate() === Number(day)
+  );
+}
+
+/** ISO datetime that `new Date()` parses to a real instant. */
+export function isValidIsoDateTime(value: string): boolean {
+  if (!ISO_DATE_TIME_PATTERN.test(value)) return false;
+  return !Number.isNaN(new Date(value).getTime());
+}
+
+export function overLimitMessage(label: string, limit: number): string {
+  return `${label} must be ${limit} characters or fewer.`;
+}
