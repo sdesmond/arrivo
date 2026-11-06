@@ -47,6 +47,7 @@ import { dbExpenseToType, isTransitMode } from "@/lib/db-mappers";
 import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
+import { assertValidCoverImageUrl } from "@/lib/url-policy";
 import { getInvitationExpiry, hasNormalizedUsername, publishInvitationChanged } from "@/lib/invitations";
 import { getInvitableUsers } from "@/lib/invitable-users";
 import {
@@ -306,6 +307,8 @@ export async function createTrip(input: CreateTripInput): Promise<{ tripId: stri
   if (input.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
     throw new Error("Invalid end date format. Expected YYYY-MM-DD.");
   }
+  // No upload can exist before the trip does, so only external links and built-in graphics are valid here.
+  if (input.coverImageUrl) assertValidCoverImageUrl(input.coverImageUrl);
 
   const created = await createTripWrite(db, sessionUser.id!, (user) => {
     const userName = user.name ?? user.username;
@@ -405,6 +408,7 @@ export async function updateTripMetadata(
 ): Promise<UpdateTripMetadataResult> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
+  if (patch.coverImageUrl) assertValidCoverImageUrl(patch.coverImageUrl, tripId);
   const budgetCurrency = resolveBudgetCurrency(patch.budgetCurrency);
   const resolvedTransitMode = resolveTripTransitMode(patch.transitMode);
   const shouldConvertCurrency = !!convertCurrency && !!budgetCurrency;

@@ -23,6 +23,7 @@ import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
+import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
@@ -239,7 +240,10 @@ export async function updateEvent(eventId: string, patch: UpdateEventPatch): Pro
   await db
     .update(events)
     .set({
-      ...patch,
+      // Explicit fields only: a crafted client payload must not reach id, tripId, dayId or position.
+      name: patch.name,
+      confirmationNumber: patch.confirmationNumber,
+      note: patch.note,
       startAt: patch.startAt ? new Date(patch.startAt) : null,
       endAt: patch.endAt ? new Date(patch.endAt) : null,
       locationName: patch.locationName ?? null,
@@ -371,7 +375,16 @@ export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<v
   const user = await requireUser();
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(days).set(patch).where(eq(days.id, dayId));
+  await db
+    .update(days)
+    .set({
+      // Explicit fields only: a crafted client payload must not reach id, tripId or dayNumber.
+      label: patch.label,
+      subtitle: patch.subtitle,
+      weather: patch.weather,
+      travelSummary: patch.travelSummary,
+    })
+    .where(eq(days.id, dayId));
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
@@ -509,6 +522,8 @@ export async function setTripCoverWithAttribution(
 ): Promise<void> {
   const user = await requireUser();
   await assertTripAccess(tripId, user.id!, "editor");
+  assertValidCoverImageUrl(coverImageUrl, tripId);
+  if (coverPhotographerUrl) assertValidPhotographerUrl(coverPhotographerUrl);
   await db
     .update(trips)
     .set({
@@ -553,9 +568,15 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
 
 export async function addDocument(input: AddDocumentInput): Promise<void> {
   const user = await requireUser();
-  const tripId = input.tripId ?? (input.eventId ? await getEventTripId(input.eventId) : null);
+  // The event's own trip is authoritative: a caller must not pass access for one trip and attach to another's event.
+  const eventTripId = input.eventId ? await getEventTripId(input.eventId) : null;
+  if (input.tripId && eventTripId && input.tripId !== eventTripId) {
+    throw new Error("Event does not belong to this trip.");
+  }
+  const tripId = eventTripId ?? input.tripId;
   if (!tripId) throw new Error("tripId or eventId required");
   await assertTripAccess(tripId, user.id!, "editor");
+  if (input.url !== undefined) assertValidDocumentUrl(input.url, { tripId, eventId: input.eventId });
   await db.insert(documents).values({
     tripId: input.tripId,
     eventId: input.eventId,

@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { StorageNotFoundError, type StorageAdapter } from "./storage-adapter";
 
@@ -10,6 +10,14 @@ const PROBE_DIRECTORY = ".storage-probes";
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+/** Resolves `key` under `rootDir`, or returns null when it would land outside it (or on the root itself). */
+function resolveInsideRoot(rootDir: string, key: string): string | null {
+  const targetPath = resolve(rootDir, key);
+  const fromRoot = relative(resolve(rootDir), targetPath);
+  if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot)) return null;
+  return targetPath;
 }
 
 export function createLocalFileSystemAdapter(rootDir: string): StorageAdapter {
@@ -58,7 +66,8 @@ export function createLocalFileSystemAdapter(rootDir: string): StorageAdapter {
     },
 
     async put(key, file) {
-      const targetPath = join(rootDir, key);
+      const targetPath = resolveInsideRoot(rootDir, key);
+      if (!targetPath) throw new Error(`Refusing to write ${key}: outside the storage root`);
 
       try {
         await mkdir(dirname(targetPath), { recursive: true });
@@ -79,16 +88,22 @@ export function createLocalFileSystemAdapter(rootDir: string): StorageAdapter {
       if (!url.startsWith(STORAGE_PROXY_PREFIX)) return;
 
       const key = url.slice(STORAGE_PROXY_PREFIX.length);
+      const targetPath = resolveInsideRoot(rootDir, key);
+      if (!targetPath) {
+        console.warn(`Refusing to delete ${url}: outside the storage root`);
+        return;
+      }
 
       try {
-        await unlink(join(rootDir, key));
+        await unlink(targetPath);
       } catch (error) {
         console.warn(`Failed to delete local storage file for ${url}:`, error);
       }
     },
 
     async read(key) {
-      const targetPath = join(rootDir, key);
+      const targetPath = resolveInsideRoot(rootDir, key);
+      if (!targetPath) throw new StorageNotFoundError(key);
 
       try {
         await stat(targetPath);

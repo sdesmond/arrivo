@@ -1237,6 +1237,22 @@ describe("updateTripMetadata", () => {
     expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
+  it.each(["javascript:alert(1)", "JavaScript:alert(1)", "//evil.example/pixel.png", "/api/storage/../../etc/passwd"])(
+    "rejects cover URL %j before mutating",
+    async (coverImageUrl) => {
+      await expect(updateTripMetadata("trip-1", { coverImageUrl })).rejects.toThrow("Invalid cover image URL.");
+      expect(db.transaction).not.toHaveBeenCalled();
+      expect(recordTripUpdated).not.toHaveBeenCalled();
+    }
+  );
+
+  it("rejects another trip's stored cover before mutating", async () => {
+    await expect(
+      updateTripMetadata("trip-1", { coverImageUrl: "/api/storage/trip-covers/trip-2/abc.jpg" })
+    ).rejects.toThrow("Invalid cover image URL.");
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
   it("clears the transit mode when the patch sets it to null", async () => {
     const { operations, transaction } = createTransactionMock({
       tripRow: { id: "trip-1", startDate: null, endDate: null },
@@ -3044,6 +3060,18 @@ describe("createTrip", () => {
     const operations = setupCreateTripDb(null);
 
     await expect(createTrip({ name: "Tokyo", budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
+    expect(operations.inserts).toHaveLength(0);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "//evil.example/pixel.png",
+    "/api/storage/trip-covers/trip-1/abc.jpg",
+  ])("rejects cover URL %j before inserting a trip", async (coverImageUrl) => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(createTrip({ name: "Tokyo", coverImageUrl })).rejects.toThrow("Invalid cover image URL.");
     expect(operations.inserts).toHaveLength(0);
   });
 

@@ -36,7 +36,13 @@ const entry = (stem, sourceGlobs) => ({
 // Library groups shared by several entries. Each was a `src/lib/**` full-suite trigger; these are the
 // features whose scenarios actually reach them (traced through the import graph).
 // File storage: upload, serve, and delete paths (trip delete and account cleanup remove files).
-const STORAGE = ["src/lib/storage/**", "src/lib/upload-policy.ts", "src/lib/avatar-image.ts", "src/app/api/storage/**"];
+const STORAGE = [
+  "src/lib/storage/**",
+  "src/lib/upload-policy.ts",
+  "src/lib/url-policy.ts",
+  "src/lib/avatar-image.ts",
+  "src/app/api/storage/**",
+];
 // Credential checks behind sign-in, MFA, and the profile Security tab.
 const CREDENTIALS = [
   "src/lib/authorize-credentials.ts",
@@ -697,6 +703,8 @@ export const SHARED_GLOBS = [
   "src/lib/mock-date.ts",
   "src/lib/server-now.ts",
   "src/lib/utils.ts",
+  // Response headers on every route, applied from next.config.ts.
+  "src/lib/security-headers.ts",
   // Username rules back sign-in, sign-up, sharing, and every admin user flow.
   "src/lib/username.ts",
   // Mounted in the trips/trip-detail page clients, shared chrome, or the Dialog primitive.
