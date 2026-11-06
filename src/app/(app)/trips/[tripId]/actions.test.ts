@@ -128,13 +128,20 @@ vi.mock("../actions", () => ({
   saveContributorChanges: mockSaveContributorChanges,
 }));
 
-vi.mock("@/lib/utils", () => ({
-  MAX_COVER_IMAGE_UPLOAD_BYTES: 12 * 1024 * 1024,
-  MAX_UPLOAD_BYTES: 25 * 1024 * 1024,
-  deriveGraphicCover: mockDeriveGraphicCover,
-  formatFileSize: vi.fn(),
-  inferDocKind: vi.fn(),
-}));
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>();
+  return {
+    GRAPHIC_COVER_COLORS: actual.GRAPHIC_COVER_COLORS,
+    GRAPHIC_COVER_ICONS: actual.GRAPHIC_COVER_ICONS,
+    GRAPHIC_COVER_PATTERNS: actual.GRAPHIC_COVER_PATTERNS,
+    parseGraphicCover: actual.parseGraphicCover,
+    MAX_COVER_IMAGE_UPLOAD_BYTES: 12 * 1024 * 1024,
+    MAX_UPLOAD_BYTES: 25 * 1024 * 1024,
+    deriveGraphicCover: mockDeriveGraphicCover,
+    formatFileSize: vi.fn(),
+    inferDocKind: vi.fn(),
+  };
+});
 
 vi.mock("drizzle-orm", () => ({
   and: vi.fn(() => "and"),
@@ -441,6 +448,39 @@ describe("updateEvent", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 
+  it("writes only whitelisted event fields even when the client sends extra keys", async () => {
+    const set = vi.fn(() => ({ where: vi.fn(async () => {}) }));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateEvent("event-1", {
+      name: "Renamed",
+      note: "Bring tickets",
+      confirmationNumber: "ABC123",
+      tripId: "victim-trip",
+      dayId: "victim-day",
+      id: "victim-event",
+      position: 0,
+    } as never);
+
+    expect(set).toHaveBeenCalledOnce();
+    const written = (set.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    expect(written).toMatchObject({ name: "Renamed", note: "Bring tickets", confirmationNumber: "ABC123" });
+    expect(Object.keys(written).sort()).toEqual(
+      [
+        "confirmationNumber",
+        "endAt",
+        "locationAddress",
+        "locationLat",
+        "locationLng",
+        "locationName",
+        "name",
+        "note",
+        "startAt",
+        "updatedAt",
+      ].sort()
+    );
+  });
+
   it("does not publish when access is denied", async () => {
     mockAssertTripAccess.mockRejectedValue(new Error("not found"));
 
@@ -449,6 +489,46 @@ describe("updateEvent", () => {
     expect(mockPublishTripEvent).not.toHaveBeenCalled();
     expect(recordTripUpdated).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateDay", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  it("writes only whitelisted day fields even when the client sends extra keys", async () => {
+    const set = vi.fn(() => ({ where: vi.fn(async () => {}) }));
+    mockDbUpdate.mockReturnValue({ set });
+
+    await updateDay("day-1", {
+      label: "Arrival",
+      subtitle: "Rome",
+      weather: "Sunny",
+      travelSummary: "2h drive",
+      tripId: "victim-trip",
+      id: "victim-day",
+      dayNumber: 99,
+    } as never);
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(set).toHaveBeenCalledExactlyOnceWith({
+      label: "Arrival",
+      subtitle: "Rome",
+      weather: "Sunny",
+      travelSummary: "2h drive",
+    });
+  });
+
+  it("does not write when access is denied", async () => {
+    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
+
+    await expect(updateDay("day-1", { label: "x" })).rejects.toThrow("not found");
+
+    expect(mockDbUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -1208,13 +1288,105 @@ describe("setTripCoverWithAttribution", () => {
   });
 
   it("clears attribution when photographer fields are null", async () => {
-    await setTripCoverWithAttribution("trip-1", "graphic:Summer Trip", null, null);
+    await setTripCoverWithAttribution("trip-1", "graphic:var(--color-indigo-400)/dots/plane", null, null);
 
     expect(mockSet).toHaveBeenCalledWith({
-      coverImageUrl: "graphic:Summer Trip",
+      coverImageUrl: "graphic:var(--color-indigo-400)/dots/plane",
       coverPhotographer: null,
       coverPhotographerUrl: null,
     });
+  });
+
+  it("accepts a cover uploaded for the same trip", async () => {
+    await setTripCoverWithAttribution("trip-1", "/api/storage/trip-covers/trip-1/abc.jpg");
+
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ coverImageUrl: "/api/storage/trip-covers/trip-1/abc.jpg" })
+    );
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "//evil.example/pixel.png",
+    "/api/storage/../../etc/passwd",
+    "/api/storage/trip-covers/other-trip/abc.jpg",
+    "/api/storage/trip-documents/trip-1/passport.pdf",
+  ])("rejects cover URL %j without writing", async (coverImageUrl) => {
+    await expect(setTripCoverWithAttribution("trip-1", coverImageUrl)).rejects.toThrow("Invalid cover image URL.");
+
+    expect(mockDbUpdate).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it.each(["javascript:alert(1)", "//evil.example", "data:text/html,x"])(
+    "rejects photographer URL %j without writing",
+    async (photographerUrl) => {
+      await expect(
+        setTripCoverWithAttribution("trip-1", "https://images.example.com/cover.jpg", "Jane", photographerUrl)
+      ).rejects.toThrow("Invalid photographer URL.");
+
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe("addDocument validation", () => {
+  const values = vi.fn(async () => undefined);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireUser.mockResolvedValue({ id: "user-1" });
+    mockAssertTripAccess.mockResolvedValue(undefined);
+    mockDbInsert.mockReturnValue({ values });
+    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
+  });
+
+  it("stores an http(s) link", async () => {
+    await addDocument({ tripId: "trip-1", name: "Menu", kind: "other", url: "https://example.com/menu.pdf" });
+
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/menu.pdf" }));
+  });
+
+  it("stores a file already uploaded for the trip", async () => {
+    await addDocument({
+      tripId: "trip-1",
+      name: "Ticket",
+      kind: "other",
+      url: "/api/storage/trip-documents/trip-1/abc.pdf",
+    });
+
+    expect(values).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "/api/storage/../../etc/passwd",
+    "/api/storage/trip-documents/other-trip/abc.pdf",
+    "/api/storage/trip-covers/trip-1/abc.jpg",
+    "//evil.example/x.pdf",
+  ])("rejects url %j without inserting", async (url) => {
+    await expect(addDocument({ tripId: "trip-1", name: "Bad", kind: "other", url })).rejects.toThrow(
+      "Invalid document URL."
+    );
+
+    expect(values).not.toHaveBeenCalled();
+  });
+
+  it("checks access against the event's trip and refuses a mismatched tripId", async () => {
+    await expect(
+      addDocument({ tripId: "my-trip", eventId: "event-1", name: "Doc", kind: "other", url: "https://example.com/a" })
+    ).rejects.toThrow("Event does not belong to this trip.");
+
+    expect(mockAssertTripAccess).not.toHaveBeenCalled();
+    expect(values).not.toHaveBeenCalled();
+  });
+
+  it("derives the trip from the event when only eventId is sent", async () => {
+    await addDocument({ eventId: "event-1", name: "Doc", kind: "other", url: "https://example.com/a" });
+
+    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
+    expect(values).toHaveBeenCalledOnce();
   });
 });
 

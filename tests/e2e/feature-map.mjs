@@ -36,7 +36,13 @@ const entry = (stem, sourceGlobs) => ({
 // Library groups shared by several entries. Each was a `src/lib/**` full-suite trigger; these are the
 // features whose scenarios actually reach them (traced through the import graph).
 // File storage: upload, serve, and delete paths (trip delete and account cleanup remove files).
-const STORAGE = ["src/lib/storage/**", "src/lib/upload-policy.ts", "src/lib/avatar-image.ts", "src/app/api/storage/**"];
+const STORAGE = [
+  "src/lib/storage/**",
+  "src/lib/upload-policy.ts",
+  "src/lib/url-policy.ts",
+  "src/lib/avatar-image.ts",
+  "src/app/api/storage/**",
+];
 // Credential checks behind sign-in, MFA, and the profile Security tab.
 const CREDENTIALS = [
   "src/lib/authorize-credentials.ts",
