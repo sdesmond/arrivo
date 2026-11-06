@@ -703,6 +703,8 @@ export const SHARED_GLOBS = [
   "src/lib/mock-date.ts",
   "src/lib/server-now.ts",
   "src/lib/utils.ts",
+  // Response headers on every route, applied from next.config.ts.
+  "src/lib/security-headers.ts",
   // Username rules back sign-in, sign-up, sharing, and every admin user flow.
   "src/lib/username.ts",
   // Mounted in the trips/trip-detail page clients, shared chrome, or the Dialog primitive.
