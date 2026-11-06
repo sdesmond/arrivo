@@ -13,6 +13,7 @@ import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
 import { PLACEHOLDER_STYLE } from "./reservation-inline-text-field";
 import type { CostDialogProps } from "@/components/arrivo/cost-dialog";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -989,5 +990,17 @@ describe("ReservationRow", () => {
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
     expect(screen.getByTestId("reservation-row-res-1")).not.toHaveClass("highlight-pulse-bg");
+  });
+});
+
+describe("ReservationRow length limits", () => {
+  it("caps the inline provider editor at the shared provider limit", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+    await user.click(screen.getByRole("button", { name: "Grand Hotel" }));
+    expect(screen.getByRole("textbox", { name: "Provider" })).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.provider)
+    );
   });
 });

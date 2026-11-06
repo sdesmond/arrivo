@@ -10,6 +10,19 @@ Feature: Trip Management
     And I save
     Then the trip should display "Renamed Trip"
 
+  Scenario: A blank trip name cannot be saved
+    Given I have an existing trip
+    When I open the trip edit sheet
+    And I clear the trip name
+    Then the trip name field shows "Enter a trip name." and Save changes is disabled
+
+  Scenario: The trip name input stops accepting text at the length limit
+    Given I have an existing trip
+    When I open the trip edit sheet
+    And I clear the trip name
+    And I type 120 characters into the trip name
+    Then the trip name field holds 100 characters
+
   Scenario: Keyboard user can open the trip edit sheet and dismiss it
     Given I have an existing trip
     When I tab to the edit button and press Enter

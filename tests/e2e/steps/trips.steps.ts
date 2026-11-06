@@ -31,6 +31,26 @@ When("I change the trip name to {string}", async ({ page }, name: string) => {
   await nameInput.fill(name);
 });
 
+When("I clear the trip name", async ({ page }) => {
+  await page.getByRole("dialog").getByLabel("Trip name").fill("");
+});
+
+When("I type {int} characters into the trip name", async ({ page }, count: number) => {
+  // Typing (not fill) so the input's maxLength applies the way it does for a person.
+  await page.getByRole("dialog").getByLabel("Trip name").pressSequentially("x".repeat(count));
+});
+
+Then("the trip name field shows {string} and Save changes is disabled", async ({ page }, message: string) => {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Trip name")).toHaveAttribute("aria-invalid", "true");
+  await expect(dialog.getByRole("status").filter({ hasText: message })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save changes" })).toBeDisabled();
+});
+
+Then("the trip name field holds {int} characters", async ({ page }, count: number) => {
+  await expect(page.getByRole("dialog").getByLabel("Trip name")).toHaveValue("x".repeat(count));
+});
+
 When("I type {string} in the budget field", async ({ page }, budget: string) => {
   await page.getByRole("dialog").getByRole("textbox", { name: "Budget" }).fill(budget);
 });

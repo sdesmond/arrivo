@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { IconSize } from "@/lib/size-tokens";
 import type { DayItinerary } from "@/data/types";
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface DayCardHeaderProps {
   dateDisplay: string;
@@ -138,6 +139,7 @@ export function DayCardHeader({
             <input
               autoFocus
               value={draftSubtitle}
+              maxLength={FIELD_LIMITS.dayText}
               placeholder="Add a note"
               onChange={(event) => setDraftSubtitle(event.target.value)}
               onBlur={saveSubtitle}

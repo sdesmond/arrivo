@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import type { ChecklistItem as ChecklistEntry } from "@/data/types";
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ChecklistItemRowProps {
   item: ChecklistEntry;
@@ -64,6 +65,7 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
         <input
           autoFocus
           value={draftContent}
+          maxLength={FIELD_LIMITS.checklistItem}
           onChange={(event) => setDraftContent(event.target.value)}
           onBlur={saveEdit}
           onKeyDown={(event) => {

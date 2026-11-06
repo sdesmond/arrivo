@@ -443,6 +443,11 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
   });
 
+  it("returns error when passportExpiry is an impossible calendar date", async () => {
+    const result = await updateProfile({ passportExpiry: "2026-99-99" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
   it("returns error when passportExpiry is a free-form string", async () => {
     const result = await updateProfile({ passportExpiry: "not-a-date" });
     expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
@@ -608,6 +613,11 @@ describe("updateCompanion — passportExpiry validation, zero-row detection, exc
 
   it("returns error when passportExpiry is not in YYYY-MM-DD format", async () => {
     const result = await updateCompanion("companion-1", { passportExpiry: "01/01/2030" });
+    expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
+  });
+
+  it("returns error when passportExpiry is an impossible calendar date", async () => {
+    const result = await updateCompanion("companion-1", { passportExpiry: "2027-02-30" });
     expect(result).toEqual({ error: "Passport expiry must be a valid date (YYYY-MM-DD)." });
   });
 

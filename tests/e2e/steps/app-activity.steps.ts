@@ -231,10 +231,19 @@ Then("the Activity table lists a Failed sign-in row for that unknown username", 
 
 Then("the Activity table lists a Failed sign-in row with an unavailable affected account", async ({ page }) => {
   const table = page.getByRole("table", { name: "Recent app activity" });
-  // The preceding database assertion already awaited this event; another reload only delays the UI check.
-  const cells = table.getByRole("row").filter({ hasText: "Failed sign-in" }).first().getByRole("cell");
-  await expect(cells.nth(0)).toHaveText("Unavailable");
-  await expect(cells.nth(3)).toHaveText("Unavailable");
+  // The date filter is shared by scenarios running in parallel, so another scenario's failed sign-in can sort first.
+  // Only this attempt has neither an actor nor an affected account, so look for a row with both unavailable.
+  await expect
+    .poll(async () => {
+      const rows = await table
+        .getByRole("row")
+        .filter({ hasText: "Failed sign-in" })
+        .evaluateAll((elements) =>
+          elements.map((row) => Array.from(row.querySelectorAll("td"), (cell) => cell.textContent?.trim() ?? ""))
+        );
+      return rows.filter((cells) => cells[0] === "Unavailable" && cells[3] === "Unavailable").length;
+    })
+    .toBe(1);
 });
 
 Then("my account has {int} recorded {string} events", async ({ scenario }, count: number, type: string) => {

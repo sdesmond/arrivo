@@ -61,6 +61,7 @@ vi.mock("@/components/ui/dialog", () => ({
 import { DocRow } from "./doc-row";
 import { shareDoc } from "@/lib/utils";
 import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -267,5 +268,14 @@ describe("DocRow", () => {
       await user.click(screen.getByRole("button", { name: "Cancel" }));
       expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("DocRow rename limit", () => {
+  it("caps the rename input at the shared document name limit", async () => {
+    const user = userEvent.setup();
+    render(<DocRow doc={makeDoc()} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
   });
 });

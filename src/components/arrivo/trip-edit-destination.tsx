@@ -6,6 +6,7 @@ import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Field, Section } from "@/components/arrivo/form-section";
 import { Input } from "@/components/ui/input";
 import { useLocationAutocomplete } from "./use-location-autocomplete";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface TripEditDestinationProps {
   value: string;
@@ -80,6 +81,7 @@ export function TripEditDestination({
                   : undefined
               }
               value={value}
+              maxLength={FIELD_LIMITS.destination}
               placeholder="Search destination"
               autoComplete="off"
               disabled={disabled}

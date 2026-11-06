@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface TemplateFormDialogProps {
   mode: "create" | "rename";
@@ -62,7 +63,7 @@ export function TemplateFormDialog({
             <Input
               id={`template-${mode}-name`}
               autoFocus
-              maxLength={30}
+              maxLength={FIELD_LIMITS.templateName}
               value={name}
               aria-label="Template name"
               aria-describedby={showNameError ? `template-${mode}-name-error` : undefined}

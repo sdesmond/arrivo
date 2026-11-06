@@ -21,6 +21,7 @@ vi.mock("lucide-react", async (importOriginal) => {
 import { ChecklistItem } from "./checklist-item";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import type { Checklist } from "@/data/types";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const BASE_CHECKLIST: Checklist = {
   id: "cl-1",
@@ -745,5 +746,26 @@ describe("ChecklistItem for a viewer", () => {
     await user.click(screen.getByRole("button", { name: /checklist/i }));
     await user.click(screen.getByRole("button", { name: "elsewhere" }));
     expect(onDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("ChecklistItem length limits", () => {
+  it("caps the new-item input at the shared checklist item limit", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} initiallyExpanded />);
+    expect(screen.getByPlaceholderText("Add an item…")).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.checklistItem)
+    );
+  });
+
+  it("caps the title input at the shared checklist title limit", async () => {
+    const user = userEvent.setup();
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
+    await user.click(screen.getByRole("button", { name: "Add title..." }));
+    expect(screen.getByPlaceholderText("Add title...")).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.checklistTitle)
+    );
   });
 });

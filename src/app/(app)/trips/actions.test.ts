@@ -1206,6 +1206,18 @@ describe("updateTripMetadata", () => {
     expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [{ name: "  " }, "Trip name is required."],
+    [{ name: "x".repeat(101) }, "Trip name must be 100 characters or fewer."],
+    [{ notes: "x".repeat(5001) }, "Notes must be 5000 characters or fewer."],
+    [{ startDate: "2026-13-01" }, "Invalid start date format. Expected YYYY-MM-DD."],
+    [{ budgetTotal: 10 ** 12 }, "Budget is too large."],
+  ])("rejects invalid patch %j before mutating", async (patch, message) => {
+    await expect(updateTripMetadata("trip-1", patch)).rejects.toThrow(message);
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported budget currencies before mutating", async () => {
     await expect(updateTripMetadata("trip-1", { budgetCurrency: "zzz" })).rejects.toThrow("Invalid budget currency");
     expect(db.transaction).not.toHaveBeenCalled();
@@ -3054,6 +3066,24 @@ describe("createTrip", () => {
     db.transaction.mockRejectedValueOnce(new Error("transaction failed"));
     await expect(createTrip({ name: "Private trip" })).rejects.toThrow("transaction failed");
     expect(recordTripCreated).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ name: "" }, "Trip name is required."],
+    [{ name: "   " }, "Trip name is required."],
+    [{ name: "x".repeat(101) }, "Trip name must be 100 characters or fewer."],
+    [{ name: "Tokyo", notes: "x".repeat(5001) }, "Notes must be 5000 characters or fewer."],
+    [{ name: "Tokyo", destinationName: "x".repeat(201) }, "Destination must be 200 characters or fewer."],
+    [{ name: "Tokyo", tags: ["x".repeat(31)] }, "Tag must be 30 characters or fewer."],
+    [{ name: "Tokyo", startDate: "2026-99-99" }, "Invalid start date format. Expected YYYY-MM-DD."],
+    [{ name: "Tokyo", endDate: "2026-02-30" }, "Invalid end date format. Expected YYYY-MM-DD."],
+    [{ name: "Tokyo", budgetTotal: -5 }, "Budget must be 0 or more."],
+    [{ name: "Tokyo", budgetTotal: Number.NaN }, "Budget must be a number."],
+  ])("rejects invalid input %j before inserting a trip", async (input, message) => {
+    const operations = setupCreateTripDb(null);
+
+    await expect(createTrip(input)).rejects.toThrow(message);
+    expect(operations.inserts).toHaveLength(0);
   });
 
   it("rejects unsupported budget currencies before inserting a trip", async () => {

@@ -23,6 +23,7 @@ import type {
   TripPackingList,
 } from "@/data/types";
 import { cn } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface PackingListsViewProps {
   tripId: string;
@@ -130,7 +131,7 @@ export function PackingListsView({
           <input
             autoFocus
             className="w-full rounded-md border px-2 py-1"
-            maxLength={30}
+            maxLength={FIELD_LIMITS.packingListName}
             value={titleDraft}
             onChange={(event) => setTitleDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -265,7 +266,7 @@ export function PackingListsView({
             <input
               autoFocus
               aria-label="Packing list name"
-              maxLength={30}
+              maxLength={FIELD_LIMITS.packingListName}
               placeholder="List name…"
               value={newListName}
               onChange={(evt) => setNewListName(evt.target.value)}
@@ -353,7 +354,7 @@ export function PackingListsView({
                     <input
                       autoFocus
                       aria-label="Packing list name"
-                      maxLength={30}
+                      maxLength={FIELD_LIMITS.packingListName}
                       value={renameState.value}
                       onChange={(evt) => setRenameState({ ...renameState, value: evt.target.value })}
                       onBlur={() => void handleRenameCommit()}

@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { X, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Section } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import { addWishlistDestination, deleteWishlistDestination } from "./actions";
 import type { WishlistDestination } from "@/data/types";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 interface WishlistSectionProps {
   wishlistDestinations: WishlistDestination[];
@@ -19,14 +21,22 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
     if (!name.trim()) return;
     const dest = name.trim();
     startAdd(async () => {
-      await addWishlistDestination({ name: dest });
-      setName("");
+      try {
+        await addWishlistDestination({ name: dest });
+        setName("");
+      } catch {
+        toast.error("Could not add destination.");
+      }
     });
   }
 
   function handleDelete(id: string) {
     startAdd(async () => {
-      await deleteWishlistDestination(id);
+      try {
+        await deleteWishlistDestination(id);
+      } catch {
+        toast.error("Could not remove destination.");
+      }
     });
   }
 
@@ -58,6 +68,7 @@ export function WishlistSection({ wishlistDestinations }: WishlistSectionProps) 
           type="text"
           placeholder="e.g. Kyoto, Japan"
           value={name}
+          maxLength={FIELD_LIMITS.wishlistDestination}
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") handleAdd();

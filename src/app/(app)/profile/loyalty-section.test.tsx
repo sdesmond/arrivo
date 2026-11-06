@@ -3,7 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { stubPlainHttpClipboard } from "@/test-utils/plain-http-clipboard";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 import { LoyaltySection } from "./loyalty-section";
+import { addLoyaltyNumber, deleteLoyaltyNumber } from "./actions";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -64,5 +66,40 @@ describe("LoyaltySection icon controls", () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe("LoyaltySection adding", () => {
+  it("caps program name and member number at the shared limits", () => {
+    render(<LoyaltySection loyaltyNumbers={[]} />);
+    expect(screen.getByPlaceholderText("Program name")).toHaveAttribute(
+      "maxLength",
+      String(FIELD_LIMITS.loyaltyProgram)
+    );
+    expect(screen.getByPlaceholderText("Member #")).toHaveAttribute("maxLength", String(FIELD_LIMITS.loyaltyNumber));
+  });
+
+  it("keeps the typed values and shows a toast when adding fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addLoyaltyNumber).mockRejectedValueOnce(new Error("boom"));
+    render(<LoyaltySection loyaltyNumbers={[]} />);
+
+    await user.type(screen.getByPlaceholderText("Program name"), "SkyMiles");
+    await user.type(screen.getByPlaceholderText("Member #"), "42");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not add loyalty number."));
+    expect(screen.getByPlaceholderText("Program name")).toHaveValue("SkyMiles");
+    expect(screen.getByPlaceholderText("Member #")).toHaveValue("42");
+  });
+
+  it("shows a toast when removing fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteLoyaltyNumber).mockRejectedValueOnce(new Error("boom"));
+    render(<LoyaltySection loyaltyNumbers={[LOYALTY_NUMBER]} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove Test Airlines" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not remove loyalty number."));
   });
 });

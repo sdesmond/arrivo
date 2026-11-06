@@ -8,6 +8,7 @@ import type { PackingItem } from "@/data/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
 
@@ -130,7 +131,7 @@ export function PackingRow({
               autoFocus
               className="min-w-0 flex-1 rounded-md border px-2 py-1 text-sm"
               defaultValue={item.name}
-              maxLength={30}
+              maxLength={FIELD_LIMITS.packingItemText}
               style={{
                 background: "var(--bg)",
                 borderColor: "var(--line-strong)",

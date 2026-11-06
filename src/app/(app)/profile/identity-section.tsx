@@ -18,6 +18,7 @@ import {
   AVATAR_UPLOAD_HINT,
   AVATAR_UPLOAD_REJECTED_MESSAGE,
 } from "@/lib/upload-policy";
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 
 // Diameter of the profile photo, in px.
 const PHOTO_SIZE = 144;
@@ -62,7 +63,7 @@ export function ProfileIdentitySection({ user, onDirtyChange }: ProfileIdentityS
     onDirtyChange?.(isNameDirty || normalizeUsername(next) !== user.username);
   }
 
-  const nameError = name.length > 100 ? "Name must be 100 characters or fewer." : null;
+  const nameError = name.length > FIELD_LIMITS.profileName ? overLimitMessage("Name", FIELD_LIMITS.profileName) : null;
   const usernameError = validateUsername(username);
 
   function handleSave() {

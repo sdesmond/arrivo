@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { updateProfile } from "./actions";
 import type { UserProfile } from "@/data/types";
 import { copyToClipboard } from "@/lib/clipboard";
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 
 interface PassportSectionProps {
   user: UserProfile;
@@ -37,9 +38,18 @@ export function PassportSection({ user, onDirtyChange }: PassportSectionProps) {
     );
   }
 
-  const passportNumberError = passportNumber.length > 20 ? "Passport number must be 20 characters or fewer." : null;
-  const nationalityError = passportNationality.length > 50 ? "Nationality must be 50 characters or fewer." : null;
-  const ktnError = knownTravelerNumber.length > 20 ? "Known traveler number must be 20 characters or fewer." : null;
+  const passportNumberError =
+    passportNumber.length > FIELD_LIMITS.passportNumber
+      ? overLimitMessage("Passport number", FIELD_LIMITS.passportNumber)
+      : null;
+  const nationalityError =
+    passportNationality.length > FIELD_LIMITS.passportNationality
+      ? overLimitMessage("Nationality", FIELD_LIMITS.passportNationality)
+      : null;
+  const ktnError =
+    knownTravelerNumber.length > FIELD_LIMITS.knownTravelerNumber
+      ? overLimitMessage("Known traveler number", FIELD_LIMITS.knownTravelerNumber)
+      : null;
   const hasError = !!(passportNumberError || nationalityError || ktnError);
 
   function handleSave() {

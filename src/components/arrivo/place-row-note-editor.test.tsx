@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlaceRowNoteEditor } from "./place-row-note-editor";
 import { TripEditAccessProvider } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const defaultProps = {
   note: "Bring cash",
@@ -80,5 +81,12 @@ describe("PlaceRowNoteEditor", () => {
       const { container } = renderAsViewer({ note: undefined });
       expect(container).toBeEmptyDOMElement();
     });
+  });
+});
+
+describe("PlaceRowNoteEditor length limit", () => {
+  it("caps the note textarea at the shared event note limit", () => {
+    render(<PlaceRowNoteEditor {...defaultProps} isEditingNote />);
+    expect(screen.getByDisplayValue("Bring cash")).toHaveAttribute("maxLength", String(FIELD_LIMITS.eventNote));
   });
 });

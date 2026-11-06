@@ -1,3 +1,5 @@
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
+
 export function normalizeTemplateName(name: string | undefined): string {
   const normalizedName = (name ?? "").trim();
 
@@ -5,8 +7,8 @@ export function normalizeTemplateName(name: string | undefined): string {
     throw new Error("Template name is required.");
   }
 
-  if (normalizedName.length > 30) {
-    throw new Error("Template name must be 30 characters or fewer.");
+  if (normalizedName.length > FIELD_LIMITS.templateName) {
+    throw new Error(overLimitMessage("Template name", FIELD_LIMITS.templateName));
   }
 
   return normalizedName;

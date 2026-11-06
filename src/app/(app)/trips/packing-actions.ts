@@ -16,9 +16,10 @@ import type {
   UpdatePackingItemInput,
 } from "@/data/types";
 import { RemovePackingSectionMode } from "@/data/types";
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
-const TEMPLATE_NAME_MAX = 30;
+const TEMPLATE_NAME_MAX = FIELD_LIMITS.templateName;
 
 type LabelValidationExecutor = Pick<typeof db, "select">;
 
@@ -30,7 +31,7 @@ function buildPackingListItemScope(tripId: string, listId: string | null) {
   return and(eq(packingItems.tripId, tripId), eq(packingItems.listId, listId));
 }
 
-const PACKING_ITEM_TEXT_MAX = 30;
+const PACKING_ITEM_TEXT_MAX = FIELD_LIMITS.packingItemText;
 
 function normalizePackingItemName(name: string | undefined): string {
   const trimmedName = name?.trim() ?? "";
@@ -618,6 +619,9 @@ export async function createPackingList(tripId: string, name: string): Promise<s
 
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error("List name is required");
+  if (trimmedName.length > FIELD_LIMITS.packingListName) {
+    throw new Error(overLimitMessage("List name", FIELD_LIMITS.packingListName));
+  }
 
   const row = await db.transaction(async (tx) => {
     await lockTripForUpdate(tx, tripId);
@@ -647,6 +651,9 @@ export async function renamePackingList(listId: string, name: string): Promise<v
 
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error("List name is required");
+  if (trimmedName.length > FIELD_LIMITS.packingListName) {
+    throw new Error(overLimitMessage("List name", FIELD_LIMITS.packingListName));
+  }
 
   const [list] = await db
     .select({ tripId: tripPackingLists.tripId })

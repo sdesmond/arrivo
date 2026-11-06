@@ -5,6 +5,7 @@ import { createRef } from "react";
 import { TripNotesEditor, type TripNotesEditorHandle } from "./trip-notes-editor";
 import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
 import { toast } from "sonner";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -662,5 +663,13 @@ describe("TripNotesEditor", () => {
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Note title")).toBeInTheDocument();
+  });
+});
+
+describe("TripNotesEditor length limits", () => {
+  it("caps the title and body at the shared note limits", () => {
+    render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByLabelText("Note title")).toHaveAttribute("maxLength", String(FIELD_LIMITS.noteTitle));
+    expect(screen.getByLabelText("Note body")).toHaveAttribute("maxLength", String(FIELD_LIMITS.noteBody));
   });
 });

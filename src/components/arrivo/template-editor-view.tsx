@@ -13,6 +13,7 @@ import {
 import { PackingListSortable } from "./packing-list-sortable";
 import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
 import { ContextualAddForm } from "./packing-contextual-add-form";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface TemplateEditorViewProps {
   template: PackingTemplate;
@@ -193,7 +194,7 @@ export function TemplateEditorView({
           <input
             ref={titleInputRef}
             className="w-full rounded-md border px-2 py-1"
-            maxLength={30}
+            maxLength={FIELD_LIMITS.templateName}
             value={titleDraft}
             onChange={(event) => setTitleDraft(event.target.value)}
             onKeyDown={(event) => {

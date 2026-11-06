@@ -62,6 +62,7 @@ import { EventDocRow } from "./event-doc-row";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc } from "@/lib/utils";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
   id: "doc-1",
@@ -367,5 +368,14 @@ describe("EventDocRow for a viewer", () => {
     expect(screen.queryByRole("button", { name: "Boarding Pass.pdf" })).not.toBeInTheDocument();
     await user.click(screen.getByText("Boarding Pass.pdf"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("EventDocRow rename limit", () => {
+  it("caps the rename input at the shared document name limit", async () => {
+    const user = userEvent.setup();
+    render(<EventDocRow doc={makeDoc()} />);
+    await user.click(screen.getByText("Boarding Pass.pdf"));
+    expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FIELD_LIMITS, MAX_BUDGET_INPUT_LENGTH } from "@/lib/validation-limits";
 
 const { mockSearchLocations, mockRetrieveLocation } = vi.hoisted(() => ({
   mockSearchLocations: vi.fn(),
@@ -117,6 +118,13 @@ describe("NewTripDialog", () => {
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
     expect(screen.getByRole("status")).toHaveTextContent("Enter a trip title.");
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("caps title, destination and budget length", () => {
+    render(<NewTripDialog open onOpenChange={vi.fn()} />);
+    expect(screen.getByLabelText(/title/i)).toHaveAttribute("maxLength", String(FIELD_LIMITS.tripName));
+    expect(screen.getByLabelText(/destination/i)).toHaveAttribute("maxLength", String(FIELD_LIMITS.destination));
+    expect(screen.getByLabelText(/budget/i)).toHaveAttribute("maxLength", String(MAX_BUDGET_INPUT_LENGTH));
   });
 
   it("filters budget input to numeric currency characters", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PLACEHOLDER_STYLE, ReservationInlineTextField } from "./reservation-inline-text-field";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
@@ -252,5 +253,30 @@ describe("ReservationInlineTextField", () => {
 
     resolveSave?.();
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Provider" })).not.toBeInTheDocument());
+  });
+});
+
+describe("ReservationInlineTextField maxLength", () => {
+  it("applies maxLength to the single-line and multiline editors", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <ReservationInlineTextField value="a" placeholder="p" ariaLabel="Provider" maxLength={12} onSave={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: "a" }));
+    expect(screen.getByRole("textbox", { name: "Provider" })).toHaveAttribute("maxLength", "12");
+    unmount();
+
+    render(
+      <ReservationInlineTextField
+        value="n"
+        placeholder="p"
+        ariaLabel="Notes"
+        multiline
+        maxLength={34}
+        onSave={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "n" }));
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveAttribute("maxLength", "34");
   });
 });

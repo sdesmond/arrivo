@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { addCompanion } from "./actions";
 import { CompanionRow } from "./companion-row";
 import type { Companion } from "@/data/types";
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 
 export interface CompanionsSectionProps {
   companions: Companion[];
@@ -24,7 +25,10 @@ export function CompanionsSection({ companions }: CompanionsSectionProps) {
   const [name, setName] = useState("");
   const [isAdding, startAdd] = useTransition();
 
-  const nameError = name.trim().length > 50 ? "Companion name must be 50 characters or fewer." : null;
+  const nameError =
+    name.trim().length > FIELD_LIMITS.companionName
+      ? overLimitMessage("Companion name", FIELD_LIMITS.companionName)
+      : null;
 
   function handleAdd() {
     const trimmed = name.trim();

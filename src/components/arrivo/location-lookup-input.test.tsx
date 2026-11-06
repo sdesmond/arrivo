@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { LocationLookupInput } from "./location-lookup-input";
 import type { UseLocationAutocompleteResult } from "./use-location-autocomplete";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const mockUseLocationAutocomplete = vi.fn();
 
@@ -237,5 +238,13 @@ describe("LocationLookupInput", () => {
     render(<LocationLookupInput value="Tokyo Tower" onValueChange={vi.fn()} onResolved={vi.fn()} />);
 
     expect(screen.getByRole("combobox")).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("LocationLookupInput maxLength", () => {
+  it("caps the address at the shared address limit", () => {
+    mockUseLocationAutocomplete.mockReturnValue(buildAutocompleteResult());
+    render(<LocationLookupInput value="" onValueChange={vi.fn()} onResolved={vi.fn()} />);
+    expect(screen.getByRole("combobox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.locationAddress));
   });
 });

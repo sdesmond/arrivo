@@ -359,6 +359,24 @@ describe("createReservation", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("rejects over-length text and out-of-range coordinates before opening a transaction", async () => {
+    const base = { type: ReservationType.Other, provider: "Acme" };
+
+    await expect(createReservation("trip-1", { ...base, provider: "x".repeat(201) })).rejects.toThrow(
+      "Provider must be 200 characters or fewer."
+    );
+    await expect(createReservation("trip-1", { ...base, notes: "x".repeat(5001) })).rejects.toThrow(
+      "Notes must be 5000 characters or fewer."
+    );
+    await expect(createReservation("trip-1", { ...base, confirmationCode: "x".repeat(65) })).rejects.toThrow(
+      "Confirmation code"
+    );
+    await expect(createReservation("trip-1", { ...base, startLocationLat: 91 })).rejects.toThrow("Latitude");
+
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("rejects an unparseable startAt before opening a transaction", async () => {
     await expect(
       createReservation("trip-1", {
@@ -744,6 +762,15 @@ describe("updateReservation", () => {
     await updateReservation("res-1", { endAt: "2026-09-02T12:00:00.000Z" });
 
     expect(updatedReservationValues).toMatchObject({ endAt: new Date("2026-09-02T12:00:00.000Z") });
+  });
+
+  it("rejects over-length text before any update", async () => {
+    await expect(updateReservation("res-1", { provider: "x".repeat(201) })).rejects.toThrow("Provider must be 200");
+    await expect(updateReservation("res-1", { notes: "x".repeat(5001) })).rejects.toThrow("Notes must be 5000");
+    await expect(updateReservation("res-1", { serviceNumber: "x".repeat(65) })).rejects.toThrow("Service number");
+    await expect(updateReservation("res-1", { endLocationLng: 500 })).rejects.toThrow("Longitude");
+
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("rejects an unparseable startAt before any update", async () => {

@@ -24,6 +24,20 @@ import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
+import {
+  addDocumentSchema,
+  checklistItemContentSchema,
+  checklistTitleSchema,
+  createEventSchema,
+  createTripNoteSchema,
+  documentNameSchema,
+  itineraryNoteContentSchema,
+  itineraryPositionSchema,
+  parseInput,
+  updateDaySchema,
+  updateEventSchema,
+  updateTripNoteSchema,
+} from "@/lib/validation-schemas";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
@@ -181,8 +195,9 @@ async function getChecklistItemIds(itemId: string): Promise<{ checklistId: strin
   return { checklistId: item.checklistId, tripId };
 }
 
-export async function createEvent(dayId: string, input: CreateEventInput): Promise<void> {
+export async function createEvent(dayId: string, rawInput: CreateEventInput): Promise<void> {
   const user = await requireUser();
+  const input = parseInput(createEventSchema, rawInput);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -233,8 +248,9 @@ export async function createEvent(dayId: string, input: CreateEventInput): Promi
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateEvent(eventId: string, patch: UpdateEventPatch): Promise<void> {
+export async function updateEvent(eventId: string, rawPatch: UpdateEventPatch): Promise<void> {
   const user = await requireUser();
+  const patch = parseInput(updateEventSchema, rawPatch);
   const tripId = await getEventTripId(eventId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db
@@ -371,8 +387,9 @@ export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateDay(dayId: string, patch: UpdateDayPatch): Promise<void> {
+export async function updateDay(dayId: string, rawPatch: UpdateDayPatch): Promise<void> {
   const user = await requireUser();
+  const patch = parseInput(updateDaySchema, rawPatch);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db
@@ -566,8 +583,9 @@ export async function uploadDocument(tripId: string, formData: FormData): Promis
   return uploadTripDocumentAction(tripId, formData);
 }
 
-export async function addDocument(input: AddDocumentInput): Promise<void> {
+export async function addDocument(rawInput: AddDocumentInput): Promise<void> {
   const user = await requireUser();
+  const input = parseInput(addDocumentSchema, rawInput);
   // The event's own trip is authoritative: a caller must not pass access for one trip and attach to another's event.
   const eventTripId = input.eventId ? await getEventTripId(input.eventId) : null;
   if (input.tripId && eventTripId && input.tripId !== eventTripId) {
@@ -590,8 +608,10 @@ export async function addDocument(input: AddDocumentInput): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createNote(dayId: string, content: string, insertAtPosition?: number): Promise<void> {
+export async function createNote(dayId: string, rawContent: string, insertAtPosition?: number): Promise<void> {
   const user = await requireUser();
+  const content = parseInput(itineraryNoteContentSchema, rawContent);
+  if (insertAtPosition !== undefined) parseInput(itineraryPositionSchema, insertAtPosition);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -614,8 +634,9 @@ export async function createNote(dayId: string, content: string, insertAtPositio
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateNote(noteId: string, content: string): Promise<void> {
+export async function updateNote(noteId: string, rawContent: string): Promise<void> {
   const user = await requireUser();
+  const content = parseInput(itineraryNoteContentSchema, rawContent);
   const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   if (!note) return;
   const tripId = await getDayTripId(note.dayId);
@@ -638,8 +659,9 @@ export async function deleteNote(noteId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createTripNote(tripId: string, input: CreateTripNoteInput): Promise<void> {
+export async function createTripNote(tripId: string, rawInput: CreateTripNoteInput): Promise<void> {
   const user = await requireUser();
+  const input = parseInput(createTripNoteSchema, rawInput);
   await assertTripAccess(tripId, user.id!, "editor");
 
   const title = input.title?.trim() || undefined;
@@ -662,8 +684,9 @@ export async function createTripNote(tripId: string, input: CreateTripNoteInput)
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateTripNote(noteId: string, input: UpdateTripNoteInput): Promise<void> {
+export async function updateTripNote(noteId: string, rawInput: UpdateTripNoteInput): Promise<void> {
   const user = await requireUser();
+  const input = parseInput(updateTripNoteSchema, rawInput);
   const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
   if (!note) return;
 
@@ -733,6 +756,7 @@ export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<vo
 
 export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {
   const user = await requireUser();
+  parseInput(itineraryPositionSchema, insertAtPosition);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -751,9 +775,11 @@ export async function createChecklist(dayId: string, insertAtPosition: number): 
 export async function createChecklistWithItem(
   dayId: string,
   insertAtPosition: number,
-  firstItemContent: string
+  rawFirstItemContent: string
 ): Promise<string> {
   const user = await requireUser();
+  parseInput(itineraryPositionSchema, insertAtPosition);
+  const firstItemContent = parseInput(checklistItemContentSchema, rawFirstItemContent);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
 
@@ -777,8 +803,9 @@ export async function createChecklistWithItem(
   return checklistId;
 }
 
-export async function updateChecklistTitle(checklistId: string, title: string | undefined): Promise<void> {
+export async function updateChecklistTitle(checklistId: string, rawTitle: string | undefined): Promise<void> {
   const user = await requireUser();
+  const title = parseInput(checklistTitleSchema, rawTitle);
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -802,8 +829,9 @@ export async function deleteChecklist(checklistId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function createChecklistItem(checklistId: string, content: string): Promise<void> {
+export async function createChecklistItem(checklistId: string, rawContent: string): Promise<void> {
   const user = await requireUser();
+  const content = parseInput(checklistItemContentSchema, rawContent);
   const dayId = await getChecklistDayId(checklistId);
   const tripId = await getDayTripId(dayId);
   await assertTripAccess(tripId, user.id!, "editor");
@@ -813,8 +841,9 @@ export async function createChecklistItem(checklistId: string, content: string):
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function updateChecklistItem(itemId: string, content: string): Promise<void> {
+export async function updateChecklistItem(itemId: string, rawContent: string): Promise<void> {
   const user = await requireUser();
+  const content = parseInput(checklistItemContentSchema, rawContent);
   const { tripId } = await getChecklistItemIds(itemId);
   await assertTripAccess(tripId, user.id!, "editor");
   await db.update(checklistItems).set({ content }).where(eq(checklistItems.id, itemId));
@@ -864,8 +893,9 @@ export async function removeDocument(docId: string): Promise<void> {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export async function renameDocument(docId: string, newName: string): Promise<void> {
+export async function renameDocument(docId: string, rawName: string): Promise<void> {
   const user = await requireUser();
+  const newName = parseInput(documentNameSchema, rawName);
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
   if (!doc) return;
   const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);

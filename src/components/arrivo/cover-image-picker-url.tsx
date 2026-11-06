@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { isHttpUrl, MAX_URL_LENGTH } from "@/lib/url-policy";
 
 export interface CoverImagePickerUrlProps {
   onImageSelected: (url: string) => void;
@@ -14,14 +15,7 @@ export function CoverImagePickerUrl({ onImageSelected, onClose }: CoverImagePick
 
   function handleApplyUrl() {
     const url = urlInput.trim();
-    try {
-      new URL(url);
-    } catch {
-      toast.error("Please enter a valid URL.");
-      return;
-    }
-
-    if (url.startsWith("javascript:")) {
+    if (!isHttpUrl(url)) {
       toast.error("Please enter a valid URL.");
       return;
     }
@@ -40,6 +34,7 @@ export function CoverImagePickerUrl({ onImageSelected, onClose }: CoverImagePick
         type="url"
         placeholder="https://..."
         value={urlInput}
+        maxLength={MAX_URL_LENGTH}
         onChange={(event) => setUrlInput(event.target.value)}
         style={{
           border: "1px solid var(--line)",

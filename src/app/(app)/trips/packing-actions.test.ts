@@ -787,6 +787,17 @@ describe("packing activity events", () => {
     expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
+  it("rejects an over-length list name on create and rename", async () => {
+    await expect(createPackingList("trip-1", "x".repeat(31))).rejects.toThrow(
+      "List name must be 30 characters or fewer."
+    );
+    await expect(renamePackingList("list-1", "x".repeat(31))).rejects.toThrow(
+      "List name must be 30 characters or fewer."
+    );
+
+    expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
   it("records nothing when list creation fails validation", async () => {
     await expect(createPackingList("trip-1", "  ")).rejects.toThrow("List name is required");
 

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { DayCardHeader } from "./day-card-header";
 import { TripEditAccessProvider } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const baseProps = {
   dateDisplay: "Wed, May 13",
@@ -172,5 +173,14 @@ describe("DayCardHeader for a viewer", () => {
     renderAsViewer({ onToggle });
     await user.click(screen.getByRole("button", { expanded: true }));
     expect(onToggle).toHaveBeenCalledOnce();
+  });
+});
+
+describe("DayCardHeader length limit", () => {
+  it("caps the subtitle input at the shared day text limit", async () => {
+    const user = userEvent.setup();
+    render(<DayCardHeader {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /exploring the city/i }));
+    expect(screen.getByDisplayValue("Exploring the city")).toHaveAttribute("maxLength", String(FIELD_LIMITS.dayText));
   });
 });

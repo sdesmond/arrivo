@@ -246,6 +246,33 @@ describe("budget actions", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("rejects an impossible calendar date", async () => {
+    await expect(
+      createExpense("trip-1", {
+        category: ExpenseCategory.Food,
+        amount: 10,
+        currency: "USD",
+        date: "2026-99-99",
+      })
+    ).rejects.toThrow("Date is required.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an over-length note on create and update", async () => {
+    await expect(
+      createExpense("trip-1", {
+        category: ExpenseCategory.Food,
+        amount: 10,
+        currency: "USD",
+        date: "2026-08-01",
+        note: "x".repeat(501),
+      })
+    ).rejects.toThrow("Note must be 500 characters or fewer.");
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("rejects an amount above the 50,000 ceiling", async () => {
     await expect(
       createExpense("trip-1", {
@@ -390,6 +417,18 @@ describe("budget actions", () => {
 
     expect(db.update).not.toHaveBeenCalled();
     expect(recordTripUpdated).not.toHaveBeenCalled();
+  });
+
+  it("rejects an over-length note when updating an expense", async () => {
+    db.select.mockReturnValueOnce(
+      createSelectMock([{ tripId: "trip-1", amount: "100", currency: "USD", date: "2026-08-01" }])
+    );
+
+    await expect(updateExpense("expense-1", { note: "x".repeat(501) })).rejects.toThrow(
+      "Note must be 500 characters or fewer."
+    );
+
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("allows clearing an expense link without a lookup", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCanEditTrip } from "./trip-edit-access";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface PlaceRowNameFieldProps {
   isEditingName: boolean;
@@ -38,6 +39,7 @@ export function PlaceRowNameField({
           autoFocus
           placeholder={isDraft ? "Event name" : undefined}
           value={draftName}
+          maxLength={FIELD_LIMITS.eventName}
           onChange={(event) => onDraftChange(event.target.value)}
           onBlur={onBlur}
           onKeyDown={onKeyDown}
