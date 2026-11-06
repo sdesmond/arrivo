@@ -65,3 +65,12 @@ test("the profile photo hover shot is registered for the demo account", () => {
   assert.equal(shot.account, "demo");
   assert.ok(screenshotNamesUsedInDocs().has("profile-photo"), "No docs page shows the profile-photo screenshot");
 });
+
+for (const name of ["profile-traveler", "profile-appearance"]) {
+  test(`the ${name} shot is registered for the demo account and shown in the docs`, () => {
+    const shot = SHOTS.find((candidate) => candidate.name === name);
+    assert.ok(shot, `${name} shot is missing`);
+    assert.equal(shot.account, "demo");
+    assert.ok(screenshotNamesUsedInDocs().has(name), `No docs page shows the ${name} screenshot`);
+  });
+}
