@@ -294,6 +294,55 @@ describe("updateProfile — server-side validation (AC10)", () => {
     expect(mockSet.mock.calls[0][0]).not.toHaveProperty("username");
   });
 
+  it("never writes columns outside the profile field whitelist", async () => {
+    await updateProfile({
+      name: "Alice",
+      role: "admin",
+      passwordHash: "attacker-hash",
+      sessionVersion: 0,
+      mfaEnabledAt: new Date(0),
+      mfaRequired: false,
+      totpSecret: "attacker-secret",
+      image: "/api/storage/../../etc/passwd",
+      id: "victim-user",
+    } as never);
+
+    expect(mockSet).toHaveBeenCalledOnce();
+    expect(Object.keys(mockSet.mock.calls[0][0])).toEqual(["name"]);
+  });
+
+  it("writes every whitelisted profile field", async () => {
+    await updateProfile({
+      name: "Alice",
+      dateFormat: "DD/MM/YYYY",
+      currency: "EUR",
+      distanceUnit: "metric",
+      transitMode: null,
+      walkThresholdMeters: 800,
+      defaultCoverType: "graphic" as never,
+      passportExpiry: "2030-01-01",
+      passportNationality: "French",
+      warningThreshold: 70,
+      dangerThreshold: 95,
+    });
+
+    expect(Object.keys(mockSet.mock.calls[0][0]).sort()).toEqual(
+      [
+        "currency",
+        "dangerThreshold",
+        "dateFormat",
+        "defaultCoverType",
+        "distanceUnit",
+        "name",
+        "passportExpiry",
+        "passportNationality",
+        "transitMode",
+        "walkThresholdMeters",
+        "warningThreshold",
+      ].sort()
+    );
+  });
+
   it("returns error when passportNumber exceeds 20 chars", async () => {
     const result = await updateProfile({ passportNumber: "A".repeat(21) });
     expect(result).toEqual({ error: "Passport number must be 20 characters or fewer." });

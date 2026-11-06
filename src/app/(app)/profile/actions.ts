@@ -58,6 +58,33 @@ function travelDocumentsNeedKey(patch: { passportNumber?: string | null; knownTr
   return !!(patch.passportNumber || patch.knownTravelerNumber) && !isFieldEncryptionConfigured();
 }
 
+// A server action receives whatever the client sends, so the TypeScript type alone does not stop a crafted call
+// from carrying `role`, `passwordHash`, MFA columns, etc. Only these keys may reach the users table.
+const PROFILE_PATCH_KEYS = [
+  "name",
+  "username",
+  "dateFormat",
+  "currency",
+  "distanceUnit",
+  "transitMode",
+  "walkThresholdMeters",
+  "defaultCoverType",
+  "passportNumber",
+  "passportExpiry",
+  "passportNationality",
+  "knownTravelerNumber",
+  "warningThreshold",
+  "dangerThreshold",
+] as const satisfies readonly (keyof UpdateUserProfilePatch)[];
+
+function pickProfilePatch(patch: UpdateUserProfilePatch): UpdateUserProfilePatch {
+  const picked: Record<string, unknown> = {};
+  for (const key of PROFILE_PATCH_KEYS) {
+    if (patch[key] !== undefined) picked[key] = patch[key];
+  }
+  return picked as UpdateUserProfilePatch;
+}
+
 export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ error?: string }> {
   const session = await requireUser();
 
@@ -126,7 +153,7 @@ export async function updateProfile(patch: UpdateUserProfilePatch): Promise<{ er
 
   if (travelDocumentsNeedKey(patch)) return { error: TRAVEL_DOCUMENTS_NEED_KEY };
 
-  const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = { ...patch };
+  const dbPatch: Omit<UpdateUserProfilePatch, "name"> & { name?: string | null } = pickProfilePatch(patch);
   if (trimmedName !== undefined) dbPatch.name = trimmedName || null;
   if (patch.username !== undefined) dbPatch.username = normalizeUsername(patch.username);
   if (patch.passportNumber !== undefined) dbPatch.passportNumber = encryptOptionalField(patch.passportNumber);
