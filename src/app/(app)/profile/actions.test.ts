@@ -140,6 +140,7 @@ import bcrypt from "bcryptjs";
 import { changePassword, deleteAccount } from "./actions";
 import { AccountDeletionFailure, DEFAULT_PASSWORD_POLICY, LiveSyncEventType, TripDeletionAction } from "@/data/types";
 import type { DeletedAccountSummary } from "@/data/types";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
 import { addCompanion, addLoyaltyNumber, addWishlistDestination, updateProfile, updateCompanion } from "./actions";
 
 interface RecordedInsert {
@@ -925,18 +926,100 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     mockRequireUser.mockResolvedValue({ id: "user-1", sessionVersion: 7 });
     mockStorageDel.mockResolvedValue(undefined);
     mockDeleteOwnAccount.mockResolvedValue({ ok: true, summary: SUMMARY });
+    mockCheckThrottle.mockResolvedValue({ locked: false });
+    mockSelectWhere.mockResolvedValue([{ passwordHash: "stored-hash" }]);
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+  });
+
+  describe("re-authentication", () => {
+    it("checks the typed password against the stored hash and clears the failure budget before deleting", async () => {
+      await deleteAccount([], "correct-password");
+
+      expect(bcrypt.compare).toHaveBeenCalledWith("correct-password", "stored-hash");
+      expect(mockCheckThrottle.mock.calls[0][0]).toEqual([expect.objectContaining({ key: "delete:user-1" })]);
+      expect(mockClearFailures).toHaveBeenCalledTimes(1);
+      expect(mockClearFailures.mock.invocationCallOrder[0]).toBeLessThan(
+        mockDeleteOwnAccount.mock.invocationCallOrder[0]
+      );
+    });
+
+    it("refuses a wrong password, counts the failure and deletes nothing", async () => {
+      vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+
+      await expect(deleteAccount([], "wrong")).resolves.toEqual({
+        status: "error",
+        message: "Current password is incorrect.",
+        field: "password",
+      });
+
+      expect(mockRecordFailure).toHaveBeenCalledTimes(1);
+      expect(mockRecordFailure.mock.calls[0][0]).toEqual([expect.objectContaining({ key: "delete:user-1" })]);
+      expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
+      expectNoSideEffects();
+    });
+
+    it.each([
+      ["missing", undefined],
+      ["not a string", 12345],
+      ["empty", ""],
+      ["oversize", "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1)],
+    ])("refuses a %s password without running bcrypt", async (_label, password) => {
+      await expect(deleteAccount([], password as unknown as string)).resolves.toEqual({
+        status: "error",
+        message: "Current password is incorrect.",
+        field: "password",
+      });
+
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
+      expectNoSideEffects();
+    });
+
+    it("refuses while locked out, before reading or comparing the password", async () => {
+      mockCheckThrottle.mockResolvedValue({ locked: true, retryAfterSeconds: 600 });
+
+      await expect(deleteAccount([], "correct-password")).resolves.toEqual({
+        status: "error",
+        message: "Too many attempts. Try again in 10 minutes.",
+        field: "password",
+      });
+
+      expect(mockSelectWhere).not.toHaveBeenCalled();
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
+    });
+
+    it("refuses an account that has no password to confirm with", async () => {
+      mockSelectWhere.mockResolvedValue([{ passwordHash: null }]);
+
+      await expect(deleteAccount([], "anything")).resolves.toEqual({
+        status: "error",
+        message: "Current password is incorrect.",
+        field: "password",
+      });
+
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
+    });
+
+    it("does not spend the failure budget on a malformed choices payload", async () => {
+      await deleteAccount("everything" as unknown as Parameters<typeof deleteAccount>[0], "wrong");
+
+      expect(mockCheckThrottle).not.toHaveBeenCalled();
+      expect(mockRecordFailure).not.toHaveBeenCalled();
+    });
   });
 
   it("deletes for the signed-in user with the given choices", async () => {
     const choices = [{ tripId: "trip-transferred", action: TripDeletionAction.Delete }] as const;
 
-    await expect(deleteAccount([...choices])).resolves.toEqual({ status: "success" });
+    await expect(deleteAccount([...choices], "correct-password")).resolves.toEqual({ status: "success" });
 
     expect(mockDeleteOwnAccount).toHaveBeenCalledWith(expect.anything(), "user-1", choices, 7);
   });
 
   it("publishes events, cleans up files and signs out only after the deletion commits", async () => {
-    await deleteAccount([]);
+    await deleteAccount([], "correct-password");
 
     expect(mockPublishInvitationChanged).toHaveBeenCalledWith("user-grace", "trip-shared");
     expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-solo", {
@@ -968,7 +1051,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
   });
 
   it("records one account_deleted event with the captured identity, before cleanup and sign-out", async () => {
-    await deleteAccount([]);
+    await deleteAccount([], "correct-password");
     expect(mockRecordActivity).toHaveBeenCalledTimes(1);
     expect(mockRecordActivity).toHaveBeenCalledWith({
       type: "account_deleted",
@@ -984,7 +1067,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
 
   it("keeps the outcome when the real recorder cannot schedule its write", async () => {
     const log = await breakRealRecorderScheduling();
-    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+    await expect(deleteAccount([], "correct-password")).resolves.toEqual({ status: "success" });
     expect(mockStorageDel).toHaveBeenCalledTimes(2);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
     log.mockRestore();
@@ -994,7 +1077,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     mockStorageDel.mockRejectedValue(new Error("disk gone"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+    await expect(deleteAccount([], "correct-password")).resolves.toEqual({ status: "success" });
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
     warn.mockRestore();
@@ -1006,7 +1089,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(deleteAccount([])).resolves.toEqual({ status: "success" });
+    await expect(deleteAccount([], "correct-password")).resolves.toEqual({ status: "success" });
 
     expect(mockStorageDel).toHaveBeenCalledTimes(2);
     expect(mockSignOut).toHaveBeenCalledWith({ redirectTo: "/sign-in" });
@@ -1019,14 +1102,14 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
     vi.mocked(redirect).mockImplementationOnce(() => {
       throw new Error("NEXT_REDIRECT");
     });
-    await expect(deleteAccount([])).rejects.toThrow("NEXT_REDIRECT");
+    await expect(deleteAccount([], "correct-password")).rejects.toThrow("NEXT_REDIRECT");
     expectNoSideEffects();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
   it("returns stale without side effects when the choices changed", async () => {
     mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.Stale });
 
-    await expect(deleteAccount([])).resolves.toEqual({
+    await expect(deleteAccount([], "correct-password")).resolves.toEqual({
       status: "error",
       message: "Your shared trips changed. Review them and try again.",
       stale: true,
@@ -1038,7 +1121,7 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
   it("explains the refusal, without stale, when the user is the last completed admin", async () => {
     mockDeleteOwnAccount.mockResolvedValue({ ok: false, reason: AccountDeletionFailure.LastAdmin });
 
-    await expect(deleteAccount([])).resolves.toEqual({
+    await expect(deleteAccount([], "correct-password")).resolves.toEqual({
       status: "error",
       message: "You're the only admin with a finished account. Make another account an admin before deleting yours.",
     });
@@ -1047,16 +1130,16 @@ describe("deleteAccount — adapter around deleteOwnAccount", () => {
   });
 
   it("returns stale for a malformed choices payload without deleting", async () => {
-    await expect(deleteAccount("everything" as unknown as Parameters<typeof deleteAccount>[0])).resolves.toEqual(
-      expect.objectContaining({ stale: true })
-    );
+    await expect(
+      deleteAccount("everything" as unknown as Parameters<typeof deleteAccount>[0], "correct-password")
+    ).resolves.toEqual(expect.objectContaining({ stale: true }));
     expect(mockDeleteOwnAccount).not.toHaveBeenCalled();
   });
 
   it("skips cleanup, notifications and sign-out when the deletion fails", async () => {
     mockDeleteOwnAccount.mockRejectedValue(new Error("db down"));
 
-    await expect(deleteAccount([])).rejects.toThrow("db down");
+    await expect(deleteAccount([], "correct-password")).rejects.toThrow("db down");
 
     expectNoSideEffects();
   });

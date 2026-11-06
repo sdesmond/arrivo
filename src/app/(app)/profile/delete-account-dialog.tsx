@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { Field } from "@/components/arrivo/form-section";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,9 +13,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TripDeletionAction } from "@/data/types";
 import type { AccountDeletionTrip, TripDeletionChoice } from "@/data/types";
+import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
 import { deleteAccount } from "./actions";
 
 // User ids are UUIDs, so this can never collide with a collaborator option.
@@ -42,6 +45,8 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
   const router = useRouter();
   const [pickedByTripId, setPickedByTripId] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [passwordInvalid, setPasswordInvalid] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function buildChoices(): TripDeletionChoice[] {
@@ -54,13 +59,16 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
   }
 
   function handleConfirm() {
+    if (!currentPassword) return;
     setErrorMessage(null);
+    setPasswordInvalid(false);
     // No try/catch: on success the action's redirect rejects this promise with a Next redirect error
     // that the router must see, and anything else belongs to the error boundary.
     startTransition(async () => {
-      const result = await deleteAccount(buildChoices());
+      const result = await deleteAccount(buildChoices(), currentPassword);
       if (result.status === "error") {
         setErrorMessage(result.message);
+        setPasswordInvalid(result.field === "password");
         if (result.stale) router.refresh();
         return;
       }
@@ -150,6 +158,23 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
             : "Pending invites you sent will be cancelled."}
         </p>
 
+        <Field label="Current password" htmlFor="delete-account-password">
+          <Input
+            id="delete-account-password"
+            className="h-11"
+            type="password"
+            value={currentPassword}
+            maxLength={SIGN_IN_PASSWORD_MAX_LENGTH}
+            disabled={isPending}
+            autoComplete="current-password"
+            aria-invalid={passwordInvalid || undefined}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleConfirm();
+            }}
+          />
+        </Field>
+
         {errorMessage && (
           <p role="alert" style={{ color: "var(--destructive)", fontSize: "calc(13px * var(--font-scale))" }}>
             {errorMessage}
@@ -160,7 +185,7 @@ export function DeleteAccountDialog({ open, onOpenChange, sharedTrips }: DeleteA
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} autoFocus>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleConfirm} loading={isPending}>
+          <Button variant="destructive" onClick={handleConfirm} loading={isPending} disabled={!currentPassword}>
             Delete account
           </Button>
         </DialogFooter>

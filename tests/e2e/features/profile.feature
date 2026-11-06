@@ -200,6 +200,14 @@ Feature: User profile page
     And I remove my other browser
     Then my second device should be signed out
 
+  Scenario: Deleting my account needs my current password
+    Given I am on the profile page
+    When I navigate to the Account section
+    And I open the delete account dialog
+    And I try to delete my account with the password "not-my-password"
+    Then the delete account dialog should say the password is incorrect
+    And my account should still exist
+
   Scenario: Deleting my account hands a shared trip to the collaborator I pick
     Given I own the shared trip "Handoff Lisbon Escape" with editor "Bo Nilsen" and viewer "Ada Lovelace"
     And I have a pending invite out on my shared trip

@@ -43,6 +43,7 @@ import {
   MAX_COMPANIONS,
   MAX_WALK_THRESHOLD_METERS,
   overLimitMessage,
+  SIGN_IN_PASSWORD_MAX_LENGTH,
 } from "@/lib/validation-limits";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
@@ -430,15 +431,41 @@ const ACCOUNT_DELETION_STALE_MESSAGE = "Your shared trips changed. Review them a
 const LAST_ADMIN_MESSAGE =
   "You're the only admin with a finished account. Make another account an admin before deleting yours.";
 
+const WRONG_PASSWORD_MESSAGE = "Current password is incorrect.";
+
 /**
  * Deletes the signed-in user's account; the transaction, trip handoff and last-admin guard live in
  * `deleteOwnAccount`. Events, file cleanup and sign-out run here, only after it commits.
+ * A live session alone is not enough: the account password must be re-entered, with its own failure budget.
  */
-export async function deleteAccount(choices: TripDeletionChoice[]): Promise<DeleteAccountResult> {
+export async function deleteAccount(
+  choices: TripDeletionChoice[],
+  currentPassword: string
+): Promise<DeleteAccountResult> {
   const session = await requireUser();
   const userId = session.id!;
   const staleResult: DeleteAccountResult = { status: "error", message: ACCOUNT_DELETION_STALE_MESSAGE, stale: true };
   if (!Array.isArray(choices)) return staleResult;
+
+  const throttleTargets = [accountTarget("delete", userId)];
+  const throttle = await checkThrottle(throttleTargets);
+  if (throttle.locked) {
+    return { status: "error", message: lockoutMessage(throttle.retryAfterSeconds), field: "password" };
+  }
+
+  // Never runs bcrypt on junk: not a string, empty, or longer than any password this app accepts.
+  const wellFormed =
+    typeof currentPassword === "string" &&
+    currentPassword.length > 0 &&
+    currentPassword.length <= SIGN_IN_PASSWORD_MAX_LENGTH;
+  const [user] = wellFormed
+    ? await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId))
+    : [];
+  if (!user?.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    await recordFailure(throttleTargets);
+    return { status: "error", message: WRONG_PASSWORD_MESSAGE, field: "password" };
+  }
+  await clearFailures(throttleTargets);
 
   const result = await deleteOwnAccount(db, userId, choices, session.sessionVersion);
   if (!result.ok) {

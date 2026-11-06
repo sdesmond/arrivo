@@ -460,6 +460,7 @@ When("the member's self-deletion queues behind {string}", async ({ page, scenari
     await page.getByRole("button", { name: "Delete account", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Delete account?" });
     await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Current password").fill(process.env.E2E_PASSWORD!);
     const replacementPassword = "race-lifecycle-pass";
     const passwordHash = await bcrypt.hash(replacementPassword, 10);
     let response: Promise<unknown> | undefined;
