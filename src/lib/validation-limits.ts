@@ -47,8 +47,8 @@ export const MAX_BUDGET_TOTAL = 1_000_000_000;
 /** Longest typed budget: the ceiling's digits plus ".xx". */
 export const MAX_BUDGET_INPUT_LENGTH = String(MAX_BUDGET_TOTAL).length + 3;
 export const MAX_EXPENSE_AMOUNT = 50000;
-/** Generous on purpose (accounts from before the 72-byte rule may hold longer passwords) but bounded so junk never reaches bcrypt. The username limit is `USERNAME_MAX_LENGTH`. */
-export const SIGN_IN_PASSWORD_MAX_LENGTH = 128;
+/** Longest password sign-in and delete-account re-entry accept; one value for the server checks and the inputs' `maxLength`. The username limit is `USERNAME_MAX_LENGTH`. */
+export const SIGN_IN_PASSWORD_MAX_LENGTH = 30;
 /** Most events one routing request may carry; a day holds far fewer, and each costs a Mapbox call. */
 export const MAX_ROUTE_EVENTS = 100;
 /** Unsplash itself caps `per_page` at 30. */
