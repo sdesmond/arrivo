@@ -39,11 +39,11 @@ import { normalizeUsername, validateUsername } from "@/lib/username";
 import {
   FIELD_LIMITS,
   isValidIsoDate,
+  isWithinSignInPasswordLimit,
   MAX_COMPANION_AGE,
   MAX_COMPANIONS,
   MAX_WALK_THRESHOLD_METERS,
   overLimitMessage,
-  SIGN_IN_PASSWORD_MAX_LENGTH,
 } from "@/lib/validation-limits";
 import { encryptOptionalField, isFieldEncryptionConfigured } from "@/lib/field-encryption";
 import { accountTarget, checkThrottle, clearFailures, lockoutMessage, recordFailure } from "@/lib/auth-throttle";
@@ -455,9 +455,7 @@ export async function deleteAccount(
 
   // Never runs bcrypt on junk: not a string, empty, or longer than any password this app accepts.
   const wellFormed =
-    typeof currentPassword === "string" &&
-    currentPassword.length > 0 &&
-    currentPassword.length <= SIGN_IN_PASSWORD_MAX_LENGTH;
+    typeof currentPassword === "string" && currentPassword.length > 0 && isWithinSignInPasswordLimit(currentPassword);
   const [user] = wellFormed
     ? await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId))
     : [];

@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { SignInNotice, type MfaActionState, type PasswordPolicy, type SignInActionState } from "@/data/types";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "@/lib/username";
-import { SIGN_IN_PASSWORD_MAX_LENGTH } from "@/lib/validation-limits";
+import { clampSignInPassword } from "@/lib/validation-limits";
 import { AuthSubmitButton } from "./auth-submit-button";
 import { MfaCodeForm } from "./mfa-code-form";
 import { PasswordRequirements } from "./password-requirements";
@@ -97,7 +97,11 @@ function SignInSteps({ action, mfaAction, notice, onRestart }: SignInStepsProps)
           name="password"
           type="password"
           required
-          maxLength={SIGN_IN_PASSWORD_MAX_LENGTH}
+          // `maxLength` counts UTF-16 units, the cap counts characters, so trim by character instead.
+          onInput={(event) => {
+            const clamped = clampSignInPassword(event.currentTarget.value);
+            if (clamped !== event.currentTarget.value) event.currentTarget.value = clamped;
+          }}
           autoComplete="current-password"
           className="h-11 rounded-lg border px-3"
           style={{ borderColor: "var(--line)", background: "var(--surface)" }}

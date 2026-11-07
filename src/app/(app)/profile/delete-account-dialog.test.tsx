@@ -69,7 +69,7 @@ describe("DeleteAccountDialog", () => {
     const password = screen.getByLabelText("Current password");
     expect(password).toHaveAttribute("type", "password");
     expect(password).toHaveAttribute("autocomplete", "current-password");
-    expect(password).toHaveAttribute("maxlength", String(SIGN_IN_PASSWORD_MAX_LENGTH));
+    expect(password).not.toHaveAttribute("maxlength");
     expect(password).toHaveClass("h-11");
     expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
 
@@ -78,6 +78,64 @@ describe("DeleteAccountDialog", () => {
 
     await user.type(password, "hunter2hunter2");
     expect(screen.getByRole("button", { name: "Delete account" })).toBeEnabled();
+  });
+
+  it("caps the password at the server's limit in characters, so emoji count once", async () => {
+    const user = userEvent.setup();
+    renderDialog([]);
+    const password = screen.getByLabelText("Current password");
+
+    await user.type(password, "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 5));
+    expect(password).toHaveValue("p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH));
+
+    await user.clear(password);
+    await user.click(password);
+    await user.paste("😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 2));
+    expect(password).toHaveValue("😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH));
+  });
+
+  it("clears the typed password after a wrong attempt", async () => {
+    const user = userEvent.setup();
+    mockDeleteAccount.mockResolvedValue({
+      status: "error",
+      message: "Current password is incorrect.",
+      field: "password",
+    });
+    renderDialog([]);
+
+    await confirmWithPassword(user, "nope");
+
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Current password")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Delete account" })).toBeDisabled();
+  });
+
+  it("keeps the typed password after a refusal that is not about the password", async () => {
+    const user = userEvent.setup();
+    mockDeleteAccount.mockResolvedValue({ status: "error", message: "Nope." });
+    renderDialog([]);
+
+    await confirmWithPassword(user, "still-right");
+
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Current password")).toHaveValue("still-right");
+  });
+
+  it("forgets the password and any error once the dialog is cancelled, so reopening starts clean", async () => {
+    const user = userEvent.setup();
+    mockDeleteAccount.mockResolvedValue({ status: "error", message: "Nope." });
+    const { rerender, onOpenChange } = renderDialog([]);
+
+    await confirmWithPassword(user, "typed-secret");
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(<DeleteAccountDialog open={false} onOpenChange={onOpenChange} sharedTrips={[]} />);
+    rerender(<DeleteAccountDialog open onOpenChange={onOpenChange} sharedTrips={[]} />);
+
+    expect(screen.getByLabelText("Current password")).toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("submits on Enter from the password field", async () => {

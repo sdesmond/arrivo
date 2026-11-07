@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PASSWORD_POLICY_BOUNDS } from "@/data/types";
 import {
+  clampSignInPassword,
   FIELD_LIMITS,
   isUuid,
+  isWithinSignInPasswordLimit,
   isValidIsoDate,
   isValidIsoDateTime,
   MAX_BUDGET_INPUT_LENGTH,
@@ -95,5 +97,29 @@ describe("SIGN_IN_PASSWORD_MAX_LENGTH", () => {
   it("is the longest password the rules can allow, so sign-in never refuses one set under them", () => {
     expect(SIGN_IN_PASSWORD_MAX_LENGTH).toBe(30);
     expect(SIGN_IN_PASSWORD_MAX_LENGTH).toBe(PASSWORD_POLICY_BOUNDS.maxLength.max);
+  });
+});
+
+describe("sign-in password length", () => {
+  const atCap = "p".repeat(SIGN_IN_PASSWORD_MAX_LENGTH);
+  // Each emoji is one character to the password rules but two UTF-16 units to `String.length` and `maxLength`.
+  const emojiAtCap = "😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH);
+
+  it("counts characters the way the password rules do, not UTF-16 units", () => {
+    expect(emojiAtCap.length).toBe(SIGN_IN_PASSWORD_MAX_LENGTH * 2);
+    expect(isWithinSignInPasswordLimit(atCap)).toBe(true);
+    expect(isWithinSignInPasswordLimit(emojiAtCap)).toBe(true);
+    expect(isWithinSignInPasswordLimit(atCap + "p")).toBe(false);
+    expect(isWithinSignInPasswordLimit(emojiAtCap + "😀")).toBe(false);
+    expect(isWithinSignInPasswordLimit("p".repeat(10_000))).toBe(false);
+    expect(isWithinSignInPasswordLimit("")).toBe(true);
+  });
+
+  it("clamps typed or pasted text to the cap without splitting a character", () => {
+    expect(clampSignInPassword(atCap)).toBe(atCap);
+    expect(clampSignInPassword(atCap + "xyz")).toBe(atCap);
+    expect(clampSignInPassword(emojiAtCap)).toBe(emojiAtCap);
+    expect(clampSignInPassword(emojiAtCap + "😀😀")).toBe(emojiAtCap);
+    expect(clampSignInPassword("a")).toBe("a");
   });
 });

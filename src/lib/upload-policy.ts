@@ -139,9 +139,20 @@ function hasIsoBmffBrand(bytes: Uint8Array, brands: string[]): boolean {
   return asciiAt(bytes, 4, 4) === "ftyp" && brands.includes(asciiAt(bytes, 8, 4));
 }
 
+// Readers tolerate junk before the header, but a header buried in a comment is how a script or HTML file passes as a
+// PDF. Allow only what real writers emit ahead of it: a UTF-8 BOM and a few whitespace or NUL bytes.
+const PDF_LEADING_BYTES_MAX = 16;
+const PDF_LEADING_FILLER = new Set([0x00, 0x09, 0x0a, 0x0c, 0x0d, 0x20]);
+
+function startsWithPdfHeader(bytes: Uint8Array): boolean {
+  let offset = startsWithBytes(bytes, [0xef, 0xbb, 0xbf]) ? 3 : 0;
+  const limit = Math.min(bytes.length, PDF_LEADING_BYTES_MAX);
+  while (offset < limit && PDF_LEADING_FILLER.has(bytes[offset])) offset += 1;
+  return asciiAt(bytes, offset, 5) === "%PDF-";
+}
+
 const CONTENT_SIGNATURE_CHECKS: Record<string, (bytes: Uint8Array) => boolean> = {
-  // Readers accept the header anywhere in the first KiB, so leading junk is allowed.
-  "application/pdf": (bytes) => asciiAt(bytes, 0, bytes.length).includes("%PDF-"),
+  "application/pdf": startsWithPdfHeader,
   "image/jpeg": (bytes) => startsWithBytes(bytes, [0xff, 0xd8, 0xff]),
   "image/png": (bytes) => startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   "image/gif": (bytes) => ["GIF87a", "GIF89a"].includes(asciiAt(bytes, 0, 6)),

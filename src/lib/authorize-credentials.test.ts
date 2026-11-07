@@ -139,6 +139,17 @@ describe("authorizeCredentials — password step", () => {
     expect(mocks.checkThrottle).toHaveBeenCalled();
   });
 
+  it("measures the password cap in characters, so emoji the password rules allow still sign in", async () => {
+    mocks.selectWhere.mockResolvedValue([]);
+    await authorizeCredentials({ username: "alice", password: "😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH) }, request());
+    expect(mocks.checkThrottle).toHaveBeenCalledTimes(1);
+
+    await expect(
+      authorizeCredentials({ username: "alice", password: "😀".repeat(SIGN_IN_PASSWORD_MAX_LENGTH + 1) }, request())
+    ).resolves.toBeNull();
+    expect(mocks.checkThrottle).toHaveBeenCalledTimes(1);
+  });
+
   it("records a failure on a wrong password", async () => {
     mocks.compare.mockResolvedValue(false);
     await expect(authorizeCredentials({ username: "alice", password: "bad" }, request())).resolves.toBeNull();
