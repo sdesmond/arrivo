@@ -68,6 +68,20 @@ describe("assertWithinRateLimit", () => {
   });
 });
 
+describe("avatarUpload bucket", () => {
+  it("allows a burst of retries but stops a flood of image decodes", () => {
+    const { max, windowMs } = RATE_LIMITS.avatarUpload;
+    expect(max).toBeGreaterThanOrEqual(5);
+    expect(max).toBeLessThanOrEqual(20);
+    for (let call = 0; call < max; call += 1) {
+      expect(checkRateLimit("avatarUpload", "user-1", RATE_LIMITS.avatarUpload)).toEqual({ limited: false });
+    }
+    expect(checkRateLimit("avatarUpload", "user-1", RATE_LIMITS.avatarUpload)).toMatchObject({ limited: true });
+    vi.advanceTimersByTime(windowMs);
+    expect(checkRateLimit("avatarUpload", "user-1", RATE_LIMITS.avatarUpload)).toEqual({ limited: false });
+  });
+});
+
 describe("rateLimitedResponse", () => {
   it("returns null under the limit and a 429 with Retry-After over it", () => {
     for (let call = 0; call < RATE_LIMITS.mapboxStatic.max; call += 1) {
