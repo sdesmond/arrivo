@@ -1,6 +1,7 @@
 import "server-only";
 
-// Per-user request budgets for the routes and actions that spend the server's Mapbox/Unsplash quota. Counts live in
+// Per-user request budgets for the routes and actions that spend the server's Mapbox/Unsplash quota or its CPU
+// (avatar image decoding). Counts live in
 // process memory (fixed windows), so each server instance enforces its own budget: enough to stop one signed-in
 // account draining a shared API key, with no table to maintain. Real clock on purpose: the dev date picker must not
 // move a window.
@@ -16,6 +17,8 @@ export const RATE_LIMITS = {
   mapboxStatic: { max: 120, windowMs: 60_000 },
   mapboxRouting: { max: 120, windowMs: 60_000 },
   unsplashSearch: { max: 30, windowMs: 60_000 },
+  // Each upload decodes an image of up to 25 megapixels, so this stops a flood of decodes, not a few retries.
+  avatarUpload: { max: 10, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitPolicy>;
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS;

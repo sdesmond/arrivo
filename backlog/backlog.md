@@ -18,10 +18,6 @@ use proper breadcrumbs as shown at https://ui.shadcn.com/docs/components/base/br
 
 We need a way to move events across days. Currently shortening a trip can leave events in a unscheduled bucket but there is no way to get them out into a scheduled day.
 
-### Add Zod
-
-Is it worth adding Zod for validation?
-
 ## Tooling
 
 ### Smarter affected-E2E selection

@@ -1236,6 +1236,7 @@ describe("getUserById", () => {
     id: "user-1",
     name: "Ada",
     username: "ada",
+    image: "/api/storage/user-avatars/user-1/ada.webp" as string | null,
     dateFormat: "MDY",
     currency: "USD",
     distanceUnit: "mi",
@@ -1274,6 +1275,16 @@ describe("getUserById", () => {
     const user = await getUserById("user-1");
     expect(user?.passportNumber).toBe("LEGACY99");
     expect(user?.knownTravelerNumber).toBeNull();
+  });
+
+  it("selects the profile photo and returns it, or null when there is none", async () => {
+    mockUserRow(userRow);
+    const withPhoto = await getUserById("user-1");
+    expect(mockDbSelect.mock.calls[0][0]).toMatchObject({ image: "users.image" });
+    expect(withPhoto?.image).toBe("/api/storage/user-avatars/user-1/ada.webp");
+
+    mockUserRow({ ...userRow, image: null });
+    expect((await getUserById("user-1"))?.image).toBeNull();
   });
 
   it("returns null for an unknown user", async () => {
