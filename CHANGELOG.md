@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-06
+
+### Upgrading
+
+- A database migration (`0013`) runs on start. It widens the check on the admin "Maximum length" password setting
+  from 15–20 to 15–30; no data changes and no action is needed.
+- If a reverse proxy or other gateway already sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `Permissions-Policy` or `Strict-Transport-Security`, responses now carry Arrivo's copy too. Remove the duplicates
+  from the proxy, or let it overwrite them. Anything that embeds Arrivo in a frame on another origin stops working.
+
+### Changed
+
+- Deleting your own account asks for your current password.
+- Admins can set the password **Maximum length** up to 30 (was 20). The default stays 20. Sign-in and the
+  delete-account dialog accept passwords up to 30 characters, counted in characters like the password rules.
+- Input limits are stricter. A trip name is required and holds up to 100 characters, notes up to 5,000, and other
+  fields have caps to match; expense amounts top out at 50,000. Text already saved beyond a cap is still shown, but
+  has to be shortened before you can edit it. Impossible dates and out-of-range coordinates are refused.
+- Uploads are checked against their contents. A document or cover must really be the file type it claims (PDF, JPG,
+  PNG, GIF, WEBP, HEIC or AVIF), and a PDF must start with its header, so files renamed to look like a PDF are
+  refused.
+- Cover image URLs must be http(s), a built-in graphic or a file uploaded to the same trip.
+- Buttons keep their label while saving and show a spinner, instead of swapping the text. Save stays disabled on
+  existing records until you change something.
+- One "Copied to clipboard" message confirms every copy. Messages are gone where the result is already visible: role
+  changes, leaving a trip, changing currency, deleting an account, sending or answering invitations, and the "items
+  added" banner after pulling packing templates (skipped duplicates are still reported).
+
+### Fixed
+
+- Profile photo uploads are limited to 10 a minute per person, and overlapping uploads no longer leave an unused file
+  behind in storage.
+- A malformed trip link now shows "not found" instead of an error page.
+
+### Security
+
+- Closed a path-traversal hole that could delete files outside the storage folder through a crafted stored URL.
+- Closed mass-assignment holes: a crafted request can no longer write role, two-factor or password fields through a
+  profile update, or move itinerary items to another trip.
+- Documents, expenses, reservations and packing template items can no longer be linked across trips or templates.
+- The static map route requires sign-in. Map, place search, cover search and routing requests have per-person
+  limits (120 a minute, 30 for Unsplash), and routing accepts at most 100 events.
+- Added baseline security headers on every page: `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`,
+  `frame-ancestors 'self'`, `Referrer-Policy`, `Permissions-Policy` and HSTS (6 months). Browsers ignore HSTS over
+  plain HTTP.
+
 ## [0.8.0] - 2026-11-05
 
 ### Added
@@ -199,7 +245,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/sdesmond/arrivo/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/sdesmond/arrivo/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/sdesmond/arrivo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/sdesmond/arrivo/compare/v0.6.1...v0.6.2
