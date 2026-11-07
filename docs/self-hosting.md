@@ -86,6 +86,10 @@ arrivo.example.com {
 If the proxy runs on the same host, change the port line to `"127.0.0.1:4850:4850"` so the app
 isn't reachable around it.
 
+Arrivo sends `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` and
+`Strict-Transport-Security` on every response, so another site can't frame it. If your proxy sets the same headers,
+remove them there or have the proxy overwrite them, or clients receive each twice. Browsers ignore HSTS over plain HTTP.
+
 Set the address users open (the public reverse-proxy address when applicable) under `app.environment` in your Compose file:
 
 ```yaml

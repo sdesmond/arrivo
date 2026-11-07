@@ -43,11 +43,11 @@ Setup and reset links use the address in `NEXTAUTH_URL`, so set that to the addr
 
 These rules apply to new passwords. They apply wherever someone chooses a password: first-run setup, account setup, password reset, admin recovery and **Account** in a profile. Sign-in is never checked against them, so existing passwords keep working when you change the rules.
 
-- **Minimum length** is 8 to 16 and **Maximum length** is 15 to 20, counted in characters. The minimum can't be above the maximum.
+- **Minimum length** is 8 to 16 and **Maximum length** is 15 to 30, counted in characters. The minimum can't be above the maximum.
 - **Minimum uppercase letters**, **Minimum numbers** and **Minimum special characters** each take a count from 0 to 20. 0 means not required, and those characters are still allowed. The three counts together can't exceed the maximum length.
 - Lowercase letters and spaces are always allowed. Passwords can't be longer than 72 bytes, so very long passwords of non-English characters or emoji may be refused.
 
-New installs and upgrades start at 8 to 20 characters with nothing required. Each form shows the current rules as a checklist while someone types. If another admin changes the rules while you're editing, your save is refused and the form fills in the saved values so you can review them and save again.
+New installs and upgrades start at 8 to 20 characters with nothing required. Sign-in accepts passwords up to 30 characters, the most the rules can allow. Each form shows the current rules as a checklist while someone types. If another admin changes the rules while you're editing, your save is refused and the form fills in the saved values so you can review them and save again.
 
 ### Requiring two-factor authentication
 
