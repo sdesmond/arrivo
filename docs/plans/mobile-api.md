@@ -1,305 +1,316 @@
-# Mobile API plan (`/api/v1`)
+# API plan (`/api/v1`): web first, mobile later
 
-Status: proposal. Each phase below becomes one or more `bmad-build` stories, and each story goes through
-`/plan-reviewer` before implementation.
+Status: proposal. Each phase becomes one or more `bmad-build` stories; each story goes through `/plan-reviewer` before
+implementation.
 
-## Why
+## Direction
 
-A native client (Expo, Capacitor, or anything else) can't use the web app's data paths:
+Build a versioned JSON API and move the web app's mutations and client-side reads onto it. The mobile app comes later
+and consumes the same API. Designing the endpoints for both now (see "Mobile-ready from day one") avoids reshaping
+contracts after the web depends on them.
 
-- Writes go through 119 server actions in 15 `actions.ts` files. Their wire IDs change every build, they redirect on
-  auth failure, and they need Next's router.
-- Reads happen in Server Components (`page.tsx` → `src/lib/queries.ts`).
-- Auth is an Auth.js JWT cookie; `requireUser()` redirects to `/sign-in` and `src/proxy.ts` redirects every
-  unauthenticated non-public path.
+Today:
 
-The API must not fork business rules. Today those rules live inline in the actions (`createEvent` holds the trip lock,
-position shifting, activity, live-sync publish, revalidation), so the main work is moving them somewhere both paths
-can call.
+- Writes go through 119 server actions in 15 `actions.ts` files.
+- 62 production modules import actions, and 74 test files mock them.
+- 24 E2E step files contain 100 `waitForServerActionResponse` calls.
+- Reads happen in Server Components (`page.tsx` → `src/lib/queries.ts`), plus a few client lookups that are already
+  route handlers (`src/lib/route-client.ts` moved routing off server actions because their one-at-a-time queue
+  overwrote the URL after navigations).
 
-## Goals and non-goals
+## Scope
 
-Goals:
+In scope: every server action except the auth boundary, so about 111 operations. They collapse into fewer REST
+resources.
 
-- One versioned JSON API under `/api/v1` that covers what a phone needs: sign-in, trip list, a full trip snapshot
-  for offline use, documents, live updates, and the writes a traveller makes on the go.
-- Same authorization, validation, activity log and live sync as the web, by construction.
-- Offline-friendly writes: safe to replay after days offline.
-- Revocable per-device sessions that show up beside browsers in Profile → Security.
-- No new containers, secrets or Postgres settings: self-hosting stays "two containers, no `.env`".
+The auth boundary stays on server actions + Auth.js: `signInAction`, `verifyMfaAction`, `setupAdminAction`,
+`signOutAction`, `completeAdminRecoveryAction`, `completePasswordResetAction`, `completeAccountSetupAction`,
+`signOutAndContinueSetupAction`. Why:
 
-Non-goals for v1:
+- They run before a session exists, set Auth.js cookies and redirect.
+- They're the only `useActionState`/`<form action>` users (`auth-forms.tsx`, `mfa-code-form.tsx`,
+  `account-setup-dialog.tsx`, `account-reset/form.tsx`, `account-recovery/form.tsx`, and the rest), so they keep
+  working without JavaScript.
+- The phone gets its own token endpoints later, not these.
 
-- Moving the web UI onto the API. Server actions stay; both call the same services.
-- Admin, overview, security policy, user management, account setup/reset/recovery, MFA enrollment, sharing
-  management, packing templates, profile editing, cover images. These stay web-only; the API returns a web URL
-  where the app needs to send someone.
-- Third-party API keys and a public developer API. (Personal access tokens are a cheap follow-on; see phase 4.)
-- Incremental delta sync. v1 refetches whole trip snapshots with an ETag (see "Sync").
+Out of scope: changing how pages read data. Next.js 16's guide says to fetch in Server Components from the source,
+not through Route Handlers (`node_modules/next/dist/docs/01-app/02-guides/backend-for-frontend.md`, "Server
+Components"). The extra HTTP round trip is slower, and it fails at build time. So `page.tsx` calls the same
+service/query functions the API handlers call. One code path, two entry points.
 
 ## Architecture
 
 ### 1. Service layer
 
-New modules under `src/lib/services/` (e.g. `trip-read.ts`, `checklists.ts`, `packing.ts`, `notes.ts`,
-`events.ts`, `reservations.ts`, `expenses.ts`, `documents.ts`, `invitations.ts`). Each function:
+`src/lib/services/<domain>.ts` holds what the actions hold today (validation, access check, transaction, side
+effects). Signature:
 
 ```ts
-export async function createEvent(actor: Actor, dayId: string, rawInput: unknown): Promise<TripEvent>;
+export async function createChecklistItem(actor: Actor, checklistId: string, input: unknown): Promise<ChecklistItem>;
 ```
 
-- Takes an `Actor` (`{ userId }`), never reads cookies or headers.
-- Validates with the existing zod schemas in `src/lib/validation-schemas.ts` (one source for web and API).
-- Checks access with a throwing variant, `requireTripRole(tripId, userId, minRole)`, which throws
-  `TripAccessDeniedError` instead of calling `notFound()`.
-- Runs the transaction (trip lock, positions) and then one shared `afterTripWrite(actor, tripId, kind)`: activity
-  (`recordTripUpdated`), live sync (`publishItineraryChanged` and friends), and `revalidatePath`. Phone edits then
-  appear live on the web and in Activity.
-- Returns the mapped row (through `src/lib/db-mappers.ts`), so the API can echo it.
+- `Actor` is `{ userId }`. Services never read cookies, headers or `next/navigation`.
+- Input is validated with the existing zod schemas in `src/lib/validation-schemas.ts`.
+- `requireTripRole(tripId, userId, minRole)` throws typed errors (see "Status codes") instead of calling
+  `notFound()`.
+- `afterTripWrite(actor, tripId)` does activity (`recordTripUpdated`), live sync (`publishItineraryChanged` and
+  friends) and `revalidatePath`. All three work in route handlers.
+- Returns rows mapped through `src/lib/db-mappers.ts`.
+- Existing locking (`lockTripForUpdate`, the advisory-lock batching ADR) moves in unchanged.
 
-Server actions become thin adapters: `requireUser()` → service → map `TripAccessDeniedError` to `notFound()`. The
-AGENTS.md rule (actions call `requireUser` and check trip access before any read or write) still holds at the action
-edge. API handlers map the same error to a 404 JSON body.
+Read services (`getTripDetail`, `listTripsForUser`, and the rest from `queries.ts`) serve both `page.tsx` and
+`GET` endpoints.
 
-Extraction is incremental and only for what the API needs. Existing web unit tests and E2E features must stay green
-at every step: they are the regression net for the refactor.
+### 2. Contract shared by server and client
 
-`getTripDetail` in `src/lib/queries.ts` already returns the full `TripDetailPayload` (days, events, docs, packing,
-reservations, expenses, notes, collaborators, access role). It becomes the trip snapshot as-is.
+The repo already leans on zod and small hand-written helpers, so define endpoints once in a client-safe module and
+use them on both sides:
 
-### 2. Route handlers and shared helpers
+```ts
+// src/lib/api/contract/checklists.ts (no server-only imports)
+export const createChecklistItem = defineEndpoint<ChecklistItem>()({
+  method: "POST",
+  path: "/api/v1/checklists/:checklistId/items",
+  params: z.object({ checklistId: z.uuid() }),
+  body: z.object({ id: z.uuid().optional(), content: checklistItemContentSchema }),
+});
 
-`src/app/api/v1/**/route.ts`, each wrapped in one helper, `apiRoute(options, handler)` in `src/lib/api/route.ts`, that:
+// src/app/api/v1/checklists/[checklistId]/items/route.ts
+export const POST = apiRoute(createChecklistItem, ({ actor, params, body }) =>
+  checklists.createChecklistItem(actor, params.checklistId, body)
+);
 
-- authenticates (`requireApiUser(request)` → bearer token, 401 JSON on failure; never redirects);
-- applies the `api` rate-limit bucket per session (`src/lib/rate-limit.ts`);
-- parses JSON with a size cap;
-- applies idempotency for mutations (see below);
-- maps errors to the envelope below and sets `Cache-Control: no-store`.
+// client component
+const item = await api(createChecklistItem, { params: { checklistId }, body: { content } });
+```
 
-A unit test walks `src/app/api/v1/**/route.ts` and fails if any exported handler isn't built with `apiRoute`
-(unless it's on an explicit public list: `meta`, `auth/token`, `auth/token/mfa`). That matters because:
+Response types come from `src/data/types.ts`, so there's no second set of domain types. Runtime response schemas
+(needed for OpenAPI) are deferred to the mobile phase.
 
-- `/api/v1` is added to `PUBLIC_PATHS` in `src/proxy.ts`. The proxy only knows cookies and would redirect a bearer
-  request to `/sign-in`, so authentication happens in the handler, and the test guarantees every handler does it.
+Alternative: oRPC. It's contract-first with zod, has a Next adapter and an OpenAPI generator, and integrates with
+TanStack Query. It saves writing `defineEndpoint`/`apiRoute`/`api` (a few hundred lines) and gets OpenAPI early. The
+cost is a framework dependency and its conventions over the repo's. Decide in phase 0; the rest of this plan holds
+either way.
 
-No CORS headers: native clients don't need them, and leaving them off keeps browsers from calling the API
-cross-origin with a token.
+### 3. Route handler wrapper
 
-### 3. Authentication
+`apiRoute(endpoint, handler)` in `src/lib/api/route.ts`:
 
-Opaque, per-device bearer tokens, stored hashed. No JWT and no refresh token.
+- authenticates (`requireApiUser(request)`, which returns 401 JSON and never redirects);
+- applies the CSRF check (below) to cookie-authenticated mutations;
+- parses and validates params, query and body against the contract, returning 422 with field errors;
+- applies a generous per-user `api` rate-limit bucket;
+- applies idempotency when an `Idempotency-Key` header is present;
+- maps typed errors to the envelope, and sets `Cache-Control: no-store`.
 
-Why opaque rather than JWT: web sessions already hit the database on every `auth()` call
-(`getSessionState`) to support "sign out everywhere" and "remove this browser". A hashed token lookup costs the same
-query, revokes instantly, and needs no extra secret or rotation story.
+`/api/v1` goes into `PUBLIC_PATHS` in `src/proxy.ts`. Otherwise an expired session gets an HTML redirect instead of a 401. Handlers authenticate instead, enforced by a unit test that walks `src/app/api/v1/**/route.ts` and fails if any
+exported handler isn't built with `apiRoute`. Only a short explicit list is exempt (`meta`, and later the mobile token
+endpoints).
 
-Schema (one migration): `api_sessions`
+### 4. Web authentication and CSRF
 
-| column                                     | notes                                                                                           |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `id` uuid pk                               |                                                                                                 |
-| `user_id` uuid → users cascade             |                                                                                                 |
-| `device_id` uuid → trusted_devices cascade | removing the device in Profile → Security deletes the session                                   |
-| `token_hash` text unique                   | SHA-256 of a 32-byte random token                                                               |
-| `label` text                               | "Arrivo for iOS · Sam's iPhone"                                                                 |
-| `session_version` int                      | must equal `users.session_version`, so "sign out everywhere" and password/MFA changes revoke it |
-| `created_at`, `last_used_at`, `expires_at` | sliding expiry (proposal: 90 days idle); `last_used_at` written at most once an hour            |
+The web uses the existing Auth.js session cookie on `/api/v1`. No new tables are needed in the web phases.
 
-Flow:
+Server actions check the request origin for us; route handlers don't. SameSite=Lax alone isn't enough here, because a
+self-hosted box often runs other apps on other ports of the same host, and ports don't change the "site". So every
+cookie-authenticated `POST/PUT/PATCH/DELETE`:
 
-1. `POST /api/v1/auth/token` `{ username, password, deviceName, deviceToken? }`
-   - Runs the same gate as the web: `authorizeCredentials` (throttle, lockout, dummy-hash timing, MFA ticket). The
-     web-only cookie parts are factored out: the device token arrives in the body and is returned in the response
-     instead of being set as `arrivo_device`.
-   - Returns `200 { token, expiresAt, user, deviceToken }`, `401 invalid_credentials`,
-     `401 mfa_required { ticket }`, `429 locked_out` with `Retry-After`, or
-     `403 mfa_enrollment_required { url }` (enrollment stays on the web in v1).
-2. `POST /api/v1/auth/token/mfa` `{ ticket, code, remember }` → same responses as step 1, minus `mfa_required`.
-3. `DELETE /api/v1/auth/token` signs this device out (deletes the row).
-4. Profile → Security lists API sessions beside browsers, labelled as apps, with "Sign out".
+- must send `Content-Type: application/json` or `multipart/form-data` with an `X-Arrivo-Client: web` header. The
+  custom header forces a CORS preflight cross-origin, and we never answer preflights;
+- must have `Sec-Fetch-Site: same-origin`, or, when that header is absent, an `Origin` matching the request host. The
+  check reuses the logic in `src/lib/request-origin.ts` and respects reverse-proxy forwarding.
 
-The app keeps the token in the OS keychain (`expo-secure-store` or equivalent) and the device token alongside it, so
-MFA "remember this device" and the per-device failure budget work as they do in browsers.
+No CORS headers are ever sent.
 
-Bearer-only in v1. Accepting the cookie on `/api/v1` mutations would need CSRF/origin checks that server actions get
-for free; not worth it until the web itself uses the API.
+### 5. Client mutation pattern
 
-### 4. Conventions
+Server actions return the mutation result and the refreshed page data in one round trip. Route handlers can't:
+`refresh()` from `next/cache` is server-action-only. So the client does it:
 
-- **Versioning:** path-versioned (`/api/v1`). Changes inside v1 are additive only.
-  `GET /api/v1/meta` (public) returns `{ apiVersion, serverVersion, capabilities: string[], minClientVersion? }`.
-  Self-hosted servers lag the app, so the app gates features on `capabilities`, not on version numbers.
-- **Shapes:** domain types from `src/data/types.ts`, produced by `db-mappers.ts`. ISO 8601 dates, minutes for
-  durations, money as numbers (the mappers already parse Postgres numeric strings). Writes use the zod schemas the
-  actions use.
-- **Errors:** `{ "error": { "code": "...", "message": "...", "fields"?: { name: [messages] } } }`
+```ts
+startTransition(async () => {
+  addOptimistic(change);
+  await api(endpoint, input);
+  router.refresh();
+});
+```
 
-  | status | code                                                                               |
-  | ------ | ---------------------------------------------------------------------------------- |
-  | 400    | `bad_request` (malformed JSON, wrong shape)                                        |
-  | 401    | `unauthenticated`, `invalid_credentials`, `mfa_required`                           |
-  | 403    | `mfa_enrollment_required`                                                          |
-  | 404    | `not_found` (also returned when access is denied, matching the web's `notFound()`) |
-  | 409    | `conflict` (structural: e.g. the target day was removed)                           |
-  | 413    | `payload_too_large`                                                                |
-  | 422    | `validation_failed` with `fields`                                                  |
-  | 429    | `rate_limited`, `locked_out` (+ `Retry-After`)                                     |
-  | 500    | `server_error` (no internals in `message`)                                         |
+wrapped in a `useApiMutation` hook (`src/lib/api/use-api-mutation.ts`) that also:
 
-- **Replay-safe writes** (needed because the app queues writes offline and retries):
-  - Creates accept a client-generated UUID `id`. Retrying the same create is a no-op that returns the row. This also
-    lets the app reference the new row offline before it syncs.
-  - Updates are `PATCH` with partial bodies: only fields present change. (Today `updateEvent` nulls any field not
-    sent; the service supports partial patches and the action keeps sending full objects.)
-  - Replace toggles with absolute values: the API sets `isChecked: true`, never "toggle". (Today `toggleChecklistItem`
-    and `togglePackingItem` flip the current value, which goes wrong when a request is replayed.)
-  - Deletes of a missing row return `204`, not `404`.
-  - Order changes send the full ordered ID list (`PUT /days/:dayId/order { itemIds }`), so the last write wins
-    cleanly.
-  - `Idempotency-Key` header on every mutation, stored with the response in `idempotency_keys` (already exists and
-    is used by packing). Generalised into `withIdempotency()` in `src/lib/api/idempotency.ts`; window raised from
-    24 hours to 14 days for API keys, since a phone can be offline for a whole trip.
-- **Conflicts:** last write wins per field for v1, and the response always returns the stored row so the app can
-  reconcile. No optimistic-concurrency tokens yet; add `If-Match` later if real conflicts show up.
-- **Rate limits:** new `api` bucket (per session) in `RATE_LIMITS`. Auth endpoints use the existing auth throttle.
-  Mapbox proxies keep their own buckets.
+- maps `ApiError` codes to toasts or field errors;
+- sends 401 to `/sign-in` and `mfa_enrollment_required` to `/mfa-enrollment`.
 
-### 5. Sync
+Risks the pilot slice must settle, with E2E coverage:
 
-v1 uses snapshots, not deltas:
+- **Optimistic flicker.** The optimistic state must hold until the refreshed data lands, with no snap back between
+  the response and the refresh.
+- **Request ordering.** Server actions are queued one at a time; `fetch` isn't. Order-sensitive operations (reorder,
+  rapid toggles) need per-resource serialization in the client (a small keyed queue in the hook). Everything else
+  gets real concurrency, which fixes the queue problems `route-client.ts` worked around.
+- **Cost.** Two round trips instead of one per mutation. Acceptable on a LAN; live sync already triggers refreshes
+  for other viewers.
 
-- `GET /api/v1/trips/:tripId` returns `TripDetailPayload` with `ETag` = hash of the serialized payload. The app sends
-  `If-None-Match`; unchanged trips cost one query set and a `304`, with no payload transfer.
-- After replaying its queued writes, the app refetches the affected trips.
-- Live updates: `GET /api/v1/trips/:tripId/stream` and `GET /api/v1/me/stream` reuse
-  `createLiveSyncResponse` (SSE) with bearer auth. A change event means "refetch", which the ETag makes cheap. The
-  app can also just refetch when it comes to the foreground.
-- Files: `GET /api/v1/files/*key` serves storage objects with the same access rules as `/api/storage` (logic
-  extracted into `src/lib/storage/`), plus `ETag` and `Cache-Control: private`, so the app can keep documents on
-  the device.
+### 6. Status codes
 
-Why not deltas yet: a trip snapshot is a few hundred rows. Deltas need `updated_at` on every synced table (only 8
-tables have it today), tombstones for deletes (none exist, and 32 foreign keys cascade, so removing a day silently
-deletes its events), and a commit-ordered cursor. Phase 4 covers that if measured payloads justify it.
+Access errors split by whether the caller may know the resource exists:
 
-## Endpoints
+| situation                                              | status | code                                          |
+| ------------------------------------------------------ | ------ | --------------------------------------------- |
+| not signed in / session revoked                        | 401    | `unauthenticated`                             |
+| MFA enrollment pending                                 | 403    | `mfa_enrollment_required`                     |
+| not a member of the trip (or trip/row doesn't exist)   | 404    | `not_found`                                   |
+| member, role too low (viewer writing, editor managing) | 403    | `forbidden` + `requiredRole`                  |
+| signed in, not an app admin, on an admin endpoint      | 403    | `forbidden`                                   |
+| malformed JSON or wrong shape                          | 400    | `bad_request`                                 |
+| failed validation                                      | 422    | `validation_failed` + `fields`                |
+| structural conflict (target day removed mid-edit)      | 409    | `conflict`                                    |
+| upload too big                                         | 413    | `payload_too_large`                           |
+| rate limited / locked out                              | 429    | `rate_limited` / `locked_out` + `Retry-After` |
+| anything else                                          | 500    | `server_error` (no internals)                 |
 
-Phase 1: read-only foundation
+Envelope: `{ "error": { "code", "message", "fields"?, "requiredRole"? } }`.
 
-| method | path                    | backs onto                                       |
-| ------ | ----------------------- | ------------------------------------------------ |
-| GET    | `/meta`                 | version + capabilities (public)                  |
-| POST   | `/auth/token`           | `authorizeCredentials` (public)                  |
-| POST   | `/auth/token/mfa`       | second-factor path (public)                      |
-| DELETE | `/auth/token`           | delete this API session                          |
-| GET    | `/me`                   | profile, app role, MFA state                     |
-| GET    | `/me/stream`            | user live-sync channel (invitations, revocation) |
-| GET    | `/trips`                | `listTripsForUser(userId, getNow())`             |
-| GET    | `/trips/:tripId`        | `getTripDetail` + ETag                           |
-| GET    | `/trips/:tripId/stream` | trip live-sync channel                           |
-| GET    | `/files/*key`           | storage read with trip access check              |
+The web's `notFound()`-for-everything rule exists so a stranger can't probe which trip IDs exist. A viewer already
+knows the trip exists, so hiding it buys nothing, and a 403 lets the UI say "You have view access only".
+`requireTripRole` already has the role in hand, so it throws `TripNotFoundError` (no membership) or
+`TripForbiddenError` (membership, role too low). Pages keep calling `notFound()` for both.
 
-Phase 2: offline-safe writes (what a traveller does with no signal)
+### 7. Mobile-ready from day one
 
-| method            | path                                                 |
-| ----------------- | ---------------------------------------------------- |
-| POST/PATCH/DELETE | `/trips/:tripId/checklists`, `/checklists/:id`       |
-| POST/PATCH/DELETE | `/checklists/:id/items`, `/checklist-items/:id`      |
-| POST/PATCH/DELETE | `/trips/:tripId/packing-items`, `/packing-items/:id` |
-| POST/PATCH/DELETE | `/trips/:tripId/notes`, `/notes/:id` (trip notes)    |
-| POST/PATCH/DELETE | `/events/:eventId/notes`, `/event-notes/:id`         |
-| POST/PATCH/DELETE | `/days/:dayId/events`, `/events/:id`                 |
-| PUT               | `/days/:dayId/order`                                 |
+These rules cost little now and avoid breaking contracts later:
 
-Phase 3: remaining mobile writes
+- **Versioned paths:** `/api/v1`. Changes inside v1 are additive only.
+- **Client-generated UUIDs** accepted on creates. A retried create returns the existing row, and an offline phone can
+  reference a row before it syncs.
+- **Partial `PATCH`:** only the fields sent change. Today `updateEvent` nulls any field not sent.
+- **Absolute values, not toggles:** `{ isChecked: true }`. Today `toggleChecklistItem` and `togglePackingItem` flip
+  the stored value, which goes wrong if a request is replayed.
+- **Deletes are idempotent:** deleting a missing row returns `204`.
+- **Order changes send the full ordered ID list:** `PUT .../order { itemIds }`.
+- **`Idempotency-Key` header** supported on every mutation. `withIdempotency()` generalises the existing
+  `idempotency_keys` usage in `packing-actions.ts`, and the window becomes configurable so the mobile phase can
+  lengthen it.
+- **Trip snapshot with an `ETag`:** `GET /api/v1/trips/:tripId` returns `TripDetailPayload` (from `getTripDetail`),
+  with `ETag` set to a hash of the serialized payload.
 
-| method                        | path                                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
-| POST/PATCH/DELETE             | `/trips/:tripId/reservations`, `/reservations/:id`                                                    |
-| POST/PATCH/DELETE             | `/trips/:tripId/expenses`, `/expenses/:id`                                                            |
-| POST (multipart)/PATCH/DELETE | `/trips/:tripId/documents`, `/events/:id/documents`, `/documents/:id` (rules from `upload-policy.ts`) |
-| GET/POST                      | `/me/invitations`, `/invitations/:id/accept`, `/invitations/:id/decline`                              |
-| POST/PATCH                    | `/trips`, `/trips/:tripId` (create, edit details)                                                     |
-| PATCH                         | `/days/:dayId`                                                                                        |
-| POST                          | `/locations/search`, `/locations/retrieve` (Mapbox proxy, rate-limited)                               |
-| POST                          | `/trips/:tripId/routing/{distance,day-summary,conflicts}` (wrap existing handlers)                    |
+## Endpoint inventory (by slice)
 
-## Phases and stories
+Resource-style; the exact paths get settled in each slice's story.
 
-**Phase 0: decisions.** Record ADRs in `docs/decisions/`:
+| slice                  | replaces (actions file)                                              | main resources                                                                                                               |
+| ---------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Pilot: trip checklists | `trips/[tripId]/actions.ts` (8 checklist actions)                    | `/trips/:id/checklists`, `/checklists/:id`, `/checklists/:id/items`, `/checklist-items/:id`                                  |
+| Trip notes             | trip + event note actions (7)                                        | `/trips/:id/notes`, `/notes/:id`, `/trips/:id/notes/order`, `/events/:id/note`                                               |
+| Itinerary              | events, days, reorder (10)                                           | `/days/:id/events`, `/events/:id`, `/days/:id/order`, `/trips/:id/days`, `/days/:id`                                         |
+| Documents & covers     | upload/add/rename/remove/attach/promote, covers (9)                  | `/trips/:id/documents` (multipart), `/events/:id/documents`, `/documents/:id`, `/trips/:id/cover`                            |
+| Sharing                | share dialog, invitations, contributors, leave (14 across two files) | `/trips/:id/collaborators`, `/trips/:id/invitations`, `/invitations/:id/{accept,decline,resend,dismiss}`, `/users/invitable` |
+| Trips & packing        | `trips/actions.ts` trip + packing items (≈13), `packing-actions.ts`  | `/trips`, `/trips/:id`, `/trips/:id/packing-items`, `/packing-items/:id`, `/trips/:id/packing/order`                         |
+| Packing templates      | `packing/actions.ts`, `packing/[templateId]/actions.ts` (8)          | `/packing-templates`, `/packing-templates/:id/items`, ...                                                                    |
+| Reservations & budget  | `reservations/actions.ts`, `budget/actions.ts` (7)                   | `/trips/:id/reservations`, `/reservations/:id`, `/trips/:id/expenses`, `/expenses/:id`, `/trips/:id/expenses/recalculate`    |
+| Locations & routing    | location search actions (3), existing routing handlers               | `/locations/search`, `/locations/retrieve`, `/trips/:id/routing/*` (move under v1)                                           |
+| Profile                | `profile/actions.ts` (10)                                            | `/me`, `/me/password`, `/me/loyalty-numbers`, `/me/wishlist`, `/me/companions`, `DELETE /me`                                 |
+| Admin                  | `admin/*/actions.ts` (26)                                            | `/admin/users...`, `/admin/security/...`, `/admin/activity...`, `GET /admin/overview/:metric`                                |
 
-- opaque per-device API tokens over JWT;
-- service layer with throwing access checks, mapped to `notFound()` at the action edge;
-- snapshot + ETag sync for v1;
-- replay-safe write rules (client UUIDs, partial PATCH, absolute values, idempotency window).
+The admin overview `refresh*` actions are reads. They become `GET` endpoints, superseding
+`docs/decisions/adr-overview-metrics-refresh-through-per-metric-server-actions-without-persistence.md`.
 
-**Phase 1: foundation (read-only API).** Suggested stories:
+## Phases
 
-1. Service-layer pattern + `requireTripRole` / `TripAccessDeniedError` + `afterTripWrite`, proven on one action pair
-   (checklist items), with no behaviour change on the web.
-2. `src/lib/api/*`: `apiRoute`, error envelope, `requireApiUser`, `api` rate-limit bucket, the "every v1 handler uses
-   `apiRoute`" test, `/api/v1` in `PUBLIC_PATHS`, `GET /meta`.
-3. `api_sessions` migration; cookie-free refactor of `authorizeCredentials`'s device handling; token, MFA and
-   sign-out endpoints; Profile → Security lists and revokes app sessions.
-4. Read endpoints: `/me`, `/trips`, `/trips/:id` (ETag), `/files/*key`, the two SSE streams.
+**Phase 0: decisions (ADRs in `docs/decisions/`)**
 
-Exit: a scripted client can sign in (with MFA), list trips, download a trip and its documents, and see revocation
-from the web take effect immediately.
+- Web mutations go through `/api/v1`; pages keep reading via services.
+- The auth boundary stays on server actions.
+- The 404/403 split.
+- Cookie auth with the CSRF rules above.
+- Contract approach: hand-rolled or oRPC.
+- The client mutation pattern (refresh, ordering).
+- Supersede the overview-metrics ADR.
 
-**Phase 2: offline-safe writes.** One story per domain (checklists, packing, notes, events + order), each moving the
-action body into a service, adding the endpoints, and adopting client UUIDs, partial PATCH, absolute values and
-idempotency.
+**Phase 1: foundation + pilot (trip checklists).** Stories:
 
-**Phase 3: remaining mobile writes.** Reservations, expenses, documents, invitations, trip create/edit, location
-search, routing.
+1. Services: `requireTripRole` with the two error types, `afterTripWrite`, and the checklist service extracted while
+   the existing actions delegate to it. No behaviour change.
+2. API plumbing:
+   - `defineEndpoint`, `apiRoute`, `requireApiUser`, the error envelope, CSRF check, `api` rate-limit bucket and
+     `withIdempotency`;
+   - `/api/v1` in `PUBLIC_PATHS`, the "every handler uses `apiRoute`" test, and `GET /api/v1/meta`.
+3. Client plumbing: `api()` and `useApiMutation` (refresh, error mapping, keyed ordering queue), plus the E2E helper
+   `waitForApiResponse(page, { method, path })`. It's more precise than `waitForServerActionResponse`, because every
+   endpoint has its own URL.
+4. Checklist endpoints; switch checklist components to them; switch their unit tests to mock `@/lib/api/client`;
+   switch the checklist E2E steps; delete the checklist actions.
 
-**Phase 4: optional, driven by evidence.**
+Exit: checklists run entirely on `/api/v1`, flicker and ordering are proven by E2E, and every other feature is
+unchanged.
 
-- Delta sync: per-trip revision counter bumped under the trip lock, `updated_at` everywhere, trigger-written
-  tombstones (so cascades are caught), `GET /trips/:id/changes?since=`.
-- OpenAPI document generated from the zod schemas (`z.toJSONSchema`), checked in with a drift test.
-- Personal access tokens for scripts.
+**Phase 2: trip detail.** Notes, itinerary, documents & covers (moving upload limits into the multipart handler via
+`upload-policy.ts`), sharing.
+
+**Phase 3: trips, packing, templates, reservations, budget, locations, routing.**
+
+**Phase 4: profile and admin.**
+
+**Phase 5: cleanup.**
+
+- Delete the emptied `actions.ts` files.
+- Add an ESLint rule that allows `"use server"` only under the auth boundary.
+- Update AGENTS.md: the server-action conventions become API conventions, and the auth exception is recorded.
+- Update `scripts/feature-map.test.mjs`: the server-action coverage clause becomes an `api/v1` clause.
+- Retire `waitForServerActionResponse` except for the auth flows.
+
+**Phase 6: mobile prerequisites (when the app starts).**
+
+- Bearer auth: per-device opaque tokens in a new `api_sessions` table, tied to `trusted_devices` and
+  `users.session_version`, so removing a device or signing out everywhere revokes it. The flow is
+  `POST /api/v1/auth/token` (+ `/mfa`), reusing `authorizeCredentials` without its cookie handling.
+- Profile → Security lists app sessions.
+- `/meta` capabilities, a longer idempotency window, runtime response schemas, and a generated OpenAPI document with a
+  drift test.
+- Delta sync only if snapshot sizes justify it.
+
+Each slice in phases 2–4 follows the same steps:
+
+1. Extract the service (tests first).
+2. Add the endpoints with `route.test.ts`.
+3. Switch components and their tests.
+4. Switch the E2E waits.
+5. Delete the actions.
+
+Web E2E stays green at every step; it's the regression net for the refactor.
 
 ## Testing
 
-Per AGENTS.md, tests come first in each story:
-
 - **Unit (Vitest, colocated):**
-  - each `src/lib/services/*.ts` gets its `*.test.ts`;
-  - `src/lib/api/*.test.ts` for auth, envelope, idempotency, rate limits;
-  - `route.test.ts` beside each `src/app/api/v1/**/route.ts`, following the existing `src/app/api/**/route.test.ts`
-    pattern;
-  - the `apiRoute`-wrapper test;
-  - the refactored actions' existing tests keep passing unchanged.
-- **E2E:** new `tests/e2e/features/api.feature` tagged `@feat:api`, driven through Playwright's `request` fixture:
-  - token sign-in with and without MFA;
-  - lockout `429`;
-  - an editor creates, edits and deletes via the API, and a web session sees the change live and in Activity;
-  - a viewer gets `404` on writes;
-  - removing the device in Profile → Security makes the token `401`;
-  - idempotent replay returns the same row.
+  - `src/lib/services/*.test.ts` and `src/lib/api/*.test.ts`;
+  - `route.test.ts` beside each handler, following `src/app/api/**/route.test.ts`;
+  - the wrapper-coverage test;
+  - component tests mock `@/lib/api/client` instead of action modules (the 74 files move slice by slice).
+- **E2E:** existing feature files keep their scenarios; only waits change. A new `tests/e2e/features/api.feature`
+  (`@feat:api`) covers behaviour the UI can't reach:
+  - 401 after sign-out;
+  - viewer write → 403;
+  - stranger → 404;
+  - 422 field errors;
+  - a cross-origin `POST` rejected by the CSRF check;
+  - idempotent replay;
+  - client-supplied IDs.
 
-  Fixtures come from the mothers in `e2e-seed-data.ts`.
+  It uses Playwright's `request` fixture and the mothers in `e2e-seed-data.ts`.
 
-- **Feature map:** register `src/app/api/v1/**` and each new `src/lib/api/*` / `src/lib/services/*` module in
-  `tests/e2e/feature-map.mjs`. Services go under the features whose web flows they now back (e.g.
-  `services/checklists.ts` → the checklist feature _and_ `api`), so refactors run the web E2E too.
-  `scripts/feature-map.test.mjs` fails the build if any are missing.
+- **Feature map:** each `src/app/api/v1/**` route and `src/lib/services/*` module maps to the feature whose UI uses
+  it (plus `api` where relevant), so a service refactor runs that feature's web E2E. `src/lib/api/route.ts`,
+  `client.ts` and `use-api-mutation.ts` sit under every mutation, so they go in `SHARED_GLOBS`.
 
-## Self-hosting notes
+## Self-hosting
 
-- Nothing new to run or configure. One migration (`api_sessions`) applies on container start as usual.
-- Many installs are plain HTTP on a LAN. A bearer token over HTTP is exposed the same way the session cookie is today.
-  The self-hosting docs should recommend an HTTPS reverse proxy before using the app away from home.
-- Live sync and rate limits stay in-process, which matches the single-container deployment.
-- PR descriptions should flag the migration and the new Profile → Security entries so the release changelog picks them
-  up.
+- Nothing new to run in phases 1–5: no migrations, no environment variables.
+- Phase 6 adds one migration.
+- Reverse proxies need no change for same-origin `/api/v1` calls. The `Origin` check must use the forwarded host the
+  same way `request-origin.ts` does today.
 
 ## Open questions
 
-1. API session lifetime: 90 days idle, sliding? Should the admin MFA policy force re-authentication on a schedule?
-2. Is trip creation needed in the first mobile release, or can phase 3 wait until after a read-mostly app ships?
-3. Should Profile → Security show apps and browsers in one list or two?
-4. Is there appetite to move parts of the web client onto `/api/v1` later? If so, cookie auth with origin checks
-   goes into phase 4.
+1. Contract: hand-rolled `defineEndpoint` or oRPC?
+2. Is the auth boundary staying on server actions acceptable, or should sign-in move too? Sign-in would lose its
+   no-JavaScript fallback and gain little.
+3. Should admin endpoints for non-admins return 403 (proposed) or keep the web's 404?
