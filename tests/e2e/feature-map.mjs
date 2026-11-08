@@ -68,6 +68,7 @@ export const FEATURE_MAP = [
     "src/lib/services/trip-access.ts",
     "src/lib/services/trip-write-effects.ts",
     "src/app/api/v1/checklist-items/**",
+    "src/app/api/v1/meta/**",
     "tests/e2e/api-response.ts",
   ]),
   entry("mfa-policy", [

@@ -41,6 +41,14 @@ describe("feature-map consistency", async () => {
     }
   });
 
+  it("scopes the public API metadata route and its contract to the api feature only", () => {
+    const tagsFor = (path) =>
+      FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map((feature) => feature.tag);
+    expect(tagsFor("src/app/api/v1/meta/route.ts")).toEqual(["@feat:api"]);
+    expect(tagsFor("src/lib/api/contract/meta.ts")).toContain("@feat:api");
+    expect(SHARED_GLOBS.some((glob) => matchesAnyGlob("src/app/api/v1/meta/route.ts", [glob]))).toBe(false);
+  });
+
   it("scopes shared replay storage to API, checklist and packing consumers without a full-suite run", () => {
     const tagsFor = (path) =>
       FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map((feature) => feature.tag);
