@@ -20,8 +20,9 @@ const endpoint = defineEndpoint<{ done: boolean }>()({
   params: z.object({ id: z.uuid() }),
   body: z.strictObject({ isChecked: z.boolean() }),
 });
-const handler = vi.fn(async () => ({ done: true }));
+const handler = vi.fn<(input: unknown) => Promise<{ done: boolean }>>(async () => ({ done: true }));
 const route = apiRoute(endpoint, handler);
+const replayRoute = apiRoute(endpoint, handler, { idempotent: { expiryMs: 5000 } });
 const context = { params: Promise.resolve({ id: "123e4567-e89b-12d3-a456-426614174000" }) };
 function request(body = '{"isChecked":true}', headers: Record<string, string> = {}) {
   return new Request("http://arrivo.test/api/v1/items/item", {
@@ -89,5 +90,69 @@ it.each([
   expect(response.status).toBe(status);
   expect(response.headers.get("cache-control")).toBe("no-store");
   expect((await response.json()).error.code).toBe(code);
+  expect(handler).not.toHaveBeenCalled();
+});
+
+it("forwards no replay context when the key header is absent", async () => {
+  await replayRoute(request(), context);
+  expect(handler.mock.calls[0][0]).not.toHaveProperty("replay");
+});
+it("forwards validated replay metadata when the key header is present", async () => {
+  const response = await replayRoute(request(undefined, { "idempotency-key": " retry-1 " }), context);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(handler).toHaveBeenCalledWith({
+    actor: { userId: "user" },
+    params: await context.params,
+    body: { isChecked: true },
+    replay: {
+      key: "retry-1",
+      method: "PATCH",
+      path: "/api/v1/items/123e4567-e89b-12d3-a456-426614174000",
+      expiryMs: 5000,
+    },
+  });
+});
+it("omits expiry from replay metadata unless configured", async () => {
+  await apiRoute(endpoint, handler, { idempotent: {} })(request(undefined, { "idempotency-key": "k" }), context);
+  expect(handler.mock.calls[0][0]).toMatchObject({ replay: { key: "k" } });
+  expect((handler.mock.calls[0][0] as { replay: object }).replay).not.toHaveProperty("expiryMs");
+});
+it.each(["", "   ", "a".repeat(256)])(
+  "rejects invalid key %j with a 422 field error before the handler",
+  async (key) => {
+    const response = await replayRoute(request(undefined, { "idempotency-key": key }), context);
+    expect(response.status).toBe(422);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect((await response.json()).error.fields["Idempotency-Key"]).toHaveLength(1);
+    expect(handler).not.toHaveBeenCalled();
+  }
+);
+it("explicitly rejects a key on a handler that does not support replay", async () => {
+  const response = await route(request(undefined, { "idempotency-key": "retry-1" }), context);
+  expect(response.status).toBe(400);
+  expect((await response.json()).error.code).toBe("bad_request");
+  expect(handler).not.toHaveBeenCalled();
+});
+it("still enforces auth, CSRF and validation before honoring a key", async () => {
+  const keyed = { "idempotency-key": "retry-1" };
+  requireApiUser.mockRejectedValueOnce(new ApiError(401, "unauthenticated", "Sign in."));
+  expect((await replayRoute(request(undefined, keyed), context)).status).toBe(401);
+  expect((await replayRoute(request(undefined, { ...keyed, "sec-fetch-site": "same-site" }), context)).status).toBe(
+    403
+  );
+  expect((await replayRoute(request('{"isChecked":"no"}', keyed), context)).status).toBe(422);
+  expect(handler).not.toHaveBeenCalled();
+});
+it("rejects an unsupported key before body or param validation", async () => {
+  const keyed = { "idempotency-key": "retry-1" };
+  for (const response of [
+    await route(request('{"isChecked":"no"}', keyed), context),
+    await route(request("oops", keyed), context),
+    await route(request(undefined, keyed), { params: Promise.resolve({ id: "bad" }) }),
+  ]) {
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("bad_request");
+  }
   expect(handler).not.toHaveBeenCalled();
 });
