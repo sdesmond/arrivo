@@ -11,7 +11,10 @@ contracts after the web depends on them.
 
 Today:
 
-- Writes go through 119 server actions in 15 `actions.ts` files.
+- Writes go through 23 `"use server"` modules (15 `actions.ts` plus `packing-actions.ts`, `security-actions.ts`,
+  `avatar-actions.ts`, `document-upload-actions.ts`, `cover-upload-actions.ts`, `reservation-document-actions.ts`,
+  `transit-actions.ts` and `cover-image-search-actions.ts`). Together they export about 145 functions, some of them
+  re-exports.
 - 62 production modules import actions, and 74 test files mock them.
 - 24 E2E step files contain 100 `waitForServerActionResponse` calls.
 - Reads happen in Server Components (`page.tsx` → `src/lib/queries.ts`), plus a few client lookups that are already
@@ -20,18 +23,8 @@ Today:
 
 ## Scope
 
-In scope: every server action except the auth boundary, so about 111 operations. They collapse into fewer REST
-resources.
-
-The auth boundary stays on server actions + Auth.js: `signInAction`, `verifyMfaAction`, `setupAdminAction`,
-`signOutAction`, `completeAdminRecoveryAction`, `completePasswordResetAction`, `completeAccountSetupAction`,
-`signOutAndContinueSetupAction`. Why:
-
-- They run before a session exists, set Auth.js cookies and redirect.
-- They're the only `useActionState`/`<form action>` users (`auth-forms.tsx`, `mfa-code-form.tsx`,
-  `account-setup-dialog.tsx`, `account-reset/form.tsx`, `account-recovery/form.tsx`, and the rest), so they keep
-  working without JavaScript.
-- The phone gets its own token endpoints later, not these.
+In scope: every server action except the auth boundary (8 functions; see "Auth boundary"). They collapse into fewer
+REST resources.
 
 Out of scope: changing how pages read data. Next.js 16's guide says to fetch in Server Components from the source,
 not through Route Handlers (`node_modules/next/dist/docs/01-app/02-guides/backend-for-frontend.md`, "Server
@@ -63,8 +56,13 @@ Read services (`getTripDetail`, `listTripsForUser`, and the rest from `queries.t
 
 ### 2. Contract shared by server and client
 
-The repo already leans on zod and small hand-written helpers, so define endpoints once in a client-safe module and
-use them on both sides:
+Decision: hand-rolled, not oRPC. The wire format is plain REST either way. The expensive part, the zod input and
+output schemas, is the same work in both. Owning a few hundred lines beats depending on a largely single-maintainer
+framework inside images self-hosters run for years. It also keeps per-file route handlers, which `feature-map.mjs`
+segmentation relies on, and code that contributors and agents can read. Because endpoints are already shaped as
+contracts, moving to oRPC later would be mechanical.
+
+Endpoints are defined once in a client-safe module and used on both sides:
 
 ```ts
 // src/lib/api/contract/checklists.ts (no server-only imports)
@@ -85,12 +83,7 @@ const item = await api(createChecklistItem, { params: { checklistId }, body: { c
 ```
 
 Response types come from `src/data/types.ts`, so there's no second set of domain types. Runtime response schemas
-(needed for OpenAPI) are deferred to the mobile phase.
-
-Alternative: oRPC. It's contract-first with zod, has a Next adapter and an OpenAPI generator, and integrates with
-TanStack Query. It saves writing `defineEndpoint`/`apiRoute`/`api` (a few hundred lines) and gets OpenAPI early. The
-cost is a framework dependency and its conventions over the repo's. Decide in phase 0; the rest of this plan holds
-either way.
+and an OpenAPI generator over `z.toJSONSchema` are deferred to the mobile phase.
 
 ### 3. Route handler wrapper
 
@@ -122,7 +115,64 @@ cookie-authenticated `POST/PUT/PATCH/DELETE`:
 
 No CORS headers are ever sent.
 
-### 5. Client mutation pattern
+### 5. Auth boundary
+
+The session-related server actions fall into three groups. Each needs a different answer.
+
+| group                            | functions                                                                                                                                         | what ties them to server actions today                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. Create a session (pre-auth)   | `signInAction`, `verifyMfaAction`, `setupAdminAction`, `completeAccountSetupAction`, `completePasswordResetAction`, `completeAdminRecoveryAction` | Auth.js `signIn()` sets the JWT cookie. One-time tickets live in httpOnly cookies scoped to their page: `arrivo_mfa`, plus `arrivo_account_setup`, `arrivo_password_reset` and `arrivo_admin_recovery` scoped to `/account-setup`, `/account-reset` and `/account-recovery` (`adr-setup-token-lives-in-a-scoped-cookie-and-is-revalidated-per-request.md`). `useActionState` forms work without JavaScript. They redirect on success. |
+| B. End the session               | `signOutAction`, `signOutAndContinueSetupAction`                                                                                                  | Auth.js `signOut()` clears the cookie, then redirects.                                                                                                                                                                                                                                                                                                                                                                                |
+| C. Signed-in security operations | `security-actions.ts` (MFA enroll/confirm/disable, recovery codes, sign out everywhere, remove device), `changePassword`, `deleteAccount`         | Business logic plus, for some, `signOut()` + redirect afterwards. Forced enrollment runs on a session flagged `mfaEnrollmentRequired`.                                                                                                                                                                                                                                                                                                |
+
+**Group C moves to the API in every option.**
+
+- Services do the work (bumping `session_version` already revokes every session).
+- When the session ends, the handler calls Auth.js `signOut({ redirect: false })` to clear the cookie and returns
+  `{ signedOut: true, redirectTo }`. The client navigates.
+- Enrollment endpoints set `apiRoute({ allowEnrollment: true })`, mirroring `requireEnrollmentUser()`, so they're
+  reachable with an `mfaEnrollmentRequired` session.
+- The story must confirm that Auth.js `signOut()` clears the cookie from a route handler. Cookies are writable there,
+  so it should.
+
+**Groups A and B have three options:**
+
+1. **Keep A and B as server actions (recommended).**
+   - What stays: 8 functions in 4 files. Everything signed-in goes through `/api/v1`.
+   - Pros:
+     - Untouched: the most security-sensitive code (throttle, lockout, MFA tickets, link tokens) and its existing E2E
+       coverage.
+     - Sign-in, setup and reset keep working without JavaScript.
+     - Auth.js keeps owning its cookie writes, as designed.
+     - Mobile loses nothing: setup, reset and recovery links open in a browser anyway, and the phone gets token
+       endpoints in phase 6 that reuse `authorizeCredentials`.
+   - Cons: two mutation mechanisms survive; AGENTS.md keeps a short "auth flows use server actions" exception; an
+     ESLint allowlist restricts `"use server"` to these files; `waitForServerActionResponse` survives for auth E2E only.
+2. **Route handlers beside their pages, outside `/api/v1`.**
+   - What moves: e.g. `POST /account-setup/submit` and `POST /sign-in/submit` as `route.ts` files under the existing
+     paths, so the path-scoped cookies still reach them and the setup-token ADR holds.
+   - Pros: no `"use server"` left anywhere; one E2E wait helper.
+   - Cons:
+     - Rewrites the auth forms from `useActionState` to fetch plus client state, and loses the no-JavaScript fallback.
+     - Every pre-auth endpoint needs the origin check against login CSRF, which server actions gave for free.
+     - The MFA ticket hand-off needs rework: today the ticket rides on `MfaRequiredError` back into the action, which
+       sets the cookie.
+     - Introduces a third kind of endpoint (not `/api/v1`, not a server action) with its own conventions.
+3. **Everything under `/api/v1`.**
+   - What moves: `/api/v1/auth/session` (+ `/mfa`), `/api/v1/account-setup`, `/api/v1/password-reset`,
+     `/api/v1/admin-recovery`.
+   - Pros: fully uniform. Web sign-in and mobile token sign-in sit side by side and differ only in the credential they
+     return.
+   - Cons:
+     - Everything option 2 costs.
+     - The link cookies are scoped to their page paths and wouldn't reach `/api/v1`. You'd have to widen them to
+       `Path=/` or expose the token to page JavaScript. Both weaken and supersede the setup-token ADR, which exists
+       so a one-time credential is sent nowhere but its own page.
+
+Recommendation: option 1. Options 2 and 3 buy uniformity, not capability, and they spend it on the riskiest code in the
+app. Revisit only if maintaining the server-action exception becomes a real burden.
+
+### 6. Client mutation pattern
 
 Server actions return the mutation result and the refreshed page data in one round trip. Route handlers can't:
 `refresh()` from `next/cache` is server-action-only. So the client does it:
@@ -150,7 +200,7 @@ Risks the pilot slice must settle, with E2E coverage:
 - **Cost.** Two round trips instead of one per mutation. Acceptable on a LAN; live sync already triggers refreshes
   for other viewers.
 
-### 6. Status codes
+### 7. Status codes
 
 Access errors split by whether the caller may know the resource exists:
 
@@ -175,7 +225,10 @@ knows the trip exists, so hiding it buys nothing, and a 403 lets the UI say "You
 `requireTripRole` already has the role in hand, so it throws `TripNotFoundError` (no membership) or
 `TripForbiddenError` (membership, role too low). Pages keep calling `notFound()` for both.
 
-### 7. Mobile-ready from day one
+Admin endpoints return 403 to signed-in non-admins (decided). Their existence isn't secret, since the project is open
+source, and a clear 403 beats a confusing 404. Admin pages keep their current `notFound()` through `requireAdmin()`.
+
+### 8. Mobile-ready from day one
 
 These rules cost little now and avoid breaking contracts later:
 
@@ -197,19 +250,20 @@ These rules cost little now and avoid breaking contracts later:
 
 Resource-style; the exact paths get settled in each slice's story.
 
-| slice                  | replaces (actions file)                                              | main resources                                                                                                               |
-| ---------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Pilot: trip checklists | `trips/[tripId]/actions.ts` (8 checklist actions)                    | `/trips/:id/checklists`, `/checklists/:id`, `/checklists/:id/items`, `/checklist-items/:id`                                  |
-| Trip notes             | trip + event note actions (7)                                        | `/trips/:id/notes`, `/notes/:id`, `/trips/:id/notes/order`, `/events/:id/note`                                               |
-| Itinerary              | events, days, reorder (10)                                           | `/days/:id/events`, `/events/:id`, `/days/:id/order`, `/trips/:id/days`, `/days/:id`                                         |
-| Documents & covers     | upload/add/rename/remove/attach/promote, covers (9)                  | `/trips/:id/documents` (multipart), `/events/:id/documents`, `/documents/:id`, `/trips/:id/cover`                            |
-| Sharing                | share dialog, invitations, contributors, leave (14 across two files) | `/trips/:id/collaborators`, `/trips/:id/invitations`, `/invitations/:id/{accept,decline,resend,dismiss}`, `/users/invitable` |
-| Trips & packing        | `trips/actions.ts` trip + packing items (≈13), `packing-actions.ts`  | `/trips`, `/trips/:id`, `/trips/:id/packing-items`, `/packing-items/:id`, `/trips/:id/packing/order`                         |
-| Packing templates      | `packing/actions.ts`, `packing/[templateId]/actions.ts` (8)          | `/packing-templates`, `/packing-templates/:id/items`, ...                                                                    |
-| Reservations & budget  | `reservations/actions.ts`, `budget/actions.ts` (7)                   | `/trips/:id/reservations`, `/reservations/:id`, `/trips/:id/expenses`, `/expenses/:id`, `/trips/:id/expenses/recalculate`    |
-| Locations & routing    | location search actions (3), existing routing handlers               | `/locations/search`, `/locations/retrieve`, `/trips/:id/routing/*` (move under v1)                                           |
-| Profile                | `profile/actions.ts` (10)                                            | `/me`, `/me/password`, `/me/loyalty-numbers`, `/me/wishlist`, `/me/companions`, `DELETE /me`                                 |
-| Admin                  | `admin/*/actions.ts` (26)                                            | `/admin/users...`, `/admin/security/...`, `/admin/activity...`, `GET /admin/overview/:metric`                                |
+| slice                  | replaces (actions file)                                              | main resources                                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pilot: trip checklists | `trips/[tripId]/actions.ts` (8 checklist actions)                    | `/trips/:id/checklists`, `/checklists/:id`, `/checklists/:id/items`, `/checklist-items/:id`                                                   |
+| Trip notes             | trip + event note actions (7)                                        | `/trips/:id/notes`, `/notes/:id`, `/trips/:id/notes/order`, `/events/:id/note`                                                                |
+| Itinerary              | events, days, reorder (10)                                           | `/days/:id/events`, `/events/:id`, `/days/:id/order`, `/trips/:id/days`, `/days/:id`                                                          |
+| Documents & covers     | upload/add/rename/remove/attach/promote, covers (9)                  | `/trips/:id/documents` (multipart), `/events/:id/documents`, `/documents/:id`, `/trips/:id/cover`                                             |
+| Sharing                | share dialog, invitations, contributors, leave (14 across two files) | `/trips/:id/collaborators`, `/trips/:id/invitations`, `/invitations/:id/{accept,decline,resend,dismiss}`, `/users/invitable`                  |
+| Trips & packing        | `trips/actions.ts` trip + packing items (≈13), `packing-actions.ts`  | `/trips`, `/trips/:id`, `/trips/:id/packing-items`, `/packing-items/:id`, `/trips/:id/packing/order`                                          |
+| Packing templates      | `packing/actions.ts`, `packing/[templateId]/actions.ts` (8)          | `/packing-templates`, `/packing-templates/:id/items`, ...                                                                                     |
+| Reservations & budget  | `reservations/actions.ts`, `budget/actions.ts` (7)                   | `/trips/:id/reservations`, `/reservations/:id`, `/trips/:id/expenses`, `/expenses/:id`, `/trips/:id/expenses/recalculate`                     |
+| Locations & routing    | location search actions (3), existing routing handlers               | `/locations/search`, `/locations/retrieve`, `/trips/:id/routing/*` (move under v1)                                                            |
+| Profile                | `profile/actions.ts` (10), `avatar-actions.ts` (2)                   | `/me`, `/me/avatar`, `/me/loyalty-numbers`, `/me/wishlist`, `/me/companions`                                                                  |
+| Account security       | `security-actions.ts` (6), `changePassword`, `deleteAccount`         | `/me/mfa`, `/me/mfa/confirm`, `/me/mfa/recovery-codes`, `/me/sessions` (sign out everywhere), `/me/devices/:id`, `/me/password`, `DELETE /me` |
+| Admin                  | `admin/*/actions.ts` (26)                                            | `/admin/users...`, `/admin/security/...`, `/admin/activity...`, `GET /admin/overview/:metric`                                                 |
 
 The admin overview `refresh*` actions are reads. They become `GET` endpoints, superseding
 `docs/decisions/adr-overview-metrics-refresh-through-per-metric-server-actions-without-persistence.md`.
@@ -219,10 +273,10 @@ The admin overview `refresh*` actions are reads. They become `GET` endpoints, su
 **Phase 0: decisions (ADRs in `docs/decisions/`)**
 
 - Web mutations go through `/api/v1`; pages keep reading via services.
-- The auth boundary stays on server actions.
-- The 404/403 split.
+- The auth boundary (option chosen in "Auth boundary").
+- The 404/403 split, including 403 for admin endpoints.
 - Cookie auth with the CSRF rules above.
-- Contract approach: hand-rolled or oRPC.
+- A hand-rolled contract layer (`defineEndpoint`/`apiRoute`/`api`).
 - The client mutation pattern (refresh, ordering).
 - Supersede the overview-metrics ADR.
 
@@ -248,7 +302,7 @@ unchanged.
 
 **Phase 3: trips, packing, templates, reservations, budget, locations, routing.**
 
-**Phase 4: profile and admin.**
+**Phase 4: profile, account security (group C) and admin.**
 
 **Phase 5: cleanup.**
 
@@ -310,7 +364,6 @@ Web E2E stays green at every step; it's the regression net for the refactor.
 
 ## Open questions
 
-1. Contract: hand-rolled `defineEndpoint` or oRPC?
-2. Is the auth boundary staying on server actions acceptable, or should sign-in move too? Sign-in would lose its
-   no-JavaScript fallback and gain little.
-3. Should admin endpoints for non-admins return 403 (proposed) or keep the web's 404?
+1. Auth boundary: option 1, 2 or 3 (see "Auth boundary")?
+
+Decided: hand-rolled contract layer; admin endpoints return 403 to non-admins.
