@@ -4,7 +4,7 @@
 [[entry]]
 id = 1
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Check one checklist item through the API"
 description = "Record phase 0 ADRs and build one complete absolute checked-state path through checklist service, typed access/write effects, client-safe endpoint, secure no-store wrapper, API client, mutation refresh, and existing UI, introducing the tested API wait helper and feature-map registrations before persistence scenarios while keeping unmigrated actions working."
@@ -17,7 +17,7 @@ risk = "high"
 [[entry]]
 id = 2
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Make API replay atomic and authorization-aware"
 description = "Generalize idempotency over the existing table with namespaced keys, request fingerprint, configurable expiry, atomic mutation/result storage, same-key concurrency control, conflict handling, and fresh authorization before replay; retain legacy packing key semantics."
@@ -30,7 +30,7 @@ risk = "high"
 [[entry]]
 id = 3
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Preserve optimistic state and serialize rapid writes"
 description = "Complete useApiMutation and checklist adapters with per-resource ordering through refresh, intended absolute state derived from current optimistic UI, error rollback and field mapping, auth navigation, queue recovery, and concurrency between independent resources."
@@ -43,7 +43,7 @@ risk = "high"
 [[entry]]
 id = 4
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Expose metadata and enforce wrapper coverage"
 description = "Add GET /api/v1/meta, explicit handler exemptions, and expanded v1 handler-coverage enforcement; audit and extend the method/path API wait helper and feature-map registrations introduced in entry 1 without changing existing auth waits."
@@ -56,7 +56,7 @@ risk = "medium"
 [[entry]]
 id = 5
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Move checklist creation title and deletion to services"
 description = "Extract checklist creation, atomic create-with-first-item, title PATCH, and deletion behind the shared contracts, including client UUIDs and safe replay; migrate their UI callers while preserving cross-type timeline positions and transaction locks."
@@ -69,7 +69,7 @@ risk = "high"
 [[entry]]
 id = 6
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Move checklist item lifecycle to the API"
 description = "Migrate item create, content PATCH, absolute checked state, and deletion through services/contracts and the checklist caller chain; update touched component tests and split touched oversized JSX responsibilities only if needed."
@@ -82,7 +82,7 @@ risk = "medium"
 [[entry]]
 id = 7
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Move packing-source checklist insertion to the API"
 description = "Migrate addChecklistFromPackingSource and use-packing-handlers to the checklist create contract, preserving template ownership, same-trip source lists, label exclusion, source order, empty-source semantics, atomic insertion, client UUIDs, and live effects."
@@ -95,7 +95,7 @@ risk = "high"
 [[entry]]
 id = 8
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Retire checklist actions and complete API regression coverage"
 description = "Remove all nine migrated checklist exports and action imports, preserve non-checklist exports in the shared module, complete component mocks and API wait migration for checklist scenarios, and finish source-matrix API E2E cases and feature-map ownership."
@@ -108,7 +108,7 @@ risk = "medium"
 [[entry]]
 id = 9
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Refactor sweep"
 description = "Review completed sprint plans and deferred findings, then remove only pilot-created duplication or obsolete checklist code and simplify the new boundaries without adding scope; include matching tests for every touched runtime file."
@@ -121,7 +121,7 @@ risk = "low"
 [[entry]]
 id = 10
 type = "story"
-notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
 references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
 title = "Verify checklist pilot end to end"
 description = "Close integrated pilot gaps across API security/replay, delayed refresh, rapid writes, mixed positions, packing-source insertion, and coexistence with unmigrated actions, then invoke the project-owned build-validator after targeted checks pass."
