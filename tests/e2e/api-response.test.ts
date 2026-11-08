@@ -34,3 +34,33 @@ it("propagates timeout and rejects unsuccessful responses", async () => {
   expect(waitForResponse.mock.calls[0][1]).toEqual({ timeout: 30 });
   await expect(waitForApiResponse(page, { method: "PATCH", path: "/api/v1/items/item" })).rejects.toThrow("status 403");
 });
+it("normalizes a lowercase method but never matches another method, path or extra segment", async () => {
+  const waitForResponse = vi.fn<Page["waitForResponse"]>().mockResolvedValue(response("PATCH", "/api/v1/items/item"));
+  await waitForApiResponse({ waitForResponse } as unknown as Page, { method: "patch", path: "/api/v1/items/item" });
+  const predicate = waitForResponse.mock.calls[0][0];
+  if (typeof predicate !== "function") throw new Error("predicate required");
+  expect(predicate(response("PATCH", "/api/v1/items/item"))).toBe(true);
+  expect(predicate(response("GET", "/api/v1/items/item"))).toBe(false);
+  expect(predicate(response("PATCH", "/api/v1/items"))).toBe(false);
+  expect(predicate(response("PATCH", "/api/v1/items/item/extra"))).toBe(false);
+  expect(predicate(response("PATCH", "/api/v1/items/item/"))).toBe(false);
+});
+it.each([
+  ["a query string", "/api/v1/items?x=1"],
+  ["a fragment", "/api/v1/items#top"],
+  ["no leading slash", "api/v1/items"],
+  ["an empty path", ""],
+])("rejects immediately for a path with %s", async (_label, path) => {
+  const waitForResponse = vi.fn<Page["waitForResponse"]>();
+  await expect(waitForApiResponse({ waitForResponse } as unknown as Page, { method: "GET", path })).rejects.toThrow(
+    "path"
+  );
+  expect(waitForResponse).not.toHaveBeenCalled();
+});
+it.each([[""], ["GET POST"], ["g3t"]])("rejects immediately for the invalid method %j", async (method) => {
+  const waitForResponse = vi.fn<Page["waitForResponse"]>();
+  await expect(
+    waitForApiResponse({ waitForResponse } as unknown as Page, { method, path: "/api/v1/items" })
+  ).rejects.toThrow("method");
+  expect(waitForResponse).not.toHaveBeenCalled();
+});

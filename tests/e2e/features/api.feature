@@ -127,3 +127,12 @@ Feature: Absolute checklist checked-state API
       | kind      |
       | empty     |
       | oversized |
+
+  Scenario Outline: Metadata is public and identical with or without a session
+    Given I am "<audience>" for the API metadata
+    When I request the API metadata
+    Then the API metadata is exactly the public version and capabilities
+    Examples:
+      | audience  |
+      | anonymous |
+      | signed-in |

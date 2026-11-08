@@ -453,3 +453,17 @@ Then(
     expect(counts).toEqual({ updates, records });
   }
 );
+
+Given("I am {string} for the API metadata", async ({ page }, audience: string) => {
+  if (audience === "anonymous") await page.context().clearCookies();
+});
+When("I request the API metadata", async ({ page }) => {
+  state(page).response = await page.request.get("/api/v1/meta");
+});
+Then("the API metadata is exactly the public version and capabilities", async ({ page }) => {
+  const response = state(page).response!;
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  expect(response.headers()["access-control-allow-origin"]).toBeUndefined();
+  expect(await response.json()).toEqual({ apiVersion: 1, capabilities: ["idempotency-key"] });
+});
