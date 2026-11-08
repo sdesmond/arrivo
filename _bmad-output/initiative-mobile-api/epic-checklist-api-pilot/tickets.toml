@@ -1,0 +1,132 @@
+# Sprint 1: source phases 0–1. Single implementation lane; shared helper/caller edits overlap.
+# Entries are planned; build plans own execution status. No estimates or calendar dates assigned.
+
+[[entry]]
+id = 1
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Check one checklist item through the API"
+description = "Record phase 0 ADRs and build one complete absolute checked-state path through checklist service, typed access/write effects, client-safe endpoint, secure no-store wrapper, API client, mutation refresh, and existing UI, introducing the tested API wait helper and feature-map registrations before persistence scenarios while keeping unmigrated actions working."
+verify = "The expanded service, transport, adapter, component, and day-planning tests pass, and a signed-in editor checks an existing item through PATCH /api/v1/checklist-items/:itemId and sees that state after reload while viewer and stranger writes are refused."
+covers = ["P1","P2","P3","P5","P7","P9"]
+after = []
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 2
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Make API replay atomic and authorization-aware"
+description = "Generalize idempotency over the existing table with namespaced keys, request fingerprint, configurable expiry, atomic mutation/result storage, same-key concurrency control, conflict handling, and fresh authorization before replay; retain legacy packing key semantics."
+verify = "Idempotency unit and API request scenarios prove one committed mutation under concurrent replay, 409 for conflicting reuse, expiry handling, no replay disclosure after role loss, and unchanged packing idempotency without a migration."
+covers = ["P2","P4","P7","P9"]
+after = [1]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 3
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Preserve optimistic state and serialize rapid writes"
+description = "Complete useApiMutation and checklist adapters with per-resource ordering through refresh, intended absolute state derived from current optimistic UI, error rollback and field mapping, auth navigation, queue recovery, and concurrency between independent resources."
+verify = "Hook/component tests and delayed-network day-planning scenarios show no state snapback, final rapid-write intent surviving reload, FIFO same-resource execution, independent-resource concurrency, and recovery after a failed request."
+covers = ["P5","P9"]
+after = [2]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 4
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Expose metadata and enforce wrapper coverage"
+description = "Add GET /api/v1/meta, explicit handler exemptions, and expanded v1 handler-coverage enforcement; audit and extend the method/path API wait helper and feature-map registrations introduced in entry 1 without changing existing auth waits."
+verify = "Metadata and handler-coverage tests catch a deliberately unwrapped route, API wait tests reject mismatched method/path, and feature-map checks classify every new runtime module."
+covers = ["P3","P8","P9"]
+after = [3]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Move checklist creation title and deletion to services"
+description = "Extract checklist creation, atomic create-with-first-item, title PATCH, and deletion behind the shared contracts, including client UUIDs and safe replay; migrate their UI callers while preserving cross-type timeline positions and transaction locks."
+verify = "Service/route/component tests and checklist lifecycle scenarios prove mixed event/note/checklist insertion, atomic first item creation, authorized UUID replay/collision handling, partial title changes, repeated deletion, and persistence after reload."
+covers = ["P2","P4","P6","P7","P9"]
+after = [4]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 6
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Move checklist item lifecycle to the API"
+description = "Migrate item create, content PATCH, absolute checked state, and deletion through services/contracts and the checklist caller chain; update touched component tests and split touched oversized JSX responsibilities only if needed."
+verify = "Item service/route/component and callback-chain tests plus day-planning scenarios prove add/edit/check/delete behavior, absolute replay-safe state, no omitted-field reset, access boundaries, and persisted reload without adding item-ordering storage."
+covers = ["P2","P4","P6","P7","P9"]
+after = [5]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Move packing-source checklist insertion to the API"
+description = "Migrate addChecklistFromPackingSource and use-packing-handlers to the checklist create contract, preserving template ownership, same-trip source lists, label exclusion, source order, empty-source semantics, atomic insertion, client UUIDs, and live effects."
+verify = "Service/route/packing-adapter tests and the packing-lists template-as-checklist scenario prove authorized ordered copies and reject foreign templates, wrong-trip lists, and mismatched target days without partial rows."
+covers = ["P2","P4","P6","P7","P9"]
+after = [6]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 8
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Retire checklist actions and complete API regression coverage"
+description = "Remove all nine migrated checklist exports and action imports, preserve non-checklist exports in the shared module, complete component mocks and API wait migration for checklist scenarios, and finish source-matrix API E2E cases and feature-map ownership."
+verify = "Search confirms no checklist mutation action caller remains, API and UI feature scenarios pass for the source status/replay/access matrix, and non-checklist action regression tests remain green."
+covers = ["P3","P4","P6","P7","P8","P9"]
+after = [7]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 9
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Refactor sweep"
+description = "Review completed sprint plans and deferred findings, then remove only pilot-created duplication or obsolete checklist code and simplify the new boundaries without adding scope; include matching tests for every touched runtime file."
+verify = "Targeted tests confirm unchanged checklist/API behavior and each cleanup is traceable to a completed pilot plan or finding, with no unrelated UI or domain changes."
+covers = ["P2","P5","P6","P7","P9"]
+after = [1,2,3,4,5,6,7,8]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 10
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Verify checklist pilot end to end"
+description = "Close integrated pilot gaps across API security/replay, delayed refresh, rapid writes, mixed positions, packing-source insertion, and coexistence with unmigrated actions, then invoke the project-owned build-validator after targeted checks pass."
+verify = "The epic Done when checks pass in the production build, all targeted unit/API/UI scenarios pass, and build-validator reports lint, types, coverage, build, and affected E2E success without migrations, new environment variables, or automatic full-suite execution."
+covers = ["P1","P2","P3","P4","P5","P6","P7","P8","P9"]
+after = [9]
+hitl = false
+risk = "high"

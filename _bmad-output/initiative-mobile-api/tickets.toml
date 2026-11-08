@@ -1,0 +1,98 @@
+# Build order; future epics remain envelopes until selected for inception.
+
+[[epic]]
+id = 1
+slug = "epic-checklist-api-pilot"
+title = "API foundation and checklist pilot"
+covers = ["R1","R2","R7"]
+
+[[epic]]
+id = 2
+slug = "epic-itinerary-api"
+title = "Notes and itinerary through the API"
+covers = ["R3","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }]
+
+[[epic]]
+id = 3
+slug = "epic-documents-covers-api"
+title = "Documents and covers through the API"
+covers = ["R3","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 2, needs = "The itinerary migration's final mixed-timeline helpers and shared trip-detail actions.ts baseline, which document/cover actions also modify." }]
+
+[[epic]]
+id = 4
+slug = "epic-sharing-api"
+title = "Collaboration through the API"
+covers = ["R3","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 3, needs = "The document/cover migration's final shared trip-detail actions.ts and feature-map baseline, also edited by sharing extraction." }]
+
+[[epic]]
+id = 5
+slug = "epic-trips-packing-api"
+title = "Trips and trip packing through the API"
+covers = ["R4","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 4, needs = "The sharing migration's final src/app/(app)/trips/actions.ts baseline, also edited by trip and packing lifecycle extraction." }]
+
+[[epic]]
+id = 6
+slug = "epic-packing-templates-api"
+title = "Packing templates through the API"
+covers = ["R4","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 5, needs = "Migrated trip-packing list contracts and callers; template saving and source reuse consume those results and edit the same packing actions." }]
+
+[[epic]]
+id = 7
+slug = "epic-reservations-budget-api"
+title = "Reservations and budget through the API"
+covers = ["R4","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 6, needs = "The packing-template migration's final feature-map and scenario-helper baseline; reservation/budget registrations and fixtures edit those files." }]
+
+[[epic]]
+id = 8
+slug = "epic-locations-routing-api"
+title = "Location search and routing through the API"
+covers = ["R4","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 7, needs = "The reservation/budget migration's final feature-map and scenario-helper baseline; routing registration and fixtures edit those files." }]
+
+[[epic]]
+id = 9
+slug = "epic-profile-api"
+title = "Profile through the API"
+covers = ["R5","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 8, needs = "The routing migration's final feature-map baseline; profile routes must extend the same registration file." }]
+
+[[epic]]
+id = 10
+slug = "epic-account-security-api"
+title = "Signed-in account security through the API"
+covers = ["R5","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 9, needs = "The profile migration's final profile actions/caller baseline, also edited by password changes and account deletion." }]
+
+[[epic]]
+id = 11
+slug = "epic-admin-api"
+title = "Administration through the API"
+covers = ["R5","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 10, needs = "The account-security migration's session-ending and enrollment contracts, reused by admin security operations, plus the common feature-map baseline." }]
+
+[[epic]]
+id = 12
+slug = "epic-web-api-cleanup"
+title = "Complete the web API migration"
+covers = ["R6","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 11, needs = "All web domain migrations complete through the ordered chain ending with admin, so temporary auth-only action enforcement can be enabled." }]
+
+[[epic]]
+id = 13
+slug = "epic-unified-sessions"
+title = "Unified web and app sessions"
+covers = ["R8","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 12, needs = "Completed web migration and temporary auth-boundary cleanup." }]
+
+[[epic]]
+id = 14
+slug = "epic-mobile-contracts"
+title = "Mobile API contracts and prerequisites"
+covers = ["R9","R7"]
+after = [{ epic = 1, needs = "Validated API contracts, security wrapper, client mutation semantics, and shared test infrastructure from pilot entries 1.1–1.10." }, { epic = 13, needs = "Unified web/app sessions and API auth." }]
