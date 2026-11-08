@@ -1,4 +1,5 @@
 const checklistMutation = vi.hoisted(() => vi.fn());
+const checklistDisplay = vi.hoisted(() => ({ days: undefined as TripDetailPayload["days"] | undefined }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -122,6 +123,7 @@ vi.mock("./trip-detail-tab-body", async () => {
     TripDetailTabBody: ({
       activeTab,
       highlightedEventId,
+      days,
       walkThresholdMeters,
       onActivateReservationsCta,
       onLinkedEventTap,
@@ -130,6 +132,7 @@ vi.mock("./trip-detail-tab-body", async () => {
       onOpenMapTab,
     }: {
       onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+      days: TripDetailPayload["days"];
       activeTab: string;
       highlightedEventId?: string | null;
       walkThresholdMeters?: number | null;
@@ -146,6 +149,7 @@ vi.mock("./trip-detail-tab-body", async () => {
       return (
         <div
           data-testid="trip-detail-tab-body"
+          data-days={JSON.stringify(days)}
           data-can-edit-trip={String(canEditTrip)}
           data-highlighted-event-id={highlightedEventId ?? ""}
           data-walk-threshold-meters={walkThresholdMeters ?? ""}
@@ -221,7 +225,8 @@ vi.mock("@/components/arrivo/trip-share-dialog", () => ({
 }));
 
 vi.mock("./use-trip-detail-handlers", () => ({
-  useTripDetailHandlers: () => ({
+  useTripDetailHandlers: (detail: TripDetailPayload) => ({
+    days: checklistDisplay.days ?? detail.days,
     newlyCreatedChecklistId: null,
     addingDay: false,
     removingDay: false,
@@ -1180,4 +1185,17 @@ it.each([true, false])("forwards checklist boolean %s from page client", async (
   render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
   await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
   expect(checklistMutation).toHaveBeenCalledWith("item", isChecked);
+});
+
+it("passes optimistic handler days into itinerary rendering", () => {
+  checklistDisplay.days = [{ dayNumber: 1, label: "Optimistic day", events: [] }];
+  try {
+    render(<TripDetailClient detail={baseDetail} nowISO="2026-08-01T12:00:00Z" dateFormat="dd/MM/yyyy" />);
+    expect(screen.getByTestId("trip-detail-tab-body")).toHaveAttribute(
+      "data-days",
+      JSON.stringify(checklistDisplay.days)
+    );
+  } finally {
+    checklistDisplay.days = undefined;
+  }
 });

@@ -143,3 +143,21 @@ Feature: Day Planning
     Given the viewport is 375 by 812
     Then the "Measured action bar" row's Time, Cost, and Docs chips and Address segments each measure at least 44 by 44 pixels
     And the "Attach geometry row" row's Attach chip and empty Address button each measure at least 44 by 44 pixels
+
+  Scenario: Rapid checklist toggles preserve intent through slow writes and refresh
+    Given I am on the trip detail page
+    When I add a checklist with item "Rapid toggle"
+    And I add a second checklist item "Keep checklist open"
+    Then rapid checklist toggles stay visible and persist in FIFO order
+
+  Scenario: Checklist items write independently
+    Given I am on the trip detail page
+    When I add a checklist with item "Independent first"
+    And I add a second checklist item "Independent second"
+    Then another checklist item can save while the first write is blocked
+
+  Scenario: Failed checklist write rolls back and next click recovers
+    Given I am on the trip detail page
+    When I add a checklist with item "Recover toggle"
+    And I add a second checklist item "Keep checklist open"
+    Then a failed checklist toggle rolls back and the next click persists

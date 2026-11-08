@@ -897,3 +897,131 @@ Then("checklist completion persists after reload", async ({ page }) => {
   await openFirstDay(page);
   await expect(getLatestChecklist(page).getByLabel("Complete")).toBeVisible();
 });
+
+When("I add a second checklist item {string}", async ({ page }, content: string) => {
+  const checklist = getLatestChecklist(page);
+  await checklist.getByPlaceholder("Add an item…").fill(content);
+  await page.keyboard.press("Enter");
+  await expect(checklist.getByText(content, { exact: true })).toBeVisible();
+});
+
+Then("rapid checklist toggles stay visible and persist in FIFO order", async ({ page }) => {
+  const row = page.locator("[data-checklist-item-id]").filter({ hasText: "Rapid toggle" });
+  const itemId = await row.getAttribute("data-checklist-item-id");
+  const writes: boolean[] = [];
+  let completed = 0;
+  let inFlight = 0;
+  let peakInFlight = 0;
+  let releaseWrite!: () => void;
+  const writeGate = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  let releaseRefresh!: () => void;
+  const refreshGate = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  let refreshStarted = false;
+  const endpoint = `**/api/v1/checklist-items/${itemId}`;
+  await page.route(endpoint, async (route) => {
+    inFlight += 1;
+    peakInFlight = Math.max(peakInFlight, inFlight);
+    writes.push(route.request().postDataJSON().isChecked as boolean);
+    if (writes.length === 1) await writeGate;
+    const response = await route.fetch();
+    inFlight -= 1;
+    await route.fulfill({ response });
+    completed += 1;
+  });
+  const routePath = `**${new URL(page.url()).pathname}*`;
+  await page.route(routePath, async (route) => {
+    if (route.request().headers()["rsc"] === "1") {
+      refreshStarted = true;
+      await refreshGate;
+    }
+    await route.continue();
+  });
+  try {
+    await row.getByRole("button", { name: "Check item", exact: true }).click();
+    await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+    await row.getByRole("button", { name: "Uncheck item", exact: true }).click();
+    await expect(row.getByRole("button", { name: "Check item", exact: true })).toBeVisible();
+    await row.getByRole("button", { name: "Check item", exact: true }).click();
+    await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+    await expect.poll(() => writes.length).toBe(1);
+    releaseWrite();
+    await expect.poll(() => refreshStarted).toBe(true);
+    expect(writes).toEqual([true]);
+    await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+    releaseRefresh();
+    await expect.poll(() => completed).toBe(3);
+    expect(writes).toEqual([true, false, true]);
+    expect(peakInFlight).toBe(1);
+  } finally {
+    releaseWrite();
+    releaseRefresh();
+    await page.unroute(endpoint);
+    await page.unroute(routePath);
+  }
+  await page.reload();
+  await openFirstDay(page);
+  await getLatestChecklist(page).getByRole("button").first().click();
+  await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+});
+
+Then("another checklist item can save while the first write is blocked", async ({ page }) => {
+  const first = page.locator("[data-checklist-item-id]").filter({ hasText: "Independent first" });
+  const second = page.locator("[data-checklist-item-id]").filter({ hasText: "Independent second" });
+  const firstId = await first.getAttribute("data-checklist-item-id");
+  const secondId = await second.getAttribute("data-checklist-item-id");
+  let releaseFirst!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  let firstStarted = false;
+  await page.route(`**/api/v1/checklist-items/${firstId}`, async (route) => {
+    firstStarted = true;
+    await gate;
+    await route.continue();
+  });
+  const firstResponse = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${firstId}` });
+  try {
+    await first.getByRole("button", { name: "Check item", exact: true }).click();
+    await expect.poll(() => firstStarted).toBe(true);
+    const secondResponse = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${secondId}` });
+    await second.getByRole("button", { name: "Check item", exact: true }).click();
+    await secondResponse;
+  } finally {
+    releaseFirst();
+    await firstResponse;
+    await page.unroute(`**/api/v1/checklist-items/${firstId}`);
+  }
+});
+
+Then("a failed checklist toggle rolls back and the next click persists", async ({ page }) => {
+  const row = page.locator("[data-checklist-item-id]").filter({ hasText: "Recover toggle" });
+  const itemId = await row.getAttribute("data-checklist-item-id");
+  const endpoint = `**/api/v1/checklist-items/${itemId}`;
+  await page.route(
+    endpoint,
+    async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { code: "server_error", message: "Checklist write failed" },
+        }),
+      });
+    },
+    { times: 1 }
+  );
+  await row.getByRole("button", { name: "Check item", exact: true }).click();
+  await expect(page.getByText("Checklist write failed", { exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Check item", exact: true })).toBeVisible();
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await row.getByRole("button", { name: "Check item", exact: true }).click();
+  await response;
+  await page.reload();
+  await openFirstDay(page);
+  await getLatestChecklist(page).getByRole("button").first().click();
+  await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+});

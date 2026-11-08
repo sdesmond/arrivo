@@ -98,7 +98,8 @@ export function TripDetailClient({
   const [announcementId, setAnnouncementId] = useState(0);
   const handlers = useTripDetailHandlers(detail);
 
-  const { trip, days, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
+  const { days } = handlers;
+  const { trip, unscheduledEvents, docs, packingItems, packingLists, reservations, expenses, notes, accessRole } =
     detail;
 
   const [dialogResetNonce, setDialogResetNonce] = useState(0);

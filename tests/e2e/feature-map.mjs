@@ -459,6 +459,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/remove-last-day-dialog.tsx",
     "src/app/(app)/trips/[tripId]/unscheduled-events-section.tsx",
     "src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts",
+    "src/app/(app)/trips/[tripId]/use-checklist-handlers.ts",
     "src/lib/currencies.ts",
   ]),
   entry("documents", [
