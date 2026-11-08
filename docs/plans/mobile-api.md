@@ -337,19 +337,36 @@ exists.
 
 _6a. One session system for web and phone, auth on `/api/v1`, Auth.js retired._
 
+- **Hand-rolled session module (decided)**, not Better Auth.
+  - Arrivo already has custom, tested code for the throttle and lockout, MFA (tickets, recovery codes, encrypted
+    secrets), trusted devices, `session_version` revocation, the admin password and MFA policies, and the link flows.
+    Auth.js only handles the cookie and the sign-in plumbing, so 6a replaces a thin layer: token generation, hash
+    storage, cookie flags, lookup, sliding expiry, and a new token at sign-in.
+  - Better Auth would overlap that working code, want its own user, session, account and verification schema, and
+    require migrating MFA data in every self-hosted install.
+  - The module gets a dedicated security review before release.
+  - SSO (OIDC) or passkeys, if wanted later, go on top of these sessions with focused libraries (`openid-client`,
+    `@simplewebauthn/server`).
+- **Lifetime (decided).** Sessions expire after 30 days without use, renewed on every use. That matches today's Auth.js
+  default for "Keep me signed in" web sessions, and it applies to app sessions too.
+  - Unticked web sign-ins keep the 12-hour cutoff.
+  - The idle clock only advances while a client isn't reaching the server. An app that expires while away keeps its
+    offline trip data and asks for a sign-in at the next sync; expiry never wipes local data.
+  - If 30 days proves annoying, add a session-lifetime setting to Admin → Security next to the password and MFA
+    policies, rather than raising the default.
 - **Schema.** A new `user_sessions` table. (The Auth.js adapter already owns the name `sessions`.)
 
-  | column                                     | notes                                                                                            |
-  | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-  | `id` uuid pk                               |                                                                                                  |
-  | `user_id` uuid → users cascade             |                                                                                                  |
-  | `device_id` uuid → trusted_devices cascade | removing a device under Profile → Security ends its sessions                                     |
-  | `token_hash` text unique                   | SHA-256 of a 32-byte random token; the token itself is never stored                              |
-  | `client` text                              | `web` or `app`                                                                                   |
-  | `label` text                               | browser description or "Arrivo for iOS · Sam's iPhone"                                           |
-  | `session_version` int                      | must equal `users.session_version`, so sign out everywhere and password/MFA changes still revoke |
-  | `keep_signed_in` bool                      | keeps today's 12-hour cutoff for unticked web sign-ins                                           |
-  | `created_at`, `last_used_at`, `expires_at` | sliding expiry; `last_used_at` written at most once an hour                                      |
+  | column                                     | notes                                                                                                                    |
+  | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+  | `id` uuid pk                               |                                                                                                                          |
+  | `user_id` uuid → users cascade             |                                                                                                                          |
+  | `device_id` uuid → trusted_devices cascade | removing a device under Profile → Security ends its sessions                                                             |
+  | `token_hash` text unique                   | SHA-256 of a 32-byte random token; the token itself is never stored                                                      |
+  | `client` text                              | `web` or `app`                                                                                                           |
+  | `label` text                               | browser description or "Arrivo for iOS · Sam's iPhone"                                                                   |
+  | `session_version` int                      | must equal `users.session_version`, so sign out everywhere and password/MFA changes still revoke                         |
+  | `keep_signed_in` bool                      | keeps today's 12-hour cutoff for unticked web sign-ins                                                                   |
+  | `created_at`, `last_used_at`, `expires_at` | 30-day sliding expiry (12 hours for unticked web sign-ins); `last_used_at` and `expires_at` written at most once an hour |
 
 - **One resolver.** `resolveSession(request)` reads the `arrivo_session` httpOnly cookie or
   `Authorization: Bearer`, hashes the token, and checks the row, `session_version` and expiry in one query. That's the
@@ -439,14 +456,11 @@ Web E2E stays green at every step; it's the regression net for the refactor.
 
 ## Open questions
 
-1. Session lifetime in 6a: what sliding idle expiry for app sessions (90 days proposed), and should web sessions
-   with "Keep me signed in" ticked keep today's lifetime or adopt the same idle expiry?
-2. Hand-roll the 6a session module or adopt Better Auth? Evaluate when 6a starts. It must keep the existing throttle,
-   lockout, trusted-device and MFA rules, which are currently custom code.
-
-Decided:
+None blocking. Decided:
 
 - hand-rolled contract layer;
 - admin endpoints return 403 to non-admins;
 - auth stays on server actions until 6a, then moves to `/api/v1` on unified database sessions;
-- the no-JavaScript fallback for sign-in is dropped in 6a.
+- the no-JavaScript fallback for sign-in is dropped in 6a;
+- 6a sessions are hand-rolled, not Better Auth;
+- sessions expire after 30 days without use, for web ("Keep me signed in") and app alike.
