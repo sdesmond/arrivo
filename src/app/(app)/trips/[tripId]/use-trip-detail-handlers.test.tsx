@@ -611,7 +611,11 @@ vi.mock("@/lib/api/client", async (original) => ({
 it.each([true, false])("uses checked-state PATCH with %s and refreshes", async (isChecked) => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
-  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  const payload = detailWithChecklist("list");
+  payload.days[0].checklists![0].items = [
+    { id: "item", checklistId: "list", content: "Passport", isChecked: !isChecked },
+  ];
+  const { result } = renderHook(() => useTripDetailHandlers(payload));
   await act(async () => {
     result.current.handleToggleChecklistItem("item", isChecked);
   });
@@ -624,7 +628,9 @@ it.each([true, false])("uses checked-state PATCH with %s and refreshes", async (
 it("surfaces API failure without refreshing", async () => {
   const { api, ApiClientError } = await import("@/lib/api/client");
   vi.mocked(api).mockRejectedValue(new ApiClientError(403, "forbidden", "View access only"));
-  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  const payload = detailWithChecklist("list");
+  payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: false }];
+  const { result } = renderHook(() => useTripDetailHandlers(payload));
   await act(async () => {
     result.current.handleToggleChecklistItem("item", true);
   });
@@ -633,3 +639,13 @@ it("surfaces API failure without refreshing", async () => {
 });
 
 beforeEach(() => vi.clearAllMocks());
+
+it("composes checklist optimism into displayed days", () => {
+  const payload = detailWithChecklist("list");
+  payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: false }];
+  const { result } = renderHook(() => useTripDetailHandlers(payload));
+  act(() => {
+    result.current.handleToggleChecklistItem("item", true);
+  });
+  expect(result.current.days[0].checklists![0].items[0].isChecked).toBe(true);
+});

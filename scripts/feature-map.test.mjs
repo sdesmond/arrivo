@@ -22,6 +22,10 @@ describe("feature-map consistency", async () => {
     .map((name) => name.replace(/\.feature$/, ""));
   const mappedTags = new Set(FEATURE_MAP.map((feature) => feature.tag));
 
+  it("maps optimistic checklist handlers to day planning", () => {
+    const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:day-planning");
+    expect(matchesAnyGlob("src/app/(app)/trips/[tripId]/use-checklist-handlers.ts", feature.sourceGlobs)).toBe(true);
+  });
   it("keeps checklist API consumers explicitly scoped during rollout", () => {
     for (const path of [
       "src/lib/api/route.ts",

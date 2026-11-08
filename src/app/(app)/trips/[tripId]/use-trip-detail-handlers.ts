@@ -34,11 +34,11 @@ import {
   updateEvent,
   updateNote,
 } from "./actions";
-import { useApiMutation } from "@/lib/api/use-api-mutation";
-import { updateChecklistItem as checkedStateEndpoint } from "@/lib/api/contract/checklists";
+import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
 export interface TripDetailHandlers extends PackingHandlers {
+  days: DayItinerary[];
   addingDay: boolean;
   removingDay: boolean;
   savingTrip: boolean;
@@ -85,7 +85,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const packingHandlers = usePackingHandlers(detail);
-  const checkedStateMutation = useApiMutation(checkedStateEndpoint);
+  const checklistHandlers = useChecklistHandlers(days);
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -246,10 +246,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleToggleChecklistItem(itemId: string, isChecked: boolean): void {
-    void checkedStateMutation.mutate({ params: { itemId }, body: { isChecked } });
-  }
-
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -336,7 +332,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleAddChecklistItem,
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,
-    handleToggleChecklistItem,
+    ...checklistHandlers,
     handleTripSave: (patch, currencyChangeMode) => handleTripSave(patch, undefined, undefined, currencyChangeMode),
     handleTripSaveResolution: (patch, resolution, confirmation, currencyChangeMode) =>
       handleTripSave(patch, resolution, confirmation, currencyChangeMode),

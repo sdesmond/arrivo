@@ -1,3 +1,4 @@
+import { use, useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as navigation from "next/navigation";
@@ -91,4 +92,229 @@ it("keeps its returned promise pending until the mutation settles", async () => 
   });
   expect(finished).toBe(true);
   expect(router.refresh).toHaveBeenCalledOnce();
+});
+
+it("serializes one resource through refresh while allowing another resource to start", async () => {
+  const requests: Array<() => void> = [];
+  api.mockImplementation(() => new Promise<void>((resolve) => requests.push(resolve)));
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "first" });
+    void result.current.mutate({ ...input, body: { isChecked: false } }, { key: "first" });
+    void result.current.mutate(input, { key: "second" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    requests[0]();
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(3);
+  await act(async () => {
+    requests[1]();
+    requests[2]();
+  });
+});
+
+it("continues a resource queue after a failed write", async () => {
+  api.mockRejectedValueOnce(new Error("offline")).mockResolvedValue({ id: "item" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item" });
+    void result.current.mutate(input, { key: "item" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+  [401, "unauthenticated"],
+  [403, "mfa_enrollment_required"],
+] as const)("skips queued writes after %s auth loss and navigates once", async (status, code) => {
+  api.mockRejectedValue(new ApiClientError(status, code, "Sign in"));
+  const onAuthLost = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item", onAuthLost });
+    void result.current.mutate(input, { key: "item", onAuthLost });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledOnce();
+  expect(router.push).toHaveBeenCalledOnce();
+  expect(onAuthLost).toHaveBeenCalled();
+});
+
+it("holds the same-resource queue until a delayed refresh commits", async () => {
+  let releaseRefresh!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  api.mockResolvedValue({ id: "item" });
+  const { result } = renderHook(() => {
+    const [refresh, setRefresh] = useState<Promise<void> | null>(null);
+    router.refresh.mockImplementation(() => setRefresh(blocked));
+    const mutation = useApiMutation(updateChecklistItem);
+    if (refresh) use(refresh);
+    return mutation;
+  });
+  act(() => {
+    void result.current.mutate(input, { key: "item" });
+    void result.current.mutate(input, { key: "item" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledOnce();
+  await act(async () => {
+    releaseRefresh();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  router.refresh.mockReset();
+});
+
+it("skips queued writes and callbacks after unmount", async () => {
+  let releaseRequest!: (value: unknown) => void;
+  api.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        releaseRequest = resolve;
+      })
+  );
+  const onSettled = vi.fn();
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  let pending!: Promise<void>;
+  act(() => {
+    void result.current.mutate(input, { key: "item", onSettled });
+    pending = result.current.mutate(input, { key: "item", onSettled });
+  });
+  unmount();
+  releaseRequest({ id: "item" });
+  await pending;
+  expect(api).toHaveBeenCalledOnce();
+  expect(onSettled).not.toHaveBeenCalled();
+  expect(router.refresh).not.toHaveBeenCalled();
+});
+
+it("continues through a middle failure so the final absolute write wins", async () => {
+  api
+    .mockResolvedValueOnce({ id: "item", isChecked: true })
+    .mockRejectedValueOnce(new ApiClientError(500, "server_error", "Middle write failed"))
+    .mockResolvedValueOnce({ id: "item", isChecked: true });
+  const onSuccess = vi.fn();
+  const onError = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item", onSuccess });
+    void result.current.mutate({ ...input, body: { isChecked: false } }, { key: "item", onError });
+    void result.current.mutate(input, { key: "item", onSuccess });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api.mock.calls.map(([, request]) => request.body.isChecked)).toEqual([true, false, true]);
+  expect(onSuccess).toHaveBeenCalledTimes(2);
+  expect(onError).toHaveBeenCalledOnce();
+  expect(error).toHaveBeenCalledWith("Middle write failed");
+});
+
+it("starts B2 when B props commit while A refresh remains pending", async () => {
+  let releaseFirstRefresh!: () => void;
+  const firstRefresh = new Promise<void>((resolve) => {
+    releaseFirstRefresh = resolve;
+  });
+  let commitSecondProps!: () => void;
+  const secondProps = new Promise<void>((resolve) => {
+    commitSecondProps = resolve;
+  });
+  api.mockResolvedValue({ id: "item" });
+  const { result } = renderHook(() => {
+    const [refresh, setRefresh] = useState<Promise<void> | null>(null);
+    router.refresh.mockImplementationOnce(() => setRefresh(firstRefresh));
+    const mutation = useApiMutation(updateChecklistItem);
+    if (refresh) use(refresh);
+    return mutation;
+  });
+  act(() => {
+    void result.current.mutate(input, { key: "first" });
+    void result.current.mutate(input, { key: "second", waitForRefresh: () => secondProps });
+    void result.current.mutate({ ...input, body: { isChecked: false } }, { key: "second" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    commitSecondProps();
+  });
+  expect(api).toHaveBeenCalledTimes(3);
+  await act(async () => {
+    releaseFirstRefresh();
+  });
+  router.refresh.mockReset();
+});
+
+it("releases other active refresh waiters promptly after auth loss", async () => {
+  let releaseRefresh!: () => void;
+  const blockedRefresh = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  api
+    .mockResolvedValueOnce({ id: "item" })
+    .mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const onSettled = vi.fn();
+  const onAuthLost = vi.fn();
+  const { result } = renderHook(() => {
+    const [refresh, setRefresh] = useState<Promise<void> | null>(null);
+    router.refresh.mockImplementationOnce(() => setRefresh(blockedRefresh));
+    const mutation = useApiMutation(updateChecklistItem);
+    if (refresh) use(refresh);
+    return mutation;
+  });
+  act(() => {
+    void result.current.mutate(input, { key: "first", onSettled });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(onSettled).not.toHaveBeenCalled();
+  act(() => {
+    void result.current.mutate(input, { key: "second", onAuthLost });
+    void result.current.mutate(input, { key: "first", onAuthLost });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(onSettled).toHaveBeenCalledOnce();
+  expect(onAuthLost).toHaveBeenCalledTimes(2);
+  expect(api).toHaveBeenCalledTimes(2);
+  expect(router.push).toHaveBeenCalledOnce();
+  await act(async () => {
+    releaseRefresh();
+  });
+  router.refresh.mockReset();
+});
+
+it("clears a queued validation failure when the next write starts and succeeds", async () => {
+  api
+    .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Invalid", { isChecked: ["Required"] }))
+    .mockResolvedValueOnce({ id: "item" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item" });
+    void result.current.mutate(input, { key: "item" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  expect(error).toHaveBeenCalledWith("Invalid");
+  expect(result.current.fields).toEqual({});
 });
