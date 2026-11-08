@@ -37,6 +37,16 @@ describe("feature-map consistency", async () => {
     }
   });
 
+  it("scopes shared replay storage to API, checklist and packing consumers without a full-suite run", () => {
+    const tagsFor = (path) =>
+      FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map((feature) => feature.tag);
+    expect(tagsFor("src/lib/api/idempotency.ts")).toEqual(
+      expect.arrayContaining(["@feat:api", "@feat:day-planning", "@feat:trip-live-refresh", "@feat:packing-tab"])
+    );
+    expect(tagsFor("src/lib/api/idempotency.test.ts")).not.toContain("@feat:packing-tab");
+    expect(tagsFor("src/app/(app)/trips/packing-actions.ts")).toContain("@feat:packing-tab");
+  });
+
   it("every feature file carries its own @feat:<stem> tag", () => {
     const untagged = featureStems.filter(
       (stem) => !readFileSync(join(FEATURES_DIR, `${stem}.feature`), "utf8").includes(`@feat:${stem}`)
