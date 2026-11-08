@@ -62,6 +62,14 @@ const PASSWORD_RULES = [
 ];
 
 export const FEATURE_MAP = [
+  entry("api", [
+    "src/lib/api/**",
+    "src/lib/services/checklists.ts",
+    "src/lib/services/trip-access.ts",
+    "src/lib/services/trip-write-effects.ts",
+    "src/app/api/v1/checklist-items/**",
+    "tests/e2e/api-response.ts",
+  ]),
   entry("mfa-policy", [
     ...CREDENTIALS,
     "src/lib/mfa-policy.ts",
@@ -425,6 +433,12 @@ export const FEATURE_MAP = [
   // `entry()` covers its own feature/step files, so editing a scenario still re-runs it.
   entry("dashboard-live-sync", []),
   entry("day-planning", [
+    "src/lib/api/**",
+    "src/lib/services/checklists.ts",
+    "src/lib/services/trip-access.ts",
+    "src/lib/services/trip-write-effects.ts",
+    "src/app/api/v1/checklist-items/**",
+    "tests/e2e/api-response.ts",
     "src/components/arrivo/day-card*.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/note-item.tsx",
@@ -610,6 +624,12 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
   ]),
   entry("trip-live-refresh", [
+    "src/lib/api/**",
+    "src/lib/services/checklists.ts",
+    "src/lib/services/trip-access.ts",
+    "src/lib/services/trip-write-effects.ts",
+    "src/app/api/v1/checklist-items/**",
+    "tests/e2e/api-response.ts",
     "src/lib/live-sync-constants.ts",
     "src/lib/use-live-sync.ts",
     "src/lib/use-trip-live-refresh.ts",
@@ -687,6 +707,7 @@ export const FEATURE_MAP = [
 // Changing anything that matches a SHARED_GLOB forces the full suite — these are cross-cutting and
 // can affect any feature.
 export const SHARED_GLOBS = [
+  "src/lib/api/**",
   // Data + shared library + auth/runtime wiring
   "src/db/**",
   "src/data/**",

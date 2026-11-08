@@ -2033,3 +2033,21 @@ describe("publishItineraryChanged regression coverage", () => {
     });
   });
 });
+
+it("retains the legacy SQL toggle and write effects alongside absolute API writes", async () => {
+  vi.clearAllMocks();
+  mockRequireUser.mockResolvedValue({ id: "user" });
+  mockAssertTripAccess.mockResolvedValue("editor");
+  mockDbSelect
+    .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist" }]))
+    .mockReturnValueOnce(createSimpleSelect([{ dayId: "day" }]))
+    .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip" }]));
+  const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+  mockDbUpdate.mockReturnValue({ set });
+  await toggleChecklistItem("item");
+  expect(mockAssertTripAccess).toHaveBeenCalledWith("trip", "user", "editor");
+  expect(set).toHaveBeenCalledWith({ isChecked: "sql" });
+  expect(recordTripUpdated).toHaveBeenCalledWith("user", "trip");
+  expect(mockPublishTripEvent).toHaveBeenCalledWith("trip", expect.objectContaining({ tripId: "trip" }));
+  expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip");
+});

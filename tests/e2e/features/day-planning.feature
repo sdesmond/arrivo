@@ -53,6 +53,7 @@ Feature: Day Planning
     Then the checklist should be visible on the timeline
     When I check all items in the checklist
     Then the checklist should show the completion badge
+    And checklist completion persists after reload
     When I collapse the checklist
     Then the checklist should be collapsed
     When I delete the checklist

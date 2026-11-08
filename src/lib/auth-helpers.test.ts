@@ -126,3 +126,10 @@ describe("enrollment-only sessions", () => {
     await expect(requireEnrollmentUser()).resolves.toEqual(user);
   });
 });
+
+it("propagates unexpected access lookup failures", async () => {
+  db.select.mockImplementationOnce(() => {
+    throw new Error("database unavailable");
+  });
+  await expect(assertTripAccess(TRIP_ID, "user-1")).rejects.toThrow("database unavailable");
+});

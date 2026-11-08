@@ -28,13 +28,14 @@ import {
   deleteNote,
   reorderDayItems,
   removeLastDay,
-  toggleChecklistItem,
   updateChecklistItem,
   updateChecklistTitle,
   updateDay,
   updateEvent,
   updateNote,
 } from "./actions";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { updateChecklistItem as checkedStateEndpoint } from "@/lib/api/contract/checklists";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
 export interface TripDetailHandlers extends PackingHandlers {
@@ -56,7 +57,7 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleAddChecklistItem: (checklistId: string, content: string) => void;
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
-  handleToggleChecklistItem: (itemId: string) => void;
+  handleToggleChecklistItem: (itemId: string, isChecked: boolean) => void;
   handleTripSave: (
     patch: UpdateTripPatch,
     currencyChangeMode?: TripCurrencyChangeMode
@@ -84,6 +85,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const packingHandlers = usePackingHandlers(detail);
+  const checkedStateMutation = useApiMutation(checkedStateEndpoint);
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -244,10 +246,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleToggleChecklistItem(itemId: string): void {
-    React.startTransition(() => {
-      toggleChecklistItem(itemId);
-    });
+  function handleToggleChecklistItem(itemId: string, isChecked: boolean): void {
+    void checkedStateMutation.mutate({ params: { itemId }, body: { isChecked } });
   }
 
   function handleTripSave(

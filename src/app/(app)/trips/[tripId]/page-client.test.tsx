@@ -1,3 +1,4 @@
+const checklistMutation = vi.hoisted(() => vi.fn());
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -125,8 +126,10 @@ vi.mock("./trip-detail-tab-body", async () => {
       onActivateReservationsCta,
       onLinkedEventTap,
       onOpenEditDates,
+      onToggleChecklistItem,
       onOpenMapTab,
     }: {
+      onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
       activeTab: string;
       highlightedEventId?: string | null;
       walkThresholdMeters?: number | null;
@@ -148,6 +151,8 @@ vi.mock("./trip-detail-tab-body", async () => {
           data-walk-threshold-meters={walkThresholdMeters ?? ""}
         >
           {activeTab}
+          <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
+          <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
           <button onClick={onActivateReservationsCta}>Activate CTA</button>
           <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
           <button onClick={onOpenEditDates}>Open edit dates</button>
@@ -236,7 +241,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleAddChecklistItem: vi.fn(),
     handleUpdateChecklistItem: vi.fn(),
     handleDeleteChecklistItem: vi.fn(),
-    handleToggleChecklistItem: vi.fn(),
+    handleToggleChecklistItem: checklistMutation,
     handleAddPackingItem: vi.fn(),
     handleRemovePackingItem: vi.fn(),
     handleTogglePackingItem: vi.fn(),
@@ -1169,4 +1174,10 @@ describe("TripDetailClient", () => {
     expect(screen.getByTestId("trip-edit-sheet")).toHaveAttribute("data-highlight-dates", "false");
     vi.useRealTimers();
   });
+});
+
+it.each([true, false])("forwards checklist boolean %s from page client", async (isChecked) => {
+  render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
+  expect(checklistMutation).toHaveBeenCalledWith("item", isChecked);
 });

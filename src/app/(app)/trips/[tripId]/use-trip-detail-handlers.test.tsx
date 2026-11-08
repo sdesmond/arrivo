@@ -603,3 +603,33 @@ describe("useTripDetailHandlers", () => {
     expect(saveResult).toBeUndefined();
   });
 });
+
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
+}));
+it.each([true, false])("uses checked-state PATCH with %s and refreshes", async (isChecked) => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockResolvedValue({});
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleToggleChecklistItem("item", isChecked);
+  });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" }), {
+    params: { itemId: "item" },
+    body: { isChecked },
+  });
+  expect(mockRefresh).toHaveBeenCalledOnce();
+});
+it("surfaces API failure without refreshing", async () => {
+  const { api, ApiClientError } = await import("@/lib/api/client");
+  vi.mocked(api).mockRejectedValue(new ApiClientError(403, "forbidden", "View access only"));
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleToggleChecklistItem("item", true);
+  });
+  expect(toast.error).toHaveBeenCalledWith("View access only");
+  expect(mockRefresh).not.toHaveBeenCalled();
+});
+
+beforeEach(() => vi.clearAllMocks());

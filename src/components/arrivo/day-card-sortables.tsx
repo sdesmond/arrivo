@@ -10,13 +10,20 @@ import { useCanEditTrip } from "./trip-edit-access";
 
 function makeDragHandle(
   attributes: ReturnType<typeof useSortable>["attributes"],
-  listeners: ReturnType<typeof useSortable>["listeners"]
+  listeners: ReturnType<typeof useSortable>["listeners"],
+  checklistTarget = false
 ) {
   return (
     <span
       {...attributes}
       {...listeners}
-      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+      style={{
+        cursor: "grab",
+        display: "flex",
+        alignItems: "center",
+        touchAction: "none",
+        ...(checklistTarget ? { width: 44, height: 44, justifyContent: "center" } : {}),
+      }}
     >
       <GripVertical size={13} strokeWidth={1.5} />
     </span>
@@ -75,7 +82,7 @@ export function SortableChecklistItem(props: React.ComponentProps<typeof Checkli
   };
   return (
     <div ref={setNodeRef} style={style}>
-      <ChecklistItem {...props} dragHandle={canEdit ? makeDragHandle(attributes, listeners) : undefined} />
+      <ChecklistItem {...props} dragHandle={canEdit ? makeDragHandle(attributes, listeners, true) : undefined} />
     </div>
   );
 }

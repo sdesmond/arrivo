@@ -100,3 +100,9 @@ describe("proxy", () => {
     expect(matcher.test("/favicon.ico")).toBe(false);
   });
 });
+
+it("leaves only versioned API boundary public for JSON authentication", () => {
+  expect(request("/api/v1/checklist-items/item")).toBeUndefined();
+  expect(request("/api/v1")).toBeUndefined();
+  expect(request("/api/v10/items")?.headers.get("location")).toContain("/sign-in");
+});

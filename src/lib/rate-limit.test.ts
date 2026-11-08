@@ -92,3 +92,10 @@ describe("rateLimitedResponse", () => {
     expect(Number(response?.headers.get("Retry-After"))).toBeGreaterThan(0);
   });
 });
+
+it("provides an isolated generous API budget", () => {
+  expect(RATE_LIMITS.api.max).toBeGreaterThanOrEqual(300);
+  for (let call = 0; call < RATE_LIMITS.api.max; call += 1) assertWithinRateLimit("api", "api-user");
+  expect(() => assertWithinRateLimit("api", "api-user")).toThrow(RateLimitError);
+  expect(() => assertWithinRateLimit("api", "another-user")).not.toThrow();
+});

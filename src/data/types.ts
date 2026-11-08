@@ -1551,3 +1551,7 @@ export interface MfaPolicy {
 export type MfaPolicySaveResult =
   | { status: "ok"; required: boolean }
   | { status: "invalid" | "forbidden" | "stale" | "unavailable" | "key-unavailable" };
+
+export interface Actor {
+  userId: string;
+}

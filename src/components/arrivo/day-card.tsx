@@ -33,7 +33,7 @@ interface DayCardProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
-  onToggleChecklistItem?: (itemId: string) => void;
+  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
   onRemove?: () => void;
   removeDisabled?: boolean;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;

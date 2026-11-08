@@ -89,8 +89,17 @@ vi.mock("./day-card-sortables", () => ({
     </div>
   ),
   SortableNoteItem: ({ note }: { note: { id: string } }) => <div data-testid={`sortable-note-${note.id}`} />,
-  SortableChecklistItem: ({ checklist }: { checklist: { id: string } }) => (
-    <div data-testid={`sortable-checklist-${checklist.id}`} />
+  SortableChecklistItem: ({
+    checklist,
+    onToggleItem,
+  }: {
+    checklist: { id: string };
+    onToggleItem?: (itemId: string, isChecked: boolean) => void;
+  }) => (
+    <div data-testid={`sortable-checklist-${checklist.id}`}>
+      <button onClick={() => onToggleItem?.("item", true)}>Check API item</button>
+      <button onClick={() => onToggleItem?.("item", false)}>Uncheck API item</button>
+    </div>
   ),
 }));
 
@@ -815,4 +824,32 @@ describe("DayCardDnd", () => {
       "false"
     );
   });
+});
+
+it.each([true, false])("forwards checklist boolean %s through DnD", async (isChecked) => {
+  const onToggleChecklistItem = vi.fn();
+  render(
+    <DayCardDnd
+      dayNumber={1}
+      dayDate="2030-06-16"
+      timelineItems={timelineItems}
+      renderEntries={renderEntries}
+      makeGapProps={() => ({
+        gapKey: "gap",
+        isActive: false,
+        onOpen: vi.fn(),
+        onSelectType: vi.fn(),
+        onDismiss: vi.fn(),
+      })}
+      commitDraft={vi.fn()}
+      cancelDraft={vi.fn()}
+      setOptimisticOrder={vi.fn()}
+      onReorderDayItems={vi.fn()}
+      onUpdateEvent={vi.fn()}
+      onDeleteEvent={vi.fn()}
+      onToggleChecklistItem={onToggleChecklistItem}
+    />
+  );
+  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
+  expect(onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
 });

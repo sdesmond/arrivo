@@ -6,6 +6,7 @@ import { TripEditAccessProvider } from "@/components/arrivo/trip-edit-access";
 import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary-view";
 
 interface MockDayCardProps {
+  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
   day: DayItinerary;
   tripId?: string;
   tripTransitMode?: TransitMode | null;
@@ -31,6 +32,7 @@ vi.mock("@/components/arrivo/day-card", () => ({
     highlightedEventId,
     onRemove,
     onLinkedEventTap,
+    onToggleChecklistItem,
     onOpenMapTab,
   }: MockDayCardProps) => (
     <section
@@ -42,6 +44,8 @@ vi.mock("@/components/arrivo/day-card", () => ({
       data-walk-threshold-meters={walkThresholdMeters ?? ""}
     >
       <span>{day.label}</span>
+      <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
+      <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
       {onLinkedEventTap && (
         <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap on {day.label}</button>
@@ -359,4 +363,11 @@ describe("TripItineraryView for a viewer", () => {
     renderAsViewer(buildProps([dayOne]));
     expect(screen.queryByRole("button", { name: /opens the Reservations tab/ })).not.toBeInTheDocument();
   });
+});
+
+it.each([true, false])("forwards checklist boolean %s through itinerary", async (isChecked) => {
+  const props = buildProps([dayOne]);
+  render(<TripItineraryView {...props} />);
+  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
+  expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
 });

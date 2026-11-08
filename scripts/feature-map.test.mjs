@@ -22,6 +22,21 @@ describe("feature-map consistency", async () => {
     .map((name) => name.replace(/\.feature$/, ""));
   const mappedTags = new Set(FEATURE_MAP.map((feature) => feature.tag));
 
+  it("keeps checklist API consumers explicitly scoped during rollout", () => {
+    for (const path of [
+      "src/lib/api/route.ts",
+      "src/lib/services/checklists.ts",
+      "src/app/api/v1/checklist-items/[itemId]/route.ts",
+    ]) {
+      const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map(
+        (feature) => feature.tag
+      );
+      expect(tags).toContain("@feat:api");
+      expect(tags).toContain("@feat:day-planning");
+      expect(tags).toContain("@feat:trip-live-refresh");
+    }
+  });
+
   it("every feature file carries its own @feat:<stem> tag", () => {
     const untagged = featureStems.filter(
       (stem) => !readFileSync(join(FEATURES_DIR, `${stem}.feature`), "utf8").includes(`@feat:${stem}`)

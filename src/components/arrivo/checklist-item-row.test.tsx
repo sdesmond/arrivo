@@ -14,7 +14,7 @@ describe("ChecklistItemRow", () => {
     const onToggle = vi.fn();
     render(<ChecklistItemRow item={item} onToggle={onToggle} />);
     await user.click(screen.getByRole("button", { name: "Check item" }));
-    expect(onToggle).toHaveBeenCalledWith("item-1");
+    expect(onToggle).toHaveBeenCalledWith("item-1", true);
   });
 
   it("labels a checked item's checkbox Uncheck item", () => {
@@ -84,4 +84,25 @@ describe("ChecklistItemRow length limit", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "Sunscreen" }), { key: "Enter" });
     expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.checklistItem));
   });
+});
+
+it("passes absolute false for a checked item", () => {
+  const onToggle = vi.fn();
+  render(
+    <ChecklistItemRow
+      item={{ id: "checked", checklistId: "list", content: "Passport", isChecked: true }}
+      onToggle={onToggle}
+    />
+  );
+  fireEvent.click(screen.getByTitle("Uncheck item"));
+  expect(onToggle).toHaveBeenCalledWith("checked", false);
+});
+
+it("keeps touch targets at 44px and names inline editing", () => {
+  render(<ChecklistItemRow item={item} />);
+  const button = screen.getByTitle("Check item");
+  expect(button).toHaveStyle({ width: "44px", height: "44px" });
+  expect(button.firstElementChild).toHaveStyle({ width: "14px", height: "14px" });
+  fireEvent.click(screen.getByText(item.content));
+  expect(screen.getByRole("textbox", { name: "Checklist item content" })).toBeVisible();
 });

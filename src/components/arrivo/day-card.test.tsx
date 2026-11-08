@@ -22,6 +22,7 @@ interface MockDragOverlayProps extends Record<string, unknown> {
   children: ReactNode;
 }
 interface MockChecklistItemProps {
+  onToggleItem?: (itemId: string, isChecked: boolean) => void;
   checklist: { id: string; items: unknown[] };
   isDraft?: boolean;
   onCommitDraft?: (firstItemContent?: string) => void;
@@ -91,7 +92,7 @@ vi.mock("@/lib/route-client", () => ({
 }));
 
 vi.mock("./checklist-item", () => ({
-  ChecklistItem: ({ checklist, isDraft, onCommitDraft, onCancelDraft }: MockChecklistItemProps) => {
+  ChecklistItem: ({ checklist, isDraft, onCommitDraft, onCancelDraft, onToggleItem }: MockChecklistItemProps) => {
     if (isDraft) {
       return (
         <input
@@ -114,7 +115,12 @@ vi.mock("./checklist-item", () => ({
         />
       );
     }
-    return <div data-testid={`checklist-item-${checklist.id}`} />;
+    return (
+      <div data-testid={`checklist-item-${checklist.id}`}>
+        <button onClick={() => onToggleItem?.("item", true)}>Check API item</button>
+        <button onClick={() => onToggleItem?.("item", false)}>Uncheck API item</button>
+      </div>
+    );
   },
 }));
 
@@ -1043,4 +1049,21 @@ describe("DayCard", () => {
 
     expect(onLinkedEventTap).toHaveBeenCalledWith("reservation-1");
   });
+});
+
+it.each([true, false])("forwards checklist boolean %s through day card", async (isChecked) => {
+  const onToggleChecklistItem = vi.fn();
+  const day = { ...baseDay, checklists: [{ id: "list", tripDayId: "day", position: 0, items: [] }] };
+  render(
+    <DayCard
+      day={day}
+      initialOpen
+      onUpdateEvent={vi.fn()}
+      onDeleteEvent={vi.fn()}
+      onReorderDayItems={vi.fn()}
+      onToggleChecklistItem={onToggleChecklistItem}
+    />
+  );
+  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
+  expect(onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
 });

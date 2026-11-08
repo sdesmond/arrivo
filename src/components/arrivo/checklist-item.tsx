@@ -19,7 +19,7 @@ export interface ChecklistItemProps {
   onAddItem?: (checklistId: string, content: string) => void;
   onUpdateItem?: (itemId: string, content: string) => void;
   onDeleteItem?: (itemId: string) => void;
-  onToggleItem?: (itemId: string) => void;
+  onToggleItem?: (itemId: string, isChecked: boolean) => void;
   dragHandle?: React.ReactNode;
   displayOnly?: boolean;
 }
@@ -135,8 +135,8 @@ export function ChecklistItem({
       {/* Header */}
       <button
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
-          !isDraft && canEdit && (dragHandle ? "pr-16" : "pr-9")
+          "min-h-11 w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
+          !isDraft && canEdit && (dragHandle ? "pr-28" : "pr-14")
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
@@ -202,6 +202,8 @@ export function ChecklistItem({
           {/* Title area */}
           {isEditingTitle ? (
             <input
+              aria-label="Checklist title"
+              className="min-h-11"
               autoFocus
               value={draftTitle}
               maxLength={FIELD_LIMITS.checklistTitle}
@@ -256,7 +258,7 @@ export function ChecklistItem({
                 fontWeight: checklist.title ? 500 : 400,
                 color: checklist.title ? "var(--fg)" : "var(--fg-4)",
                 cursor: "text",
-                minHeight: "1.4em",
+                minHeight: 44,
                 padding: "1px 0",
                 marginBottom: 4,
               }}
@@ -279,6 +281,8 @@ export function ChecklistItem({
           {/* Persistent add-item row */}
           {canEdit && (
             <input
+              aria-label="New checklist item"
+              className="min-h-11"
               autoFocus={!!isDraft}
               value={itemInput}
               maxLength={FIELD_LIMITS.checklistItem}
@@ -304,8 +308,8 @@ export function ChecklistItem({
       {/* Drag handle — always visible on mobile, hover-only on desktop */}
       {canEdit && !isDraft && dragHandle && (
         <span
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
-          style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-0 flex items-center"
+          style={{ right: 44, color: "var(--fg-4)", width: 44, height: 44, justifyContent: "center" }}
         >
           {dragHandle}
         </span>
@@ -315,7 +319,7 @@ export function ChecklistItem({
       {canEdit && !isDraft && (
         <button
           onClick={() => onDelete?.(checklist.id)}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"
+          className="size-11 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-0 top-0"
           title="Delete checklist"
           style={{
             background: "none",

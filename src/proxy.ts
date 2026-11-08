@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/sign-in",
   "/sign-up",
   "/api/auth",
+  "/api/v1",
   "/api/health",
 ];
 

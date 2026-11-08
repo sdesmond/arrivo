@@ -63,7 +63,7 @@ export interface TripDetailTabBodyProps {
   onAddChecklistItem: (checklistId: string, content: string) => void;
   onUpdateChecklistItem: (itemId: string, content: string) => void;
   onDeleteChecklistItem: (itemId: string) => void;
-  onToggleChecklistItem: (itemId: string) => void;
+  onToggleChecklistItem: (itemId: string, isChecked: boolean) => void;
   onAddPackingItem: (
     name: string,
     isLabel?: boolean,

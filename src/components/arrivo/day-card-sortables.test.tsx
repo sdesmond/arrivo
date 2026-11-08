@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 
+const dragStart = vi.hoisted(() => vi.fn());
 const isDraggingById = vi.hoisted(() => ({}) as Record<string, boolean>);
 const sortableCalls = vi.hoisted(
   () => [] as { id: string; animateLayoutChanges?: () => boolean; disabled?: boolean }[]
@@ -11,7 +12,7 @@ vi.mock("@dnd-kit/sortable", () => ({
     sortableCalls.push(opts);
     return {
       attributes: {},
-      listeners: {},
+      listeners: { onPointerDown: dragStart },
       setNodeRef: vi.fn(),
       transform: null,
       transition: undefined,
@@ -154,4 +155,22 @@ describe("day-card-sortables for a viewer", () => {
     expect(sortableCalls[0].disabled).toBe(false);
     expect(getByTestId("place-row-ev-e")).not.toBeEmptyDOMElement();
   });
+});
+
+it("sizes actual checklist listener target to 44px without changing other row targets", () => {
+  const checklist = render(
+    <SortableChecklistItem checklist={{ id: "touch-list", tripDayId: "day", position: 0, items: [] }} />
+  );
+  const target = checklist.getByTestId("checklist-item-touch-list").firstElementChild as HTMLElement;
+  expect(target).toHaveStyle({ width: "44px", height: "44px" });
+  fireEvent.pointerDown(target);
+  expect(dragStart).toHaveBeenCalled();
+  const place = render(
+    <SortablePlaceRow
+      place={{ id: "place-target", name: "Place", position: 0 }}
+      onUpdate={vi.fn()}
+      onDelete={vi.fn()}
+    />
+  );
+  expect(place.getByTestId("place-row-place-target").firstElementChild).not.toHaveStyle({ width: "44px" });
 });
