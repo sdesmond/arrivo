@@ -67,17 +67,17 @@ describe("ChecklistItem — icon", () => {
 });
 
 describe("ChecklistItem — Bug 1: chevron/trash overlap fix", () => {
-  it("header button has pr-9 class in non-draft mode to clear the absolute trash icon", () => {
+  it("header button has pr-14 class in non-draft mode to clear the absolute trash icon", () => {
     const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    const headerBtn = container.querySelector("button.pr-9");
+    const headerBtn = container.querySelector("button.pr-14");
     expect(headerBtn).toBeInTheDocument();
   });
 
-  it("header button does NOT have pr-9 class in draft mode (no trash icon present)", () => {
+  it("header button does NOT have pr-14 class in draft mode (no trash icon present)", () => {
     const { container } = render(
       <ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={vi.fn()} onCancelDraft={vi.fn()} />
     );
-    const headerBtn = container.querySelector("button.pr-9");
+    const headerBtn = container.querySelector("button.pr-14");
     expect(headerBtn).not.toBeInTheDocument();
   });
 });
@@ -494,7 +494,7 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
     await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const checkboxes = screen.getAllByTitle("Check item");
     await user.click(checkboxes[0]);
-    expect(onToggleItem).toHaveBeenCalledWith("item-1");
+    expect(onToggleItem).toHaveBeenCalledWith("item-1", true);
   });
 
   it("unchecked checkbox has title 'Check item'", async () => {
@@ -768,4 +768,11 @@ describe("ChecklistItem length limits", () => {
       String(FIELD_LIMITS.checklistTitle)
     );
   });
+});
+
+it("forwards absolute false for an already checked row", () => {
+  const onToggleItem = vi.fn();
+  render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} initiallyExpanded onToggleItem={onToggleItem} />);
+  fireEvent.click(screen.getByTitle("Uncheck item"));
+  expect(onToggleItem).toHaveBeenCalledWith("item-1", false);
 });

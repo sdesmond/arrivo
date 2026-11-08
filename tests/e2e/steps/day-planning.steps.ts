@@ -14,6 +14,7 @@ import {
   E2E_TRIP_THIRD_DATE,
   e2eTripDateTime,
 } from "../e2e-seed-data";
+import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, Before } from "../fixtures";
 
 async function openFirstDay(page: Page): Promise<void> {
@@ -587,7 +588,12 @@ When("I check all items in the checklist", async ({ page }) => {
   const uncheckedButtons = checklist.getByRole("button", { name: "Check item" });
   const uncheckedCount = await uncheckedButtons.count();
   for (let checkedCount = 1; checkedCount <= uncheckedCount; checkedCount += 1) {
+    const itemRow = uncheckedButtons.first().locator("..");
+    const itemId = await itemRow.getAttribute("data-checklist-item-id");
+    if (!itemId) throw new Error("Checklist item id is missing.");
+    const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
     await uncheckedButtons.first().click();
+    await response;
     if (checkedCount === uncheckedCount) {
       // The last check completes the checklist, which auto-collapses 600ms later and unmounts the
       // item rows, so a row count can miss that window under load. The header badge persists.
@@ -884,4 +890,10 @@ Then("the untimed event asks for trip dates before a time", async ({ page }) => 
 
 When("I open the first day", async ({ page }) => {
   await openFirstDay(page);
+});
+
+Then("checklist completion persists after reload", async ({ page }) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(getLatestChecklist(page).getByLabel("Complete")).toBeVisible();
 });

@@ -1225,3 +1225,8 @@ describe("dbCompanionToType", () => {
     expect(result.position).toBe(2);
   });
 });
+
+it("exports the canonical checklist item mapper for API responses", async () => {
+  const { dbChecklistItemToType } = await import("./db-mappers");
+  expect(dbChecklistItemToType(BASE_ITEM)).toEqual(dbChecklistToType(BASE_CHECKLIST, [BASE_ITEM]).items[0]);
+});

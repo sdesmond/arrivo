@@ -225,7 +225,7 @@ export function dbInvitationToType(row: typeof invitations.$inferSelect & { invi
   };
 }
 
-function dbChecklistItemToType(row: typeof checklistItems.$inferSelect): ChecklistItem {
+export function dbChecklistItemToType(row: typeof checklistItems.$inferSelect): ChecklistItem {
   return {
     id: row.id,
     checklistId: row.checklistId,

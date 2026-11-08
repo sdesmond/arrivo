@@ -1,12 +1,9 @@
 import "server-only";
 import { auth } from "@/auth";
 import { redirect, notFound } from "next/navigation";
-import { db } from "@/db";
-import { collaborators } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import type { CollaboratorRole } from "@/data/types";
 import { isAppAdmin } from "@/lib/app-roles";
-import { isUuid } from "@/lib/validation-limits";
+import { requireTripRole, TripNotFoundError, TripForbiddenError } from "@/lib/services/trip-access";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -39,16 +36,10 @@ export async function assertTripAccess(
   userId: string,
   minRole: CollaboratorRole = "viewer"
 ): Promise<CollaboratorRole> {
-  // A malformed id can't name a trip; deny it here rather than letting Postgres reject the cast with a 500.
-  if (!isUuid(tripId)) notFound();
-  const roleRank = { viewer: 0, editor: 1, manager: 2 };
-  const [collab] = await db
-    .select({ role: collaborators.role })
-    .from(collaborators)
-    .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId)));
-  const collaboratorRank = collab ? roleRank[collab.role as keyof typeof roleRank] : undefined;
-  if (collaboratorRank === undefined || collaboratorRank < roleRank[minRole]) {
-    notFound();
+  try {
+    return await requireTripRole(tripId, userId, minRole);
+  } catch (error) {
+    if (error instanceof TripNotFoundError || error instanceof TripForbiddenError) notFound();
+    throw error;
   }
-  return collab!.role as CollaboratorRole;
 }

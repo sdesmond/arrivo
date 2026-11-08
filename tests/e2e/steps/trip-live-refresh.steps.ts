@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { After, Given, Then, When } from "../fixtures";
+import { waitForApiResponse } from "../api-response";
 import { waitForLiveSyncResponse } from "../live-sync";
 
 const SECOND_TAB_PAGE_KEY = "tripLiveRefreshSecondTabPage";
@@ -148,4 +149,37 @@ After(async ({ scenario }) => {
     await contributorPage.context().close();
     scenario.clearValue(CONTRIBUTOR_PAGE_KEY);
   }
+});
+
+Given("I have a trip checklist with one unchecked live item", async ({ page, scenario }) => {
+  await scenario.ensureCurrentTrip("threeDayTrip", {
+    checklists: [
+      {
+        dayNumber: 1,
+        position: 0,
+        title: "Live API checklist",
+        items: [{ text: "Live passport", position: 0, isChecked: false }],
+      },
+    ],
+  });
+  await scenario.signIn(page);
+});
+When("in the second tab I check the live checklist item", async ({ page, scenario }) => {
+  const secondTabPage = scenario.getValue<Page>(SECOND_TAB_PAGE_KEY);
+  if (!secondTabPage) throw new Error("No second tab is open.");
+  scenario.setValue("checklistLiveDocumentOrigin", await page.evaluate(() => performance.timeOrigin));
+  const checklist = secondTabPage.locator('[id^="checklist-"]').filter({ hasText: "Live API checklist" });
+  await checklist.getByRole("button").first().click();
+  const itemId = await checklist.locator("[data-checklist-item-id]").getAttribute("data-checklist-item-id");
+  if (!itemId) throw new Error("Live checklist item missing.");
+  const pending = waitForApiResponse(secondTabPage, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await checklist.getByTitle("Check item").click();
+  await pending;
+});
+Then("the first tab shows checklist completion without reloading", async ({ page, scenario }) => {
+  const checklist = page.locator('[id^="checklist-"]').filter({ hasText: "Live API checklist" });
+  await expect(checklist.getByLabel("Complete")).toBeVisible({ timeout: 10000 });
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+    scenario.getValue<number>("checklistLiveDocumentOrigin")
+  );
 });

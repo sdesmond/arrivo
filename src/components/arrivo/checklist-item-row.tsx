@@ -8,7 +8,7 @@ import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ChecklistItemRowProps {
   item: ChecklistEntry;
-  onToggle?: (itemId: string) => void;
+  onToggle?: (itemId: string, isChecked: boolean) => void;
   onUpdate?: (itemId: string, content: string) => void;
   onDelete?: (itemId: string) => void;
 }
@@ -32,25 +32,27 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
 
   const contentStyle: React.CSSProperties = {
     flex: 1,
+    display: "flex",
+    alignItems: "center",
     color: item.isChecked ? "var(--fg-4)" : "var(--fg-2)",
     textDecoration: item.isChecked ? "line-through" : "none",
   };
 
   return (
-    <div className="group/item relative flex items-start gap-2 py-0.5">
+    <div data-checklist-item-id={item.id} className="group/item relative flex items-center gap-2 py-0.5">
       <button
-        onClick={() => onToggle?.(item.id)}
+        onClick={() => onToggle?.(item.id, !item.isChecked)}
         disabled={!canEdit}
         title={item.isChecked ? "Uncheck item" : "Check item"}
         aria-label={item.isChecked ? "Uncheck item" : "Check item"}
         style={{
-          width: 14,
-          height: 14,
-          border: `1.5px solid ${item.isChecked ? "var(--accent-brand)" : "var(--fg-4)"}`,
+          width: 44,
+          height: 44,
+          border: "none",
           borderRadius: 3,
           flexShrink: 0,
           marginTop: 1,
-          background: item.isChecked ? "var(--accent-brand)" : "transparent",
+          background: "transparent",
           cursor: canEdit ? "pointer" : "default",
           display: "flex",
           alignItems: "center",
@@ -59,10 +61,26 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
           transition: "background 0.1s, border-color 0.1s",
         }}
       >
-        {item.isChecked && <Check size={9} strokeWidth={2.5} style={{ color: "var(--accent-fg)" }} />}
+        <span
+          aria-hidden="true"
+          style={{
+            width: 14,
+            height: 14,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 3,
+            border: `1.5px solid ${item.isChecked ? "var(--accent-brand)" : "var(--fg-4)"}`,
+            background: item.isChecked ? "var(--accent-brand)" : "transparent",
+          }}
+        >
+          {item.isChecked && <Check size={9} strokeWidth={1.5} style={{ color: "var(--accent-fg)" }} />}
+        </span>
       </button>
       {isEditing ? (
         <input
+          aria-label="Checklist item content"
+          className="min-h-11"
           autoFocus
           value={draftContent}
           maxLength={FIELD_LIMITS.checklistItem}
@@ -92,6 +110,7 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
         />
       ) : canEdit ? (
         <span
+          className="min-h-11 min-w-11"
           role="button"
           tabIndex={0}
           onClick={startEdit}
@@ -112,7 +131,7 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
         <button
           onClick={() => onDelete?.(item.id)}
           title="Delete item"
-          className="opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
+          className="size-11 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"
           style={{
             background: "none",
             border: "none",

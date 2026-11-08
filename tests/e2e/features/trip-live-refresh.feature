@@ -26,3 +26,9 @@ Feature: Trip page live refresh
     And I have a trip with an editor contributor viewing it in their own session
     When I delete the trip
     Then the contributor's open trip page redirects to the trips list with a deletion notice
+
+  Scenario: Checklist PATCH in a second tab updates completion in the first tab without reload
+    Given I have a trip checklist with one unchecked live item
+    When I open the trip in a second tab
+    And in the second tab I check the live checklist item
+    Then the first tab shows checklist completion without reloading

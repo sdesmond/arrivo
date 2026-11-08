@@ -32,8 +32,7 @@ export type TimelineItem =
   | { kind: "checklist"; data: Checklist; position: number };
 
 export type RenderEntry =
-  | { type: "timeline"; item: TimelineItem; idx: number }
-  | { type: "draft"; draftKind: ItineraryItemType };
+  { type: "timeline"; item: TimelineItem; idx: number } | { type: "draft"; draftKind: ItineraryItemType };
 
 export interface DayCardDndProps {
   dayNumber: number;
@@ -62,7 +61,7 @@ export interface DayCardDndProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
-  onToggleChecklistItem?: (itemId: string) => void;
+  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
 }
 
 export function DayCardDnd({

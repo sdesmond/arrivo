@@ -12,6 +12,7 @@ export interface RateLimitPolicy {
 }
 
 export const RATE_LIMITS = {
+  api: { max: 600, windowMs: 60_000 },
   // Typeahead fires on a 300ms debounce, so this leaves room for fast typists and several open forms.
   mapboxSearch: { max: 120, windowMs: 60_000 },
   mapboxStatic: { max: 120, windowMs: 60_000 },
