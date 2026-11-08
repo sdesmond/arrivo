@@ -169,8 +169,26 @@ The session-related server actions fall into three groups. Each needs a differen
        `Path=/` or expose the token to page JavaScript. Both weaken and supersede the setup-token ADR, which exists
        so a one-time credential is sent nowhere but its own page.
 
-Recommendation: option 1. Options 2 and 3 buy uniformity, not capability, and they spend it on the riskiest code in the
-app. Revisit only if maintaining the server-action exception becomes a real burden.
+**Decision: option 1 now, converging on option 3 in phase 6.**
+
+Built from scratch, option 3 is the right shape. Its costs here come from two choices in the current design, not from
+option 3 itself:
+
+- **The session model.** Auth.js supports its Credentials provider only with JWT cookies. So Arrivo layers
+  `session_version`, device checks and a per-request database lookup on top. That's database sessions in practice,
+  wrapped in a JWT. The target design is one opaque, database-backed session token: an httpOnly cookie for the web, a
+  bearer token for the phone, one revocation model. Web and phone sign-in become the same endpoint and differ only in
+  how the token is delivered.
+- **How links are redeemed.** The link route can set its one-time cookie scoped to the API path
+  (`/api/v1/account-setup`) instead of the page path. The credential still reaches nothing but its own endpoints, so the
+  ADR's guarantee is kept, and the path conflict disappears.
+
+Moving sign-in to `/api/v1` while staying on Auth.js JWTs would pay option 3's costs without its main benefit. Phase 6
+already has to build bearer sessions for the phone. Building them as the single session system for both clients, and
+moving groups A and B onto `/api/v1` at the same time, gets option 3 when sign-in is being rewritten anyway. The cost of
+waiting: sign-in stays a server action through phases 1–5, behind a short AGENTS.md exception and an ESLint allowlist.
+
+The no-JavaScript fallback for sign-in, setup and reset is dropped in phase 6 (decided).
 
 ### 6. Client mutation pattern
 
@@ -273,7 +291,7 @@ The admin overview `refresh*` actions are reads. They become `GET` endpoints, su
 **Phase 0: decisions (ADRs in `docs/decisions/`)**
 
 - Web mutations go through `/api/v1`; pages keep reading via services.
-- The auth boundary (option chosen in "Auth boundary").
+- The auth boundary: server actions until phase 6, then unified database sessions with auth on `/api/v1`.
 - The 404/403 split, including 403 for admin endpoints.
 - Cookie auth with the CSRF rules above.
 - A hand-rolled contract layer (`defineEndpoint`/`apiRoute`/`api`).
@@ -307,19 +325,75 @@ unchanged.
 **Phase 5: cleanup.**
 
 - Delete the emptied `actions.ts` files.
-- Add an ESLint rule that allows `"use server"` only under the auth boundary.
-- Update AGENTS.md: the server-action conventions become API conventions, and the auth exception is recorded.
+- Add an ESLint rule that allows `"use server"` only in the four auth-boundary files. The allowlist is temporary
+  until phase 6a.
+- Update AGENTS.md: the server-action conventions become API conventions, and the auth exception is recorded as
+  temporary until phase 6a.
 - Update `scripts/feature-map.test.mjs`: the server-action coverage clause becomes an `api/v1` clause.
 - Retire `waitForServerActionResponse` except for the auth flows.
 
-**Phase 6: mobile prerequisites (when the app starts).**
+**Phase 6: unified sessions + mobile.** Starts when the phone app does. 6a ships to web users on its own, before any app
+exists.
 
-- Bearer auth: per-device opaque tokens in a new `api_sessions` table, tied to `trusted_devices` and
-  `users.session_version`, so removing a device or signing out everywhere revokes it. The flow is
-  `POST /api/v1/auth/token` (+ `/mfa`), reusing `authorizeCredentials` without its cookie handling.
-- Profile → Security lists app sessions.
-- `/meta` capabilities, a longer idempotency window, runtime response schemas, and a generated OpenAPI document with a
-  drift test.
+_6a. One session system for web and phone, auth on `/api/v1`, Auth.js retired._
+
+- **Schema.** A new `user_sessions` table. (The Auth.js adapter already owns the name `sessions`.)
+
+  | column                                     | notes                                                                                            |
+  | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+  | `id` uuid pk                               |                                                                                                  |
+  | `user_id` uuid → users cascade             |                                                                                                  |
+  | `device_id` uuid → trusted_devices cascade | removing a device under Profile → Security ends its sessions                                     |
+  | `token_hash` text unique                   | SHA-256 of a 32-byte random token; the token itself is never stored                              |
+  | `client` text                              | `web` or `app`                                                                                   |
+  | `label` text                               | browser description or "Arrivo for iOS · Sam's iPhone"                                           |
+  | `session_version` int                      | must equal `users.session_version`, so sign out everywhere and password/MFA changes still revoke |
+  | `keep_signed_in` bool                      | keeps today's 12-hour cutoff for unticked web sign-ins                                           |
+  | `created_at`, `last_used_at`, `expires_at` | sliding expiry; `last_used_at` written at most once an hour                                      |
+
+- **One resolver.** `resolveSession(request)` reads the `arrivo_session` httpOnly cookie or
+  `Authorization: Bearer`, hashes the token, and checks the row, `session_version` and expiry in one query. That's the
+  same cost as today's `getSessionState`.
+  - It replaces `auth()` under `getCurrentUser`, `requireUser`, `requireApiUser` and `requireAdmin`.
+  - `src/proxy.ts` only checks that the cookie is present (it has no database). The real check stays in pages and
+    handlers, as now.
+- **Sign-in endpoints.**
+  - `POST /api/v1/auth/session` `{ username, password, keepSignedIn, client }` and `POST /api/v1/auth/session/mfa`,
+    both running `authorizeCredentials` (throttle, lockout, MFA, trusted devices), minus its Auth.js and cookie
+    coupling.
+  - `client: "web"` gets `Set-Cookie`; `client: "app"` gets the token in the body. The device token travels the same
+    way for each.
+  - The MFA ticket goes in an httpOnly cookie scoped to `/api/v1/auth/session/mfa` for the web, and in the body for
+    the app.
+  - `DELETE /api/v1/auth/session` signs out. `POST /api/v1/setup` replaces `setupAdminAction`.
+- **Link flows.**
+  - The existing `/account-setup/open`, `/account-reset/open` and `/account-recovery/open` routes set their one-time
+    cookie scoped to `/api/v1/account-setup`, `/api/v1/password-reset` and `/api/v1/admin-recovery` instead of the
+    page path.
+  - Each flow gets `GET` (link status, which the page now loads client-side because it can no longer read the cookie)
+    and `POST .../complete`.
+  - This supersedes `adr-setup-token-lives-in-a-scoped-cookie-and-is-revalidated-per-request.md` with the same
+    guarantee, scoped to the API path.
+- **Forms.** The sign-in, MFA, setup, reset and recovery forms move from `useActionState` to `api()`. The no-JavaScript
+  fallback is dropped.
+- **Group C.** Session-ending operations delete or revoke `user_sessions` rows directly instead of calling Auth.js
+  `signOut()`.
+- **Profile → Security.** One list of sessions, browsers and apps together, each with "Sign out".
+- **Retire Auth.js.**
+  - Remove `next-auth`, `@auth/drizzle-adapter`, `src/auth.ts`, `src/auth.config.ts` and `/api/auth/[...nextauth]`.
+  - Drop the adapter tables (`accounts`, `sessions`, `verification_tokens`) once a check confirms nothing reads them.
+  - `AUTH_SECRET` stays, since it still signs MFA tickets (`src/lib/mfa.ts`).
+- **No server actions left.** The last `"use server"` files go, the ESLint rule bans the directive outright,
+  `waitForServerActionResponse` is deleted, and the AGENTS.md exception is removed.
+- **Upgrade effect.** Existing JWT cookies stop being accepted, so everyone is signed out once when they update. The PR
+  description must say so for the release changelog.
+
+_6b. Mobile prerequisites._
+
+- App sessions through the 6a endpoints (`client: "app"`).
+- `/meta` capabilities.
+- A longer idempotency window.
+- Runtime response schemas, and a generated OpenAPI document with a drift test.
 - Delta sync only if snapshot sizes justify it.
 
 Each slice in phases 2–4 follows the same steps:
@@ -358,12 +432,21 @@ Web E2E stays green at every step; it's the regression net for the refactor.
 ## Self-hosting
 
 - Nothing new to run in phases 1–5: no migrations, no environment variables.
-- Phase 6 adds one migration.
+- Phase 6a adds a migration (`user_sessions`, later dropping the Auth.js adapter tables) and signs everyone out once
+  on upgrade. Release notes must say so.
 - Reverse proxies need no change for same-origin `/api/v1` calls. The `Origin` check must use the forwarded host the
   same way `request-origin.ts` does today.
 
 ## Open questions
 
-1. Auth boundary: option 1, 2 or 3 (see "Auth boundary")?
+1. Session lifetime in 6a: what sliding idle expiry for app sessions (90 days proposed), and should web sessions
+   with "Keep me signed in" ticked keep today's lifetime or adopt the same idle expiry?
+2. Hand-roll the 6a session module or adopt Better Auth? Evaluate when 6a starts. It must keep the existing throttle,
+   lockout, trusted-device and MFA rules, which are currently custom code.
 
-Decided: hand-rolled contract layer; admin endpoints return 403 to non-admins.
+Decided:
+
+- hand-rolled contract layer;
+- admin endpoints return 403 to non-admins;
+- auth stays on server actions until 6a, then moves to `/api/v1` on unified database sessions;
+- the no-JavaScript fallback for sign-in is dropped in 6a.
