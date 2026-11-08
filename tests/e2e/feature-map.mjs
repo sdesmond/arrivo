@@ -509,6 +509,8 @@ export const FEATURE_MAP = [
     "src/components/arrivo/delete-packing-section-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
     "src/app/(app)/trips/packing-actions.ts",
+    // Packing keeps raw keys in the idempotency_keys table that API replay namespaces its own rows in.
+    "src/lib/api/idempotency.ts",
     "src/lib/error-utils.ts",
   ]),
   entry("packing-lists", ["src/components/arrivo/packing-list*.tsx", "src/components/arrivo/packing-lists-view.tsx"]),

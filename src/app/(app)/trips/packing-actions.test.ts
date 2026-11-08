@@ -458,6 +458,57 @@ describe("packing actions hardening", () => {
     expect(db.transaction).toHaveBeenCalledOnce();
     expect(insertValues).toHaveBeenCalledTimes(3);
   });
+
+  it("keeps legacy raw keys and plain templateId results, outside the API replay namespace", async () => {
+    const insertValues = vi.fn();
+    insertValues
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-raw" }]) })
+      .mockReturnValueOnce({ returning: vi.fn().mockResolvedValue([{ id: "tmpl-raw-item" }]) })
+      .mockReturnValueOnce({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(() => ({ values: insertValues })),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(mockSimpleSelect([]))
+        .mockReturnValueOnce(
+          mockOrderedSelect([
+            { id: "item-1", name: "Passport", done: false, isLabel: false, position: 0, labelId: null },
+          ])
+        ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await saveTripListAsTemplate("trip-1", "Beach", "raw-key");
+
+    const [recordValues] = insertValues.mock.calls[2];
+    expect(recordValues).toMatchObject({ key: "raw-key", userId: "user-1", result: { templateId: "tmpl-raw" } });
+    expect(recordValues.key).not.toMatch(/^api:v1:/);
+  });
+
+  it("still replays a legacy record written 23 hours ago", async () => {
+    const transaction = {
+      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
+      insert: vi.fn(),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(
+          mockSimpleSelect([
+            { result: { templateId: "tmpl-23h" }, createdAt: new Date(Date.now() - 23 * 60 * 60 * 1000) },
+          ])
+        ),
+    };
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(saveTripListAsTemplate("trip-1", "Beach", "legacy-key")).resolves.toEqual({
+      templateId: "tmpl-23h",
+    });
+    expect(transaction.insert).not.toHaveBeenCalled();
+  });
 });
 
 describe("saveTripListAsTemplate behavior", () => {

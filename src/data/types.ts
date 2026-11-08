@@ -1555,3 +1555,12 @@ export type MfaPolicySaveResult =
 export interface Actor {
   userId: string;
 }
+
+/** Validated `Idempotency-Key` replay metadata; `path` is the concrete request path. */
+export interface IdempotentRequest {
+  key: string;
+  method: string;
+  path: string;
+  /** Replay window in milliseconds; defaults to 24 hours. */
+  expiryMs?: number;
+}
