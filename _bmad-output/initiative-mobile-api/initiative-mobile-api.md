@@ -76,6 +76,7 @@ Shared decisions have one input home in docs/plans/mobile-api.md, Architecture; 
 
 - Decision: 2026-11-07 — User requested creation of this initiative from `docs/plans/mobile-api.md`.
 - Decision: 2026-11-07 — User authorized splitting the initiative into epics and planning the checklist-pilot sprint; phase 0–1 is the first delivery scope.
+- Decision: 2026-11-08 — Branch workflow extended: after opening a story PR, switch back to feature/api-v1, and pull the latest feature/api-v1 before creating the next story branch. Applied to AGENTS.md, every epic file and the checklist-pilot ticket notes.
 - Deferred start: R8 and R9 begin when phone development starts, as required by the source; they remain part of the initiative's eventual completion criteria.
 - Unknown: Auth.js cookie clearing from route handlers must be proven before migrating session-ending group C operations.
 - Unknown: The pilot must establish how optimistic state spans refresh and how keyed mutation ordering handles rapid writes before other domains adopt the client pattern.
