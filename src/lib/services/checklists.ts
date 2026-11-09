@@ -7,12 +7,14 @@ import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { afterTripWrite } from "./trip-write-effects";
-import { updateChecklistItem as endpoint } from "@/lib/api/contract/checklists";
 import { withIdempotency } from "@/lib/api/idempotency";
 import {
   createChecklist as createContract,
   updateChecklistTitle as titleContract,
   deleteChecklist as deleteContract,
+  createChecklistItem as createItemContract,
+  updateChecklistItem as updateItemContract,
+  deleteChecklistItem as deleteItemContract,
 } from "@/lib/api/contract/checklists";
 import { ApiError } from "@/lib/api/errors";
 import { getNow } from "@/lib/mock-date";
@@ -238,54 +240,164 @@ export async function deleteChecklist(
   if (changed && !replayed) afterTripWrite(actor, tripId);
   return value;
 }
-async function itemTripId(executor: Pick<DbTransaction, "select">, itemId: string): Promise<string> {
+async function readItemTripId(executor: Pick<DbTransaction, "select">, itemId: string): Promise<string | undefined> {
   const [ancestry] = await executor
     .select({ tripId: days.tripId })
     .from(checklistItems)
     .innerJoin(itineraryChecklists, eq(checklistItems.checklistId, itineraryChecklists.id))
     .innerJoin(days, eq(itineraryChecklists.dayId, days.id))
     .where(eq(checklistItems.id, itemId));
-  if (!ancestry) throw new TripNotFoundError();
-  return ancestry.tripId;
+  return ancestry?.tripId;
 }
-/** With `replay`, a retry of the same keyed request returns the first result and writes nothing. */
+async function itemTripId(executor: Pick<DbTransaction, "select">, itemId: string): Promise<string> {
+  const tripId = await readItemTripId(executor, itemId);
+  if (!tripId) throw new TripNotFoundError();
+  return tripId;
+}
+
+/**
+ * Appends an item to a checklist. A client `id` makes the create retry-safe: the same id with the same checklist and
+ * content returns the stored row, and any other use of that id is a 409. Items keep creation order.
+ */
+export async function createChecklistItem(
+  actor: Actor,
+  checklistId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<ChecklistItem> {
+  checklistId = createItemContract.params.parse({ checklistId }).checklistId;
+  const body = createItemContract.body.parse(input);
+  const ancestry = await readChecklist(db, checklistId);
+  if (!ancestry) throw new TripNotFoundError();
+  const tripId = ancestry.tripId;
+  await requireTripRole(tripId, actor.userId, "editor");
+  let changed = false;
+  const { value, replayed } = await db.transaction((transaction) =>
+    withIdempotency<ChecklistItem>(
+      transaction,
+      { actor, request: replay, payload: body },
+      {
+        authorize: async () => {
+          // Same namespace and order as first-item creation in `createChecklist`, so a UUID is claimed once across trips.
+          if (body.id)
+            await transaction.execute(
+              sql`select pg_advisory_xact_lock(hashtextextended(${`checklist-item:${body.id}`}, 0))`
+            );
+          await lockTrip(transaction, tripId);
+          const current = await readChecklist(transaction, checklistId);
+          if (!current || current.tripId !== tripId) throw new TripNotFoundError();
+          await requireTripRole(tripId, actor.userId, "editor", transaction);
+          if (body.id) {
+            const existingTripId = await readItemTripId(transaction, body.id);
+            if (existingTripId && existingTripId !== tripId)
+              await requireTripRole(existingTripId, actor.userId, "viewer", transaction);
+          }
+        },
+        mutate: async () => {
+          if (body.id) {
+            const [existing] = await transaction.select().from(checklistItems).where(eq(checklistItems.id, body.id));
+            if (existing) {
+              if (existing.checklistId !== checklistId || existing.content !== body.content) collision();
+              return dbChecklistItemToType(existing);
+            }
+          }
+          // The DB clock is read after the trip lock, so creation order follows lock order.
+          const [created] = await transaction
+            .insert(checklistItems)
+            .values({
+              ...(body.id ? { id: body.id } : {}),
+              checklistId,
+              content: body.content,
+              createdAt: sql`clock_timestamp()`,
+            })
+            .returning();
+          changed = true;
+          return dbChecklistItemToType(created);
+        },
+      }
+    )
+  );
+  if (changed && !replayed) afterTripWrite(actor, tripId);
+  return value;
+}
+
+/** Applies only the supplied fields; an empty patch returns the stored item and writes nothing. */
 export async function updateChecklistItem(
   actor: Actor,
   itemId: string,
   input: unknown,
   replay?: IdempotentRequest
 ): Promise<ChecklistItem> {
-  endpoint.params.parse({ itemId });
-  const patch = endpoint.body.parse(input);
+  itemId = updateItemContract.params.parse({ itemId }).itemId;
+  const patch = updateItemContract.body.parse(input);
   const tripId = await itemTripId(db, itemId);
   await requireTripRole(tripId, actor.userId, "editor");
+  let changed = false;
   const { value, replayed } = await db.transaction((transaction) =>
     withIdempotency<ChecklistItem>(
       transaction,
       { actor, request: replay, payload: patch },
       {
         authorize: async () => {
-          try {
-            await lockTripForUpdate(transaction, tripId);
-          } catch (error) {
-            if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) throw new TripNotFoundError();
-            throw error;
-          }
+          await lockTrip(transaction, tripId);
           if ((await itemTripId(transaction, itemId)) !== tripId) throw new TripNotFoundError();
           await requireTripRole(tripId, actor.userId, "editor", transaction);
         },
         mutate: async () => {
+          if (Object.keys(patch).length === 0) {
+            const [current] = await transaction.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+            if (!current) throw new TripNotFoundError();
+            return dbChecklistItemToType(current);
+          }
           const [updated] = await transaction
             .update(checklistItems)
             .set(patch)
             .where(eq(checklistItems.id, itemId))
             .returning();
           if (!updated) throw new TripNotFoundError();
+          changed = true;
           return dbChecklistItemToType(updated);
         },
       }
     )
   );
-  if (!replayed) afterTripWrite(actor, tripId);
+  if (changed && !replayed) afterTripWrite(actor, tripId);
+  return value;
+}
+
+/** Deleting an item that is already gone succeeds once the caller is authorized for the supplied trip. */
+export async function deleteChecklistItem(
+  actor: Actor,
+  itemId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<null> {
+  itemId = deleteItemContract.params.parse({ itemId }).itemId;
+  const body = deleteItemContract.body.parse(input);
+  const { tripId } = body;
+  await requireTripRole(tripId, actor.userId, "editor");
+  let changed = false;
+  const { value, replayed } = await db.transaction((transaction) =>
+    withIdempotency<null>(
+      transaction,
+      { actor, request: replay, payload: body },
+      {
+        authorize: async () => {
+          await lockTrip(transaction, tripId);
+          await requireTripRole(tripId, actor.userId, "editor", transaction);
+          const currentTripId = await readItemTripId(transaction, itemId);
+          if (currentTripId && currentTripId !== tripId) throw new TripNotFoundError();
+        },
+        mutate: async () => {
+          if (await readItemTripId(transaction, itemId)) {
+            await transaction.delete(checklistItems).where(eq(checklistItems.id, itemId));
+            changed = true;
+          }
+          return null;
+        },
+      }
+    )
+  );
+  if (changed && !replayed) afterTripWrite(actor, tripId);
   return value;
 }

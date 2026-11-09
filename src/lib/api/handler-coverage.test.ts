@@ -151,6 +151,7 @@ describe("api v1 handler coverage", () => {
 
   it("finds the v1 route files", () => {
     expect(files).toContain("src/app/api/v1/checklist-items/[itemId]/route.ts");
+    expect(files).toContain("src/app/api/v1/checklists/[checklistId]/items/route.ts");
   });
 
   it("wraps every handler in apiRoute unless explicitly exempt", () => {
