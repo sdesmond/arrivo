@@ -65,6 +65,12 @@ function getLatestChecklist(page: Page) {
   return page.locator('[id^="checklist-"]').last();
 }
 
+async function getChecklistId(checklist: Locator): Promise<string> {
+  const elementId = await checklist.getAttribute("id");
+  if (!elementId) throw new Error("Checklist id is missing.");
+  return elementId.replace(/^checklist-/, "");
+}
+
 function formatDayHeading(isoDate: string): string {
   return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString("en-US", {
     weekday: "short",
@@ -631,8 +637,109 @@ Then("the checklist should be collapsed", async ({ page }) => {
 
 When("I delete the checklist", async ({ page }) => {
   const checklist = getLatestChecklist(page);
+  const checklistId = await getChecklistId(checklist);
   await checklist.hover();
+  const response = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklists/${checklistId}` });
   await checklist.getByTitle("Delete checklist").click();
+  await response;
+});
+
+Then("the checklist stays deleted after reload", async ({ page }) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(0);
+});
+
+When("I rename the checklist to {string}", async ({ page }, title: string) => {
+  const checklist = getLatestChecklist(page);
+  const checklistId = await getChecklistId(checklist);
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklists/${checklistId}` });
+  await checklist.getByRole("button", { name: "Add title..." }).click();
+  await checklist.getByLabel("Checklist title").fill(title);
+  await page.keyboard.press("Enter");
+  await response;
+});
+
+When("I clear the checklist title {string}", async ({ page }, title: string) => {
+  const checklist = getLatestChecklist(page);
+  const checklistId = await getChecklistId(checklist);
+  // The reload collapsed the checklist; its title editor lives in the expanded body.
+  if (!(await checklist.getByPlaceholder("Add an item…").isVisible())) {
+    await checklist.getByRole("button").first().click();
+  }
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklists/${checklistId}` });
+  await checklist.getByRole("button", { name: title, exact: true }).click();
+  await checklist.getByLabel("Checklist title").fill("");
+  await page.keyboard.press("Enter");
+  await response;
+});
+
+Then("the checklist title {string} persists after reload", async ({ page }, title: string) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(getLatestChecklist(page).getByText(title, { exact: true }).first()).toBeVisible();
+});
+
+Then("the checklist has no title after reload", async ({ page }) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+  await expect(getLatestChecklist(page).getByText("Checklist · item")).toBeVisible();
+  await expect(getLatestChecklist(page).getByText("Packing", { exact: true })).toHaveCount(0);
+});
+
+When("checklist creation fails once for the draft {string}", async ({ page }, content: string) => {
+  await page.route(
+    "**/api/v1/trips/*/checklists",
+    async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "server_error", message: "Checklist create failed" } }),
+      });
+    },
+    { times: 1 }
+  );
+  await page
+    .getByRole("button", { name: /add a place/i })
+    .first()
+    .click();
+  await page.getByTitle("Add checklist").click();
+  await page.getByPlaceholder("Add an item…").fill(content);
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Checklist create failed", { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("Add an item…")).toHaveValue(content);
+});
+
+Then("retrying the draft creates exactly one checklist that persists after reload", async ({ page }) => {
+  const tripId = new URL(page.url()).pathname.match(/\/trips\/([^/]+)/)?.[1];
+  if (!tripId) throw new Error("Trip id is missing from the page URL.");
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${tripId}/checklists` });
+  await page.getByPlaceholder("Add an item…").press("Enter");
+  await response;
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+  await expect(getLatestChecklist(page).getByText("Retry checklist")).toBeVisible();
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+});
+
+const TIMELINE_ITEMS = '[id^="note-"], [id^="event-"], [id^="checklist-"]';
+
+Then("one expanded checklist sits in the timeline and the order persists after reload", async ({ page }) => {
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+  await expect(getLatestChecklist(page).getByPlaceholder("Add an item…")).toBeVisible();
+  const before = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(before.filter((id) => id.startsWith("checklist-"))).toHaveLength(1);
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+  const after = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id));
+  expect(after).toEqual(before);
+  // The bottom "Add a place" gap appends: the checklist sits after the existing event and note.
+  const kinds = after.map((id) => id.split("-")[0]);
+  expect(kinds.at(-1)).toBe("checklist");
+  expect(kinds.indexOf("event")).toBeLessThan(kinds.indexOf("note"));
 });
 
 Then("the checklist should not be visible on the timeline", async ({ page }) => {

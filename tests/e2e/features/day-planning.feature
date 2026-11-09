@@ -161,3 +161,25 @@ Feature: Day Planning
     When I add a checklist with item "Recover toggle"
     And I add a second checklist item "Keep checklist open"
     Then a failed checklist toggle rolls back and the next click persists
+
+  Scenario: User renames, clears, and deletes a checklist and the changes persist
+    Given I am on the trip detail page
+    When I add a checklist with item "Rename me"
+    And I rename the checklist to "Packing"
+    Then the checklist title "Packing" persists after reload
+    When I clear the checklist title "Packing"
+    Then the checklist has no title after reload
+    When I delete the checklist
+    Then the checklist stays deleted after reload
+
+  Scenario: A checklist created with its first item keeps its place among other timeline items
+    Given I am on the trip detail page
+    When I add a note "Mixed note"
+    And I add a new event named "Mixed stop"
+    And I add a checklist with item "Mixed checklist"
+    Then one expanded checklist sits in the timeline and the order persists after reload
+
+  Scenario: Failed checklist creation keeps the draft and a retry creates one checklist
+    Given I am on the trip detail page
+    When checklist creation fails once for the draft "Retry checklist"
+    Then retrying the draft creates exactly one checklist that persists after reload
