@@ -36,6 +36,9 @@ export function useChecklistHandlers(
   const committedDays = useRef(serverDays);
   const refreshWaiters = useRef(new Map<string, ChecklistRefreshWaiter>());
   const titleWrites = useRef(new Map<string, Promise<void>>());
+  const [titleOverrides, setTitleOverrides] = useState(new Map<string, string | undefined>());
+  const titleIntents = useRef(new Map<string, number>());
+  const titleRevision = useRef(0);
 
   useEffect(() => {
     committedDays.current = serverDays;
@@ -142,9 +145,27 @@ export function useChecklistHandlers(
   }
 
   function handleUpdateChecklistTitle(checklistId: string, title: string | undefined): void {
+    const intentRevision = ++titleRevision.current;
+    titleIntents.current.set(checklistId, intentRevision);
+    setTitleOverrides((current) => new Map(current).set(checklistId, title));
     const write = titleMutation.mutate(
       { params: { checklistId }, body: { title: title ?? null } },
-      { key: checklistId }
+      {
+        key: checklistId,
+        onAuthLost: () => {
+          titleIntents.current.clear();
+          setTitleOverrides(new Map());
+        },
+        onSettled: () => {
+          if (titleIntents.current.get(checklistId) !== intentRevision) return;
+          titleIntents.current.delete(checklistId);
+          setTitleOverrides((current) => {
+            const next = new Map(current);
+            next.delete(checklistId);
+            return next;
+          });
+        },
+      }
     );
     titleWrites.current.set(checklistId, write);
     void write.then(() => {
@@ -163,6 +184,7 @@ export function useChecklistHandlers(
     ...day,
     checklists: day.checklists?.map((checklist) => ({
       ...checklist,
+      ...(titleOverrides.has(checklist.id) ? { title: titleOverrides.get(checklist.id) } : {}),
       items: checklist.items.map((item) =>
         overrides.has(item.id) ? { ...item, isChecked: overrides.get(item.id)! } : item
       ),

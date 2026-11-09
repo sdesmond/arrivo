@@ -324,3 +324,81 @@ it("lets an in-flight rename finish before deleting the same checklist", async (
   });
   expect(remove).toHaveBeenCalledOnce();
 });
+
+function shownTitle(result: ReturnType<typeof useChecklistHandlers>) {
+  return result.days[0].checklists?.[0].title;
+}
+
+it("shows a renamed title immediately and drops the overlay once the write settles", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "Docs");
+  });
+  expect(shownTitle(result.current)).toBe("Docs");
+  act(() => {
+    title.mock.calls[0][1].onSettled();
+  });
+  expect(shownTitle(result.current)).toBeUndefined();
+});
+
+it("shows a cleared title immediately", () => {
+  const titled = structuredClone(days);
+  titled[0].checklists![0].title = "Docs";
+  const { result } = renderHook(() => useChecklistHandlers(titled, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", undefined);
+  });
+  expect(shownTitle(result.current)).toBeUndefined();
+  expect(result.current.days[0].checklists![0]).not.toHaveProperty("title", "Docs");
+});
+
+it("keeps the refreshed title once props arrive and rolls back a failed rename", () => {
+  const { result, rerender } = renderHook(({ source }) => useChecklistHandlers(source, lifecycle), {
+    initialProps: { source: days },
+  });
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "Docs");
+  });
+  const refreshed = structuredClone(days);
+  refreshed[0].checklists![0].title = "Docs";
+  rerender({ source: refreshed });
+  act(() => {
+    title.mock.calls[0][1].onSettled();
+  });
+  expect(shownTitle(result.current)).toBe("Docs");
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "Broken");
+  });
+  expect(shownTitle(result.current)).toBe("Broken");
+  act(() => {
+    title.mock.calls[1][1].onSettled();
+  });
+  expect(shownTitle(result.current)).toBe("Docs");
+});
+
+it("keeps the newest rename visible when an earlier write settles first", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "First");
+    result.current.handleUpdateChecklistTitle("list", "Second");
+  });
+  act(() => {
+    title.mock.calls[0][1].onSettled();
+  });
+  expect(shownTitle(result.current)).toBe("Second");
+  act(() => {
+    title.mock.calls[1][1].onSettled();
+  });
+  expect(shownTitle(result.current)).toBeUndefined();
+});
+
+it("drops every title overlay on auth loss", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "Docs");
+  });
+  act(() => {
+    title.mock.calls[0][1].onAuthLost();
+  });
+  expect(shownTitle(result.current)).toBeUndefined();
+});
