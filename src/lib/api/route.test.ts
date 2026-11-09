@@ -24,6 +24,18 @@ const handler = vi.fn<(input: unknown) => Promise<{ done: boolean }>>(async () =
 const route = apiRoute(endpoint, handler);
 const replayRoute = apiRoute(endpoint, handler, { idempotent: { expiryMs: 5000 } });
 const context = { params: Promise.resolve({ id: "123e4567-e89b-12d3-a456-426614174000" }) };
+it("returns declared 204 without content and forwards keyed replay context", async () => {
+  const remove = vi.fn(async () => null);
+  const empty = apiRoute({ ...endpoint, status: 204 }, remove, { idempotent: {} });
+  const response = await empty(request(undefined, { "idempotency-key": "delete-retry" }), context);
+  expect(response.status).toBe(204);
+  expect(await response.text()).toBe("");
+  expect(response.headers.get("content-type")).toBeNull();
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(remove).toHaveBeenCalledWith(
+    expect.objectContaining({ replay: expect.objectContaining({ key: "delete-retry" }) })
+  );
+});
 function request(body = '{"isChecked":true}', headers: Record<string, string> = {}) {
   return new Request("http://arrivo.test/api/v1/items/item", {
     method: "PATCH",

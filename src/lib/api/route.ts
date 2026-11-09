@@ -49,6 +49,7 @@ export function apiRoute<Result, Params extends z.ZodType, Body extends z.ZodTyp
         };
       }
       const result = await handler({ actor, params, body, ...(replay ? { replay } : {}) });
+      if (endpoint.status === 204) return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       return errorResponse(error);
