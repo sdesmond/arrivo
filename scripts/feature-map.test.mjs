@@ -42,6 +42,27 @@ describe("feature-map consistency", async () => {
       expect(tags).toContain("@feat:trip-live-refresh");
     }
   });
+  it("owns checklist item lifecycle runtime through the API, day-planning and live-refresh features", () => {
+    for (const path of [
+      "src/app/api/v1/checklists/[checklistId]/items/route.ts",
+      "src/app/api/v1/checklist-items/[itemId]/route.ts",
+      "src/lib/api/contract/checklists.ts",
+      "src/lib/services/checklists.ts",
+    ]) {
+      const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map(
+        (feature) => feature.tag
+      );
+      expect(tags).toEqual(expect.arrayContaining(["@feat:api", "@feat:day-planning", "@feat:trip-live-refresh"]));
+    }
+    const dayPlanning = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:day-planning");
+    for (const path of [
+      "src/app/(app)/trips/[tripId]/use-checklist-handlers.ts",
+      "src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts",
+      "src/components/arrivo/checklist-item.tsx",
+      "src/components/arrivo/checklist-item-row.tsx",
+    ])
+      expect(matchesAnyGlob(path, dayPlanning.sourceGlobs)).toBe(true);
+  });
   it("includes lifecycle routes among packing-list consumers", () => {
     const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:packing-lists");
     for (const path of [

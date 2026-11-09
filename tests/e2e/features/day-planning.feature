@@ -188,3 +188,31 @@ Feature: Day Planning
     Given I am on the trip detail page
     When I add a checklist with item "Fast title"
     Then the checklist shows the title "Instant" while its save is still in flight
+
+  Scenario: User adds, edits, checks, unchecks and deletes checklist items and the changes persist
+    Given I am on the trip detail page
+    When I add a checklist with item "Passport"
+    And I add a second checklist item "Charger"
+    And I add a second checklist item "Adapter"
+    Then the checklist items read "Passport, Charger, Adapter" in order after reload
+    When I edit the checklist item "Charger" to "Charger cable"
+    Then the checklist items read "Passport, Charger cable, Adapter" in order after reload
+    When I check the checklist item "Passport"
+    Then the checklist item "Passport" is checked after reload
+    When I uncheck the checklist item "Passport"
+    Then the checklist item "Passport" is unchecked after reload
+    When I delete the checklist item "Charger cable"
+    Then the checklist items read "Passport, Adapter" in order after reload
+
+  Scenario: Overlapping checklist item edit, check and delete settle in intent order through slow writes
+    Given I am on the trip detail page
+    When I add a checklist with item "Alpha"
+    And I add a second checklist item "Bravo"
+    And I add a second checklist item "Charlie"
+    Then overlapping checklist item writes settle in intent order despite slow requests
+
+  Scenario: A failed checklist item edit or delete rolls back and the retry persists
+    Given I am on the trip detail page
+    When I add a checklist with item "Recover item"
+    And I add a second checklist item "Keep item"
+    Then a failed checklist item edit and delete roll back and their retries persist
