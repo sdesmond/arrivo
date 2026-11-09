@@ -54,7 +54,6 @@ const {
   const mockResendInvitation = vi.fn();
   const mockSaveContributorChanges = vi.fn();
   const schemaTokens: Record<string, unknown> = {
-    checklistItems: {},
     days: {},
     documents: {},
     events: {},
@@ -166,10 +165,8 @@ import {
   addDay,
   addDocument,
   attachTripDocToEvent,
-  createChecklistItem,
   createEvent,
   createNote,
-  deleteChecklistItem,
   deleteEvent,
   deleteEventWithDocDecision,
   deleteNote,
@@ -185,8 +182,6 @@ import {
   reorderDayItems,
   reorderTripNotes,
   setTripCoverWithAttribution,
-  toggleChecklistItem,
-  updateChecklistItem,
   updateDay,
   uploadCoverImage,
   updateEvent,
@@ -196,6 +191,7 @@ import {
   resendShareInvitation,
   saveContributorChanges,
 } from "./actions";
+import * as actionsModule from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 import { LiveSyncEventType, type ContributorChange } from "@/data/types";
 
@@ -569,11 +565,9 @@ describe("input validation", () => {
     expect(mockDbUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects oversize itinerary notes, checklist text and trip notes", async () => {
+  it("rejects oversize itinerary notes and trip notes", async () => {
     await expect(createNote("day-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
     await expect(updateNote("note-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
-    await expect(createChecklistItem("list-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
-    await expect(updateChecklistItem("item-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
     await expect(createTripNote("trip-1", { body: over(10000) })).rejects.toThrow("Note body must be 10000 characters");
     await expect(updateTripNote("note-1", { title: over(200) })).rejects.toThrow("Title must be 200 characters");
 
@@ -1810,53 +1804,6 @@ describe("publishItineraryChanged regression coverage", () => {
       },
     },
     {
-      name: "createChecklistItem",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbInsert.mockReturnValue({ values: vi.fn(async () => undefined) });
-        return createChecklistItem("checklist-1", "Passport");
-      },
-    },
-    {
-      name: "updateChecklistItem",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return updateChecklistItem("item-1", "Updated");
-      },
-    },
-    {
-      name: "toggleChecklistItem",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return toggleChecklistItem("item-1");
-      },
-    },
-    {
-      name: "deleteChecklistItem",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
-        return deleteChecklistItem("item-1");
-      },
-    },
-    {
       name: "renameDocument",
       tripId: "trip-1",
       run: () => {
@@ -1898,20 +1845,7 @@ describe("publishItineraryChanged regression coverage", () => {
   });
 });
 
-it("retains the legacy SQL toggle and write effects alongside absolute API writes", async () => {
-  vi.clearAllMocks();
-  mockRequireUser.mockResolvedValue({ id: "user" });
-  mockAssertTripAccess.mockResolvedValue("editor");
-  mockDbSelect
-    .mockReturnValueOnce(createSimpleSelect([{ checklistId: "checklist" }]))
-    .mockReturnValueOnce(createSimpleSelect([{ dayId: "day" }]))
-    .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip" }]));
-  const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
-  mockDbUpdate.mockReturnValue({ set });
-  await toggleChecklistItem("item");
-  expect(mockAssertTripAccess).toHaveBeenCalledWith("trip", "user", "editor");
-  expect(set).toHaveBeenCalledWith({ isChecked: "sql" });
-  expect(recordTripUpdated).toHaveBeenCalledWith("user", "trip");
-  expect(mockPublishTripEvent).toHaveBeenCalledWith("trip", expect.objectContaining({ tripId: "trip" }));
-  expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip");
+it("exports no checklist item mutation actions; they run through the API", () => {
+  const exportNames = Object.keys(actionsModule);
+  expect(exportNames.filter((name) => /checklist/i.test(name))).toEqual([]);
 });

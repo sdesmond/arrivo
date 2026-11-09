@@ -3,16 +3,7 @@
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import {
-  events,
-  days,
-  documents,
-  itineraryNotes,
-  notes,
-  itineraryChecklists,
-  checklistItems,
-  trips,
-} from "@/db/schema";
+import { events, days, documents, itineraryNotes, notes, itineraryChecklists, trips } from "@/db/schema";
 import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
@@ -22,7 +13,6 @@ import { deriveGraphicCover } from "@/lib/utils";
 import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
 import {
   addDocumentSchema,
-  checklistItemContentSchema,
   createEventSchema,
   createTripNoteSchema,
   documentNameSchema,
@@ -168,26 +158,6 @@ async function shiftItemsAtOrAbove(executor: PositionExecutor, dayId: string, fr
     .update(itineraryChecklists)
     .set({ position: sql`${itineraryChecklists.position} + 1` })
     .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
-}
-
-async function getChecklistDayId(checklistId: string): Promise<string> {
-  const [cl] = await db
-    .select({ dayId: itineraryChecklists.dayId })
-    .from(itineraryChecklists)
-    .where(eq(itineraryChecklists.id, checklistId));
-  if (!cl) throw new Error("Checklist not found");
-  return cl.dayId;
-}
-
-async function getChecklistItemIds(itemId: string): Promise<{ checklistId: string; tripId: string }> {
-  const [item] = await db
-    .select({ checklistId: checklistItems.checklistId })
-    .from(checklistItems)
-    .where(eq(checklistItems.id, itemId));
-  if (!item) throw new Error("Checklist item not found");
-  const dayId = await getChecklistDayId(item.checklistId);
-  const tripId = await getDayTripId(dayId);
-  return { checklistId: item.checklistId, tripId };
 }
 
 export async function createEvent(dayId: string, rawInput: CreateEventInput): Promise<void> {
@@ -747,52 +717,6 @@ export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<vo
   recordTripUpdated(user.id!, input.tripId);
   publishItineraryChanged(input.tripId);
   revalidatePath(`/trips/${input.tripId}`);
-}
-
-export async function createChecklistItem(checklistId: string, rawContent: string): Promise<void> {
-  const user = await requireUser();
-  const content = parseInput(checklistItemContentSchema, rawContent);
-  const dayId = await getChecklistDayId(checklistId);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.insert(checklistItems).values({ checklistId, content });
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function updateChecklistItem(itemId: string, rawContent: string): Promise<void> {
-  const user = await requireUser();
-  const content = parseInput(checklistItemContentSchema, rawContent);
-  const { tripId } = await getChecklistItemIds(itemId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(checklistItems).set({ content }).where(eq(checklistItems.id, itemId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function toggleChecklistItem(itemId: string): Promise<void> {
-  const user = await requireUser();
-  const { tripId } = await getChecklistItemIds(itemId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(checklistItems)
-    .set({ isChecked: sql`NOT ${checklistItems.isChecked}` })
-    .where(eq(checklistItems.id, itemId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteChecklistItem(itemId: string): Promise<void> {
-  const user = await requireUser();
-  const { tripId } = await getChecklistItemIds(itemId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
 }
 
 export async function removeDocument(docId: string): Promise<void> {

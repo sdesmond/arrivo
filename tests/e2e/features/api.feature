@@ -299,3 +299,72 @@ Feature: Absolute checklist checked-state API
       | viewer    | 403    |
       | stranger  | 404    |
       | anonymous | 401    |
+
+  Scenario Outline: Denied lifecycle writes leave the timeline unchanged
+    Given my checklist API role is "<role>"
+    When I submit "valid" to the "<endpoint>" checklist endpoint
+    Then the checklist write endpoint returns <status> with code "<code>" and changed nothing
+    Examples:
+      | role      | endpoint         | status | code            |
+      | viewer    | lifecycle-create | 403    | forbidden       |
+      | viewer    | lifecycle-rename | 403    | forbidden       |
+      | viewer    | lifecycle-delete | 403    | forbidden       |
+      | stranger  | lifecycle-create | 404    | not_found       |
+      | stranger  | lifecycle-rename | 404    | not_found       |
+      | stranger  | lifecycle-delete | 404    | not_found       |
+      | anonymous | lifecycle-create | 401    | unauthenticated |
+      | anonymous | lifecycle-rename | 401    | unauthenticated |
+      | anonymous | lifecycle-delete | 401    | unauthenticated |
+
+  Scenario Outline: Bad input and CSRF never write through the lifecycle, item and source endpoints
+    Given a scenario-owned "template" packing source
+    When I submit "<case>" to the "<endpoint>" checklist endpoint
+    Then the checklist write endpoint returns <status> with code "<code>" and changed nothing
+    Examples:
+      | endpoint         | case         | status | code              |
+      | lifecycle-create | malformed    | 400    | bad_request       |
+      | lifecycle-create | non-object   | 400    | bad_request       |
+      | lifecycle-create | invalid-body | 422    | validation_failed |
+      | lifecycle-create | no-header    | 403    | forbidden         |
+      | lifecycle-create | wrong-type   | 403    | forbidden         |
+      | lifecycle-create | cross-origin | 403    | forbidden         |
+      | lifecycle-rename | malformed    | 400    | bad_request       |
+      | lifecycle-rename | non-object   | 400    | bad_request       |
+      | lifecycle-rename | invalid-body | 422    | validation_failed |
+      | lifecycle-rename | no-header    | 403    | forbidden         |
+      | lifecycle-rename | wrong-type   | 403    | forbidden         |
+      | lifecycle-rename | cross-origin | 403    | forbidden         |
+      | lifecycle-delete | malformed    | 400    | bad_request       |
+      | lifecycle-delete | non-object   | 400    | bad_request       |
+      | lifecycle-delete | invalid-body | 422    | validation_failed |
+      | lifecycle-delete | no-header    | 403    | forbidden         |
+      | lifecycle-delete | wrong-type   | 403    | forbidden         |
+      | lifecycle-delete | cross-origin | 403    | forbidden         |
+      | item-create      | malformed    | 400    | bad_request       |
+      | item-create      | non-object   | 400    | bad_request       |
+      | item-create      | invalid-body | 422    | validation_failed |
+      | item-create      | no-header    | 403    | forbidden         |
+      | item-create      | wrong-type   | 403    | forbidden         |
+      | item-create      | cross-origin | 403    | forbidden         |
+      | item-delete      | malformed    | 400    | bad_request       |
+      | item-delete      | non-object   | 400    | bad_request       |
+      | item-delete      | invalid-body | 422    | validation_failed |
+      | item-delete      | no-header    | 403    | forbidden         |
+      | item-delete      | wrong-type   | 403    | forbidden         |
+      | item-delete      | cross-origin | 403    | forbidden         |
+      | source-create    | malformed    | 400    | bad_request       |
+      | source-create    | non-object   | 400    | bad_request       |
+      | source-create    | invalid-body | 422    | validation_failed |
+      | source-create    | no-header    | 403    | forbidden         |
+      | source-create    | wrong-type   | 403    | forbidden         |
+      | source-create    | cross-origin | 403    | forbidden         |
+
+  Scenario Outline: Reusing an idempotency key for a different body conflicts
+    Given a scenario-owned "template" packing source
+    When I send keyed "<operation>" and then reuse its key with a different body
+    Then the reused key returns 409 with code "conflict" and the first write stands
+    Examples:
+      | operation        |
+      | lifecycle-create |
+      | lifecycle-rename |
+      | source-create    |
