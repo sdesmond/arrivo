@@ -2,7 +2,15 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { addChecklistFromPackingSource, createEvent, createNote, reorderDayItems } from "./actions";
+import {
+  addChecklistFromPackingSource,
+  createChecklistItem,
+  createEvent,
+  createNote,
+  deleteChecklistItem,
+  reorderDayItems,
+  updateChecklistItem,
+} from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -678,4 +686,36 @@ it("composes checklist optimism into displayed days", () => {
     result.current.handleToggleChecklistItem("item", true);
   });
   expect(result.current.days[0].checklists![0].items[0].isChecked).toBe(true);
+});
+it("creates, edits and deletes checklist items through the item API instead of server actions", async () => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockResolvedValue({});
+  const payload = detailWithChecklist("list");
+  payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: false }];
+  const { result } = renderHook(() => useTripDetailHandlers(payload));
+  await act(async () => {
+    result.current.handleAddChecklistItem("list", "Charger");
+    result.current.handleUpdateChecklistItem("item", "Passport copy");
+    result.current.handleDeleteChecklistItem("item");
+  });
+  await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+  expect(vi.mocked(api).mock.calls).toEqual(
+    expect.arrayContaining([
+      [
+        expect.objectContaining({ method: "POST", path: "/api/v1/checklists/:checklistId/items" }),
+        { params: { checklistId: "list" }, body: { content: "Charger" } },
+      ],
+      [
+        expect.objectContaining({ method: "PATCH", path: "/api/v1/checklist-items/:itemId" }),
+        { params: { itemId: "item" }, body: { content: "Passport copy" } },
+      ],
+      [
+        expect.objectContaining({ method: "DELETE", path: "/api/v1/checklist-items/:itemId" }),
+        { params: { itemId: "item" }, body: { tripId: "trip-1" } },
+      ],
+    ])
+  );
+  expect(createChecklistItem).not.toHaveBeenCalled();
+  expect(updateChecklistItem).not.toHaveBeenCalled();
+  expect(deleteChecklistItem).not.toHaveBeenCalled();
 });

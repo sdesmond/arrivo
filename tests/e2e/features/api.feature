@@ -178,3 +178,60 @@ Feature: Absolute checklist checked-state API
       | audience  |
       | anonymous |
       | signed-in |
+
+  Scenario: Item creation with a client UUID is retry-safe and rejects UUID reuse
+    Given my checklist API role is "editor"
+    When I create a checklist item with a client UUID concurrently
+    Then the checklist item persists once after the original item after reload
+    When I reuse the checklist item UUID with different content
+    Then the lifecycle API returns 409
+    And the checklist item keeps its original content
+
+  Scenario Outline: Distinct-trip item UUID races serialize globally
+    When I concurrently create checklist items in distinct trips sharing a "<resource>" UUID
+    Then the cross-trip item collision has one winner and an untouched loser
+    Examples:
+      | resource   |
+      | item       |
+      | first-item |
+
+  Scenario: Item partial updates preserve omitted fields and reject invalid bodies
+    Given my checklist API role is "editor"
+    When I patch the checklist item content, checked state and an empty body
+    Then the checklist item has the patched content and checked state after reload
+
+  Scenario: Item deletion is concealed across trips and repeatable
+    Given my checklist API role is "editor"
+    When I delete the checklist item with the wrong trip and then twice
+    Then the checklist item is absent after reload
+
+  Scenario Outline: Denied item writes leave the checklist unchanged
+    Given my checklist API role is "<role>"
+    When I attempt the checklist item API operation "<operation>"
+    Then the checklist item API returns <status> with code "<code>" and the item list is unchanged
+    Examples:
+      | role      | operation | status | code            |
+      | viewer    | create    | 403    | forbidden       |
+      | viewer    | delete    | 403    | forbidden       |
+      | stranger  | create    | 404    | not_found       |
+      | stranger  | delete    | 404    | not_found       |
+      | anonymous | create    | 401    | unauthenticated |
+      | anonymous | delete    | 401    | unauthenticated |
+
+  Scenario: Keyed item creation replays one row and rejects a changed body
+    Given my checklist API role is "editor"
+    When I send 2 keyed checklist item creations one after another
+    Then exactly one checklist item was created for that key
+    When I reuse the item creation key with different content
+    Then the checklist item API returns 409 with code "conflict" and no new item
+
+  Scenario Outline: Lost access never replays a cached item creation
+    Given my checklist API role is "editor"
+    When I send 1 keyed checklist item creations one after another
+    And my checklist API role is "<role>"
+    And I retry the keyed checklist item creation
+    Then the checklist item retry returns <status> with code "<code>" and no extra item
+    Examples:
+      | role     | status | code      |
+      | viewer   | 403    | forbidden |
+      | stranger | 404    | not_found |

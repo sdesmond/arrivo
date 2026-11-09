@@ -1038,8 +1038,11 @@ Then("checklist completion persists after reload", async ({ page }) => {
 
 When("I add a second checklist item {string}", async ({ page }, content: string) => {
   const checklist = getLatestChecklist(page);
+  const checklistId = await getChecklistId(checklist);
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/checklists/${checklistId}/items` });
   await checklist.getByPlaceholder("Add an item…").fill(content);
   await page.keyboard.press("Enter");
+  await response;
   await expect(checklist.getByText(content, { exact: true })).toBeVisible();
 });
 
@@ -1162,4 +1165,213 @@ Then("a failed checklist toggle rolls back and the next click persists", async (
   await openFirstDay(page);
   await getLatestChecklist(page).getByRole("button").first().click();
   await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+});
+
+function checklistItemRow(page: Page, content: string): Locator {
+  return page.locator("[data-checklist-item-id]").filter({ has: page.getByText(content, { exact: true }) });
+}
+
+async function checklistItemId(page: Page, content: string): Promise<string> {
+  const itemId = await checklistItemRow(page, content).getAttribute("data-checklist-item-id");
+  if (!itemId) throw new Error(`Checklist item "${content}" has no id.`);
+  return itemId;
+}
+
+async function reloadAndOpenLatestChecklist(page: Page): Promise<Locator> {
+  await page.reload();
+  await openFirstDay(page);
+  const checklist = getLatestChecklist(page);
+  if (!(await checklist.getByPlaceholder("Add an item…").isVisible()))
+    await checklist.getByRole("button").first().click();
+  await expect(checklist.getByPlaceholder("Add an item…")).toBeVisible();
+  return checklist;
+}
+
+When("I edit the checklist item {string} to {string}", async ({ page }, current: string, next: string) => {
+  const row = checklistItemRow(page, current);
+  const itemId = await checklistItemId(page, current);
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await row.getByRole("button", { name: current, exact: true }).click();
+  await page.getByLabel("Checklist item content").fill(next);
+  await page.keyboard.press("Enter");
+  await response;
+  await expect(checklistItemRow(page, next)).toBeVisible();
+});
+
+When("I check the checklist item {string}", async ({ page }, content: string) => {
+  const itemId = await checklistItemId(page, content);
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await checklistItemRow(page, content).getByRole("button", { name: "Check item", exact: true }).click();
+  await response;
+  await expect(
+    checklistItemRow(page, content).getByRole("button", { name: "Uncheck item", exact: true })
+  ).toBeVisible();
+});
+
+When("I uncheck the checklist item {string}", async ({ page }, content: string) => {
+  const itemId = await checklistItemId(page, content);
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await checklistItemRow(page, content).getByRole("button", { name: "Uncheck item", exact: true }).click();
+  await response;
+  await expect(checklistItemRow(page, content).getByRole("button", { name: "Check item", exact: true })).toBeVisible();
+});
+
+When("I delete the checklist item {string}", async ({ page }, content: string) => {
+  const row = checklistItemRow(page, content);
+  const itemId = await checklistItemId(page, content);
+  const response = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklist-items/${itemId}` });
+  await row.hover();
+  await row.getByTitle("Delete item").click();
+  await response;
+  await expect(checklistItemRow(page, content)).toHaveCount(0);
+});
+
+Then("the checklist items read {string} in order after reload", async ({ page }, expected: string) => {
+  const checklist = await reloadAndOpenLatestChecklist(page);
+  const rows = checklist.locator("[data-checklist-item-id]");
+  await expect(rows).toHaveCount(expected.split(", ").length);
+  expect(await rows.evaluateAll((elements) => elements.map((element) => element.textContent?.trim()))).toEqual(
+    expected.split(", ")
+  );
+});
+
+Then("the checklist item {string} is {word} after reload", async ({ page }, content: string, state: string) => {
+  await reloadAndOpenLatestChecklist(page);
+  const label = state === "checked" ? "Uncheck item" : "Check item";
+  await expect(checklistItemRow(page, content).getByRole("button", { name: label, exact: true })).toBeVisible();
+});
+
+Then("overlapping checklist item writes settle in intent order despite slow requests", async ({ page }) => {
+  const names = { alpha: "Alpha", bravo: "Bravo", charlie: "Charlie" };
+  const alphaId = await checklistItemId(page, names.alpha);
+  const bravoId = await checklistItemId(page, names.bravo);
+  const charlieId = await checklistItemId(page, names.charlie);
+  const labels = new Map([
+    [alphaId, "alpha"],
+    [bravoId, "bravo"],
+    [charlieId, "charlie"],
+  ]);
+  const log: string[] = [];
+  let releaseAlpha!: () => void;
+  let releaseBravo!: () => void;
+  const alphaGate = new Promise<void>((resolve) => {
+    releaseAlpha = resolve;
+  });
+  const bravoGate = new Promise<void>((resolve) => {
+    releaseBravo = resolve;
+  });
+  let alphaHeld = false;
+  let bravoHeld = false;
+  const endpoint = "**/api/v1/checklist-items/*";
+  await page.route(endpoint, async (route) => {
+    const request = route.request();
+    const label = labels.get(new URL(request.url()).pathname.split("/").pop() ?? "");
+    const body = request.method() === "PATCH" ? JSON.stringify(request.postDataJSON()) : "";
+    log.push(`${request.method()} ${label} ${body}`.trim());
+    if (request.method() === "PATCH" && label === "alpha" && !alphaHeld) {
+      alphaHeld = true;
+      await alphaGate;
+    }
+    if (request.method() === "PATCH" && label === "bravo" && !bravoHeld) {
+      bravoHeld = true;
+      await bravoGate;
+    }
+    await route.continue();
+  });
+  const alphaCheck = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${alphaId}` });
+  const bravoDelete = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklist-items/${bravoId}` });
+  try {
+    // Alpha: a held check, then a queued edit. The UI shows both at once.
+    await checklistItemRow(page, names.alpha).getByRole("button", { name: "Check item", exact: true }).click();
+    await expect.poll(() => alphaHeld).toBe(true);
+    await checklistItemRow(page, names.alpha).getByRole("button", { name: names.alpha, exact: true }).click();
+    await page.getByLabel("Checklist item content").fill("Alpha edited");
+    await page.keyboard.press("Enter");
+    const alphaRow = checklistItemRow(page, "Alpha edited");
+    await expect(alphaRow.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
+    expect(log.filter((entry) => entry.includes(" alpha"))).toEqual(['PATCH alpha {"isChecked":true}']);
+    // Bravo: a held edit, then a delete that must wait for it.
+    await checklistItemRow(page, names.bravo).getByRole("button", { name: names.bravo, exact: true }).click();
+    await page.getByLabel("Checklist item content").fill("Bravo edited");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => bravoHeld).toBe(true);
+    const bravoRow = checklistItemRow(page, "Bravo edited");
+    await bravoRow.hover();
+    await bravoRow.getByTitle("Delete item").click();
+    await expect(checklistItemRow(page, "Bravo edited")).toHaveCount(0);
+    expect(log.some((entry) => entry.startsWith("DELETE bravo"))).toBe(false);
+    // Charlie is independent: it saves while alpha and bravo are both blocked.
+    const charlieEdit = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${charlieId}` });
+    await checklistItemRow(page, names.charlie).getByRole("button", { name: names.charlie, exact: true }).click();
+    await page.getByLabel("Checklist item content").fill("Charlie edited");
+    await page.keyboard.press("Enter");
+    await charlieEdit;
+    releaseBravo();
+    await bravoDelete;
+    releaseAlpha();
+    await alphaCheck;
+    await expect.poll(() => log.filter((entry) => entry.includes(" alpha")).length).toBe(2);
+  } finally {
+    releaseAlpha();
+    releaseBravo();
+    await page.unroute(endpoint);
+  }
+  expect(log.filter((entry) => entry.includes(" alpha"))).toEqual([
+    'PATCH alpha {"isChecked":true}',
+    'PATCH alpha {"content":"Alpha edited"}',
+  ]);
+  expect(log.filter((entry) => entry.includes(" bravo"))).toEqual([
+    'PATCH bravo {"content":"Bravo edited"}',
+    "DELETE bravo",
+  ]);
+  const checklist = await reloadAndOpenLatestChecklist(page);
+  const rows = checklist.locator("[data-checklist-item-id]");
+  expect(await rows.evaluateAll((elements) => elements.map((element) => element.textContent?.trim()))).toEqual([
+    "Alpha edited",
+    "Charlie edited",
+  ]);
+  await expect(
+    checklistItemRow(page, "Alpha edited").getByRole("button", { name: "Uncheck item", exact: true })
+  ).toBeVisible();
+  await expect(
+    checklistItemRow(page, "Charlie edited").getByRole("button", { name: "Check item", exact: true })
+  ).toBeVisible();
+});
+
+Then("a failed checklist item edit and delete roll back and their retries persist", async ({ page }) => {
+  const itemId = await checklistItemId(page, "Recover item");
+  const endpoint = `**/api/v1/checklist-items/${itemId}`;
+  const failure = {
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: { code: "server_error", message: "Checklist item write failed" } }),
+  };
+  await page.route(endpoint, (route) => route.fulfill(failure), { times: 1 });
+  await checklistItemRow(page, "Recover item").getByRole("button", { name: "Recover item", exact: true }).click();
+  await page.getByLabel("Checklist item content").fill("Recovered item");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Checklist item write failed", { exact: true })).toBeVisible();
+  await expect(checklistItemRow(page, "Recover item")).toBeVisible();
+  await expect(checklistItemRow(page, "Recovered item")).toHaveCount(0);
+  const retry = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
+  await checklistItemRow(page, "Recover item").getByRole("button", { name: "Recover item", exact: true }).click();
+  await page.getByLabel("Checklist item content").fill("Recovered item");
+  await page.keyboard.press("Enter");
+  await retry;
+  await expect(checklistItemRow(page, "Recovered item")).toBeVisible();
+  await page.route(endpoint, (route) => route.fulfill(failure), { times: 1 });
+  const failedRow = checklistItemRow(page, "Recovered item");
+  await failedRow.hover();
+  await failedRow.getByTitle("Delete item").click();
+  await expect(checklistItemRow(page, "Recovered item")).toBeVisible();
+  const deleted = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklist-items/${itemId}` });
+  await failedRow.hover();
+  await failedRow.getByTitle("Delete item").click();
+  await deleted;
+  const checklist = await reloadAndOpenLatestChecklist(page);
+  expect(
+    await checklist
+      .locator("[data-checklist-item-id]")
+      .evaluateAll((elements) => elements.map((element) => element.textContent?.trim()))
+  ).toEqual(["Keep item"]);
 });

@@ -2,21 +2,26 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DayItinerary } from "@/data/types";
 import { useChecklistHandlers } from "./use-checklist-handlers";
-const { mutate, create, title, remove } = vi.hoisted(() => ({
+const { mutate, create, title, remove, createItem, removeItem } = vi.hoisted(() => ({
   mutate: vi.fn(),
   create: vi.fn(),
   title: vi.fn(),
   remove: vi.fn(),
+  createItem: vi.fn(),
+  removeItem: vi.fn(),
 }));
 vi.mock("@/lib/api/use-api-mutation", () => ({
   useApiMutation: (endpoint: { method: string; path: string }) => ({
-    mutate:
-      endpoint.method === "POST"
-        ? create
-        : endpoint.method === "DELETE"
-          ? remove
-          : endpoint.path.includes("checklist-items")
-            ? mutate
+    mutate: endpoint.path.includes("/items")
+      ? createItem
+      : endpoint.path.includes("checklist-items")
+        ? endpoint.method === "DELETE"
+          ? removeItem
+          : mutate
+        : endpoint.method === "POST"
+          ? create
+          : endpoint.method === "DELETE"
+            ? remove
             : title,
   }),
 }));
@@ -40,8 +45,9 @@ const days: DayItinerary[] = [
   },
 ];
 beforeEach(() => {
-  for (const mock of [mutate, create, title, remove, setNewlyCreatedChecklistId]) mock.mockReset();
-  for (const mock of [create, title, remove]) mock.mockResolvedValue(undefined);
+  for (const mock of [mutate, create, title, remove, createItem, removeItem, setNewlyCreatedChecklistId])
+    mock.mockReset();
+  for (const mock of [mutate, create, title, remove, createItem, removeItem]) mock.mockResolvedValue(undefined);
 });
 function checked(result: ReturnType<typeof useChecklistHandlers>) {
   return result.days[0].checklists?.[0].items[0].isChecked;
@@ -401,4 +407,271 @@ it("drops every title overlay on auth loss", () => {
     title.mock.calls[0][1].onAuthLost();
   });
   expect(shownTitle(result.current)).toBeUndefined();
+});
+
+function twoItemDays() {
+  const source = structuredClone(days);
+  source[0].checklists![0].items.push({ id: "second", checklistId: "list", content: "Second", isChecked: false });
+  return source;
+}
+function shownItems(result: ReturnType<typeof useChecklistHandlers>) {
+  return result.days[0].checklists![0].items;
+}
+
+it("adds an item through the create API, queued per checklist", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleAddChecklistItem("list", "Charger");
+    result.current.handleAddChecklistItem("list", "Adapter");
+  });
+  expect(createItem.mock.calls.map(([input]) => input)).toEqual([
+    { params: { checklistId: "list" }, body: { content: "Charger" } },
+    { params: { checklistId: "list" }, body: { content: "Adapter" } },
+  ]);
+  expect(createItem.mock.calls.every(([, options]) => options.key === "list")).toBe(true);
+});
+
+it("sends a content edit as a partial PATCH on the item queue and shows it immediately", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Passport copy");
+  });
+  expect(mutate).toHaveBeenCalledWith(
+    { params: { itemId: "item" }, body: { content: "Passport copy" } },
+    expect.objectContaining({ key: "item" })
+  );
+  expect(shownItems(result.current)[0]).toMatchObject({ content: "Passport copy", isChecked: false });
+});
+
+it("ignores edits to missing items and edits that repeat the intended content", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("missing", "Anything");
+    result.current.handleUpdateChecklistItem("item", "Passport");
+  });
+  expect(mutate).not.toHaveBeenCalled();
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleUpdateChecklistItem("item", "Visa");
+  });
+  expect(mutate).toHaveBeenCalledOnce();
+});
+
+it("sends an edit back to the original text when the earlier edit is still in flight", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleUpdateChecklistItem("item", "Passport");
+  });
+  expect(mutate.mock.calls.map(([input]) => input.body)).toEqual([{ content: "Visa" }, { content: "Passport" }]);
+  expect(shownItems(result.current)[0].content).toBe("Passport");
+});
+
+it("orders edit then check of one item on a single queue key without losing either intent", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleToggleChecklistItem("item");
+  });
+  expect(mutate.mock.calls.map(([input]) => input.body)).toEqual([{ content: "Visa" }, { isChecked: true }]);
+  expect(mutate.mock.calls.every(([, options]) => options.key === "item")).toBe(true);
+  expect(shownItems(result.current)[0]).toMatchObject({ content: "Visa", isChecked: true });
+});
+
+it("keeps the newest edit visible when an earlier write settles first, then drops overlays on settle", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "First");
+    result.current.handleUpdateChecklistItem("item", "Second");
+  });
+  act(() => {
+    mutate.mock.calls[0][1].onSettled();
+  });
+  expect(shownItems(result.current)[0].content).toBe("Second");
+  act(() => {
+    mutate.mock.calls[1][1].onSettled();
+  });
+  expect(shownItems(result.current)[0].content).toBe("Passport");
+});
+
+it("keeps refreshed content after the write settles and rolls back a failed edit", () => {
+  const { result, rerender } = renderHook(({ source }) => useChecklistHandlers(source, lifecycle), {
+    initialProps: { source: days },
+  });
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+  });
+  const refreshed = structuredClone(days);
+  refreshed[0].checklists![0].items[0].content = "Visa";
+  rerender({ source: refreshed });
+  act(() => {
+    mutate.mock.calls[0][1].onSettled();
+  });
+  expect(shownItems(result.current)[0].content).toBe("Visa");
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Broken");
+  });
+  act(() => {
+    mutate.mock.calls[1][1].onSettled();
+  });
+  expect(shownItems(result.current)[0].content).toBe("Visa");
+});
+
+it("holds an edit refresh acknowledgment until refreshed props show the new content", async () => {
+  const { result, rerender } = renderHook(({ source }) => useChecklistHandlers(source, lifecycle), {
+    initialProps: { source: days },
+  });
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+  });
+  let settled = false;
+  void mutate.mock.calls[0][1].waitForRefresh().then(() => {
+    settled = true;
+  });
+  rerender({ source: structuredClone(days) });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(settled).toBe(false);
+  const refreshed = structuredClone(days);
+  refreshed[0].checklists![0].items[0].content = "Visa";
+  rerender({ source: refreshed });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(settled).toBe(true);
+});
+
+it("hides a deleted item immediately and sends the trip context", () => {
+  const { result } = renderHook(() => useChecklistHandlers(twoItemDays(), lifecycle));
+  act(() => {
+    result.current.handleDeleteChecklistItem("item");
+  });
+  expect(shownItems(result.current).map((item) => item.id)).toEqual(["second"]);
+  expect(removeItem).toHaveBeenCalledWith(
+    { params: { itemId: "item" }, body: { tripId } },
+    expect.objectContaining({ key: "item" })
+  );
+});
+
+it("restores a deleted item when the delete fails", () => {
+  const { result } = renderHook(() => useChecklistHandlers(twoItemDays(), lifecycle));
+  act(() => {
+    result.current.handleDeleteChecklistItem("item");
+  });
+  act(() => {
+    removeItem.mock.calls[0][1].onSettled();
+  });
+  expect(shownItems(result.current).map((item) => item.id)).toEqual(["item", "second"]);
+});
+
+it("acknowledges a delete only when refreshed props no longer contain the item", async () => {
+  const source = twoItemDays();
+  const { result, rerender } = renderHook(({ sourceDays }) => useChecklistHandlers(sourceDays, lifecycle), {
+    initialProps: { sourceDays: source },
+  });
+  act(() => {
+    result.current.handleDeleteChecklistItem("item");
+  });
+  let settled = false;
+  void removeItem.mock.calls[0][1].waitForRefresh().then(() => {
+    settled = true;
+  });
+  rerender({ sourceDays: structuredClone(source) });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(settled).toBe(false);
+  const refreshed = structuredClone(source);
+  refreshed[0].checklists![0].items.shift();
+  rerender({ sourceDays: refreshed });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(settled).toBe(true);
+});
+
+it("lets an in-flight edit land before deleting the same item", async () => {
+  let finishWrite!: () => void;
+  mutate.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    })
+  );
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleDeleteChecklistItem("item");
+  });
+  expect(removeItem).not.toHaveBeenCalled();
+  expect(shownItems(result.current)).toEqual([]);
+  await act(async () => {
+    finishWrite();
+  });
+  expect(removeItem).toHaveBeenCalledOnce();
+});
+
+it("does not block independent items on another pending write or delete", () => {
+  const { result } = renderHook(() => useChecklistHandlers(twoItemDays(), lifecycle));
+  mutate.mockReturnValueOnce(new Promise<void>(() => {}));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleToggleChecklistItem("second");
+    result.current.handleDeleteChecklistItem("second");
+  });
+  expect(mutate.mock.calls.map(([input]) => input.params.itemId)).toEqual(["item", "second"]);
+  expect(shownItems(result.current)).toMatchObject([{ id: "item", content: "Visa" }]);
+});
+
+it("lets pending item adds and edits land before deleting their checklist", async () => {
+  let finishCreate!: () => void;
+  let finishEdit!: () => void;
+  createItem.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      finishCreate = resolve;
+    })
+  );
+  mutate.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      finishEdit = resolve;
+    })
+  );
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleAddChecklistItem("list", "Charger");
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleDeleteChecklist("list");
+  });
+  expect(remove).not.toHaveBeenCalled();
+  await act(async () => {
+    finishCreate();
+  });
+  expect(remove).not.toHaveBeenCalled();
+  await act(async () => {
+    finishEdit();
+  });
+  expect(remove).toHaveBeenCalledOnce();
+});
+
+it("clears content and delete overlays and acknowledgments on auth loss", async () => {
+  const { result } = renderHook(() => useChecklistHandlers(twoItemDays(), lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleDeleteChecklistItem("second");
+  });
+  let refreshSettled = false;
+  void mutate.mock.calls[0][1].waitForRefresh().then(() => {
+    refreshSettled = true;
+  });
+  act(() => {
+    removeItem.mock.calls[0][1].onAuthLost();
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(refreshSettled).toBe(true);
+  expect(shownItems(result.current)).toMatchObject([
+    { id: "item", content: "Passport" },
+    { id: "second", content: "Second" },
+  ]);
 });
