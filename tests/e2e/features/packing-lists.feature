@@ -27,3 +27,27 @@ Feature: Multiple packing lists per trip
     And I click Add and select the packing list picker
     And I select the template "Beach Pack" from the picker
     Then a checklist titled "Beach Pack" should appear in day 1
+
+  Scenario: A template inserts as a checklist with ordered unchecked items and no labels
+    Given I have a seeded packing template named "Labelled Beach Pack" with labelled items
+    When I open day 1 in the itinerary
+    And I click Add and select the packing list picker
+    And I select the template "Labelled Beach Pack" from the picker
+    Then a checklist titled "Labelled Beach Pack" should appear in day 1
+    And after reload the "Labelled Beach Pack" checklist holds "Sunscreen, Towel, Hat" unchecked in that order
+
+  Scenario: A trip packing list inserts as a checklist with ordered unchecked items and no labels
+    Given I have a seeded packing list named "Carry-On Kit" with labelled items
+    When I open day 1 in the itinerary
+    And I click Add and select the packing list picker
+    And I select the packing list "Carry-On Kit" from the picker
+    Then a checklist titled "Carry-On Kit" should appear in day 1
+    And after reload the "Carry-On Kit" checklist holds "Sunscreen, Towel, Hat" unchecked in that order
+
+  Scenario: A template with only a label inserts as a titled empty checklist
+    Given I have a seeded packing template named "Label Only Kit" with only a label
+    When I open day 1 in the itinerary
+    And I click Add and select the packing list picker
+    And I select the template "Label Only Kit" from the picker
+    Then a checklist titled "Label Only Kit" should appear in day 1
+    And after reload the "Label Only Kit" checklist is titled and empty

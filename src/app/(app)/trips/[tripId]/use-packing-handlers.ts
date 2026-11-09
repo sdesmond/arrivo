@@ -14,7 +14,9 @@ import {
   updatePackingItem,
 } from "../actions";
 import { removePackingSection, createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
-import { addChecklistFromPackingSource } from "./actions";
+import { createChecklist } from "@/lib/api/contract/checklists";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { createRandomId } from "@/lib/utils";
 
 export interface PackingHandlers {
   setNewlyCreatedChecklistId: (id: string | null) => void;
@@ -52,6 +54,7 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const { trip, days } = detail;
   const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
+  const insertMutation = useApiMutation(createChecklist);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -214,12 +217,15 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
-    try {
-      const checklistId = await addChecklistFromPackingSource(trip.id, day.id, position, sourceType, sourceId);
-      setNewlyCreatedChecklistId(checklistId);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to insert packing list. Please try again.");
-    }
+    // The id is client-generated so a transport-level retry of the same request body is idempotent; each user gesture
+    // mints a new one. useApiMutation reports errors and auth loss itself.
+    await insertMutation.mutate(
+      {
+        params: { tripId: trip.id },
+        body: { dayId: day.id, position, id: createRandomId(), source: { type: sourceType, id: sourceId } },
+      },
+      { onSuccess: (checklist) => setNewlyCreatedChecklistId(checklist.id) }
+    );
   }
 
   return {

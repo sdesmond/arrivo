@@ -67,10 +67,20 @@ describe("feature-map consistency", async () => {
     const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:packing-lists");
     for (const path of [
       "src/lib/services/checklists.ts",
+      "src/lib/api/contract/checklists.ts",
       "src/app/api/v1/checklists/[checklistId]/route.ts",
       "src/app/api/v1/trips/[tripId]/checklists/route.ts",
+      "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
     ])
       expect(matchesAnyGlob(path, feature.sourceGlobs)).toBe(true);
+  });
+  it("keeps the packing handler in the packing tab while it also runs the packing-list scenarios", () => {
+    const tagsFor = (path) =>
+      FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map((feature) => feature.tag);
+    expect(tagsFor("src/app/(app)/trips/[tripId]/use-packing-handlers.ts")).toEqual(
+      expect.arrayContaining(["@feat:packing-tab", "@feat:packing-lists"])
+    );
+    expect(tagsFor("src/app/(app)/trips/[tripId]/use-packing-handlers.test.tsx")).toEqual([]);
   });
 
   it("scopes the public API metadata route and its contract to the api feature only", () => {

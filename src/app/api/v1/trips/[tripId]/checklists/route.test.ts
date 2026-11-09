@@ -23,3 +23,17 @@ it("forwards actor, trip, body and replay to creation service", async () => {
   await expect((POST as unknown as (input: unknown) => Promise<unknown>)(input)).resolves.toEqual({ id: "list" });
   expect(create).toHaveBeenCalledWith(input.actor, "trip", input.body, input.replay);
 });
+it("forwards a packing source with the actor and replay unchanged", async () => {
+  const input = {
+    actor: { userId: "user" },
+    params: { tripId: "trip" },
+    body: { dayId: "day", position: 1, id: "list", source: { type: "template", id: "template" } },
+    replay: { key: "retry-source", method: "POST", path: "/trip/checklists" },
+  };
+  create.mockResolvedValue({ id: "list", title: "Beach" });
+  await expect((POST as unknown as (input: unknown) => Promise<unknown>)(input)).resolves.toEqual({
+    id: "list",
+    title: "Beach",
+  });
+  expect(create).toHaveBeenLastCalledWith(input.actor, "trip", input.body, input.replay);
+});

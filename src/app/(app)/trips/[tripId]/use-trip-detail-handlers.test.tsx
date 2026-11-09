@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import {
-  addChecklistFromPackingSource,
   createChecklistItem,
   createEvent,
   createNote,
@@ -52,7 +51,6 @@ vi.mock("../packing-actions", () => ({
 }));
 
 vi.mock("./actions", () => ({
-  addChecklistFromPackingSource: vi.fn(),
   addDay: vi.fn(),
   createChecklistItem: vi.fn(),
   createEvent: vi.fn(),
@@ -295,8 +293,9 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(result.current.newlyCreatedChecklistId).toBeNull());
   });
 
-  it("keeps a checklist inserted from a packing source marked newly created until it appears in days", async () => {
-    vi.mocked(addChecklistFromPackingSource).mockResolvedValueOnce("checklist-2");
+  it("inserts from a packing source through the checklist API and keeps the marker until it appears in days", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "checklist-2" });
 
     const { result, rerender } = renderHook(({ payload }) => useTripDetailHandlers(payload), {
       initialProps: { payload: detail },
@@ -305,7 +304,17 @@ describe("useTripDetailHandlers", () => {
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "packing-list", "list-1");
     });
-    expect(addChecklistFromPackingSource).toHaveBeenCalledWith("trip-1", "day-1", 0, "packing-list", "list-1");
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/trips/:tripId/checklists" }),
+      {
+        params: { tripId: "trip-1" },
+        body: { dayId: "day-1", position: 0, id: expect.any(String), source: { type: "packing-list", id: "list-1" } },
+      }
+    );
+    expect(result.current.newlyCreatedChecklistId).toBe("checklist-2");
+
+    // A slow revalidation must not clear it before the checklist mounts.
+    rerender({ payload: { ...detail } });
     expect(result.current.newlyCreatedChecklistId).toBe("checklist-2");
 
     rerender({ payload: detailWithChecklist("checklist-2") });

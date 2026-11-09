@@ -42,6 +42,42 @@ it("validates lifecycle envelopes, caps, UUIDs and positions", () => {
   expect(deleteChecklist.body.parse({ tripId: uuid })).toEqual({ tripId: uuid });
   expect(deleteChecklist.body.safeParse({ tripId: uuid, extra: true }).success).toBe(false);
 });
+it("accepts template and packing-list sources with normalized UUIDs and optional client id", () => {
+  for (const type of ["template", "packing-list"] as const) {
+    expect(
+      createChecklist.body.parse({
+        dayId: uuid.toUpperCase(),
+        position: 2,
+        id: uuid.toUpperCase(),
+        source: { type, id: uuid.toUpperCase() },
+      })
+    ).toEqual({ dayId: uuid, position: 2, id: uuid, source: { type, id: uuid } });
+    expect(createChecklist.body.parse({ dayId: uuid, position: 0, source: { type, id: uuid } })).toEqual({
+      dayId: uuid,
+      position: 0,
+      source: { type, id: uuid },
+    });
+  }
+});
+it("rejects malformed sources and any mix of a source with title or first item", () => {
+  const source = { type: "template", id: uuid };
+  for (const extra of [
+    { source: { type: "packing-list" } },
+    { source: { id: uuid } },
+    { source: { type: "event", id: uuid } },
+    { source: { type: "template", id: "bad" } },
+    { source: { ...source, extra: true } },
+    { source: "template" },
+    { source: null },
+    { source, title: "Pack" },
+    { source, title: "" },
+    { source, firstItem: { content: "Pack" } },
+    { source, title: "Pack", firstItem: { content: "Pack" } },
+  ])
+    expect(createChecklist.body.safeParse({ dayId: uuid, position: 0, ...extra }).success).toBe(false);
+  const mixed = createChecklist.body.safeParse({ dayId: uuid, position: 0, source, title: "Pack" });
+  expect(mixed.success ? undefined : mixed.error.issues.map((issue) => issue.path.join("."))).toContain("source");
+});
 it("accepts a partial item patch with absolute checked state, trimmed content and a UUID", () => {
   expect(updateChecklistItem.body.parse({ isChecked: true })).toEqual({ isChecked: true });
   expect(updateChecklistItem.body.parse({ isChecked: false })).toEqual({ isChecked: false });

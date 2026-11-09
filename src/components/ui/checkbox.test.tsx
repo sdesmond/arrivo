@@ -51,6 +51,13 @@ describe("Checkbox", () => {
     expect(screen.getByRole("checkbox")).toHaveClass("custom-class");
   });
 
+  it("shows a pointer cursor, and a not-allowed one when disabled", () => {
+    const { rerender } = render(<Checkbox />);
+    expect(screen.getByRole("checkbox")).toHaveClass("cursor-pointer");
+    rerender(<Checkbox disabled />);
+    expect(screen.getByRole("checkbox")).toHaveClass("disabled:cursor-not-allowed");
+  });
+
   it("carries the data-slot attribute", () => {
     render(<Checkbox />);
     expect(screen.getByRole("checkbox")).toHaveAttribute("data-slot", "checkbox");
