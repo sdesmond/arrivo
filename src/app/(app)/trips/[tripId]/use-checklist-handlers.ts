@@ -32,6 +32,23 @@ function findItem(source: DayItinerary[], itemId: string): ChecklistItem | undef
     .find((candidate) => candidate.id === itemId);
 }
 
+/** Records `write` as the newest for `key`, and forgets it once settled unless a newer write has replaced it. */
+function trackWrite(writes: Map<string, Promise<void>>, key: string, write: Promise<void>): void {
+  writes.set(key, write);
+  void write.then(() => {
+    if (writes.get(key) === write) writes.delete(key);
+  });
+}
+
+/** A copy of `collection` without `key`, for React state updaters. */
+function withoutKey<Value>(collection: Map<string, Value>, key: string): Map<string, Value>;
+function withoutKey(collection: Set<string>, key: string): Set<string>;
+function withoutKey(collection: Map<string, unknown> | Set<string>, key: string) {
+  const next = collection instanceof Map ? new Map(collection) : new Set(collection);
+  next.delete(key);
+  return next;
+}
+
 export function useChecklistHandlers(
   serverDays: DayItinerary[],
   { tripId, setNewlyCreatedChecklistId }: ChecklistLifecycleOptions
@@ -105,13 +122,6 @@ export function useChecklistHandlers(
     setDeletedItemIds(new Set());
   }
 
-  function trackItemWrite(itemId: string, write: Promise<void>): void {
-    itemWrites.current.set(itemId, write);
-    void write.then(() => {
-      if (itemWrites.current.get(itemId) === write) itemWrites.current.delete(itemId);
-    });
-  }
-
   function handleToggleChecklistItem(itemId: string): void {
     const item = findItem(serverDays, itemId);
     if (!item) return;
@@ -119,7 +129,8 @@ export function useChecklistHandlers(
     const intentRevision = ++revision.current;
     intentions.current.set(itemId, { value, revision: intentRevision });
     setOverrides((current) => new Map(current).set(itemId, value));
-    trackItemWrite(
+    trackWrite(
+      itemWrites.current,
       itemId,
       mutation.mutate(
         { params: { itemId }, body: { isChecked: value } },
@@ -131,11 +142,7 @@ export function useChecklistHandlers(
             releaseRefresh(itemId, intentRevision);
             if (intentions.current.get(itemId)?.revision !== intentRevision) return;
             intentions.current.delete(itemId);
-            setOverrides((current) => {
-              const next = new Map(current);
-              next.delete(itemId);
-              return next;
-            });
+            setOverrides((current) => withoutKey(current, itemId));
           },
         }
       )
@@ -148,7 +155,8 @@ export function useChecklistHandlers(
     const intentRevision = ++revision.current;
     contentIntents.current.set(itemId, { value: content, revision: intentRevision });
     setContentOverrides((current) => new Map(current).set(itemId, content));
-    trackItemWrite(
+    trackWrite(
+      itemWrites.current,
       itemId,
       mutation.mutate(
         { params: { itemId }, body: { content } },
@@ -160,11 +168,7 @@ export function useChecklistHandlers(
             releaseRefresh(itemId, intentRevision);
             if (contentIntents.current.get(itemId)?.revision !== intentRevision) return;
             contentIntents.current.delete(itemId);
-            setContentOverrides((current) => {
-              const next = new Map(current);
-              next.delete(itemId);
-              return next;
-            });
+            setContentOverrides((current) => withoutKey(current, itemId));
           },
         }
       )
@@ -173,11 +177,11 @@ export function useChecklistHandlers(
 
   function handleAddChecklistItem(checklistId: string, content: string): void {
     // Queued per checklist so rapid adds reach the server, and appear, in the order they were typed.
-    const write = createItemMutation.mutate({ params: { checklistId }, body: { content } }, { key: checklistId });
-    itemCreates.current.set(checklistId, write);
-    void write.then(() => {
-      if (itemCreates.current.get(checklistId) === write) itemCreates.current.delete(checklistId);
-    });
+    trackWrite(
+      itemCreates.current,
+      checklistId,
+      createItemMutation.mutate({ params: { checklistId }, body: { content } }, { key: checklistId })
+    );
   }
 
   function handleDeleteChecklistItem(itemId: string): void {
@@ -192,11 +196,7 @@ export function useChecklistHandlers(
           onAuthLost: dropItemOptimism,
           onSettled: () => {
             releaseRefresh(itemId, intentRevision);
-            setDeletedItemIds((current) => {
-              const next = new Set(current);
-              next.delete(itemId);
-              return next;
-            });
+            setDeletedItemIds((current) => withoutKey(current, itemId));
           },
         }
       );
@@ -243,29 +243,25 @@ export function useChecklistHandlers(
     const intentRevision = ++titleRevision.current;
     titleIntents.current.set(checklistId, intentRevision);
     setTitleOverrides((current) => new Map(current).set(checklistId, title));
-    const write = titleMutation.mutate(
-      { params: { checklistId }, body: { title: title ?? null } },
-      {
-        key: checklistId,
-        onAuthLost: () => {
-          titleIntents.current.clear();
-          setTitleOverrides(new Map());
-        },
-        onSettled: () => {
-          if (titleIntents.current.get(checklistId) !== intentRevision) return;
-          titleIntents.current.delete(checklistId);
-          setTitleOverrides((current) => {
-            const next = new Map(current);
-            next.delete(checklistId);
-            return next;
-          });
-        },
-      }
+    trackWrite(
+      titleWrites.current,
+      checklistId,
+      titleMutation.mutate(
+        { params: { checklistId }, body: { title: title ?? null } },
+        {
+          key: checklistId,
+          onAuthLost: () => {
+            titleIntents.current.clear();
+            setTitleOverrides(new Map());
+          },
+          onSettled: () => {
+            if (titleIntents.current.get(checklistId) !== intentRevision) return;
+            titleIntents.current.delete(checklistId);
+            setTitleOverrides((current) => withoutKey(current, checklistId));
+          },
+        }
+      )
     );
-    titleWrites.current.set(checklistId, write);
-    void write.then(() => {
-      if (titleWrites.current.get(checklistId) === write) titleWrites.current.delete(checklistId);
-    });
   }
 
   function handleDeleteChecklist(checklistId: string): void {
