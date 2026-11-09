@@ -2,14 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import {
-  createChecklistItem,
-  createEvent,
-  createNote,
-  deleteChecklistItem,
-  reorderDayItems,
-  updateChecklistItem,
-} from "./actions";
+import { createEvent, createNote, reorderDayItems } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -52,16 +45,12 @@ vi.mock("../packing-actions", () => ({
 
 vi.mock("./actions", () => ({
   addDay: vi.fn(),
-  createChecklistItem: vi.fn(),
   createEvent: vi.fn(),
   createNote: vi.fn(),
-  deleteChecklistItem: vi.fn(),
   deleteEvent: vi.fn(),
   deleteNote: vi.fn(),
   removeLastDay: vi.fn(),
   reorderDayItems: vi.fn(),
-  toggleChecklistItem: vi.fn(),
-  updateChecklistItem: vi.fn(),
   updateDay: vi.fn(),
   updateEvent: vi.fn(),
   updateNote: vi.fn(),
@@ -724,7 +713,4 @@ it("creates, edits and deletes checklist items through the item API instead of s
       ],
     ])
   );
-  expect(createChecklistItem).not.toHaveBeenCalled();
-  expect(updateChecklistItem).not.toHaveBeenCalled();
-  expect(deleteChecklistItem).not.toHaveBeenCalled();
 });

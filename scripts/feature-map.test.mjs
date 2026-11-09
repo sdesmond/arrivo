@@ -12,7 +12,7 @@ describe("feature-map consistency", async () => {
   const ARRIVO_DIR = join(ROOT, "src", "components", "arrivo");
   const APP_DIR = join(ROOT, "src", "app", "(app)");
 
-  const { matchesAnyGlob } = await import("./affected-e2e.mjs");
+  const { matchesAnyGlob, mapChangedFilesToTags } = await import("./affected-e2e.mjs");
   const { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS } = await import("../tests/e2e/feature-map.mjs");
   const featureGlobs = FEATURE_MAP.flatMap((feature) => feature.sourceGlobs);
   const mappedOrSharedGlobs = [...SHARED_GLOBS, ...featureGlobs];
@@ -62,6 +62,15 @@ describe("feature-map consistency", async () => {
       "src/components/arrivo/checklist-item-row.tsx",
     ])
       expect(matchesAnyGlob(path, dayPlanning.sourceGlobs)).toBe(true);
+  });
+  it("still classifies the trip actions module once checklist actions are retired", () => {
+    const path = "src/app/(app)/trips/[tripId]/actions.ts";
+    // An explicit FEATURE_MAP match wins over SHARED_GLOBS, so the effective scope is the mapped tag(s).
+    expect(mapChangedFilesToTags([path], { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS })).toEqual({
+      mode: "tags",
+      tags: expect.arrayContaining(["@feat:app-activity"]),
+    });
+    expect(SHARED_GLOBS.some((glob) => matchesAnyGlob(path, [glob]))).toBe(true);
   });
   it("includes lifecycle routes among packing-list consumers", () => {
     const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:packing-lists");
