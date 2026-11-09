@@ -55,5 +55,9 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
       failure.error?.requiredRole
     );
   }
+  if (endpoint.status === 204) return null as Result;
+  if (response.status === 204) {
+    throw new ApiClientError(204, "server_error", "Could not save changes. Try again.");
+  }
   return response.json() as Promise<Result>;
 }
