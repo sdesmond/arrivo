@@ -522,6 +522,8 @@ export const FEATURE_MAP = [
   entry("packing-lists", [
     "src/components/arrivo/packing-list*.tsx",
     "src/components/arrivo/packing-lists-view.tsx",
+    "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
+    "src/lib/api/contract/checklists.ts",
     "src/lib/services/checklists.ts",
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",

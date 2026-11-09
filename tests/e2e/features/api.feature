@@ -235,3 +235,67 @@ Feature: Absolute checklist checked-state API
       | role     | status | code      |
       | viewer   | 403    | forbidden |
       | stranger | 404    | not_found |
+
+  Scenario Outline: Packing source creation copies ordered unchecked items and keeps later appends last
+    Given my checklist API role is "editor"
+    And a scenario-owned "<source>" packing source
+    When I create a checklist from that source through the API 3 times concurrently
+    Then the source checklist persists once with ordered unchecked items and shifted timeline after reload
+    When I append an item to the source checklist through the API
+    Then the appended item sorts after every copied item
+    When I reuse the source checklist UUID at a different position
+    Then the lifecycle API returns 409
+    And the source checklist keeps its single set of items
+    Examples:
+      | source       |
+      | template     |
+      | packing-list |
+
+  Scenario Outline: Keyed source creation replays the original after the source changes
+    Given my checklist API role is "editor"
+    And a scenario-owned "<source>" packing source
+    When I create a keyed checklist from that source
+    And the packing source is renamed
+    And I retry the keyed source creation
+    Then the keyed source retry returns the original checklist and no extra rows
+    Examples:
+      | source       |
+      | template     |
+      | packing-list |
+
+  Scenario Outline: Lost source access never replays a cached source creation
+    Given my checklist API role is "editor"
+    And a scenario-owned "<source>" packing source
+    When I create a keyed checklist from that source
+    And the packing source is deleted
+    And I retry the keyed source creation
+    Then the keyed source retry is concealed as 404 and leaks no cached checklist
+    Examples:
+      | source       |
+      | template     |
+      | packing-list |
+
+  Scenario Outline: Source creation outside the actor's reach changes nothing
+    Given my checklist API role is "editor"
+    And a scenario-owned "template" packing source
+    When I attempt a source checklist creation with a "<case>" source
+    Then the lifecycle API returns 404
+    And the source creation changed no rows or positions
+    Examples:
+      | case             |
+      | foreign-template |
+      | missing-template |
+      | other-trip-list  |
+      | other-trip-day   |
+
+  Scenario Outline: Denied source creation leaves the timeline unchanged
+    Given a scenario-owned "template" packing source
+    And my checklist API role is "<role>"
+    When I attempt a source checklist creation
+    Then the lifecycle API returns <status>
+    And the source creation changed no rows or positions
+    Examples:
+      | role      | status |
+      | viewer    | 403    |
+      | stranger  | 404    |
+      | anonymous | 401    |
