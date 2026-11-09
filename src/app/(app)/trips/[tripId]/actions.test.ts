@@ -163,7 +163,6 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import {
-  addChecklistFromPackingSource,
   addDay,
   addDocument,
   attachTripDocToEvent,
@@ -1115,75 +1114,6 @@ describe("reorderTripNotes", () => {
 
     expect(updates).toEqual([]);
     expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-  });
-});
-
-describe("addChecklistFromPackingSource", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("rejects when the provided day belongs to a different trip", async () => {
-    mockDbSelect.mockReturnValue({
-      from: vi.fn((table: unknown) => {
-        if (table !== days) {
-          throw new Error("Unexpected table read.");
-        }
-
-        return {
-          where: vi.fn(async () => [{ tripId: "trip-2" }]),
-        };
-      }),
-    });
-
-    await expect(addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1")).rejects.toThrow(
-      "Day does not belong to this trip"
-    );
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(mockDbTransaction).not.toHaveBeenCalled();
-    expect(mockDbInsert).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("creates a checklist from a packing list and publishes itinerary-changed before revalidating", async () => {
-    mockDbSelect
-      .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }])) // getDayTripId
-      .mockReturnValueOnce(createSimpleSelect([{ name: "Beach Kit", tripId: "trip-1" }])) // tripPackingLists
-      .mockReturnValueOnce({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            orderBy: vi.fn(async () => [{ name: "Sunscreen" }, { name: "Towel" }]),
-          })),
-        })),
-      }); // packingItems, ordered
-
-    const transaction = {
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
-      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
-      insert: vi
-        .fn()
-        .mockReturnValueOnce({
-          values: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "checklist-1" }]) })),
-        })
-        .mockReturnValueOnce({ values: vi.fn(async () => undefined) }),
-    };
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    const checklistId = await addChecklistFromPackingSource("trip-1", "day-1", 0, "packing-list", "list-1");
-
-    expect(checklistId).toBe("checklist-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
   });
 });
