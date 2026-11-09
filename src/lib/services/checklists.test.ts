@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { idempotencyKeys, days, itineraryChecklists, checklistItems } from "@/db/schema";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
+import {
+  idempotencyKeys,
+  days,
+  itineraryChecklists,
+  checklistItems,
+  packingItems,
+  packingTemplateItems,
+  packingTemplates,
+  tripPackingLists,
+} from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
@@ -684,6 +695,296 @@ describe("checklist lifecycle", () => {
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.delete).not.toHaveBeenCalled();
     expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
+
+  describe("packing source", () => {
+    const sourceId = "123e4567-e89b-12d3-a456-426614174006";
+    const source = { type: "template" as const, id: sourceId };
+    const dialect = new PgDialect();
+    let header: { name: string }[];
+    let contents: string[];
+    let sourceReads: { table: unknown; where: unknown }[];
+    let itemInserts: Record<string, unknown>[][];
+    let checklistInserts: Record<string, unknown>[];
+    let failItems: boolean;
+    function render(condition: unknown) {
+      return dialect.sqlToQuery(condition as SQL);
+    }
+    function stamps(): string[] {
+      return itemInserts[0].map((values) => render(values.createdAt).sql);
+    }
+    function lockedResources(): string[] {
+      return mocks.execute.mock.calls
+        .map(([statement]) => JSON.stringify(statement.queryChunks))
+        .filter((text) => text.includes("pg_advisory_xact_lock"));
+    }
+    beforeEach(() => {
+      header = [{ name: "Beach" }];
+      contents = ["Sunscreen", "Towel"];
+      sourceReads = [];
+      itemInserts = [];
+      checklistInserts = [];
+      failItems = false;
+      existing = [];
+      const lifecycleSelect = mocks.select.getMockImplementation()!;
+      mocks.select.mockImplementation((columns?: { tripId?: unknown }) => ({
+        from: (table: unknown) => {
+          if (table === packingTemplates || table === tripPackingLists)
+            return {
+              where: async (condition: unknown) => {
+                calls.push("source");
+                sourceReads.push({ table, where: condition });
+                return header;
+              },
+            };
+          if (table === packingTemplateItems || table === packingItems)
+            return {
+              where: (condition: unknown) => {
+                sourceReads.push({ table, where: condition });
+                return {
+                  orderBy: async () =>
+                    contents.map((content) => (table === packingItems ? { name: content } : { text: content })),
+                };
+              },
+            };
+          return lifecycleSelect(columns).from(table);
+        },
+      }));
+      mocks.insert.mockImplementation((table: unknown) => ({
+        values: (values: Record<string, unknown> | Record<string, unknown>[]) => ({
+          returning: async () => {
+            if (table === checklistItems) {
+              if (failItems) throw new Error("item failed");
+              const batch = Array.isArray(values) ? values : [values];
+              itemInserts.push(batch);
+              return batch.map((entry, index) => ({ ...firstItem, id: `item-${index}`, content: entry.content }));
+            }
+            checklistInserts.push(values as Record<string, unknown>);
+            existing = [{ ...checklistRow, ...(values as object) }];
+            return existing;
+          },
+          onConflictDoUpdate: async () => {
+            calls.push("store");
+          },
+        }),
+      }));
+    });
+    const input = (overrides: Record<string, unknown> = {}) => ({ dayId, position: 2, source, ...overrides });
+
+    it.each([
+      ["template", "user_id"],
+      ["packing-list", "trip_id"],
+    ] as const)("copies a %s's title and ordered unchecked non-label items", async (type, scope) => {
+      const result = await createChecklist(actor, tripId, input({ source: { type, id: sourceId.toUpperCase() } }));
+      expect(result).toMatchObject({ title: "Beach", position: 2, tripDayId: dayId });
+      expect(result.items.map((item) => [item.content, item.isChecked])).toEqual([
+        ["Sunscreen", false],
+        ["Towel", false],
+      ]);
+      expect(checklistInserts[0]).toMatchObject({ dayId, position: 2, title: "Beach" });
+      const [headerRead, itemRead] = sourceReads;
+      expect(headerRead.table).toBe(type === "template" ? packingTemplates : tripPackingLists);
+      expect(render(headerRead.where).sql).toContain(scope);
+      expect(render(headerRead.where).params).toEqual(
+        expect.arrayContaining([sourceId, scope === "user_id" ? actor.userId : tripId])
+      );
+      expect(itemRead.table).toBe(type === "template" ? packingTemplateItems : packingItems);
+      expect(render(itemRead.where).sql).toContain("is_label");
+      expect(render(itemRead.where).params).toEqual(expect.arrayContaining([sourceId, false]));
+      expect(mocks.update).toHaveBeenCalledTimes(3);
+      expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    });
+    it("inserts the items as one batch with strictly increasing creation stamps ending at the clock", async () => {
+      contents = ["A", "B", "C"];
+      await createChecklist(actor, tripId, input());
+      expect(itemInserts).toHaveLength(1);
+      expect(itemInserts[0].map((values) => values.content)).toEqual(["A", "B", "C"]);
+      expect(stamps()).toEqual([
+        "clock_timestamp() - (2 * interval '1 microsecond')",
+        "clock_timestamp() - (1 * interval '1 microsecond')",
+        "clock_timestamp()",
+      ]);
+    });
+    it("stores source text verbatim without new caps or trimming", async () => {
+      const longName = "N".repeat(500);
+      const longItem = `  ${"x".repeat(1000)}  `;
+      header = [{ name: longName }];
+      contents = [longItem];
+      const result = await createChecklist(actor, tripId, input());
+      expect(result.title).toBe(longName);
+      expect(itemInserts[0][0].content).toBe(longItem);
+    });
+    it("creates a titled empty checklist, shifting the mixed timeline, when the source has no usable items", async () => {
+      contents = [];
+      const result = await createChecklist(actor, tripId, input());
+      expect(result).toMatchObject({ title: "Beach", items: [] });
+      expect(itemInserts).toEqual([]);
+      expect(mocks.update).toHaveBeenCalledTimes(3);
+      expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    });
+    it("reads the source under the trip lock and role recheck, before any stored result", async () => {
+      const request = { key: "src", method: "POST", path: "/lifecycle" };
+      await createChecklist(actor, tripId, input(), request);
+      expect(calls).toEqual(["actor-key-lock", "trip-lock", "source", "lookup", "store"]);
+      expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
+      expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    });
+    it.each(["template", "packing-list"] as const)(
+      "conceals a foreign or missing %s without reading items or writing",
+      async (type) => {
+        header = [];
+        await expect(createChecklist(actor, tripId, input({ source: { type, id: sourceId } }))).rejects.toBeInstanceOf(
+          TripNotFoundError
+        );
+        expect(sourceReads).toHaveLength(1);
+        expect(mocks.update).not.toHaveBeenCalled();
+        expect(mocks.insert).not.toHaveBeenCalled();
+        expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      }
+    );
+    it("rejects a day from another trip before reading the source", async () => {
+      foundTrip = "other";
+      await expect(createChecklist(actor, tripId, input())).rejects.toBeInstanceOf(TripNotFoundError);
+      expect(sourceReads).toEqual([]);
+      expect(mocks.update).not.toHaveBeenCalled();
+    });
+    it("denies a viewer before any transaction", async () => {
+      mocks.requireTripRole.mockRejectedValueOnce(new Error("viewer"));
+      await expect(createChecklist(actor, tripId, input())).rejects.toThrow("viewer");
+      expect(mocks.transaction).not.toHaveBeenCalled();
+      expect(sourceReads).toEqual([]);
+    });
+    it("reauthorizes the source before replaying a stored result", async () => {
+      const request = { key: "src-replay", method: "POST", path: "/lifecycle" };
+      stored = [
+        {
+          result: envelope({
+            fingerprint: fingerprintRequest(request.method, request.path, input()),
+            response: { id: checklistId, title: "Secret cached title" },
+          }),
+        },
+      ];
+      header = [];
+      await expect(createChecklist(actor, tripId, input(), request)).rejects.toBeInstanceOf(TripNotFoundError);
+      expect(calls).not.toContain("lookup");
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    it("replays the original keyed result even after the source changed, without writes or effects", async () => {
+      const request = { key: "src-replay", method: "POST", path: "/lifecycle" };
+      const original = { id: checklistId, title: "Original", position: 2, tripDayId: dayId, items: [] };
+      stored = [
+        { result: envelope({ fingerprint: fingerprintRequest("POST", "/lifecycle", input()), response: original }) },
+      ];
+      await expect(createChecklist(actor, tripId, input(), request)).resolves.toEqual(original);
+      expect(mocks.update).not.toHaveBeenCalled();
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    it("rejects a key reused with a different source without writing", async () => {
+      const request = { key: "src-conflict", method: "POST", path: "/lifecycle" };
+      stored = [
+        {
+          result: envelope({
+            fingerprint: fingerprintRequest(
+              "POST",
+              "/lifecycle",
+              input({ source: { ...source, type: "packing-list" } })
+            ),
+          }),
+        },
+      ];
+      await expect(createChecklist(actor, tripId, input(), request)).rejects.toMatchObject({ status: 409 });
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    describe("client UUID", () => {
+      beforeEach(() => {
+        existing = [{ ...checklistRow, position: 2, title: "Beach" }];
+        items = [
+          { ...firstItem, id: "a", content: "Sunscreen" },
+          { ...firstItem, id: "b", content: "Towel" },
+        ];
+      });
+      it("returns the stored row for a matching retry without writes or effects", async () => {
+        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).resolves.toMatchObject({
+          id: checklistId,
+          title: "Beach",
+        });
+        expect(mocks.update).not.toHaveBeenCalled();
+        expect(mocks.insert).not.toHaveBeenCalled();
+        expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      });
+      it("claims only the checklist UUID lock before the trip lock", async () => {
+        await createChecklist(actor, tripId, input({ id: checklistId }));
+        expect(lockedResources()).toHaveLength(1);
+        expect(lockedResources()[0]).toContain(`checklist:${checklistId}`);
+      });
+      it.each([
+        ["title", () => (header = [{ name: "Renamed" }])],
+        ["item text", () => (contents = ["Sunscreen", "Hat"])],
+        ["item count", () => (contents = ["Sunscreen"])],
+        ["item order", () => (contents = ["Towel", "Sunscreen"])],
+        ["checked state", () => (items = items.map((item) => ({ ...item, isChecked: true })))],
+        ["position", () => (existing = [{ ...existing[0], position: 5 }])],
+      ])("rejects a UUID whose stored %s differs from the source", async (_name, change) => {
+        change();
+        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).rejects.toMatchObject({
+          status: 409,
+          code: "conflict",
+        });
+        expect(mocks.update).not.toHaveBeenCalled();
+        expect(mocks.insert).not.toHaveBeenCalled();
+        expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      });
+      it("conceals a collision with an inaccessible foreign checklist, after authorizing the source", async () => {
+        checklistTrip = "foreign";
+        mocks.requireTripRole
+          .mockResolvedValueOnce("editor")
+          .mockResolvedValueOnce("editor")
+          .mockRejectedValueOnce(new TripNotFoundError());
+        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).rejects.toBeInstanceOf(
+          TripNotFoundError
+        );
+        expect(sourceReads.length).toBeGreaterThan(0);
+        expect(mocks.insert).not.toHaveBeenCalled();
+        expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      });
+    });
+    it("rolls back when the item insert fails, with no effects", async () => {
+      failItems = true;
+      await expect(createChecklist(actor, tripId, input())).rejects.toThrow("item failed");
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      expect(calls).not.toContain("store");
+    });
+    it("rolls back when the replay record or commit fails, with no effects", async () => {
+      const request = { key: "src-fail", method: "POST", path: "/lifecycle" };
+      const original = mocks.insert.getMockImplementation()!;
+      mocks.insert.mockImplementation((table: unknown) =>
+        table === idempotencyKeys
+          ? { values: () => ({ onConflictDoUpdate: async () => Promise.reject(new Error("no record")) }) }
+          : original(table)
+      );
+      await expect(createChecklist(actor, tripId, input(), request)).rejects.toThrow("no record");
+      mocks.insert.mockImplementation(original);
+      mocks.transaction.mockImplementationOnce(async (callback) => {
+        await callback(mocks);
+        throw new Error("commit rejected");
+      });
+      await expect(createChecklist(actor, tripId, input())).rejects.toThrow("commit rejected");
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    it("rejects an invalid or mixed source before any database access", async () => {
+      mocks.select.mockClear();
+      for (const body of [
+        { dayId, position: 0, source: { type: "event", id: sourceId } },
+        { dayId, position: 0, source: { type: "template", id: "bad" } },
+        input({ title: "Mixed" }),
+        input({ firstItem: { content: "Mixed" } }),
+      ])
+        await expect(createChecklist(actor, tripId, body)).rejects.toThrow();
+      expect(mocks.select).not.toHaveBeenCalled();
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe("item lifecycle", () => {

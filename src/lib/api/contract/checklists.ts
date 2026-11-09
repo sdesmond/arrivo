@@ -4,17 +4,26 @@ import { defineEndpoint } from "../endpoint";
 import { checklistTitleSchema, checklistItemContentSchema, itineraryPositionSchema } from "@/lib/validation-schemas";
 const lifecycleUuid = z.uuid().toLowerCase();
 const checklistParams = z.object({ checklistId: lifecycleUuid });
+/** Where a checklist's title and items are copied from: one of the actor's templates or a packing list on the trip. */
+const packingSourceSchema = z.strictObject({ type: z.enum(["template", "packing-list"]), id: lifecycleUuid });
 export const createChecklist = defineEndpoint<Checklist>()({
   method: "POST",
   path: "/api/v1/trips/:tripId/checklists",
   params: z.object({ tripId: lifecycleUuid }),
-  body: z.strictObject({
-    dayId: lifecycleUuid,
-    position: itineraryPositionSchema,
-    id: lifecycleUuid.optional(),
-    title: checklistTitleSchema,
-    firstItem: z.strictObject({ id: lifecycleUuid.optional(), content: checklistItemContentSchema }).optional(),
-  }),
+  body: z
+    .strictObject({
+      dayId: lifecycleUuid,
+      position: itineraryPositionSchema,
+      id: lifecycleUuid.optional(),
+      title: checklistTitleSchema,
+      firstItem: z.strictObject({ id: lifecycleUuid.optional(), content: checklistItemContentSchema }).optional(),
+      source: packingSourceSchema.optional(),
+    })
+    // A source supplies the title and every item, so it excludes the two fields that would also set them.
+    .refine((body) => body.source === undefined || (body.title === undefined && body.firstItem === undefined), {
+      path: ["source"],
+      message: "A packing source cannot be combined with a title or first item.",
+    }),
 });
 export const updateChecklistTitle = defineEndpoint<Checklist>()({
   method: "PATCH",

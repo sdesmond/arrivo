@@ -1,7 +1,17 @@
 import "server-only";
 import { db } from "@/db";
-import { checklistItems, itineraryChecklists, days, events, itineraryNotes } from "@/db/schema";
-import { and, eq, gte, sql } from "drizzle-orm";
+import {
+  checklistItems,
+  itineraryChecklists,
+  days,
+  events,
+  itineraryNotes,
+  packingItems,
+  packingTemplateItems,
+  packingTemplates,
+  tripPackingLists,
+} from "@/db/schema";
+import { and, asc, eq, gte, sql } from "drizzle-orm";
 import type { Actor, Checklist, ChecklistItem, IdempotentRequest } from "@/data/types";
 import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
@@ -50,6 +60,59 @@ function collision(): never {
   throw new ApiError(409, "conflict", "This ID was already used for different checklist content.");
 }
 
+interface PackingSourceCopy {
+  title: string;
+  contents: string[];
+}
+
+/**
+ * Reads the title and ordered, non-label item text of a packing source. Templates must belong to the actor and lists to
+ * the target trip; anything else is concealed as not found so no foreign name or item is ever read.
+ */
+async function readPackingSource(
+  transaction: DbTransaction,
+  actor: Actor,
+  tripId: string,
+  source: { type: "template" | "packing-list"; id: string }
+): Promise<PackingSourceCopy> {
+  if (source.type === "template") {
+    const [template] = await transaction
+      .select({ name: packingTemplates.name })
+      .from(packingTemplates)
+      .where(and(eq(packingTemplates.id, source.id), eq(packingTemplates.userId, actor.userId)));
+    if (!template) throw new TripNotFoundError();
+    const rows = await transaction
+      .select({ text: packingTemplateItems.text })
+      .from(packingTemplateItems)
+      .where(and(eq(packingTemplateItems.templateId, source.id), eq(packingTemplateItems.isLabel, false)))
+      .orderBy(asc(packingTemplateItems.position), asc(packingTemplateItems.id));
+    return { title: template.name, contents: rows.map((row) => row.text) };
+  }
+  const [list] = await transaction
+    .select({ name: tripPackingLists.name })
+    .from(tripPackingLists)
+    .where(and(eq(tripPackingLists.id, source.id), eq(tripPackingLists.tripId, tripId)));
+  if (!list) throw new TripNotFoundError();
+  const rows = await transaction
+    .select({ name: packingItems.name })
+    .from(packingItems)
+    .where(and(eq(packingItems.listId, source.id), eq(packingItems.isLabel, false)))
+    .orderBy(asc(packingItems.position), asc(packingItems.id));
+  return { title: list.name, contents: rows.map((row) => row.name) };
+}
+
+/**
+ * Creation stamps for a batch of copied items. `createdAt` is the only item order, and a multi-row insert shares one
+ * statement time, so each row reads the clock and is pushed back by the number of rows after it: stamps strictly
+ * increase in source order and the last equals the clock, so a later append (also `clock_timestamp()`) sorts after.
+ */
+function batchCreatedAt(index: number, count: number) {
+  const behind = count - 1 - index;
+  return behind === 0
+    ? sql`clock_timestamp()`
+    : sql`clock_timestamp() - (${sql.raw(String(behind))} * interval '1 microsecond')`;
+}
+
 export async function createChecklist(
   actor: Actor,
   tripId: string,
@@ -60,6 +123,7 @@ export async function createChecklist(
   const body = createContract.body.parse(input);
   await requireTripRole(tripId, actor.userId, "editor");
   let changed = false;
+  let packed: PackingSourceCopy | undefined;
   const { value, replayed } = await db.transaction((transaction) =>
     withIdempotency<Checklist>(
       transaction,
@@ -79,6 +143,8 @@ export async function createChecklist(
           await requireTripRole(tripId, actor.userId, "editor", transaction);
           const [day] = await transaction.select({ tripId: days.tripId }).from(days).where(eq(days.id, body.dayId));
           if (!day || day.tripId !== tripId) throw new TripNotFoundError();
+          // Re-read the source on every attempt, before any stored result or UUID collision is considered.
+          packed = body.source ? await readPackingSource(transaction, actor, tripId, body.source) : undefined;
           if (body.id) {
             const existing = await readChecklist(transaction, body.id);
             if (existing && existing.tripId !== tripId)
@@ -86,6 +152,8 @@ export async function createChecklist(
           }
         },
         mutate: async () => {
+          const title = packed ? packed.title : (body.title ?? null);
+          const contents = packed ? packed.contents : body.firstItem ? [body.firstItem.content] : [];
           if (body.id) {
             const existing = await readChecklist(transaction, body.id);
             if (existing) {
@@ -94,16 +162,13 @@ export async function createChecklist(
                 existing.tripId !== tripId ||
                 current.tripDayId !== body.dayId ||
                 current.position !== body.position ||
-                (current.title ?? null) !== (body.title ?? null)
+                (current.title ?? null) !== title
               )
                 collision();
               if (
-                body.firstItem
-                  ? current.items.length !== 1 ||
-                    current.items[0].content !== body.firstItem.content ||
-                    (body.firstItem.id !== undefined && current.items[0].id !== body.firstItem.id) ||
-                    current.items[0].isChecked
-                  : current.items.length !== 0
+                current.items.length !== contents.length ||
+                current.items.some((item, index) => item.content !== contents[index] || item.isChecked) ||
+                (body.firstItem?.id !== undefined && current.items[0].id !== body.firstItem.id)
               )
                 collision();
               return current;
@@ -133,22 +198,35 @@ export async function createChecklist(
               ...(body.id ? { id: body.id } : {}),
               dayId: body.dayId,
               position: body.position,
-              title: body.title ?? null,
+              title,
               createdAt: now,
               updatedAt: now,
             })
             .returning();
-          const items = body.firstItem
-            ? await transaction
-                .insert(checklistItems)
-                .values({
-                  ...(body.firstItem.id ? { id: body.firstItem.id } : {}),
-                  checklistId: created.id,
-                  content: body.firstItem.content,
-                  createdAt: now,
-                })
-                .returning()
-            : [];
+          const items = packed
+            ? packed.contents.length > 0
+              ? await transaction
+                  .insert(checklistItems)
+                  .values(
+                    packed.contents.map((content, index, all) => ({
+                      checklistId: created.id,
+                      content,
+                      createdAt: batchCreatedAt(index, all.length),
+                    }))
+                  )
+                  .returning()
+              : []
+            : body.firstItem
+              ? await transaction
+                  .insert(checklistItems)
+                  .values({
+                    ...(body.firstItem.id ? { id: body.firstItem.id } : {}),
+                    checklistId: created.id,
+                    content: body.firstItem.content,
+                    createdAt: now,
+                  })
+                  .returning()
+              : [];
           changed = true;
           return dbChecklistToType(created, items);
         },
