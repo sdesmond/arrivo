@@ -539,7 +539,11 @@ When("I add a note {string}", async ({ page }, content: string) => {
   await page.getByTitle("Add note").click();
   await page.getByPlaceholder("Add a note…").fill(content);
   await page.keyboard.press("Enter");
-  await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toBeVisible({ timeout: 5_000 });
+  // The draft row stays mounted (id note-draft, its textarea matching hasText) until the saved note arrives, so wait
+  // for the saved row; a following gesture would otherwise race the in-flight write.
+  await expect(page.locator('[id^="note-"]:not(#note-draft)').filter({ hasText: content })).toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 Then("the note {string} should be visible on the timeline", async ({ page }, content: string) => {
@@ -767,10 +771,8 @@ Then("one expanded checklist sits in the timeline and the order persists after r
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
   const after = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id));
   expect(after).toEqual(before);
-  // The bottom "Add a place" gap appends: the checklist sits after the existing event and note.
-  const kinds = after.map((id) => id.split("-")[0]);
-  expect(kinds.at(-1)).toBe("checklist");
-  expect(kinds.indexOf("event")).toBeLessThan(kinds.indexOf("note"));
+  // The only "Add a place" gap appends, so each saved item lands after the previous one.
+  expect(after.map((id) => id.split("-")[0])).toEqual(["note", "event", "checklist"]);
 });
 
 Then("the checklist should not be visible on the timeline", async ({ page }) => {

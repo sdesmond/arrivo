@@ -132,6 +132,48 @@ describe("useDayDraft", () => {
     expect(result.current.draft).not.toBeNull();
   });
 
+  it("submits a draft once when commit is called again while the first call is in flight", async () => {
+    let resolveAdd: () => void = () => {};
+    const onAddNote = vi.fn().mockReturnValue(new Promise<void>((resolve) => (resolveAdd = resolve)));
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddNote })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+    await act(async () => {
+      const first = result.current.commitDraft("content");
+      const second = result.current.commitDraft("content");
+      resolveAdd();
+      await Promise.all([first, second]);
+    });
+
+    expect(onAddNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits a draft once when commit is called again after it resolved but before the refreshed day lands", async () => {
+    const onAddNote = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddNote })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+    await act(async () => result.current.commitDraft("content"));
+    await act(async () => result.current.commitDraft("content"));
+
+    expect(onAddNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a retry after a rejected commit and after a new draft is activated", async () => {
+    const onAddNote = vi.fn().mockRejectedValueOnce(new Error("failed")).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddNote })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+    await act(async () => result.current.commitDraft("content"));
+    await act(async () => result.current.commitDraft("content"));
+    expect(onAddNote).toHaveBeenCalledTimes(2);
+
+    act(() => result.current.cancelDraft());
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+    await act(async () => result.current.commitDraft("next"));
+    expect(onAddNote).toHaveBeenCalledTimes(3);
+  });
+
   it("clears the draft once propTimelineItemCount grows past the baseline captured at commit time", async () => {
     const onAddNote = vi.fn().mockResolvedValue(undefined);
     const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {

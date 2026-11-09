@@ -44,6 +44,9 @@ export function useDayDraft({
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const pendingCommitBaselineRef = useRef<number | null>(null);
+  // Enter and the blur it triggers both commit the same draft, and the draft stays mounted until the refreshed day
+  // lands, so one draft must submit once; a rejected commit or a new draft re-arms it.
+  const commitStartedRef = useRef(false);
 
   useEffect(() => {
     if (pendingCommitBaselineRef.current === null) return;
@@ -51,21 +54,25 @@ export function useDayDraft({
     // so wait for the real item to actually show up in props instead of clearing on a timer.
     if (propTimelineItemCount > pendingCommitBaselineRef.current) {
       pendingCommitBaselineRef.current = null;
+      commitStartedRef.current = false;
       setDraft(null);
     }
   }, [propTimelineItemCount]);
 
   function openGap(gapKey: string): void {
     setOpenGapKey(gapKey);
+    commitStartedRef.current = false;
     setDraft(null);
   }
 
   function activateDraft(type: ItineraryItemType, insertAtPosition: number, gapKey: string): void {
     setOpenGapKey(null);
+    commitStartedRef.current = false;
     setDraft({ kind: type, insertAtPosition, gapKey });
   }
 
   function cancelDraft(): void {
+    commitStartedRef.current = false;
     setDraft(null);
   }
 
@@ -74,7 +81,8 @@ export function useDayDraft({
   }
 
   async function commitDraft(content: string): Promise<void> {
-    if (!draft) return;
+    if (!draft || commitStartedRef.current) return;
+    commitStartedRef.current = true;
     const baselineCount = propTimelineItemCount;
     try {
       if (draft.kind === ItineraryItemType.Note) {
@@ -95,6 +103,7 @@ export function useDayDraft({
       pendingCommitBaselineRef.current = baselineCount;
     } catch {
       // handler already surfaced a toast; keep the draft open so the user can retry
+      commitStartedRef.current = false;
     }
   }
 
