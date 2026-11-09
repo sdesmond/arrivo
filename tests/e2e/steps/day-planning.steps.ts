@@ -660,6 +660,37 @@ When("I rename the checklist to {string}", async ({ page }, title: string) => {
   await response;
 });
 
+Then("the checklist shows the title {string} while its save is still in flight", async ({ page }, title: string) => {
+  const checklist = getLatestChecklist(page);
+  const checklistId = await getChecklistId(checklist);
+  const endpoint = `**/api/v1/checklists/${checklistId}`;
+  let releaseSave!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  let saveStarted = false;
+  await page.route(endpoint, async (route) => {
+    saveStarted = true;
+    await gate;
+    await route.continue();
+  });
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklists/${checklistId}` });
+  try {
+    await checklist.getByRole("button", { name: "Add title..." }).click();
+    await checklist.getByLabel("Checklist title").fill(title);
+    await page.keyboard.press("Enter");
+    await expect.poll(() => saveStarted).toBe(true);
+    await expect(checklist.getByText(title, { exact: true })).toBeVisible();
+  } finally {
+    releaseSave();
+    await response;
+    await page.unroute(endpoint);
+  }
+  await page.reload();
+  await openFirstDay(page);
+  await expect(getLatestChecklist(page).getByText(title, { exact: true }).first()).toBeVisible();
+});
+
 When("I clear the checklist title {string}", async ({ page }, title: string) => {
   const checklist = getLatestChecklist(page);
   const checklistId = await getChecklistId(checklist);

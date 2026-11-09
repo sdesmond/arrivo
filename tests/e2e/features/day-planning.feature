@@ -183,3 +183,8 @@ Feature: Day Planning
     Given I am on the trip detail page
     When checklist creation fails once for the draft "Retry checklist"
     Then retrying the draft creates exactly one checklist that persists after reload
+
+  Scenario: A renamed checklist title shows before the save completes
+    Given I am on the trip detail page
+    When I add a checklist with item "Fast title"
+    Then the checklist shows the title "Instant" while its save is still in flight
