@@ -22,7 +22,7 @@ interface MockDragOverlayProps extends Record<string, unknown> {
   children: ReactNode;
 }
 interface MockChecklistItemProps {
-  onToggleItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleItem?: (itemId: string) => void;
   checklist: { id: string; items: unknown[] };
   isDraft?: boolean;
   onCommitDraft?: (firstItemContent?: string) => void;
@@ -117,8 +117,7 @@ vi.mock("./checklist-item", () => ({
     }
     return (
       <div data-testid={`checklist-item-${checklist.id}`}>
-        <button onClick={() => onToggleItem?.("item", true)}>Check API item</button>
-        <button onClick={() => onToggleItem?.("item", false)}>Uncheck API item</button>
+        <button onClick={() => onToggleItem?.("item")}>Toggle API item</button>
       </div>
     );
   },
@@ -1051,7 +1050,7 @@ describe("DayCard", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s through day card", async (isChecked) => {
+it("forwards the checklist item toggle through day card", async () => {
   const onToggleChecklistItem = vi.fn();
   const day = { ...baseDay, checklists: [{ id: "list", tripDayId: "day", position: 0, items: [] }] };
   render(
@@ -1064,6 +1063,6 @@ it.each([true, false])("forwards checklist boolean %s through day card", async (
       onToggleChecklistItem={onToggleChecklistItem}
     />
   );
-  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
-  expect(onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+  await userEvent.click(screen.getByText("Toggle API item"));
+  expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
 });

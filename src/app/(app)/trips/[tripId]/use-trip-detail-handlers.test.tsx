@@ -644,20 +644,18 @@ vi.mock("@/lib/api/client", async (original) => ({
   ...(await original<typeof import("@/lib/api/client")>()),
   api: vi.fn(),
 }));
-it.each([true, false])("uses checked-state PATCH with %s and refreshes", async (isChecked) => {
+it.each([true, false])("patches the opposite of stored checked state %s and refreshes", async (stored) => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
   const payload = detailWithChecklist("list");
-  payload.days[0].checklists![0].items = [
-    { id: "item", checklistId: "list", content: "Passport", isChecked: !isChecked },
-  ];
+  payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: stored }];
   const { result } = renderHook(() => useTripDetailHandlers(payload));
   await act(async () => {
-    result.current.handleToggleChecklistItem("item", isChecked);
+    result.current.handleToggleChecklistItem("item");
   });
   expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" }), {
     params: { itemId: "item" },
-    body: { isChecked },
+    body: { isChecked: !stored },
   });
   expect(mockRefresh).toHaveBeenCalledOnce();
 });
@@ -668,7 +666,7 @@ it("surfaces API failure without refreshing", async () => {
   payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: false }];
   const { result } = renderHook(() => useTripDetailHandlers(payload));
   await act(async () => {
-    result.current.handleToggleChecklistItem("item", true);
+    result.current.handleToggleChecklistItem("item");
   });
   expect(toast.error).toHaveBeenCalledWith("View access only");
   expect(mockRefresh).not.toHaveBeenCalled();
@@ -681,7 +679,7 @@ it("composes checklist optimism into displayed days", () => {
   payload.days[0].checklists![0].items = [{ id: "item", checklistId: "list", content: "Passport", isChecked: false }];
   const { result } = renderHook(() => useTripDetailHandlers(payload));
   act(() => {
-    result.current.handleToggleChecklistItem("item", true);
+    result.current.handleToggleChecklistItem("item");
   });
   expect(result.current.days[0].checklists![0].items[0].isChecked).toBe(true);
 });

@@ -50,7 +50,7 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleAddChecklistItem: (checklistId: string, content: string) => void;
   handleUpdateChecklistItem: (itemId: string, content: string) => void;
   handleDeleteChecklistItem: (itemId: string) => void;
-  handleToggleChecklistItem: (itemId: string, isChecked: boolean) => void;
+  handleToggleChecklistItem: (itemId: string) => void;
   handleTripSave: (
     patch: UpdateTripPatch,
     currencyChangeMode?: TripCurrencyChangeMode

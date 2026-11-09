@@ -61,7 +61,7 @@ export interface DayCardDndProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
-  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
 }
 
 export function DayCardDnd({

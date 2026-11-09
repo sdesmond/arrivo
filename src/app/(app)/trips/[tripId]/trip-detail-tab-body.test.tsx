@@ -261,14 +261,14 @@ describe("TripDetailTabBody", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s through tab body", (isChecked) => {
+it("forwards the checklist item toggle through tab body", () => {
   const props = buildProps();
   render(<TripDetailTabBody {...props} />);
   const child = tripItineraryViewSpy.mock.calls.at(-1)?.[0] as {
-    onToggleChecklistItem: (itemId: string, isChecked: boolean) => void;
+    onToggleChecklistItem: (itemId: string) => void;
   };
-  child.onToggleChecklistItem("item", isChecked);
-  expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+  child.onToggleChecklistItem("item");
+  expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item");
 });
 
 it("forwards checklist item add, edit and delete through tab body", () => {

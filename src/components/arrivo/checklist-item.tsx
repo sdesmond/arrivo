@@ -19,7 +19,7 @@ export interface ChecklistItemProps {
   onAddItem?: (checklistId: string, content: string) => void;
   onUpdateItem?: (itemId: string, content: string) => void;
   onDeleteItem?: (itemId: string) => void;
-  onToggleItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleItem?: (itemId: string) => void;
   dragHandle?: React.ReactNode;
   displayOnly?: boolean;
 }

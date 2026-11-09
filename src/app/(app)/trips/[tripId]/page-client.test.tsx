@@ -138,7 +138,7 @@ vi.mock("./trip-detail-tab-body", async () => {
       onAddChecklistItem?: (checklistId: string, content: string) => void;
       onUpdateChecklistItem?: (itemId: string, content: string) => void;
       onDeleteChecklistItem?: (itemId: string) => void;
-      onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+      onToggleChecklistItem?: (itemId: string) => void;
       days: TripDetailPayload["days"];
       activeTab: string;
       highlightedEventId?: string | null;
@@ -165,8 +165,7 @@ vi.mock("./trip-detail-tab-body", async () => {
           <button onClick={() => onAddChecklistItem?.("list", "Charger")}>Add API item</button>
           <button onClick={() => onUpdateChecklistItem?.("item", "Visa")}>Edit API item</button>
           <button onClick={() => onDeleteChecklistItem?.("item")}>Delete API item</button>
-          <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
-          <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
+          <button onClick={() => onToggleChecklistItem?.("item")}>Toggle API item</button>
           <button onClick={onActivateReservationsCta}>Activate CTA</button>
           <button onClick={() => onLinkedEventTap("reservation-1")}>Tap linked event</button>
           <button onClick={onOpenEditDates}>Open edit dates</button>
@@ -1191,10 +1190,10 @@ describe("TripDetailClient", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s from page client", async (isChecked) => {
+it("forwards the checklist item toggle from page client", async () => {
   render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
-  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
-  expect(checklistMutation).toHaveBeenCalledWith("item", isChecked);
+  await userEvent.click(screen.getByText("Toggle API item"));
+  expect(checklistMutation).toHaveBeenCalledWith("item");
 });
 
 it("forwards checklist item add, edit and delete from page client", async () => {

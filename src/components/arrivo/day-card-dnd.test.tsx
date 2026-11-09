@@ -94,11 +94,10 @@ vi.mock("./day-card-sortables", () => ({
     onToggleItem,
   }: {
     checklist: { id: string };
-    onToggleItem?: (itemId: string, isChecked: boolean) => void;
+    onToggleItem?: (itemId: string) => void;
   }) => (
     <div data-testid={`sortable-checklist-${checklist.id}`}>
-      <button onClick={() => onToggleItem?.("item", true)}>Check API item</button>
-      <button onClick={() => onToggleItem?.("item", false)}>Uncheck API item</button>
+      <button onClick={() => onToggleItem?.("item")}>Toggle API item</button>
     </div>
   ),
 }));
@@ -826,7 +825,7 @@ describe("DayCardDnd", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s through DnD", async (isChecked) => {
+it("forwards the checklist item toggle through DnD", async () => {
   const onToggleChecklistItem = vi.fn();
   render(
     <DayCardDnd
@@ -850,6 +849,6 @@ it.each([true, false])("forwards checklist boolean %s through DnD", async (isChe
       onToggleChecklistItem={onToggleChecklistItem}
     />
   );
-  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
-  expect(onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+  await userEvent.click(screen.getByText("Toggle API item"));
+  expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
 });

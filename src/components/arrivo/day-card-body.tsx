@@ -35,7 +35,7 @@ export interface DayCardBodyProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
-  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
   onOpenMapTab?: (dayNumber: number) => void;
 }
 
