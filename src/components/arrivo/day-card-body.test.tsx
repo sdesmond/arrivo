@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 interface MockDayCardDndProps {
-  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
   timelineItems: { data: { id: string } }[];
   renderEntries: { type: string }[];
   commitDraft: (content: string) => Promise<void>;
@@ -54,8 +54,7 @@ vi.mock("./day-card-dnd", () => ({
     conflictingEventIds,
   }: MockDayCardDndProps) => (
     <div data-highlighted-event-id={highlightedEventId ?? ""}>
-      <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
-      <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
+      <button onClick={() => onToggleChecklistItem?.("item")}>Toggle API item</button>
       <span data-testid="conflicting-event-ids">{[...(conflictingEventIds ?? [])].join(",")}</span>
       {timelineItems.map((item) => (
         <span key={item.data.id}>{item.data.id}</span>
@@ -738,7 +737,7 @@ describe("DayCardBody", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s through day body", async (isChecked) => {
+it("forwards the checklist item toggle through day body", async () => {
   const onToggleChecklistItem = vi.fn();
   render(
     <DayCardBody
@@ -750,7 +749,7 @@ it.each([true, false])("forwards checklist boolean %s through day body", async (
     />
   );
   await act(async () => {
-    screen.getByText(isChecked ? "Check API item" : "Uncheck API item").click();
+    screen.getByText("Toggle API item").click();
   });
-  expect(onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+  expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
 });

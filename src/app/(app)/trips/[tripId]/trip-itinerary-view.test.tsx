@@ -9,7 +9,7 @@ interface MockDayCardProps {
   onAddChecklistItem?: (checklistId: string, content: string) => void;
   onUpdateChecklistItem?: (itemId: string, content: string) => void;
   onDeleteChecklistItem?: (itemId: string) => void;
-  onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
+  onToggleChecklistItem?: (itemId: string) => void;
   day: DayItinerary;
   tripId?: string;
   tripTransitMode?: TransitMode | null;
@@ -53,8 +53,7 @@ vi.mock("@/components/arrivo/day-card", () => ({
       <button onClick={() => onAddChecklistItem?.("list", "Charger")}>Add API item</button>
       <button onClick={() => onUpdateChecklistItem?.("item", "Visa")}>Edit API item</button>
       <button onClick={() => onDeleteChecklistItem?.("item")}>Delete API item</button>
-      <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
-      <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
+      <button onClick={() => onToggleChecklistItem?.("item")}>Toggle API item</button>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
       {onLinkedEventTap && (
         <button onClick={() => onLinkedEventTap("linked-reservation-1")}>Trigger linked tap on {day.label}</button>
@@ -374,11 +373,11 @@ describe("TripItineraryView for a viewer", () => {
   });
 });
 
-it.each([true, false])("forwards checklist boolean %s through itinerary", async (isChecked) => {
+it("forwards the checklist item toggle through itinerary", async () => {
   const props = buildProps([dayOne]);
   render(<TripItineraryView {...props} />);
-  await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
-  expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+  await userEvent.click(screen.getByText("Toggle API item"));
+  expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item");
 });
 
 it("forwards checklist item add, edit and delete through itinerary", async () => {

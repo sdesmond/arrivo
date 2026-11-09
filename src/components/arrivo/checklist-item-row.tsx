@@ -8,7 +8,7 @@ import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ChecklistItemRowProps {
   item: ChecklistEntry;
-  onToggle?: (itemId: string, isChecked: boolean) => void;
+  onToggle?: (itemId: string) => void;
   onUpdate?: (itemId: string, content: string) => void;
   onDelete?: (itemId: string) => void;
 }
@@ -41,7 +41,7 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
   return (
     <div data-checklist-item-id={item.id} className="group/item relative flex items-center gap-2 py-0.5">
       <button
-        onClick={() => onToggle?.(item.id, !item.isChecked)}
+        onClick={() => onToggle?.(item.id)}
         disabled={!canEdit}
         title={item.isChecked ? "Uncheck item" : "Check item"}
         aria-label={item.isChecked ? "Uncheck item" : "Check item"}

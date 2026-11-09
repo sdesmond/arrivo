@@ -494,7 +494,7 @@ describe("ChecklistItem — check state (Story 2.4)", () => {
     await user.click(screen.getByRole("button", { name: /Checklist · items/i }));
     const checkboxes = screen.getAllByTitle("Check item");
     await user.click(checkboxes[0]);
-    expect(onToggleItem).toHaveBeenCalledWith("item-1", true);
+    expect(onToggleItem).toHaveBeenCalledWith("item-1");
   });
 
   it("unchecked checkbox has title 'Check item'", async () => {
@@ -770,9 +770,9 @@ describe("ChecklistItem length limits", () => {
   });
 });
 
-it("forwards absolute false for an already checked row", () => {
+it("forwards the toggle for an already checked row", () => {
   const onToggleItem = vi.fn();
   render(<ChecklistItem checklist={CHECKLIST_PARTIAL_CHECKED} initiallyExpanded onToggleItem={onToggleItem} />);
   fireEvent.click(screen.getByTitle("Uncheck item"));
-  expect(onToggleItem).toHaveBeenCalledWith("item-1", false);
+  expect(onToggleItem).toHaveBeenCalledWith("item-1");
 });

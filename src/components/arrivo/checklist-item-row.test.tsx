@@ -14,7 +14,7 @@ describe("ChecklistItemRow", () => {
     const onToggle = vi.fn();
     render(<ChecklistItemRow item={item} onToggle={onToggle} />);
     await user.click(screen.getByRole("button", { name: "Check item" }));
-    expect(onToggle).toHaveBeenCalledWith("item-1", true);
+    expect(onToggle).toHaveBeenCalledWith("item-1");
   });
 
   it("labels a checked item's checkbox Uncheck item", () => {
@@ -86,7 +86,7 @@ describe("ChecklistItemRow length limit", () => {
   });
 });
 
-it("passes absolute false for a checked item", () => {
+it("toggles a checked item from its uncheck button", () => {
   const onToggle = vi.fn();
   render(
     <ChecklistItemRow
@@ -95,7 +95,7 @@ it("passes absolute false for a checked item", () => {
     />
   );
   fireEvent.click(screen.getByTitle("Uncheck item"));
-  expect(onToggle).toHaveBeenCalledWith("checked", false);
+  expect(onToggle).toHaveBeenCalledWith("checked");
 });
 
 it("keeps touch targets at 44px and names inline editing", () => {
