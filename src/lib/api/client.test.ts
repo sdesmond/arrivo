@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { api, ApiClientError } from "./client";
-import { updateChecklistItem } from "./contract/checklists";
+import { deleteChecklist, updateChecklistItem } from "./contract/checklists";
 afterEach(() => vi.unstubAllGlobals());
 it("sends typed absolute JSON with cookie credentials and client header", async () => {
   const fetch = vi.fn().mockResolvedValue(Response.json({ id: "item", isChecked: false }));
@@ -70,3 +70,35 @@ it.each([null, true, 42, "gateway", [], { error: null }, { error: "gateway" }])(
     });
   }
 );
+
+const checklistId = "11111111-1111-4111-8111-111111111111";
+const tripId = "22222222-2222-4222-8222-222222222222";
+
+it("resolves null for a declared 204 without parsing the empty body", async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetch);
+  await expect(api(deleteChecklist, { params: { checklistId }, body: { tripId } })).resolves.toBeNull();
+  expect(fetch).toHaveBeenCalledWith(
+    `/api/v1/checklists/${checklistId}`,
+    expect.objectContaining({ method: "DELETE", body: JSON.stringify({ tripId }) })
+  );
+});
+
+it("fails an unexpected 204 for a JSON contract", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+  await expect(
+    api(updateChecklistItem, { params: { itemId: "item" }, body: { isChecked: true } })
+  ).rejects.toMatchObject({ name: "ApiClientError", status: 204, code: "server_error" });
+});
+
+it("keeps JSON error handling for a declared 204 endpoint", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(Response.json({ error: { code: "not_found", message: "Gone" } }, { status: 404 }))
+  );
+  await expect(api(deleteChecklist, { params: { checklistId }, body: { tripId } })).rejects.toMatchObject({
+    status: 404,
+    code: "not_found",
+    message: "Gone",
+  });
+});

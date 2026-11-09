@@ -16,20 +16,16 @@ import type {
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
 import {
-  createChecklist,
   createChecklistItem,
-  createChecklistWithItem,
   addDay,
   createEvent,
   createNote,
-  deleteChecklist,
   deleteChecklistItem,
   deleteEvent,
   deleteNote,
   reorderDayItems,
   removeLastDay,
   updateChecklistItem,
-  updateChecklistTitle,
   updateDay,
   updateEvent,
   updateNote,
@@ -85,7 +81,10 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const packingHandlers = usePackingHandlers(detail);
-  const checklistHandlers = useChecklistHandlers(days);
+  const checklistHandlers = useChecklistHandlers(days, {
+    tripId: trip.id,
+    setNewlyCreatedChecklistId: packingHandlers.setNewlyCreatedChecklistId,
+  });
 
   function handleEventUpdate(updated: TripEvent): void {
     React.startTransition(() => {
@@ -194,40 +193,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleAddChecklist(dayNumber: number, insertAtPosition: number, firstItemContent?: string): Promise<void> {
-    const day = days.find((candidate) => candidate.dayNumber === dayNumber);
-    if (!day?.id) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          if (firstItemContent) {
-            const id = await createChecklistWithItem(day.id!, insertAtPosition, firstItemContent);
-            packingHandlers.setNewlyCreatedChecklistId(id);
-          } else {
-            await createChecklist(day.id!, insertAtPosition);
-          }
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add checklist. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
-  }
-
-  function handleUpdateChecklistTitle(checklistId: string, title: string | undefined): void {
-    React.startTransition(() => {
-      updateChecklistTitle(checklistId, title);
-    });
-  }
-
-  function handleDeleteChecklist(checklistId: string): void {
-    React.startTransition(() => {
-      deleteChecklist(checklistId);
-    });
-  }
-
   function handleAddChecklistItem(checklistId: string, content: string): void {
     React.startTransition(() => {
       createChecklistItem(checklistId, content);
@@ -326,9 +291,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleAddNote,
     handleUpdateNote,
     handleDeleteNote,
-    handleAddChecklist,
-    handleUpdateChecklistTitle,
-    handleDeleteChecklist,
     handleAddChecklistItem,
     handleUpdateChecklistItem,
     handleDeleteChecklistItem,

@@ -27,7 +27,6 @@ import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotograph
 import {
   addDocumentSchema,
   checklistItemContentSchema,
-  checklistTitleSchema,
   createEventSchema,
   createTripNoteSchema,
   documentNameSchema,
@@ -752,81 +751,6 @@ export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<vo
   recordTripUpdated(user.id!, input.tripId);
   publishItineraryChanged(input.tripId);
   revalidatePath(`/trips/${input.tripId}`);
-}
-
-export async function createChecklist(dayId: string, insertAtPosition: number): Promise<void> {
-  const user = await requireUser();
-  parseInput(itineraryPositionSchema, insertAtPosition);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-    await assertDayExistsInTrip(transaction, tripId, dayId);
-    await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
-    await transaction.insert(itineraryChecklists).values({ dayId, position: insertAtPosition });
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function createChecklistWithItem(
-  dayId: string,
-  insertAtPosition: number,
-  rawFirstItemContent: string
-): Promise<string> {
-  const user = await requireUser();
-  parseInput(itineraryPositionSchema, insertAtPosition);
-  const firstItemContent = parseInput(checklistItemContentSchema, rawFirstItemContent);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const checklistId = await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-    await assertDayExistsInTrip(transaction, tripId, dayId);
-    await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
-
-    const [newChecklist] = await transaction
-      .insert(itineraryChecklists)
-      .values({ dayId, position: insertAtPosition })
-      .returning({ id: itineraryChecklists.id });
-    await transaction.insert(checklistItems).values({ checklistId: newChecklist.id, content: firstItemContent });
-
-    return newChecklist.id;
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-  return checklistId;
-}
-
-export async function updateChecklistTitle(checklistId: string, rawTitle: string | undefined): Promise<void> {
-  const user = await requireUser();
-  const title = parseInput(checklistTitleSchema, rawTitle);
-  const dayId = await getChecklistDayId(checklistId);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(itineraryChecklists)
-    .set({ title: title ?? null, updatedAt: new Date() })
-    .where(eq(itineraryChecklists.id, checklistId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteChecklist(checklistId: string): Promise<void> {
-  const user = await requireUser();
-  const dayId = await getChecklistDayId(checklistId);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
 }
 
 export async function createChecklistItem(checklistId: string, rawContent: string): Promise<void> {

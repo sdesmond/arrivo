@@ -167,12 +167,9 @@ import {
   addDay,
   addDocument,
   attachTripDocToEvent,
-  createChecklist,
   createChecklistItem,
-  createChecklistWithItem,
   createEvent,
   createNote,
-  deleteChecklist,
   deleteChecklistItem,
   deleteEvent,
   deleteEventWithDocDecision,
@@ -191,7 +188,6 @@ import {
   setTripCoverWithAttribution,
   toggleChecklistItem,
   updateChecklistItem,
-  updateChecklistTitle,
   updateDay,
   uploadCoverImage,
   updateEvent,
@@ -579,7 +575,6 @@ describe("input validation", () => {
     await expect(updateNote("note-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
     await expect(createChecklistItem("list-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
     await expect(updateChecklistItem("item-1", over(300))).rejects.toThrow("Checklist item must be 300 characters");
-    await expect(updateChecklistTitle("list-1", over(200))).rejects.toThrow("Checklist title must be 200 characters");
     await expect(createTripNote("trip-1", { body: over(10000) })).rejects.toThrow("Note body must be 10000 characters");
     await expect(updateTripNote("note-1", { title: over(200) })).rejects.toThrow("Title must be 200 characters");
 
@@ -1882,67 +1877,6 @@ describe("publishItineraryChanged regression coverage", () => {
           .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
         mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
         return deleteNote("note-1");
-      },
-    },
-    {
-      name: "createChecklist",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        const transaction = {
-          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
-          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
-          insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
-        };
-        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-          callback(transaction)
-        );
-        return createChecklist("day-1", 0);
-      },
-    },
-    {
-      name: "createChecklistWithItem",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        const transaction = {
-          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
-          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
-          insert: vi
-            .fn()
-            .mockReturnValueOnce({
-              values: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "checklist-1" }]) })),
-            })
-            .mockReturnValueOnce({ values: vi.fn(async () => undefined) }),
-        };
-        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-          callback(transaction)
-        );
-        return createChecklistWithItem("day-1", 0, "Passport");
-      },
-    },
-    {
-      name: "updateChecklistTitle",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return updateChecklistTitle("checklist-1", "Museum Day");
-      },
-    },
-    {
-      name: "deleteChecklist",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
-        return deleteChecklist("checklist-1");
       },
     },
     {

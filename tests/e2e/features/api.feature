@@ -3,6 +3,48 @@ Feature: Absolute checklist checked-state API
   Background:
     Given a scenario-owned checklist API item
 
+  Scenario Outline: Distinct-trip lifecycle UUID races serialize globally
+    When I concurrently create lifecycle checklists in distinct trips sharing a "<resource>" UUID
+    Then the cross-trip lifecycle collision has one winner and an untouched loser
+    Examples:
+      | resource   |
+      | checklist  |
+      | first-item |
+
+  Scenario: Lifecycle create and concurrent UUID retries preserve mixed ordering
+    Given my checklist API role is "editor"
+    When I create a checklist with its first item through the lifecycle API concurrently
+    Then lifecycle creation persists once with mixed timeline ordering after reload
+    When I reuse the lifecycle checklist UUID with different content
+    Then the lifecycle API returns 409
+
+  Scenario: Lifecycle title partial updates and repeated deletion persist
+    Given my checklist API role is "editor"
+    When I create a checklist with its first item through the lifecycle API concurrently
+    And I rename, omit and clear the lifecycle checklist title
+    Then the lifecycle checklist title is cleared after reload
+    When I delete the lifecycle checklist twice
+    Then the lifecycle checklist is absent after reload
+
+  Scenario Outline: Lifecycle authorization loss denies keyed creation replay
+    When I create a keyed lifecycle checklist
+    And my checklist API role is "<role>"
+    And I retry the keyed lifecycle creation
+    Then the lifecycle API returns <status>
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Lifecycle replay failure rolls creation and timeline shifts back
+    Given the checklist API replay record write is set to fail
+    When I attempt keyed lifecycle creation
+    Then the lifecycle API returns 500
+    And lifecycle creation left no rows or timeline shifts
+    When the checklist API replay record write is repaired
+    And I create a keyed lifecycle checklist
+    Then lifecycle creation persists once with mixed timeline ordering after reload
+
   Scenario: Editor writes absolute true and false with persistence
     Given my checklist API role is "editor"
     When I set the checklist API checked state to "true" twice

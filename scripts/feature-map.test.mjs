@@ -31,6 +31,8 @@ describe("feature-map consistency", async () => {
       "src/lib/api/route.ts",
       "src/lib/services/checklists.ts",
       "src/app/api/v1/checklist-items/[itemId]/route.ts",
+      "src/app/api/v1/trips/[tripId]/checklists/route.ts",
+      "src/app/api/v1/checklists/[checklistId]/route.ts",
     ]) {
       const tags = FEATURE_MAP.filter((feature) => matchesAnyGlob(path, feature.sourceGlobs)).map(
         (feature) => feature.tag
@@ -39,6 +41,15 @@ describe("feature-map consistency", async () => {
       expect(tags).toContain("@feat:day-planning");
       expect(tags).toContain("@feat:trip-live-refresh");
     }
+  });
+  it("includes lifecycle routes among packing-list consumers", () => {
+    const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:packing-lists");
+    for (const path of [
+      "src/lib/services/checklists.ts",
+      "src/app/api/v1/checklists/[checklistId]/route.ts",
+      "src/app/api/v1/trips/[tripId]/checklists/route.ts",
+    ])
+      expect(matchesAnyGlob(path, feature.sourceGlobs)).toBe(true);
   });
 
   it("scopes the public API metadata route and its contract to the api feature only", () => {
