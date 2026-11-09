@@ -16,16 +16,13 @@ import type {
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
 import {
-  createChecklistItem,
   addDay,
   createEvent,
   createNote,
-  deleteChecklistItem,
   deleteEvent,
   deleteNote,
   reorderDayItems,
   removeLastDay,
-  updateChecklistItem,
   updateDay,
   updateEvent,
   updateNote,
@@ -193,24 +190,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     });
   }
 
-  function handleAddChecklistItem(checklistId: string, content: string): void {
-    React.startTransition(() => {
-      createChecklistItem(checklistId, content);
-    });
-  }
-
-  function handleUpdateChecklistItem(itemId: string, content: string): void {
-    React.startTransition(() => {
-      updateChecklistItem(itemId, content);
-    });
-  }
-
-  function handleDeleteChecklistItem(itemId: string): void {
-    React.startTransition(() => {
-      deleteChecklistItem(itemId);
-    });
-  }
-
   function handleTripSave(
     patch: UpdateTripPatch,
     resolution?: TripDateConflictResolution,
@@ -291,9 +270,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleAddNote,
     handleUpdateNote,
     handleDeleteNote,
-    handleAddChecklistItem,
-    handleUpdateChecklistItem,
-    handleDeleteChecklistItem,
     ...checklistHandlers,
     handleTripSave: (patch, currencyChangeMode) => handleTripSave(patch, undefined, undefined, currencyChangeMode),
     handleTripSaveResolution: (patch, resolution, confirmation, currencyChangeMode) =>

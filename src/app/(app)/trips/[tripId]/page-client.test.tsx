@@ -1,4 +1,5 @@
 const checklistMutation = vi.hoisted(() => vi.fn());
+const checklistItemMutations = vi.hoisted(() => ({ add: vi.fn(), update: vi.fn(), remove: vi.fn() }));
 const checklistDisplay = vi.hoisted(() => ({ days: undefined as TripDetailPayload["days"] | undefined }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -128,9 +129,15 @@ vi.mock("./trip-detail-tab-body", async () => {
       onActivateReservationsCta,
       onLinkedEventTap,
       onOpenEditDates,
+      onAddChecklistItem,
+      onUpdateChecklistItem,
+      onDeleteChecklistItem,
       onToggleChecklistItem,
       onOpenMapTab,
     }: {
+      onAddChecklistItem?: (checklistId: string, content: string) => void;
+      onUpdateChecklistItem?: (itemId: string, content: string) => void;
+      onDeleteChecklistItem?: (itemId: string) => void;
       onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
       days: TripDetailPayload["days"];
       activeTab: string;
@@ -155,6 +162,9 @@ vi.mock("./trip-detail-tab-body", async () => {
           data-walk-threshold-meters={walkThresholdMeters ?? ""}
         >
           {activeTab}
+          <button onClick={() => onAddChecklistItem?.("list", "Charger")}>Add API item</button>
+          <button onClick={() => onUpdateChecklistItem?.("item", "Visa")}>Edit API item</button>
+          <button onClick={() => onDeleteChecklistItem?.("item")}>Delete API item</button>
           <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
           <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
           <button onClick={onActivateReservationsCta}>Activate CTA</button>
@@ -243,9 +253,9 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleAddChecklist: vi.fn(),
     handleUpdateChecklistTitle: vi.fn(),
     handleDeleteChecklist: vi.fn(),
-    handleAddChecklistItem: vi.fn(),
-    handleUpdateChecklistItem: vi.fn(),
-    handleDeleteChecklistItem: vi.fn(),
+    handleAddChecklistItem: checklistItemMutations.add,
+    handleUpdateChecklistItem: checklistItemMutations.update,
+    handleDeleteChecklistItem: checklistItemMutations.remove,
     handleToggleChecklistItem: checklistMutation,
     handleAddPackingItem: vi.fn(),
     handleRemovePackingItem: vi.fn(),
@@ -1185,6 +1195,16 @@ it.each([true, false])("forwards checklist boolean %s from page client", async (
   render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
   await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
   expect(checklistMutation).toHaveBeenCalledWith("item", isChecked);
+});
+
+it("forwards checklist item add, edit and delete from page client", async () => {
+  render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
+  await userEvent.click(screen.getByText("Add API item"));
+  await userEvent.click(screen.getByText("Edit API item"));
+  await userEvent.click(screen.getByText("Delete API item"));
+  expect(checklistItemMutations.add).toHaveBeenCalledWith("list", "Charger");
+  expect(checklistItemMutations.update).toHaveBeenCalledWith("item", "Visa");
+  expect(checklistItemMutations.remove).toHaveBeenCalledWith("item");
 });
 
 it("passes optimistic handler days into itinerary rendering", () => {

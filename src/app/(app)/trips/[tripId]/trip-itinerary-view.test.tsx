@@ -6,6 +6,9 @@ import { TripEditAccessProvider } from "@/components/arrivo/trip-edit-access";
 import { TripItineraryView, type TripItineraryViewProps } from "./trip-itinerary-view";
 
 interface MockDayCardProps {
+  onAddChecklistItem?: (checklistId: string, content: string) => void;
+  onUpdateChecklistItem?: (itemId: string, content: string) => void;
+  onDeleteChecklistItem?: (itemId: string) => void;
   onToggleChecklistItem?: (itemId: string, isChecked: boolean) => void;
   day: DayItinerary;
   tripId?: string;
@@ -32,6 +35,9 @@ vi.mock("@/components/arrivo/day-card", () => ({
     highlightedEventId,
     onRemove,
     onLinkedEventTap,
+    onAddChecklistItem,
+    onUpdateChecklistItem,
+    onDeleteChecklistItem,
     onToggleChecklistItem,
     onOpenMapTab,
   }: MockDayCardProps) => (
@@ -44,6 +50,9 @@ vi.mock("@/components/arrivo/day-card", () => ({
       data-walk-threshold-meters={walkThresholdMeters ?? ""}
     >
       <span>{day.label}</span>
+      <button onClick={() => onAddChecklistItem?.("list", "Charger")}>Add API item</button>
+      <button onClick={() => onUpdateChecklistItem?.("item", "Visa")}>Edit API item</button>
+      <button onClick={() => onDeleteChecklistItem?.("item")}>Delete API item</button>
       <button onClick={() => onToggleChecklistItem?.("item", true)}>Check API item</button>
       <button onClick={() => onToggleChecklistItem?.("item", false)}>Uncheck API item</button>
       {onRemove && <button onClick={onRemove}>Remove {day.label}</button>}
@@ -370,4 +379,15 @@ it.each([true, false])("forwards checklist boolean %s through itinerary", async 
   render(<TripItineraryView {...props} />);
   await userEvent.click(screen.getByText(isChecked ? "Check API item" : "Uncheck API item"));
   expect(props.onToggleChecklistItem).toHaveBeenCalledWith("item", isChecked);
+});
+
+it("forwards checklist item add, edit and delete through itinerary", async () => {
+  const props = buildProps([dayOne]);
+  render(<TripItineraryView {...props} />);
+  await userEvent.click(screen.getByText("Add API item"));
+  await userEvent.click(screen.getByText("Edit API item"));
+  await userEvent.click(screen.getByText("Delete API item"));
+  expect(props.onAddChecklistItem).toHaveBeenCalledWith("list", "Charger");
+  expect(props.onUpdateChecklistItem).toHaveBeenCalledWith("item", "Visa");
+  expect(props.onDeleteChecklistItem).toHaveBeenCalledWith("item");
 });
