@@ -685,7 +685,7 @@ it("composes checklist optimism into displayed days", () => {
   });
   expect(result.current.days[0].checklists![0].items[0].isChecked).toBe(true);
 });
-it("creates, edits and deletes checklist items through the item API instead of server actions", async () => {
+it("sends checklist item add, edit and delete to the item endpoints", async () => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
   const payload = detailWithChecklist("list");
