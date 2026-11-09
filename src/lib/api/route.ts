@@ -7,7 +7,7 @@ import { assertWebMutation } from "./csrf";
 import { ApiError, errorResponse } from "./errors";
 import { concretePath, parseIdempotencyKey } from "./idempotency";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
-export interface ApiRouteOptions {
+interface ApiRouteOptions {
   /** Opt in to `Idempotency-Key` replay; a keyed request to any other handler is rejected. */
   idempotent?: { expiryMs?: number };
 }

@@ -653,6 +653,93 @@ it("lets pending item adds and edits land before deleting their checklist", asyn
   expect(remove).toHaveBeenCalledOnce();
 });
 
+it("deletes at once when earlier item writes have already settled", async () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  await act(async () => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+  });
+  act(() => {
+    result.current.handleDeleteChecklistItem("item");
+  });
+  expect(removeItem).toHaveBeenCalledOnce();
+});
+
+it("keeps waiting on the newest item write when an older one settles first", async () => {
+  let finishFirst!: () => void;
+  let finishSecond!: () => void;
+  mutate
+    .mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      })
+    )
+    .mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishSecond = resolve;
+      })
+    );
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistItem("item", "Visa");
+    result.current.handleUpdateChecklistItem("item", "Docs");
+  });
+  await act(async () => {
+    finishFirst();
+  });
+  act(() => {
+    result.current.handleDeleteChecklistItem("item");
+  });
+  expect(removeItem).not.toHaveBeenCalled();
+  await act(async () => {
+    finishSecond();
+  });
+  expect(removeItem).toHaveBeenCalledOnce();
+});
+
+it("deletes a checklist at once when its renames and item adds have already settled", async () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  await act(async () => {
+    result.current.handleAddChecklistItem("list", "Charger");
+    result.current.handleUpdateChecklistTitle("list", "Docs");
+  });
+  act(() => {
+    result.current.handleDeleteChecklist("list");
+  });
+  expect(remove).toHaveBeenCalledOnce();
+});
+
+it("keeps a checklist delete waiting on the newest rename when an older one settles first", async () => {
+  let finishFirst!: () => void;
+  let finishSecond!: () => void;
+  title
+    .mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      })
+    )
+    .mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishSecond = resolve;
+      })
+    );
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => {
+    result.current.handleUpdateChecklistTitle("list", "Docs");
+    result.current.handleUpdateChecklistTitle("list", "Papers");
+  });
+  await act(async () => {
+    finishFirst();
+  });
+  act(() => {
+    result.current.handleDeleteChecklist("list");
+  });
+  expect(remove).not.toHaveBeenCalled();
+  await act(async () => {
+    finishSecond();
+  });
+  expect(remove).toHaveBeenCalledOnce();
+});
+
 it("clears content and delete overlays and acknowledgments on auth loss", async () => {
   const { result } = renderHook(() => useChecklistHandlers(twoItemDays(), lifecycle));
   act(() => {

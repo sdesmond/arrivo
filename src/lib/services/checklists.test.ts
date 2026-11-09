@@ -358,7 +358,8 @@ describe("checklist lifecycle", () => {
     checklistTrip = tripId;
     itemTrip = tripId;
     failItem = false;
-    itemGone = false;
+    // A client first-item id is free unless a test says otherwise; item-lifecycle tests start with the item stored.
+    itemGone = true;
     orderItems.mockImplementation(async () =>
       [...items].sort((left, right) => (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0))
     );
@@ -458,6 +459,7 @@ describe("checklist lifecycle", () => {
     } else {
       items = [firstItem];
       itemTrip = "foreign";
+      itemGone = false;
     }
     mocks.requireTripRole
       .mockResolvedValueOnce("editor")
@@ -636,8 +638,29 @@ describe("checklist lifecycle", () => {
     });
     expect(mocks.update).not.toHaveBeenCalled();
   });
+  it("claims first-item and checklist UUID locks in sorted order before the trip lock", async () => {
+    await createChecklist(actor, tripId, input);
+    const resources = mocks.execute.mock.calls
+      .map(([statement]) => JSON.stringify(statement.queryChunks))
+      .filter((text) => text.includes("pg_advisory_xact_lock"));
+    expect(resources).toHaveLength(2);
+    expect(resources[0]).toContain(`checklist-item:${firstItemId}`);
+    expect(resources[1]).toContain(`checklist:${checklistId}`);
+    expect(calls).toEqual(["actor-key-lock", "actor-key-lock", "trip-lock"]);
+  });
+  it("reports a first-item UUID owned by a readable foreign trip only as a conflict", async () => {
+    items = [firstItem];
+    itemTrip = "foreign";
+    itemGone = false;
+    await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409, code: "conflict" });
+    expect(mocks.requireTripRole).toHaveBeenLastCalledWith("foreign", actor.userId, "viewer", mocks);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
   it("rejects a first-item UUID already used by an authorized checklist", async () => {
     items = [firstItem];
+    itemGone = false;
     await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409 });
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "viewer", mocks);
     expect(mocks.update).not.toHaveBeenCalled();
@@ -999,6 +1022,7 @@ describe("checklist lifecycle", () => {
     beforeEach(() => {
       existing = [checklistRow];
       items = [];
+      itemGone = false;
       inserted = [];
       mocks.insert.mockImplementation((table: unknown) => ({
         values: (values: Record<string, unknown>) => ({
@@ -1041,6 +1065,7 @@ describe("checklist lifecycle", () => {
     });
     it("serializes item creation and first-item creation on the same lock resource", async () => {
       existing = [];
+      itemGone = true;
       await createChecklist(actor, tripId, { dayId, position: 0, firstItem: { id: itemRowId, content: "Socks" } });
       const firstItemLocks = lockedResources();
       vi.clearAllMocks();

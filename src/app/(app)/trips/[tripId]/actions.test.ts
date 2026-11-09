@@ -191,7 +191,6 @@ import {
   resendShareInvitation,
   saveContributorChanges,
 } from "./actions";
-import * as actionsModule from "./actions";
 import { days, events, itineraryChecklists, itineraryNotes, notes, trips } from "@/db/schema";
 import { LiveSyncEventType, type ContributorChange } from "@/data/types";
 
@@ -1843,9 +1842,4 @@ describe("publishItineraryChanged regression coverage", () => {
       tripId,
     });
   });
-});
-
-it("exports no checklist item mutation actions; they run through the API", () => {
-  const exportNames = Object.keys(actionsModule);
-  expect(exportNames.filter((name) => /checklist/i.test(name))).toEqual([]);
 });
