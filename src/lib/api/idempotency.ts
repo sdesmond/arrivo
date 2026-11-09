@@ -11,9 +11,9 @@ import { ApiError } from "./errors";
 /** Prefix that keeps API replay rows apart from the raw keys `packing-actions.ts` stores in the same table. */
 export const API_IDEMPOTENCY_NAMESPACE = "api:v1:";
 export const DEFAULT_IDEMPOTENCY_EXPIRY_MS = 24 * 60 * 60 * 1000;
-export const IDEMPOTENCY_KEY_MAX = 255;
+const IDEMPOTENCY_KEY_MAX = 255;
 // Below the 4 s activity-batch bound: a retry queued behind its own in-flight twin gives up with a retryable 409.
-export const IDEMPOTENCY_LOCK_TIMEOUT_MS = 3_000;
+const IDEMPOTENCY_LOCK_TIMEOUT_MS = 3_000;
 const ENVELOPE_VERSION = 1;
 const LOCK_TIMEOUT_SQLSTATE = "55P03";
 
@@ -106,7 +106,7 @@ async function lockActorKey(transaction: DbTransaction, userId: string, storageK
   await transaction.execute(sql`select set_config('lock_timeout', '0', true)`);
 }
 
-export interface IdempotencySteps<Result> {
+interface IdempotencySteps<Result> {
   /** Must acquire any resource locks and re-verify the actor's access; runs before any stored result is read. */
   authorize: () => Promise<void>;
   mutate: () => Promise<Result>;
