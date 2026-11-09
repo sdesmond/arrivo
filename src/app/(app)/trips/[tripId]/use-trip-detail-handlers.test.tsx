@@ -2,14 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import {
-  addChecklistFromPackingSource,
-  createChecklist,
-  createChecklistWithItem,
-  createEvent,
-  createNote,
-  reorderDayItems,
-} from "./actions";
+import { addChecklistFromPackingSource, createEvent, createNote, reorderDayItems } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -53,12 +46,9 @@ vi.mock("../packing-actions", () => ({
 vi.mock("./actions", () => ({
   addChecklistFromPackingSource: vi.fn(),
   addDay: vi.fn(),
-  createChecklist: vi.fn(),
   createChecklistItem: vi.fn(),
-  createChecklistWithItem: vi.fn(),
   createEvent: vi.fn(),
   createNote: vi.fn(),
-  deleteChecklist: vi.fn(),
   deleteChecklistItem: vi.fn(),
   deleteEvent: vi.fn(),
   deleteNote: vi.fn(),
@@ -66,7 +56,6 @@ vi.mock("./actions", () => ({
   reorderDayItems: vi.fn(),
   toggleChecklistItem: vi.fn(),
   updateChecklistItem: vi.fn(),
-  updateChecklistTitle: vi.fn(),
   updateDay: vi.fn(),
   updateEvent: vi.fn(),
   updateNote: vi.fn(),
@@ -222,8 +211,9 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add note failed"));
   });
 
-  it("handleAddChecklist resolves the returned promise on success", async () => {
-    vi.mocked(createChecklist).mockResolvedValueOnce(undefined);
+  it("handleAddChecklist resolves after creating through the lifecycle API", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "checklist-1" });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -233,11 +223,17 @@ describe("useTripDetailHandlers", () => {
     });
 
     await expect(addPromise).resolves.toBeUndefined();
-    expect(createChecklist).toHaveBeenCalledWith("day-1", 0);
+    expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "POST" }), {
+      params: { tripId: "trip-1" },
+      body: { dayId: "day-1", position: 0 },
+    });
+    expect(result.current.newlyCreatedChecklistId).toBeNull();
+    expect(mockRefresh).toHaveBeenCalledOnce();
   });
 
   it("handleAddChecklist rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(createChecklist).mockRejectedValueOnce(new Error("Add checklist failed"));
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(500, "server_error", "Add checklist failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -248,10 +244,12 @@ describe("useTripDetailHandlers", () => {
 
     await expect(addPromise).rejects.toThrow("Add checklist failed");
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add checklist failed"));
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("handleAddChecklist with firstItemContent resolves the returned promise on success", async () => {
-    vi.mocked(createChecklistWithItem).mockResolvedValueOnce("checklist-1");
+  it("handleAddChecklist with firstItemContent sends one request with the first item", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "checklist-1" });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -261,11 +259,16 @@ describe("useTripDetailHandlers", () => {
     });
 
     await expect(addPromise).resolves.toBeUndefined();
-    expect(createChecklistWithItem).toHaveBeenCalledWith("day-1", 0, "Passport");
+    expect(api).toHaveBeenCalledOnce();
+    expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "POST" }), {
+      params: { tripId: "trip-1" },
+      body: { dayId: "day-1", position: 0, firstItem: { content: "Passport" } },
+    });
   });
 
   it("keeps a checklist created with an item marked newly created until it appears in days", async () => {
-    vi.mocked(createChecklistWithItem).mockResolvedValueOnce("checklist-1");
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "checklist-1" });
 
     const { result, rerender } = renderHook(({ payload }) => useTripDetailHandlers(payload), {
       initialProps: { payload: detail },
@@ -301,8 +304,9 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(result.current.newlyCreatedChecklistId).toBeNull());
   });
 
-  it("handleAddChecklist with firstItemContent rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(createChecklistWithItem).mockRejectedValueOnce(new Error("Add checklist item failed"));
+  it("handleAddChecklist with firstItemContent rejects and never expands on failure", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(0, "network_error", "Add checklist item failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -313,6 +317,32 @@ describe("useTripDetailHandlers", () => {
 
     await expect(addPromise).rejects.toThrow("Add checklist item failed");
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add checklist item failed"));
+    expect(result.current.newlyCreatedChecklistId).toBeNull();
+  });
+
+  it("renames, clears and deletes checklists through the lifecycle API", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detailWithChecklist("list")));
+
+    await act(async () => {
+      result.current.handleUpdateChecklistTitle("list", "Docs");
+      result.current.handleUpdateChecklistTitle("list", undefined);
+      result.current.handleDeleteChecklist("list");
+    });
+
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(api).mock.calls).toEqual(
+      expect.arrayContaining([
+        [expect.objectContaining({ method: "PATCH" }), { params: { checklistId: "list" }, body: { title: "Docs" } }],
+        [expect.objectContaining({ method: "PATCH" }), { params: { checklistId: "list" }, body: { title: null } }],
+        [
+          expect.objectContaining({ method: "DELETE" }),
+          { params: { checklistId: "list" }, body: { tripId: "trip-1" } },
+        ],
+      ])
+    );
   });
 
   it("adds packing items against the current trip", async () => {
