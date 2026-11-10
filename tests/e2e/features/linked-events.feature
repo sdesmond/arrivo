@@ -15,6 +15,15 @@ Feature: Linked Events
     Then the order should be "Afternoon Walk" then "Morning Walk"
     And I see a "Check-in" Linked Event on Day 1 with a Hotel icon and a "Linked" badge
 
+  Scenario: Rapid drags beside a Linked Event keep the last order and leave the Linked Event in place
+    Given I am signed in
+    And the trip has a Lodging reservation with Check-in on Day 1 and draggable events "Morning Walk", "Afternoon Walk" and "Evening Walk" on Day 1
+    When I drag "Evening Walk" above "Morning Walk" without waiting for the save
+    And I drag "Afternoon Walk" above "Evening Walk" without waiting for the save
+    Then 2 day order saves complete without failure
+    And after reload the events are ordered "Afternoon Walk", "Evening Walk" then "Morning Walk"
+    And I see a "Check-in" Linked Event on Day 1 with a Hotel icon and a "Linked" badge
+
   Scenario: Flight reservation departing and arriving the same day shows as one Linked Event
     Given I am signed in
     And the trip has a Flight reservation with Delta departing and arriving on Day 1

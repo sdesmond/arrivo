@@ -154,6 +154,36 @@ Given(
   }
 );
 
+Given(
+  "the trip has a Lodging reservation with Check-in on Day 1 and draggable events {string}, {string} and {string} on Day 1",
+  async ({ page, scenario }, firstEventName: string, secondEventName: string, thirdEventName: string) => {
+    await scenario.materialize({
+      trip: {
+        mother: "threeDayTrip",
+        overrides: buildLinkedEventsTripOverrides({
+          reservations: [
+            {
+              type: "lodging",
+              provider: "Torel Avantgarde",
+              startAt: e2eTripDateTime(0, "15:00:00"),
+              endAt: e2eTripDateTime(1, "11:00:00"),
+            },
+          ],
+          events: [
+            { name: firstEventName, position: 0, dayNumber: 1 },
+            { name: secondEventName, position: 1, dayNumber: 1 },
+            { name: thirdEventName, position: 2, dayNumber: 1 },
+          ],
+        }),
+        setCurrent: true,
+      },
+    });
+
+    await scenario.gotoCurrentTrip(page);
+    await ensureDayExpanded(page, 1);
+  }
+);
+
 Given("the trip has a Flight reservation with Delta departing and arriving on Day 1", async ({ page, scenario }) => {
   await scenario.materialize({
     trip: {

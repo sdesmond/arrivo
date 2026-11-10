@@ -1732,3 +1732,132 @@ When("I reuse the event edit key with the name {string}", async ({ page }, name:
     data: { name },
   });
 });
+
+// ── Day order API ───────────────────────────────────────────────────────────
+interface DayItem {
+  type: "event" | "note" | "checklist";
+  id: string;
+}
+interface DayOrderState {
+  dayId: string;
+  original: DayItem[];
+  foreign: DayItem;
+  response?: APIResponse;
+  key: string;
+}
+const dayOrderStates = new WeakMap<Page, DayOrderState>();
+function dayOrderState(page: Page): DayOrderState {
+  const value = dayOrderStates.get(page);
+  if (!value) throw new Error("Day order API fixture missing");
+  return value;
+}
+/** The day's events, notes and checklists in stored position order, as the order endpoint names them. */
+async function storedDayOrder(dayId: string): Promise<DayItem[]> {
+  const [eventRows, noteRows, checklistRows] = await withE2EDb((database) =>
+    Promise.all([
+      database.select({ id: events.id, position: events.position }).from(events).where(eq(events.dayId, dayId)),
+      database
+        .select({ id: itineraryNotes.id, position: itineraryNotes.position })
+        .from(itineraryNotes)
+        .where(eq(itineraryNotes.dayId, dayId)),
+      database
+        .select({ id: itineraryChecklists.id, position: itineraryChecklists.position })
+        .from(itineraryChecklists)
+        .where(eq(itineraryChecklists.dayId, dayId)),
+    ])
+  );
+  return [
+    ...eventRows.map((row) => ({ type: "event" as const, id: row.id, position: row.position })),
+    ...noteRows.map((row) => ({ type: "note" as const, id: row.id, position: row.position })),
+    ...checklistRows.map((row) => ({ type: "checklist" as const, id: row.id, position: row.position })),
+  ]
+    .sort((first, second) => first.position - second.position)
+    .map(({ type, id }) => ({ type, id }));
+}
+Given("the mixed day for the day order API", async ({ page, scenario }) => {
+  const tripId = scenario.currentTrip!.id;
+  const [dayOne, dayTwo] = await withE2EDb((database) =>
+    database.select({ id: days.id }).from(days).where(eq(days.tripId, tripId)).orderBy(days.dayNumber)
+  );
+  const original = await storedDayOrder(dayOne.id);
+  const [foreign] = await storedDayOrder(dayTwo.id);
+  // The foreign-item cases borrow a day 2 item; an empty day 2 would send malformed bodies, not 409 cases.
+  expect(foreign).toBeDefined();
+  // The API fixture holds an event, a note and a checklist on day 1, plus a second event: four mixed items.
+  expect(original.map((item) => item.type)).toEqual(["event", "note", "checklist", "event"]);
+  dayOrderStates.set(page, { dayId: dayOne.id, original, foreign, key: `e2e-day-order-${randomUUID()}` });
+});
+async function putDayOrder(page: Page, items: DayItem[], key?: string) {
+  const current = dayOrderState(page);
+  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
+  if (state(page).role === "anonymous") await page.context().clearCookies();
+  current.response = await page.request.put(`/api/v1/days/${current.dayId}/order`, {
+    headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
+    data: { items },
+  });
+}
+When("I PUT the reversed day order", async ({ page }) => {
+  await putDayOrder(page, [...dayOrderState(page).original].reverse());
+});
+When("I PUT the reversed day order with an Idempotency-Key", async ({ page }) => {
+  const current = dayOrderState(page);
+  await putDayOrder(page, [...current.original].reverse(), current.key);
+});
+When("I PUT the stored day order", async ({ page }) => {
+  await putDayOrder(page, dayOrderState(page).original);
+});
+When("I PUT the day order case {string}", async ({ page }, testCase: string) => {
+  const { original, foreign } = dayOrderState(page);
+  const cases: Record<string, DayItem[]> = {
+    "missing-item": original.slice(0, -1),
+    "extra-item": [...original, foreign],
+    "foreign-item": [...original.slice(0, -1), foreign],
+    "wrong-type": [{ ...original[0], type: "note" }, ...original.slice(1)],
+    duplicate: [...original, original[0]],
+  };
+  await putDayOrder(page, cases[testCase]);
+});
+When("another editor stores the original day order directly", async ({ page }) => {
+  const { original } = dayOrderState(page);
+  await withE2EDb(async (database) => {
+    for (const [index, item] of original.entries()) {
+      const table = { event: events, note: itineraryNotes, checklist: itineraryChecklists }[item.type];
+      await database.update(table).set({ position: index }).where(eq(table.id, item.id));
+    }
+  });
+});
+When("I retry the same keyed day order PUT", async ({ page }) => {
+  const current = dayOrderState(page);
+  await putDayOrder(page, [...current.original].reverse(), current.key);
+});
+Then("the day order API returns {int}", async ({ page }, status: number) => {
+  const response = dayOrderState(page).response!;
+  expect(response.status()).toBe(status);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+});
+Then("the day order API returns {int} with code {string}", async ({ page }, status: number, code: string) => {
+  const response = dayOrderState(page).response!;
+  expect(response.status()).toBe(status);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  const body = await response.json();
+  expect(body.error.code).toBe(code);
+  if (code === "validation_failed") expect(body.error.fields).toBeDefined();
+  if (code === "forbidden") expect(body.error.requiredRole).toBe("editor");
+});
+Then("the day order API response lists the reversed order", async ({ page }) => {
+  const current = dayOrderState(page);
+  expect(await current.response!.json()).toEqual({ dayId: current.dayId, items: [...current.original].reverse() });
+});
+Then("after reload the day stores the reversed order", async ({ page }) => {
+  const current = dayOrderState(page);
+  await page.reload();
+  expect(await storedDayOrder(current.dayId)).toEqual([...current.original].reverse());
+});
+Then("the day stores the original order", async ({ page }) => {
+  const current = dayOrderState(page);
+  expect(await storedDayOrder(current.dayId)).toEqual(current.original);
+});
+Then("the untouched day is unchanged", async ({ page }) => {
+  const untouched = state(page).untouchedDay!;
+  expect(await timelineSnapshot(untouched.dayId)).toEqual(untouched.before);
+});

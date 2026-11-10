@@ -477,3 +477,55 @@ Feature: Absolute checklist checked-state API
       """
       { "name": "Keyed name" }
       """
+
+  Scenario: Editor reorders a mixed day through the API and a keyed retry replays without writing
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I PUT the reversed day order with an Idempotency-Key
+    Then the day order API returns 200
+    And after reload the day stores the reversed order
+    And the day order API response lists the reversed order
+    When another editor stores the original day order directly
+    And I retry the same keyed day order PUT
+    Then the day order API returns 200
+    And the day stores the original order
+
+  Scenario: A list already in stored order succeeds without changing the day
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I PUT the stored day order
+    Then the day order API returns 200
+    And the day stores the original order
+
+  Scenario Outline: A stale or foreign day order list is a conflict that writes nothing
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I PUT the day order case "<case>"
+    Then the day order API returns 409 with code "conflict"
+    And the day stores the original order
+    And the untouched day is unchanged
+    Examples:
+      | case         |
+      | missing-item |
+      | extra-item   |
+      | foreign-item |
+      | wrong-type   |
+
+  Scenario: A repeated item in a day order list is rejected before any write
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I PUT the day order case "duplicate"
+    Then the day order API returns 422 with code "validation_failed"
+    And the day stores the original order
+
+  Scenario Outline: Denied day order writes leave the day unchanged
+    Given my checklist API role is "<role>"
+    And the mixed day for the day order API
+    When I PUT the reversed day order
+    Then the day order API returns <status> with code "<code>"
+    And the day stores the original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
