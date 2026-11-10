@@ -42,3 +42,16 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: No API reference documents `PATCH /api/v1/events/:eventId` or the pilot endpoints.
   evidence: Raised by blind-hunter; `docs/plans/mobile-api.md` is the plan, not a reference.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
+  summary: A write that times out client-side may still commit later and land after the next write on the same key.
+  evidence: Aborting `fetch` does not stop the server. Needs server-side ordering or idempotency keys on PATCH; flagged by blind-hunter.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
+  summary: After a timeout the hook shows "Try again" and does not refresh, so the UI can stay stale after a write that committed.
+  evidence: Same refresh-on-error choice as the story 2.1 entry; `use-api-mutation.test.tsx` asserts failures never refresh.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
+  summary: `api()` rethrows a raw `SyntaxError` for a malformed 200 body instead of an `ApiClientError`.
+  evidence: Pre-existing at `client.ts`; `client.test.ts` now documents it. Fix maps it to `ApiClientError(status, "server_error", ...)`.
+
