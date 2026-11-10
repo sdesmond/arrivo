@@ -202,6 +202,7 @@ describe("feature-map consistency", async () => {
     expect(tags).toEqual([
       "@feat:admin-account-deletion",
       "@feat:admin-overview",
+      "@feat:api",
       "@feat:documents",
       "@feat:event-docs",
       "@feat:integrated-recovery-and-deletion",

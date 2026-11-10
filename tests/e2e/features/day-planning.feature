@@ -40,6 +40,12 @@ Feature: Day Planning
   Scenario: User deletes an event
     When I delete the event named "Event to Remove"
     Then the day should not contain "Event to Remove"
+    And the event "Event to Remove" is gone after reload
+
+  @trip-with-reorder-events
+  Scenario: User adds an event between two items and it stays there after reload
+    When I add an event named "Between stop" below "Drag First"
+    Then "Between stop" sits between "Drag First" and "Drag Second" after reload
 
   @trip-with-reorder-events
   Scenario: User reorders events by dragging

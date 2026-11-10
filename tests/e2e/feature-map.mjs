@@ -67,6 +67,7 @@ export const FEATURE_MAP = [
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
+    "src/lib/services/client-ids.ts",
     "src/lib/services/events.ts",
     "src/lib/services/timeline-positions.ts",
     "src/lib/services/days.ts",
@@ -78,6 +79,8 @@ export const FEATURE_MAP = [
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
     "src/app/api/v1/meta/**",
+    // The delete scenario fetches a kept document through the storage route after its event is gone.
+    ...STORAGE,
     "tests/e2e/api-response.ts",
   ]),
   entry("mfa-policy", [
@@ -447,6 +450,7 @@ export const FEATURE_MAP = [
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
+    "src/lib/services/client-ids.ts",
     "src/lib/services/events.ts",
     "src/lib/services/timeline-positions.ts",
     "src/lib/services/days.ts",
@@ -497,6 +501,17 @@ export const FEATURE_MAP = [
   entry("event-docs", [
     "src/components/arrivo/event-doc-row.tsx",
     "src/app/(app)/trips/[tripId]/actions.ts",
+    // Deleting an event keeping or discarding its documents runs through the delete API.
+    "src/components/arrivo/delete-event-dialog.tsx",
+    "src/components/arrivo/place-row-dialogs.tsx",
+    "src/lib/api/**",
+    "src/lib/services/events.ts",
+    "src/lib/services/conflict-error.ts",
+    "src/lib/services/trip-write.ts",
+    "src/lib/services/trip-write-effects.ts",
+    "src/lib/services/trip-access.ts",
+    "src/app/api/v1/events/**",
+    "tests/e2e/api-response.ts",
     ...STORAGE,
   ]),
   entry("linked-events", [
@@ -555,6 +570,7 @@ export const FEATURE_MAP = [
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
+    "src/lib/services/client-ids.ts",
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
   ]),
@@ -679,6 +695,7 @@ export const FEATURE_MAP = [
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
+    "src/lib/services/client-ids.ts",
     "src/lib/services/events.ts",
     "src/lib/services/timeline-positions.ts",
     "src/lib/services/days.ts",
