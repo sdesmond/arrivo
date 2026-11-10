@@ -1,11 +1,13 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { ApiError, errorResponse } from "./errors";
 import { TripForbiddenError, TripNotFoundError } from "@/lib/services/trip-access";
+import { ConflictError } from "@/lib/services/conflict-error";
 import { RateLimitError } from "@/lib/rate-limit";
 import { z } from "zod";
 it.each([
   [new TripNotFoundError(), 404, "not_found"],
   [new TripForbiddenError("editor"), 403, "forbidden"],
+  [new ConflictError("Reused ID."), 409, "conflict"],
   [new RateLimitError(12), 429, "rate_limited"],
   [new ApiError(401, "unauthenticated", "Sign in."), 401, "unauthenticated"],
   [new ApiError(403, "mfa_enrollment_required", "Enroll MFA."), 403, "mfa_enrollment_required"],
