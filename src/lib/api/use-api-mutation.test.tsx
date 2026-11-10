@@ -5,7 +5,7 @@ import * as navigation from "next/navigation";
 const { api, error } = vi.hoisted(() => ({ api: vi.fn(), error: vi.fn() }));
 vi.mock("./client", async (original) => ({ ...(await original<typeof import("./client")>()), api }));
 vi.mock("sonner", () => ({ toast: { error } }));
-import { ApiClientError } from "./client";
+import { ApiClientError, REQUEST_TIMEOUT_MS } from "./client";
 import { updateChecklistItem } from "./contract/checklists";
 import { useApiMutation } from "./use-api-mutation";
 const input = { params: { itemId: "item" }, body: { isChecked: true } };
@@ -48,7 +48,7 @@ it("surfaces field errors and never refreshes failures", async () => {
   await act(async () => {
     await result.current.mutate(input);
   });
-  expect(result.current.fields).toEqual({ isChecked: ["Required"] });
+  expect(result.current.fields).toEqual({ "": { isChecked: ["Required"] } });
   expect(error).toHaveBeenCalledWith("Invalid");
   expect(router.refresh).not.toHaveBeenCalled();
 });
@@ -317,4 +317,184 @@ it("clears a queued validation failure when the next write starts and succeeds",
   expect(api).toHaveBeenCalledTimes(2);
   expect(error).toHaveBeenCalledWith("Invalid");
   expect(result.current.fields).toEqual({});
+});
+
+it("keeps each resource's field errors while other writes start and succeed", async () => {
+  api
+    .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Invalid", { content: ["Too long"] }))
+    .mockResolvedValueOnce({ id: "other" })
+    .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Invalid", { isChecked: ["Required"] }));
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input, { key: "first" });
+  });
+  expect(result.current.fields).toEqual({ first: { content: ["Too long"] } });
+  act(() => {
+    void result.current.mutate(input, { key: "second" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  expect(result.current.fields).toEqual({ first: { content: ["Too long"] } });
+  await act(async () => {
+    await result.current.mutate(input, { key: "third" });
+  });
+  expect(result.current.fields).toEqual({
+    first: { content: ["Too long"] },
+    third: { isChecked: ["Required"] },
+  });
+});
+
+it("clears only the field errors of the key whose next write starts", async () => {
+  api
+    .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Invalid", { content: ["Too long"] }))
+    .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Invalid", { isChecked: ["Required"] }))
+    .mockResolvedValueOnce({ id: "item" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input, { key: "first" });
+    await result.current.mutate(input, { key: "second" });
+  });
+  expect(Object.keys(result.current.fields).sort()).toEqual(["first", "second"]);
+  act(() => {
+    void result.current.mutate(input, { key: "first" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(result.current.fields).toEqual({ second: { isChecked: ["Required"] } });
+});
+
+it("releases a keyed queue when a write times out so the next write on the key runs", async () => {
+  vi.useFakeTimers();
+  try {
+    const { api: realApi } = await vi.importActual<typeof import("./client")>("./client");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_path: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          })
+      )
+    );
+    api
+      .mockImplementationOnce((...args: Parameters<typeof realApi>) => realApi(...args))
+      .mockResolvedValue({ id: "item" });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+    act(() => {
+      void result.current.mutate(input, { key: "item", onError });
+      void result.current.mutate(input, { key: "item" });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+    });
+    expect(api).toHaveBeenCalledOnce();
+    expect(result.current.isPending).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(error).toHaveBeenCalledWith("The request timed out. Try again.");
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: "timeout" }));
+    expect(api).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
+});
+
+it("does not report a throwing onSuccess as a failed save", async () => {
+  api.mockResolvedValue({ id: "item" });
+  const failure = new Error("callback bug");
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const onError = vi.fn();
+  const onSettled = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input, {
+      onSuccess: () => {
+        throw failure;
+      },
+      onError,
+      onSettled,
+    });
+  });
+  expect(router.refresh).toHaveBeenCalledOnce();
+  expect(logged).toHaveBeenCalledWith(expect.stringContaining("after the write committed"), failure);
+  expect(error).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+  expect(onSettled).toHaveBeenCalledOnce();
+  expect(result.current.fields).toEqual({});
+  logged.mockRestore();
+});
+
+it("does not report a throwing onSuccess or waitForRefresh as a failed keyed save", async () => {
+  api.mockResolvedValue({ id: "item" });
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const onError = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, {
+      key: "first",
+      onSuccess: () => {
+        throw new Error("callback bug");
+      },
+      onError,
+    });
+    void result.current.mutate(input, {
+      key: "second",
+      waitForRefresh: () => {
+        throw new Error("wait bug");
+      },
+      onError,
+    });
+  });
+  await act(async () => {
+    for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
+  });
+  expect(router.refresh).toHaveBeenCalledTimes(2);
+  expect(logged).toHaveBeenCalledTimes(2);
+  expect(error).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+  logged.mockRestore();
+});
+
+it("keeps a keyed queue moving after a throwing onSuccess", async () => {
+  api.mockResolvedValue({ id: "item" });
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, {
+      key: "item",
+      onSuccess: () => {
+        throw new Error("callback bug");
+      },
+    });
+    void result.current.mutate(input, { key: "item" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
+  logged.mockRestore();
+});
+
+it("does not report a rejecting waitForRefresh as a failed keyed save", async () => {
+  api.mockResolvedValue({ id: "item" });
+  const failure = new Error("props bug");
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const onError = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item", waitForRefresh: () => Promise.reject(failure), onError });
+  });
+  await act(async () => {
+    for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
+  });
+  expect(logged).toHaveBeenCalledWith(expect.stringContaining("after the write committed"), failure);
+  expect(error).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+  logged.mockRestore();
 });

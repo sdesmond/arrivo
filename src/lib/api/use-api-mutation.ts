@@ -6,6 +6,9 @@ import type { z } from "zod";
 import type { Endpoint } from "./endpoint";
 import { api, ApiClientError } from "./client";
 
+/** Field errors are kept per resource key; a write without a key shares this one. */
+const UNKEYED = "";
+
 interface MutationOptions<Result> {
   key?: string;
   onSuccess?: (result: Result) => void;
@@ -15,13 +18,27 @@ interface MutationOptions<Result> {
   onSettled?: () => void;
 }
 
+function reportAfterCommit(error: unknown): void {
+  console.error("[api] A step after the write committed failed:", error);
+}
+
+function omitKey(
+  fields: Record<string, Record<string, string[]>>,
+  key: string
+): Record<string, Record<string, string[]>> {
+  if (!(key in fields)) return fields;
+  const rest = { ...fields };
+  delete rest[key];
+  return rest;
+}
+
 export function useApiMutation<Result, Params extends z.ZodType, Body extends z.ZodType>(
   endpoint: Endpoint<Result, Params, Body>
 ) {
   const router = useRouter();
   const [refreshPending, startTransition] = useTransition();
   const [pendingCount, setPendingCount] = useState(0);
-  const [fields, setFields] = useState<Record<string, string[]>>({});
+  const [fields, setFields] = useState<Record<string, Record<string, string[]>>>({});
   const queues = useRef(new Map<string, Promise<void>>());
   const refreshWaiters = useRef(new Set<() => void>());
   const mounted = useRef(true);
@@ -60,30 +77,46 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
           if (mounted.current) options.onAuthLost?.();
           return;
         }
-        setFields({});
+        const fieldsKey = options.key ?? UNKEYED;
+        setFields((current) => omitKey(current, fieldsKey));
         const result = await api(endpoint, input);
         if (!mounted.current || authLost.current) return;
-        options.onSuccess?.(result);
-        if (options.key) {
-          let releaseRefresh!: () => void;
-          const transitionSettled = new Promise<void>((resolve) => {
-            releaseRefresh = resolve;
-            refreshWaiters.current.add(resolve);
-          });
-          const propsSettled = options.waitForRefresh?.(result);
-          startTransition(() => router.refresh());
-          try {
-            await (propsSettled ? Promise.race([propsSettled, transitionSettled]) : transitionSettled);
-          } finally {
-            refreshWaiters.current.delete(releaseRefresh);
+        // The write has committed, so nothing below may surface as a failed save.
+        try {
+          options.onSuccess?.(result);
+        } catch (afterCommitError) {
+          reportAfterCommit(afterCommitError);
+        }
+        try {
+          if (options.key) {
+            let releaseRefresh!: () => void;
+            const transitionSettled = new Promise<void>((resolve) => {
+              releaseRefresh = resolve;
+              refreshWaiters.current.add(resolve);
+            });
+            let propsSettled: Promise<void> | undefined;
+            try {
+              propsSettled = options.waitForRefresh?.(result);
+            } catch (afterCommitError) {
+              reportAfterCommit(afterCommitError);
+            }
+            try {
+              startTransition(() => router.refresh());
+              await (propsSettled ? Promise.race([propsSettled, transitionSettled]) : transitionSettled);
+            } finally {
+              refreshWaiters.current.delete(releaseRefresh);
+            }
+          } else {
+            startTransition(() => router.refresh());
           }
-        } else {
-          startTransition(() => router.refresh());
+        } catch (afterCommitError) {
+          reportAfterCommit(afterCommitError);
         }
       } catch (error) {
         if (!mounted.current || authLost.current) return;
         if (error instanceof ApiClientError) {
-          setFields(error.fields ?? {});
+          const errorFields = error.fields;
+          if (errorFields) setFields((current) => ({ ...current, [options.key ?? UNKEYED]: errorFields }));
           if (error.code === "unauthenticated" || error.code === "mfa_enrollment_required") {
             authLost.current = true;
             for (const resolve of refreshWaiters.current) resolve();
