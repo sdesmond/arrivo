@@ -1,0 +1,5 @@
+# Client UUIDs are locked before the trip lock
+
+Date: 2026-11-09. Status: accepted.
+
+Checklist and checklist-item creates accept a client-generated UUID so a retry is safe, but a UUID is global while the trip lock is per trip, so two requests on different trips could both claim one ID. Each create therefore takes a transaction-scoped advisory lock per client UUID (`checklist:<id>`, `checklist-item:<id>`, sorted so concurrent claims always lock in one order) before it takes the trip row lock, and re-checks access afterwards. With an `Idempotency-Key` the order is actor/key lock, then client-ID locks, then trip lock; every write path keeps that order so no two paths can wait on each other. A UUID already used by an unreadable foreign row is concealed as not found, and any other reuse with different content is a 409. The reason is stated in the plans' review triage (cross-trip UUID concurrency); the plans do not record alternatives considered. Source: plan `story-move-checklist-creation-title-and-deletion-to-services-plan.md` (story 1.5), commit 5d95cbfc, and `lockClientIds` in `src/lib/services/checklists.ts`.

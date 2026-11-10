@@ -41,3 +41,5 @@ Migrate trip and event notes, event and day operations, and full-list ordering. 
 - Story inheritance: Every new story entry and story file in this epic must explicitly carry this branch workflow; retain it when pulling, refining, or handing off a story.
 
 - Inception: Story breakdown and exact test intent are completed when this epic is selected.
+
+- Carry into story 2.1 (from the pilot retrospective, option 2 on the `ApiError` question): services must not throw HTTP-shaped errors. Add a typed `ConflictError` (transport-neutral, beside `TripNotFoundError`/`TripForbiddenError` in `src/lib/services/`), have `errorResponse` in `src/lib/api/errors.ts` map it to 409 `conflict`, and use it in the itinerary services instead of `ApiError`. Migrate the pilot's HTTP-shaped throws in the same story: `collision()` in `src/lib/services/checklists.ts` and the 409s in `src/lib/api/idempotency.ts`. Keep route-level tests asserting status 409. Source: `epic-checklist-api-pilot-retrospective.md`, Open questions.
