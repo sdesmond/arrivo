@@ -624,3 +624,54 @@ describe("trip-events", () => {
     });
   });
 });
+
+describe("trip-events module instances in production", () => {
+  beforeEach(() => {
+    // The suite above already created the registries, so start from a process that has not.
+    globalThis.__tripEventTopics = undefined;
+    globalThis.__userEventTopics = undefined;
+    resetLiveSyncHeartbeatSchedulerForTest();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetLiveSyncHeartbeatSchedulerForTest();
+    globalThis.__tripEventTopics = undefined;
+    globalThis.__userEventTopics = undefined;
+  });
+
+  it("share one topic registry, so an event published from another bundle reaches an open stream", async () => {
+    // A production build can load this module once per route bundle: server actions publish through one
+    // instance while the SSE route subscribes through another.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    const subscribing = await import("./trip-events");
+    vi.resetModules();
+    const publishing = await import("./trip-events");
+    expect(publishing).not.toBe(subscribing);
+
+    const callback = vi.fn();
+    const unsubscribe = subscribing.subscribeTripForUser("trip-1", "user-1", callback, vi.fn());
+    const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
+    publishing.publishTripEvent("trip-1", event);
+
+    expect(callback).toHaveBeenCalledWith(event);
+    unsubscribe();
+  });
+
+  it("shares the per-user registry the same way", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    const subscribing = await import("./trip-events");
+    vi.resetModules();
+    const publishing = await import("./trip-events");
+
+    const callback = vi.fn();
+    const unsubscribe = subscribing.subscribeUser("user-1", callback);
+    const event = { type: LiveSyncEventType.ItineraryChanged, tripId: "trip-1" } as const;
+    publishing.publishUserEvent("user-1", event);
+
+    expect(callback).toHaveBeenCalledWith(event);
+    unsubscribe();
+  });
+});

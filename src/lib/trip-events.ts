@@ -24,19 +24,18 @@ interface TripSubscriber {
   close: () => void;
 }
 
-// Same lazy-init globalThis-singleton shape as src/db/index.ts, so the maps survive
-// Next.js dev-mode module reloads without piling up duplicate topic sets.
+// Lazy-init globalThis singletons, in every environment. Dev-mode module reloads would otherwise pile up duplicate
+// topic sets, and a production build can load this module once per route bundle: server actions publish through one
+// instance while the SSE route subscribes through another, so per-module maps would drop every action's event.
 declare global {
   var __tripEventTopics: Map<string, Set<TripSubscriber>> | undefined;
   var __userEventTopics: Map<string, Set<LiveSyncCallback>> | undefined;
   var __liveSyncHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
 }
 
-const tripTopics = globalThis.__tripEventTopics ?? new Map<string, Set<TripSubscriber>>();
-if (process.env.NODE_ENV !== "production") globalThis.__tripEventTopics = tripTopics;
+const tripTopics = (globalThis.__tripEventTopics ??= new Map<string, Set<TripSubscriber>>());
 
-const userTopics = globalThis.__userEventTopics ?? new Map<string, Set<LiveSyncCallback>>();
-if (process.env.NODE_ENV !== "production") globalThis.__userEventTopics = userTopics;
+const userTopics = (globalThis.__userEventTopics ??= new Map<string, Set<LiveSyncCallback>>());
 
 export function formatSseEvent(event: LiveSyncEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
