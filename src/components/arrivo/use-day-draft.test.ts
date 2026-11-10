@@ -12,7 +12,7 @@ function buildOptions(overrides: Partial<UseDayDraftOptions> = {}): UseDayDraftO
   return {
     dayNumber: 1,
     timelineItems: [],
-    propTimelineItemCount: 0,
+    propTimelineItemIds: [],
     ...overrides,
   };
 }
@@ -85,7 +85,7 @@ describe("useDayDraft", () => {
     act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
     await act(async () => result.current.commitDraft(""));
 
-    expect(onAddChecklist).toHaveBeenCalledWith(2, 1, undefined);
+    expect(onAddChecklist).toHaveBeenCalledWith(2, 1, undefined, expect.any(String));
   });
 
   it("commitDraft routes an event draft after the preceding event when the gap follows a plain event", async () => {
@@ -174,18 +174,152 @@ describe("useDayDraft", () => {
     expect(onAddNote).toHaveBeenCalledTimes(3);
   });
 
-  it("clears the draft once propTimelineItemCount grows past the baseline captured at commit time", async () => {
+  it("clears the draft once the timeline grows past the baseline captured at commit time", async () => {
     const onAddNote = vi.fn().mockResolvedValue(undefined);
     const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
-      initialProps: buildOptions({ propTimelineItemCount: 1, onAddNote }),
+      initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddNote }),
     });
 
     act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
     await act(async () => result.current.commitDraft("content"));
     expect(result.current.draft).not.toBeNull();
 
-    rerender(buildOptions({ propTimelineItemCount: 2, onAddNote }));
+    rerender(buildOptions({ propTimelineItemIds: ["a", "b"], onAddNote }));
     expect(result.current.draft).toBeNull();
+  });
+
+  it("clears the draft when its own ID appears even if the timeline did not grow", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddChecklist }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    const draftId = onAddChecklist.mock.calls[0][3];
+
+    rerender(buildOptions({ propTimelineItemIds: ["a", draftId], onAddChecklist }));
+    expect(result.current.draft).toBeNull();
+  });
+
+  it("clears the draft when its own ID is already in the timeline once the commit resolves", async () => {
+    let draftId = "";
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a"] }),
+    });
+    const onAddChecklist = vi.fn().mockImplementation(async (...args: unknown[]) => {
+      draftId = args[3] as string;
+      rerender(buildOptions({ propTimelineItemIds: ["a", draftId], onAddChecklist }));
+    });
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(result.current.draft).toBeNull();
+  });
+
+  it("sends one ID per checklist draft across a rejected commit and a repeat commit", async () => {
+    const onAddChecklist = vi.fn().mockRejectedValueOnce(new Error("failed")).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddChecklist })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(onAddChecklist).toHaveBeenCalledTimes(2);
+    expect(onAddChecklist.mock.calls[1][3]).toBe(onAddChecklist.mock.calls[0][3]);
+  });
+
+  it("re-arms a committed draft when the day changes without growing, and reuses its ID", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddChecklist }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    await act(async () => result.current.commitDraft("x"));
+    expect(onAddChecklist).toHaveBeenCalledTimes(1);
+
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }));
+    expect(result.current.draft).not.toBeNull();
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(onAddChecklist).toHaveBeenCalledTimes(2);
+    expect(onAddChecklist.mock.calls[1][3]).toBe(onAddChecklist.mock.calls[0][3]);
+  });
+
+  it("does not re-arm a committed note draft when the day changes without growing, since notes carry no client ID", async () => {
+    const onAddNote = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddNote }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddNote }));
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(onAddNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the draft when its own ID lands even though the commit rejected (lost response)", async () => {
+    const onAddChecklist = vi.fn().mockRejectedValue(new Error("timed out"));
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    expect(result.current.draft).not.toBeNull();
+    const draftId = onAddChecklist.mock.calls[0][3];
+
+    rerender(buildOptions({ propTimelineItemIds: ["a", draftId], onAddChecklist }));
+    expect(result.current.draft).toBeNull();
+  });
+
+  it("clears a re-armed draft when its own ID lands later", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddChecklist }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    const draftId = onAddChecklist.mock.calls[0][3];
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }));
+    expect(result.current.draft).not.toBeNull();
+
+    rerender(buildOptions({ propTimelineItemIds: ["a", draftId], onAddChecklist }));
+    expect(result.current.draft).toBeNull();
+  });
+
+  it("keeps a committed draft armed against commits while the timeline signature is unchanged", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }));
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(onAddChecklist).toHaveBeenCalledTimes(1);
+  });
+
+  it("mints a new ID after cancel and for each new draft", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddChecklist })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    act(() => result.current.cancelDraft());
+    act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+    await act(async () => result.current.commitDraft("y"));
+
+    expect(onAddChecklist.mock.calls[1][3]).not.toBe(onAddChecklist.mock.calls[0][3]);
   });
 
   it("makeGapProps reflects active gap state and wires selection/dismiss/packing callbacks", () => {

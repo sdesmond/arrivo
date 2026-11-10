@@ -1070,6 +1070,16 @@ When("I open the first day", async ({ page }) => {
   await openFirstDay(page);
 });
 
+Then("exactly one checklist with item {string} persists after reload", async ({ page }, itemContent: string) => {
+  await page.reload();
+  await openFirstDay(page);
+  // A reloaded checklist renders collapsed, so expand it to see its item.
+  await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
+  const checklist = getLatestChecklist(page);
+  await checklist.getByRole("button").first().click();
+  await expect(checklist.getByText(itemContent)).toBeVisible();
+});
+
 Then("checklist completion persists after reload", async ({ page }) => {
   await page.reload();
   await openFirstDay(page);

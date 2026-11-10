@@ -60,6 +60,7 @@ Feature: Day Planning
     Given I am on the trip detail page
     When I add a checklist with item "Pack sunscreen"
     Then the checklist should be visible on the timeline
+    And exactly one checklist with item "Pack sunscreen" persists after reload
     When I check all items in the checklist
     Then the checklist should show the completion badge
     And checklist completion persists after reload

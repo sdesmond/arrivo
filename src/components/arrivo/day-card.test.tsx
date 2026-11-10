@@ -862,7 +862,7 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add checklist"));
     await user.type(screen.getByPlaceholderText("Add an item…"), "Sunscreen");
     await user.keyboard("{Enter}");
-    expect(onAddChecklist).toHaveBeenCalledWith(baseDay.dayNumber, 2, "Sunscreen");
+    expect(onAddChecklist).toHaveBeenCalledWith(baseDay.dayNumber, 2, "Sunscreen", expect.any(String));
   });
 
   it("Escape in checklist draft input cancels without calling onAddChecklist", async () => {

@@ -248,6 +248,22 @@ it("creates a checklist with its first item in one request and expands the mappe
   expect(setNewlyCreatedChecklistId).toHaveBeenCalledWith("created");
 });
 
+it("sends the draft's client ID as the checklist id, and none when no ID is given", async () => {
+  create.mockImplementation(async (_input, options) => options.onSuccess({ id: "created" }));
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  await act(async () => {
+    await result.current.handleAddChecklist(1, 0, "Passport", "draft-id");
+    await result.current.handleAddChecklist(1, 0, "Passport");
+  });
+  expect(create.mock.calls[0][0].body).toEqual({
+    dayId: "day",
+    position: 0,
+    id: "draft-id",
+    firstItem: { content: "Passport" },
+  });
+  expect(create.mock.calls[1][0].body).not.toHaveProperty("id");
+});
+
 it("does nothing when the day is missing or has no id", async () => {
   const idless = [{ ...days[0], id: undefined }];
   const { result } = renderHook(() =>
@@ -425,9 +441,10 @@ it("adds an item through the create API, queued per checklist", () => {
     result.current.handleAddChecklistItem("list", "Adapter");
   });
   expect(createItem.mock.calls.map(([input]) => input)).toEqual([
-    { params: { checklistId: "list" }, body: { content: "Charger" } },
-    { params: { checklistId: "list" }, body: { content: "Adapter" } },
+    { params: { checklistId: "list" }, body: { id: expect.any(String), content: "Charger" } },
+    { params: { checklistId: "list" }, body: { id: expect.any(String), content: "Adapter" } },
   ]);
+  expect(createItem.mock.calls[0][0].body.id).not.toBe(createItem.mock.calls[1][0].body.id);
   expect(createItem.mock.calls.every(([, options]) => options.key === "list")).toBe(true);
 });
 

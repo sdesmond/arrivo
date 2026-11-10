@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GapZoneProps } from "./gap-zone";
 import type { TimelineItem } from "./day-card-dnd";
 import { ItineraryItemType } from "@/data/types";
+import { createRandomId } from "@/lib/utils";
 
 interface DraftState {
   kind: ItineraryItemType;
@@ -14,10 +15,15 @@ interface DraftState {
 export interface UseDayDraftOptions {
   dayNumber: number;
   timelineItems: TimelineItem[];
-  propTimelineItemCount: number;
+  propTimelineItemIds: string[];
   onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
+  onAddChecklist?: (
+    dayNumber: number,
+    insertAtPosition: number,
+    firstItemContent?: string,
+    clientId?: string
+  ) => Promise<void>;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
 }
 
@@ -35,7 +41,7 @@ export interface UseDayDraftResult {
 export function useDayDraft({
   dayNumber,
   timelineItems,
-  propTimelineItemCount,
+  propTimelineItemIds,
   onAddEvent,
   onAddNote,
   onAddChecklist,
@@ -43,36 +49,57 @@ export function useDayDraft({
 }: UseDayDraftOptions): UseDayDraftResult {
   const [openGapKey, setOpenGapKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const pendingCommitBaselineRef = useRef<number | null>(null);
+  // Set once a commit resolved, so the effect below watches the refreshed day for it. The version state re-runs the
+  // effect against props that landed before the commit resolved.
+  const committedRef = useRef<{ count: number; signature: string; canRearm: boolean } | null>(null);
+  const [commitVersion, setCommitVersion] = useState(0);
   // Enter and the blur it triggers both commit the same draft, and the draft stays mounted until the refreshed day
   // lands, so one draft must submit once; a rejected commit or a new draft re-arms it.
   const commitStartedRef = useRef(false);
+  // One client ID per draft, sent on every commit of it, so a retry replays instead of duplicating.
+  const draftIdRef = useRef<string | null>(null);
+  const signature = propTimelineItemIds.join("|");
+  const itemCount = propTimelineItemIds.length;
 
   useEffect(() => {
-    if (pendingCommitBaselineRef.current === null) return;
-    // The add action's promise can resolve slightly before the revalidated `day` prop lands,
-    // so wait for the real item to actually show up in props instead of clearing on a timer.
-    if (propTimelineItemCount > pendingCommitBaselineRef.current) {
-      pendingCommitBaselineRef.current = null;
+    const committed = committedRef.current;
+    const ownId = draftIdRef.current;
+    // The add action's promise can resolve slightly before the revalidated `day` prop lands, so wait for the real
+    // item (our own ID, or growth past the baseline) to show up in props instead of clearing on a timer. Our own ID
+    // clears the draft even when the commit rejected: a timed-out create may still have landed.
+    if ((ownId !== null && signature.split("|").includes(ownId)) || (committed && itemCount > committed.count)) {
       commitStartedRef.current = false;
+      draftIdRef.current = null;
+      committedRef.current = null;
       setDraft(null);
+    } else if (committed && committed.canRearm && signature !== committed.signature) {
+      // The day changed without gaining the item (a live-sync removal): accept another commit. Only a draft with a
+      // client ID may re-arm, because the retained ID makes a duplicate commit a replay.
+      commitStartedRef.current = false;
+      committedRef.current = null;
     }
-  }, [propTimelineItemCount]);
+  }, [commitVersion, signature, itemCount]);
 
   function openGap(gapKey: string): void {
     setOpenGapKey(gapKey);
     commitStartedRef.current = false;
+    draftIdRef.current = null;
+    committedRef.current = null;
     setDraft(null);
   }
 
   function activateDraft(type: ItineraryItemType, insertAtPosition: number, gapKey: string): void {
     setOpenGapKey(null);
     commitStartedRef.current = false;
+    draftIdRef.current = createRandomId();
+    committedRef.current = null;
     setDraft({ kind: type, insertAtPosition, gapKey });
   }
 
   function cancelDraft(): void {
     commitStartedRef.current = false;
+    draftIdRef.current = null;
+    committedRef.current = null;
     setDraft(null);
   }
 
@@ -83,12 +110,17 @@ export function useDayDraft({
   async function commitDraft(content: string): Promise<void> {
     if (!draft || commitStartedRef.current) return;
     commitStartedRef.current = true;
-    const baselineCount = propTimelineItemCount;
+    const baseline = { count: itemCount, signature, canRearm: draft.kind === ItineraryItemType.Checklist };
     try {
       if (draft.kind === ItineraryItemType.Note) {
         await onAddNote?.(dayNumber, content, draft.insertAtPosition);
       } else if (draft.kind === ItineraryItemType.Checklist) {
-        await onAddChecklist?.(dayNumber, draft.insertAtPosition, content || undefined);
+        await onAddChecklist?.(
+          dayNumber,
+          draft.insertAtPosition,
+          content || undefined,
+          draftIdRef.current ?? undefined
+        );
       } else {
         const gapIndex = draft.gapKey === "bottom" ? -1 : parseInt(draft.gapKey.slice(3), 10);
         const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
@@ -100,7 +132,8 @@ export function useDayDraft({
           await onAddEvent?.(dayNumber, content, undefined, draft.insertAtPosition);
         }
       }
-      pendingCommitBaselineRef.current = baselineCount;
+      committedRef.current = baseline;
+      setCommitVersion((version) => version + 1);
     } catch {
       // handler already surfaced a toast; keep the draft open so the user can retry
       commitStartedRef.current = false;

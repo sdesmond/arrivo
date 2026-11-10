@@ -688,7 +688,7 @@ describe("DayCardBody", () => {
       screen.getByRole("button", { name: "Commit draft" }).click();
     });
 
-    expect(onAddChecklist).toHaveBeenCalledWith(1, 3, "typed content");
+    expect(onAddChecklist).toHaveBeenCalledWith(1, 3, "typed content", expect.any(String));
     expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
 
     await act(async () => {
@@ -706,6 +706,31 @@ describe("DayCardBody", () => {
         onDeleteEvent={vi.fn()}
         onReorderDayItems={vi.fn()}
         onAddChecklist={onAddChecklist}
+      />
+    );
+
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");
+  });
+
+  it("clears the checklist draft once a checklist carrying its client ID is in props, even without timeline growth", async () => {
+    const onAddChecklist = vi.fn().mockResolvedValue(undefined);
+    const base = { onUpdateEvent: vi.fn(), onDeleteEvent: vi.fn(), onReorderDayItems: vi.fn(), onAddChecklist };
+    const { rerender } = render(<DayCardBody day={day} {...base} />);
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate checklist draft" }).click();
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+    const draftId = onAddChecklist.mock.calls[0][3] as string;
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    const [, ...rest] = day.checklists!;
+    rerender(
+      <DayCardBody
+        day={{ ...day, checklists: [...rest, { id: draftId, tripDayId: "day-1", position: 3, items: [] }] }}
+        {...base}
       />
     );
 

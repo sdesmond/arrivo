@@ -95,6 +95,42 @@ describe("handleInsertFromPackingSource", () => {
     ]);
   });
 
+  it("sends one request when the same insert is selected twice before the first settles", async () => {
+    let finish: (value: { id: string }) => void = () => {};
+    api.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+    const { result } = renderHook(() => usePackingHandlers(detail));
+
+    await act(async () => {
+      const first = result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
+      const second = result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
+      finish({ id: checklistId });
+      await Promise.all([first, second]);
+    });
+
+    expect(api).toHaveBeenCalledOnce();
+  });
+
+  it("accepts a later insert after the first settled or failed, with a new ID", async () => {
+    vi.mocked(crypto.randomUUID)
+      .mockReturnValueOnce("55555555-5555-4555-8555-555555555555")
+      .mockReturnValueOnce("66666666-6666-4666-8666-666666666666");
+    api.mockRejectedValueOnce(new ApiClientError(500, "internal", "boom"));
+    const { result } = renderHook(() => usePackingHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
+    });
+    await act(async () => {
+      await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
+    });
+
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+    ]);
+  });
+
   it("still sends a UUID-shaped id where crypto.randomUUID is unavailable (insecure context)", async () => {
     vi.spyOn(crypto, "randomUUID").mockRestore();
     vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
