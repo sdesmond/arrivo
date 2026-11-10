@@ -530,6 +530,13 @@ describe("checklist lifecycle", () => {
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
     expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
   });
+  it("rejects a blank first item before any lock or write", async () => {
+    await expect(createChecklist(actor, tripId, { ...input, firstItem: { content: "   " } })).rejects.toThrow();
+    expect(mocks.lockTripForUpdate).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
   it("returns matching UUID retries without shifts or effects", async () => {
     existing = [checklistRow];
     items = [firstItem];

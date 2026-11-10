@@ -101,6 +101,22 @@ it("accepts a partial item patch with absolute checked state, trimmed content an
   expect(updateChecklistItem.params.safeParse({ itemId: "invalid" }).success).toBe(false);
   expect(updateChecklistItem.method).toBe("PATCH");
 });
+it("trims first-item content and rejects blank text like item creation does", () => {
+  expect(createChecklist.body.parse({ dayId: uuid, position: 0, firstItem: { content: "  Pack  " } })).toEqual({
+    dayId: uuid,
+    position: 0,
+    firstItem: { content: "Pack" },
+  });
+  expect(
+    createChecklist.body.safeParse({ dayId: uuid, position: 0, firstItem: { content: ` ${"x".repeat(300)} ` } }).success
+  ).toBe(true);
+  for (const content of ["", "   ", "\t\n", 1, null])
+    expect(createChecklist.body.safeParse({ dayId: uuid, position: 0, firstItem: { content } }).success).toBe(false);
+  const blank = createChecklist.body.safeParse({ dayId: uuid, position: 0, firstItem: { content: "   " } });
+  expect(blank.success ? undefined : blank.error.issues.map((issue) => issue.path.join("."))).toContain(
+    "firstItem.content"
+  );
+});
 it("caps item content after trimming it", () => {
   expect(updateChecklistItem.body.safeParse({ content: ` ${"x".repeat(300)} ` }).success).toBe(true);
 });
