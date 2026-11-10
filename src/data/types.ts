@@ -1316,18 +1316,6 @@ export interface CreateEventInput {
   insertAtPosition?: number;
 }
 
-export interface UpdateEventPatch {
-  name?: string;
-  startAt?: string;
-  endAt?: string;
-  locationName?: string;
-  locationAddress?: string;
-  locationLat?: number;
-  locationLng?: number;
-  confirmationNumber?: string;
-  note?: string;
-}
-
 export type DayItemType = "event" | "note" | "checklist";
 
 export interface ReorderDayItemsInput {

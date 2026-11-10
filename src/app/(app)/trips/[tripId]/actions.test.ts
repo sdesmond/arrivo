@@ -184,7 +184,6 @@ import {
   setTripCoverWithAttribution,
   updateDay,
   uploadCoverImage,
-  updateEvent,
   updateNote,
   updateTripNote,
   rescindShareInvitation,
@@ -421,75 +420,6 @@ describe("createEvent", () => {
   });
 });
 
-describe("updateEvent", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-    mockDbUpdate.mockReturnValue({
-      set: vi.fn(() => ({
-        where: vi.fn(async () => {}),
-      })),
-    });
-  });
-
-  it("updates the event and publishes itinerary-changed before revalidating", async () => {
-    await updateEvent("event-1", { name: "Renamed" });
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-  });
-
-  it("writes only whitelisted event fields even when the client sends extra keys", async () => {
-    const set = vi.fn(() => ({ where: vi.fn(async () => {}) }));
-    mockDbUpdate.mockReturnValue({ set });
-
-    await updateEvent("event-1", {
-      name: "Renamed",
-      note: "Bring tickets",
-      confirmationNumber: "ABC123",
-      tripId: "victim-trip",
-      dayId: "victim-day",
-      id: "victim-event",
-      position: 0,
-    } as never);
-
-    expect(set).toHaveBeenCalledOnce();
-    const written = (set.mock.calls[0] as unknown as [Record<string, unknown>])[0];
-    expect(written).toMatchObject({ name: "Renamed", note: "Bring tickets", confirmationNumber: "ABC123" });
-    expect(Object.keys(written).sort()).toEqual(
-      [
-        "confirmationNumber",
-        "endAt",
-        "locationAddress",
-        "locationLat",
-        "locationLng",
-        "locationName",
-        "name",
-        "note",
-        "startAt",
-        "updatedAt",
-      ].sort()
-    );
-  });
-
-  it("does not publish when access is denied", async () => {
-    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(updateEvent("event-1", { name: "Renamed" })).rejects.toThrow("not found");
-
-    expect(mockPublishTripEvent).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-});
-
 describe("updateDay", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -543,7 +473,6 @@ describe("input validation", () => {
   it("rejects an oversize or blank event name before touching the database", async () => {
     await expect(createEvent("day-1", { name: over(200) })).rejects.toThrow("Event name must be 200 characters");
     await expect(createEvent("day-1", { name: "  " })).rejects.toThrow("Event name is required.");
-    await expect(updateEvent("event-1", { name: over(200) })).rejects.toThrow("Event name must be 200 characters");
 
     expect(mockDbSelect).not.toHaveBeenCalled();
     expect(mockDbTransaction).not.toHaveBeenCalled();
@@ -552,8 +481,6 @@ describe("input validation", () => {
 
   it("rejects unparseable event times and out-of-range coordinates", async () => {
     await expect(createEvent("day-1", { name: "a", startAt: "not-a-date" })).rejects.toThrow("Invalid start time.");
-    await expect(updateEvent("event-1", { endAt: "2026-13-40T00:00:00Z" })).rejects.toThrow("Invalid end time.");
-    await expect(updateEvent("event-1", { locationLat: 123 })).rejects.toThrow("Latitude");
     await expect(createEvent("day-1", { name: "a", insertAtPosition: -4 })).rejects.toThrow("Invalid position.");
 
     expect(mockDbUpdate).not.toHaveBeenCalled();
