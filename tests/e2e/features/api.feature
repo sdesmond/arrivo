@@ -368,3 +368,103 @@ Feature: Absolute checklist checked-state API
       | lifecycle-create |
       | lifecycle-rename |
       | source-create    |
+
+  Scenario: Editor partially edits a scheduled event and clears fields with null
+    Given scenario-owned scheduled and day-less events for the event API
+    And my checklist API role is "editor"
+    When I patch the "scheduled" event through the event API with:
+      """
+      { "name": "Renamed dinner", "locationName": "New bistro" }
+      """
+    Then the event API returns 200
+    And after reload the "scheduled" event is stored as:
+      """
+      {
+        "name": "Renamed dinner",
+        "locationName": "New bistro",
+        "locationAddress": "1 API St",
+        "note": "API note",
+        "confirmationNumber": "API123",
+        "startAt": "2026-08-02T19:00:00.000Z"
+      }
+      """
+    When I patch the "scheduled" event through the event API with:
+      """
+      { "note": null, "confirmationNumber": null, "startAt": "" }
+      """
+    Then the event API returns 200
+    And after reload the "scheduled" event is stored as:
+      """
+      { "name": "Renamed dinner", "locationName": "New bistro", "note": null, "confirmationNumber": null, "startAt": null }
+      """
+    When I patch the "scheduled" event through the event API with:
+      """
+      {}
+      """
+    Then the event API returns 200
+    And the "scheduled" event is stored as:
+      """
+      { "name": "Renamed dinner", "note": null, "startAt": null }
+      """
+
+  Scenario: Editor edits a day-less event
+    Given scenario-owned scheduled and day-less events for the event API
+    And my checklist API role is "editor"
+    When I patch the "day-less" event through the event API with:
+      """
+      { "name": "Renamed floating", "note": null }
+      """
+    Then the event API returns 200
+    And after reload the "day-less" event is stored as:
+      """
+      { "name": "Renamed floating", "note": null, "dayId": null }
+      """
+
+  Scenario Outline: Denied event edits leave the event unchanged
+    Given scenario-owned scheduled and day-less events for the event API
+    And my checklist API role is "<role>"
+    When I patch the "scheduled" event through the event API with:
+      """
+      { "name": "Hacked" }
+      """
+    Then the event API returns <status> with code "<code>"
+    And the "scheduled" event is stored as:
+      """
+      { "name": "API dinner", "note": "API note" }
+      """
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid event edits never write
+    Given scenario-owned scheduled and day-less events for the event API
+    And my checklist API role is "editor"
+    When I submit event API case "<case>"
+    Then the event API returns 422 with code "validation_failed"
+    And the "scheduled" event is stored as:
+      """
+      { "name": "API dinner", "note": "API note" }
+      """
+    Examples:
+      | case         |
+      | blank-name   |
+      | null-name    |
+      | bad-latitude |
+      | unknown-key  |
+      | position-key |
+      | linked-id    |
+      | malformed-id |
+
+  Scenario: Keyed event edits replay once and conflict on a different body
+    Given scenario-owned scheduled and day-less events for the event API
+    And my checklist API role is "editor"
+    When I send the keyed "scheduled" event edit "Keyed name" twice
+    Then both keyed event edits return identical JSON naming "Keyed name"
+    When I reuse the event edit key with the name "Other name"
+    Then the event API returns 409 with code "conflict"
+    And the "scheduled" event is stored as:
+      """
+      { "name": "Keyed name" }
+      """
