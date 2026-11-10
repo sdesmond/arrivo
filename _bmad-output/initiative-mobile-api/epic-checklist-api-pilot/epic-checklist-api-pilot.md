@@ -6,6 +6,7 @@ covers: [R1, R2, R7]
 after: []
 assignee: ""
 risk: high
+status: done
 ---
 
 # API foundation and checklist pilot
@@ -101,3 +102,5 @@ Record phase 0 decisions and ship trip checklist operations through authenticate
 - Entry 1 adds only helpers needed for the usable checked-state path; entry 2 adds generalized replay, entry 3 completes concurrency/refresh behavior, and entry 4 adds metadata and expands wrapper enforcement. Avoid building unused transport abstractions in the tracer.
 - Dependency rationale: 2 needs 1's service transaction and wrapper; 3 needs 2's finalized mutation/replay semantics and edits the same client/hook tests; 4 audits the helper/contract baseline changed in 3; 5 uses 4's enforcement and edits its route map; 6 shares checklist contracts/services and adapters with 5; 7 extends the same create contract and handlers from 6; 8 removes adapters still used until 7; 9 sweeps all completed implementations; 10 verifies the integrated sweep result.
 - High-risk checks: 1 crosses the auth/transport/UI boundary, 2 protects transaction and replay authorization, 3 protects optimistic ordering, 5 protects mixed timeline positions, 7 protects source ownership and atomic copying, and 10 verifies integration. A builder other than the original author can run the named unit/route and request/UI suites; their expected observable results are in each entry's verify field.
+
+- Decision: 2026-11-10 — Epic closed after the closure check against Done when 1–5 and P1–P9 (see `epic-checklist-api-pilot-retrospective.md`, verdict accepted-with-open-items). Scope carried forward, not dropped: UI sends no client UUIDs on checklist or item create and the packing-source picker has no in-flight guard (to the itinerary epic, which edits `use-day-draft`); `idempotency_keys` retention sweep; the hardening items in retro action item A-3; typed `ConflictError` (note in `epic-itinerary-api.md`). All are recorded in `deferred-work.md` or the retrospective.
