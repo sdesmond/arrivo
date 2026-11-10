@@ -1,0 +1,5 @@
+# Checklist item order is creation time
+
+Date: 2026-11-09. Status: accepted.
+
+Checklist items have no order column, and the pilot did not add one (no migration in phase 1; epic Boundaries: "Do not invent checklist-item reordering"), so an item's place is its `createdAt`. Single appends stamp `clock_timestamp()` after the trip lock is held, so creation order follows lock order. A packing-source copy inserts many rows in one statement, which would share one statement time, so each row is stamped `clock_timestamp()` minus one microsecond per row after it: stamps rise strictly in source order and the last equals the clock, so a later append still sorts after the copy. Reads order by `checklistItems.createdAt` (`mappedChecklist` in `src/lib/services/checklists.ts`). The reason comes from the plans: the schema stays unchanged this sprint and the order must survive concurrent writers; adding an ordering column or item reordering is left to a later epic. Source: plan `story-move-packing-source-checklist-insertion-to-the-api-plan.md` (story 1.7), commit 53f00699, and `story-move-checklist-item-lifecycle-to-the-api-plan.md` (story 1.6), commit ac540923.

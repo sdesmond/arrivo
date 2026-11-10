@@ -4,6 +4,13 @@ import { defineEndpoint } from "../endpoint";
 import { checklistTitleSchema, checklistItemContentSchema, itineraryPositionSchema } from "@/lib/validation-schemas";
 const lifecycleUuid = z.uuid().toLowerCase();
 const checklistParams = z.object({ checklistId: lifecycleUuid });
+// Trim first so the cap and blank check apply to what is stored, matching the inline editor that trims before saving.
+// Shared by item create/update and a checklist's first item so a blank item is rejected the same way everywhere.
+const itemContent = z
+  .string({ error: "Checklist item must be text." })
+  .trim()
+  .min(1, "Checklist item is required.")
+  .pipe(checklistItemContentSchema);
 /** Where a checklist's title and items are copied from: one of the actor's templates or a packing list on the trip. */
 const packingSourceSchema = z.strictObject({ type: z.enum(["template", "packing-list"]), id: lifecycleUuid });
 export const createChecklist = defineEndpoint<Checklist>()({
@@ -16,7 +23,7 @@ export const createChecklist = defineEndpoint<Checklist>()({
       position: itineraryPositionSchema,
       id: lifecycleUuid.optional(),
       title: checklistTitleSchema,
-      firstItem: z.strictObject({ id: lifecycleUuid.optional(), content: checklistItemContentSchema }).optional(),
+      firstItem: z.strictObject({ id: lifecycleUuid.optional(), content: itemContent }).optional(),
       source: packingSourceSchema.optional(),
     })
     // A source supplies the title and every item, so it excludes the two fields that would also set them.
@@ -39,12 +46,6 @@ export const deleteChecklist = defineEndpoint<null>()({
   status: 204,
 });
 const itemParams = z.object({ itemId: lifecycleUuid });
-// Trim first so the cap and blank check apply to what is stored, matching the inline editor that trims before saving.
-const itemContent = z
-  .string({ error: "Checklist item must be text." })
-  .trim()
-  .min(1, "Checklist item is required.")
-  .pipe(checklistItemContentSchema);
 export const createChecklistItem = defineEndpoint<ChecklistItem>()({
   method: "POST",
   path: "/api/v1/checklists/:checklistId/items",
