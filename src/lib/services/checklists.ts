@@ -164,12 +164,8 @@ export async function createChecklist(
           const existing = await readChecklist(transaction, body.id);
           if (existing) {
             const current = await mappedChecklist(transaction, existing.checklist);
-            if (
-              existing.tripId !== tripId ||
-              current.tripDayId !== body.dayId ||
-              current.position !== body.position ||
-              (current.title ?? null) !== title
-            )
+            // `position` is excluded: other inserts shift it, so a retry after a shift is still a replay.
+            if (existing.tripId !== tripId || current.tripDayId !== body.dayId || (current.title ?? null) !== title)
               collision();
             if (
               current.items.length !== contents.length ||

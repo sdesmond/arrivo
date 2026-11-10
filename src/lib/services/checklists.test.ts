@@ -577,17 +577,19 @@ describe("checklist lifecycle", () => {
     expect(mocks.insert).not.toHaveBeenCalled();
     expect(mocks.afterTripWrite).not.toHaveBeenCalled();
   });
-  it.each(["title", "day", "item", "position"])("rejects UUID collision in %s", async (field) => {
+  it("replays a UUID retry whose position drifted, without shifts, writes or effects", async () => {
+    existing = [{ ...checklistRow, position: 4 }];
+    items = [firstItem];
+    await expect(createChecklist(actor, tripId, input)).resolves.toMatchObject({ id: checklistId, position: 4 });
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
+  it.each(["title", "day", "item"])("rejects UUID collision in %s", async (field) => {
     existing = [
       {
         ...checklistRow,
-        ...(field === "title"
-          ? { title: "Different" }
-          : field === "day"
-            ? { dayId: tripId }
-            : field === "position"
-              ? { position: 4 }
-              : {}),
+        ...(field === "title" ? { title: "Different" } : field === "day" ? { dayId: tripId } : {}),
       },
     ];
     items = [{ ...firstItem, ...(field === "item" ? { content: "Different" } : {}) }];
@@ -976,6 +978,16 @@ describe("checklist lifecycle", () => {
         expect(mocks.insert).not.toHaveBeenCalled();
         expect(mocks.afterTripWrite).not.toHaveBeenCalled();
       });
+      it("replays a matching retry whose position drifted, without writes or effects", async () => {
+        existing = [{ ...existing[0], position: 5 }];
+        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).resolves.toMatchObject({
+          id: checklistId,
+          position: 5,
+        });
+        expect(mocks.update).not.toHaveBeenCalled();
+        expect(mocks.insert).not.toHaveBeenCalled();
+        expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+      });
       it("claims only the checklist UUID lock before the trip lock", async () => {
         await createChecklist(actor, tripId, input({ id: checklistId }));
         expect(lockedResources()).toHaveLength(1);
@@ -987,7 +999,6 @@ describe("checklist lifecycle", () => {
         ["item count", () => (contents = ["Sunscreen"])],
         ["item order", () => (contents = ["Towel", "Sunscreen"])],
         ["checked state", () => (items = items.map((item) => ({ ...item, isChecked: true })))],
-        ["position", () => (existing = [{ ...existing[0], position: 5 }])],
       ])("rejects a UUID whose stored %s differs from the source", async (_name, change) => {
         change();
         await expect(createChecklist(actor, tripId, input({ id: checklistId }))).rejects.toBeInstanceOf(ConflictError);
