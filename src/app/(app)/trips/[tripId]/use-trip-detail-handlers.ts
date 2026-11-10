@@ -45,7 +45,12 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   handleUpdateNote: (noteId: string, content: string) => void;
   handleDeleteNote: (noteId: string) => void;
-  handleAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
+  handleAddChecklist: (
+    dayNumber: number,
+    insertAtPosition: number,
+    firstItemContent?: string,
+    clientId?: string
+  ) => Promise<void>;
   handleUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
   handleDeleteChecklist: (checklistId: string) => void;
   handleAddChecklistItem: (checklistId: string, content: string) => void;

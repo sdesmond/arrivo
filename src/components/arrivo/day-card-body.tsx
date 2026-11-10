@@ -26,7 +26,12 @@ export interface DayCardBodyProps {
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;
-  onAddChecklist?: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
+  onAddChecklist?: (
+    dayNumber: number,
+    insertAtPosition: number,
+    firstItemContent?: string,
+    clientId?: string
+  ) => Promise<void>;
   newlyCreatedChecklistId?: string;
   highlightedEventId?: string | null;
   onOpenPackingListPicker?: (insertAtPosition: number) => void;
@@ -96,7 +101,7 @@ export function DayCardBody({
   const { draft, openGapKey, openGap, closeGap, activateDraft, commitDraft, cancelDraft, makeGapProps } = useDayDraft({
     dayNumber: day.dayNumber,
     timelineItems,
-    propTimelineItemCount: propTimelineItems.length,
+    propTimelineItemIds: propTimelineItems.map((item) => item.data.id),
     onAddEvent,
     onAddNote,
     onAddChecklist,

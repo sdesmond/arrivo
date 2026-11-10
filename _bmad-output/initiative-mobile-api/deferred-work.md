@@ -55,3 +55,9 @@
   summary: `api()` rethrows a raw `SyntaxError` for a malformed 200 body instead of an `ApiClientError`.
   evidence: Pre-existing at `client.ts`; `client.test.ts` now documents it. Fix maps it to `ApiClientError(status, "server_error", ...)`.
 
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-send-draft-stable-client-ids-for-checklist-creates-plan.md`
+  summary: A draft whose commit is still pending when the user cancels and opens another draft arms the new draft's baseline when the old commit resolves.
+  evidence: Pre-existing in `use-day-draft` (the old baseline ref did the same); the old commit's growth can clear the new draft. Settle by tying the post-await writes to the draft ID captured at commit start.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-send-draft-stable-client-ids-for-checklist-creates-plan.md`
+  summary: Editing the first-item text and committing again after an ambiguous failure reuses the draft ID and gets a 409 until the draft is cancelled.
+  evidence: Content drift stays a 409 by the frozen boundary, and the hook keeps the ID after a rejection. A fix would mint a new ID on a conflict, which needs the handler to surface the status.

@@ -54,7 +54,12 @@ export interface TripItineraryViewProps {
   onAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onUpdateNote: (noteId: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
-  onAddChecklist: (dayNumber: number, insertAtPosition: number, firstItemContent?: string) => Promise<void>;
+  onAddChecklist: (
+    dayNumber: number,
+    insertAtPosition: number,
+    firstItemContent?: string,
+    clientId?: string
+  ) => Promise<void>;
   newlyCreatedChecklistId?: string;
   onUpdateChecklistTitle: (checklistId: string, title: string | undefined) => void;
   onDeleteChecklist: (checklistId: string) => void;

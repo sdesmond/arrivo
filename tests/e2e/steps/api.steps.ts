@@ -585,6 +585,37 @@ Then("lifecycle creation persists once with mixed timeline ordering after reload
   const untouched = state(page).untouchedDay!;
   expect(await timelineSnapshot(untouched.dayId)).toEqual(untouched.before);
 });
+When("I create another checklist at the lifecycle position", async ({ page }) => {
+  const { tripId, dayId, position } = state(page).lifecycle!;
+  const response = await page.request.post(`/api/v1/trips/${tripId}/checklists`, {
+    headers: headers(page),
+    data: { dayId, position, id: randomUUID(), title: "Shifting insert" },
+  });
+  expect(response.status()).toBe(200);
+});
+When("I retry the lifecycle checklist creation", async ({ page, scenario }) => {
+  await sendLifecycleCreate(page, scenario.currentTrip!.id, false);
+});
+Then("the lifecycle retry returns the original checklist at its shifted position", async ({ page }) => {
+  const input = state(page).lifecycle!;
+  const response = state(page).response!;
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({ id: input.id, tripDayId: input.dayId, position: input.position + 1 });
+});
+Then("the day holds the original and the shifting checklist once after reload", async ({ page }) => {
+  const input = state(page).lifecycle!;
+  await page.reload();
+  const rows = await withE2EDb((database) =>
+    database
+      .select({ id: itineraryChecklists.id, position: itineraryChecklists.position })
+      .from(itineraryChecklists)
+      .where(eq(itineraryChecklists.dayId, input.dayId))
+  );
+  // The seeded day already holds one checklist: expect it, the original (shifted once) and the shifting insert.
+  expect(rows).toHaveLength(3);
+  expect(rows.filter((row) => row.id === input.id).map((row) => row.position)).toEqual([input.position + 1]);
+  expect(rows.some((row) => row.position === input.position)).toBe(true);
+});
 When("I reuse the lifecycle checklist UUID with different content", async ({ page }) => {
   const { tripId, ...body } = state(page).lifecycle!;
   const responses = await Promise.all(

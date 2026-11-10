@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
@@ -55,6 +55,7 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const insertMutation = useApiMutation(createChecklist);
+  const insertInFlight = useRef(false);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -217,15 +218,22 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
-    // The id is client-generated so a transport-level retry of the same request body is idempotent; each user gesture
-    // mints a new one. useApiMutation reports errors and auth loss itself.
-    await insertMutation.mutate(
-      {
-        params: { tripId: trip.id },
-        body: { dayId: day.id, position, id: createRandomId(), source: { type: sourceType, id: sourceId } },
-      },
-      { onSuccess: (checklist) => setNewlyCreatedChecklistId(checklist.id) }
-    );
+    // A second select while the first insert is in flight would mint a second ID and a second checklist.
+    if (insertInFlight.current) return;
+    insertInFlight.current = true;
+    try {
+      // The id is client-generated so a transport-level retry of the same request body is idempotent; each user
+      // gesture mints a new one. useApiMutation reports errors and auth loss itself.
+      await insertMutation.mutate(
+        {
+          params: { tripId: trip.id },
+          body: { dayId: day.id, position, id: createRandomId(), source: { type: sourceType, id: sourceId } },
+        },
+        { onSuccess: (checklist) => setNewlyCreatedChecklistId(checklist.id) }
+      );
+    } finally {
+      insertInFlight.current = false;
+    }
   }
 
   return {

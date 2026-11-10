@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChecklistItem, DayItinerary } from "@/data/types";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { createRandomId } from "@/lib/utils";
 import {
   createChecklist,
   createChecklistItem,
@@ -180,7 +181,10 @@ export function useChecklistHandlers(
     trackWrite(
       itemCreates.current,
       checklistId,
-      createItemMutation.mutate({ params: { checklistId }, body: { content } }, { key: checklistId })
+      createItemMutation.mutate(
+        { params: { checklistId }, body: { id: createRandomId(), content } },
+        { key: checklistId }
+      )
     );
   }
 
@@ -205,7 +209,12 @@ export function useChecklistHandlers(
     void (pending ? pending.then(remove) : remove());
   }
 
-  function handleAddChecklist(dayNumber: number, insertAtPosition: number, firstItemContent?: string): Promise<void> {
+  function handleAddChecklist(
+    dayNumber: number,
+    insertAtPosition: number,
+    firstItemContent?: string,
+    clientId?: string
+  ): Promise<void> {
     const dayId = serverDays.find((candidate) => candidate.dayNumber === dayNumber)?.id;
     if (!dayId) return Promise.resolve();
     let created = false;
@@ -217,6 +226,7 @@ export function useChecklistHandlers(
           body: {
             dayId,
             position: insertAtPosition,
+            ...(clientId ? { id: clientId } : {}),
             ...(firstItemContent ? { firstItem: { content: firstItemContent } } : {}),
           },
         },

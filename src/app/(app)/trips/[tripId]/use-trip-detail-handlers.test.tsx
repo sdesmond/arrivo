@@ -698,7 +698,7 @@ it("sends checklist item add, edit and delete to the item endpoints", async () =
     expect.arrayContaining([
       [
         expect.objectContaining({ method: "POST", path: "/api/v1/checklists/:checklistId/items" }),
-        { params: { checklistId: "list" }, body: { content: "Charger" } },
+        { params: { checklistId: "list" }, body: { id: expect.any(String), content: "Charger" } },
       ],
       [
         expect.objectContaining({ method: "PATCH", path: "/api/v1/checklist-items/:itemId" }),
