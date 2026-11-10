@@ -3,7 +3,7 @@ title: "Checklist lifecycle services and API"
 type: feature
 ticket: 5
 created: "2026-11-08"
-status: built
+status: done
 baseline_revision: "8209eccf809ce80a33e32feb1e2e0b611139b585"
 route: full
 route_source: auto

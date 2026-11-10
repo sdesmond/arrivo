@@ -3,7 +3,7 @@ title: "Make API replay atomic and authorization-aware"
 type: feature
 ticket: 2
 created: "2026-11-08"
-status: built
+status: done
 baseline_revision: "64cae8da5b5ca07caeb689a13358e34e68dde9c6"
 route: full
 route_source: auto

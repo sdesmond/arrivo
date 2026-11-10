@@ -3,7 +3,7 @@ title: "Check one checklist item through the API"
 type: feature
 ticket: 1
 created: "2026-11-07"
-status: built
+status: done
 baseline_revision: "574163414ec12f5eeec5edf3b4b0a1d34b16889a"
 route: full
 route_source: auto

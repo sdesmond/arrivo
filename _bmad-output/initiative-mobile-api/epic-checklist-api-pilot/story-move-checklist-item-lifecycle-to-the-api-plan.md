@@ -3,7 +3,7 @@ title: "Move checklist item lifecycle to the API"
 type: feature
 ticket: 6
 created: "2026-11-09"
-status: built
+status: done
 baseline_revision: "975cdd1e266c4cd48add500a3a5a8536a5bc3800"
 route: full
 route_source: auto

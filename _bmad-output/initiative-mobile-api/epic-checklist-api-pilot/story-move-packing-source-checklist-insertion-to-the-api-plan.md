@@ -3,7 +3,7 @@ title: "Move packing-source checklist insertion to the API"
 type: feature
 ticket: 7
 created: "2026-11-09"
-status: built
+status: done
 baseline_revision: "402f554fa67b0dc507dbe19dced20565ca0409e1"
 route: full
 route_source: auto
