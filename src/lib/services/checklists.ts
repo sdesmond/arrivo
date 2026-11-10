@@ -353,7 +353,10 @@ export async function createChecklistItem(
   }));
 }
 
-/** Applies only the supplied fields; an empty patch returns the stored item and writes nothing. */
+/**
+ * Applies only the supplied fields. A patch that changes nothing (empty, or every field equal to the stored value)
+ * returns the stored item and writes nothing, so it publishes no activity or live-sync event.
+ */
 export async function updateChecklistItem(
   actor: Actor,
   itemId: string,
@@ -371,11 +374,10 @@ export async function updateChecklistItem(
       await requireTripRole(tripId, actor.userId, "editor", transaction);
     },
     mutate: async () => {
-      if (Object.keys(patch).length === 0) {
-        const current = await readItem(transaction, itemId);
-        if (!current) throw new TripNotFoundError();
+      const current = await readItem(transaction, itemId);
+      if (!current) throw new TripNotFoundError();
+      if (Object.entries(patch).every(([field, value]) => current[field as keyof typeof patch] === value))
         return dbChecklistItemToType(current);
-      }
       const [updated] = await transaction
         .update(checklistItems)
         .set(patch)
