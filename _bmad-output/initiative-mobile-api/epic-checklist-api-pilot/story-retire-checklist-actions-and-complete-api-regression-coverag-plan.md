@@ -3,7 +3,7 @@ title: "Retire checklist actions and complete API regression coverage"
 type: feature
 ticket: 8
 created: "2026-11-09"
-status: built
+status: done
 baseline_revision: "54357300dbea8bc01df7b14307ccba42cffbd315"
 route: full
 route_source: auto

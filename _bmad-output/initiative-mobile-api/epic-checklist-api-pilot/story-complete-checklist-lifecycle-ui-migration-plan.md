@@ -1,9 +1,9 @@
 ---
 title: "Complete checklist lifecycle UI migration"
 type: feature
-ticket: 5
+ticket: 11
 created: "2026-11-08"
-status: built
+status: done
 baseline_revision: "a3e2fca0ee2319e2f79f07a365dfa6b8cec3d164"
 route: full
 route_source: auto

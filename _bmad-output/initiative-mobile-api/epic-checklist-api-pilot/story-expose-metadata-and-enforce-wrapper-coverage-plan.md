@@ -3,7 +3,7 @@ title: "Expose metadata and enforce wrapper coverage"
 type: feature
 ticket: 4
 created: "2026-11-08"
-status: built
+status: done
 baseline_revision: "b9bc6c74c379f02aa9872a0f1c7a2d86a1bad394"
 route: full
 route_source: auto

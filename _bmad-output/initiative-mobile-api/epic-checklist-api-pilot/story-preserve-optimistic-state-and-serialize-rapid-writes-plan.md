@@ -3,7 +3,7 @@ title: "Preserve optimistic state and serialize rapid writes"
 type: feature
 ticket: 3
 created: "2026-11-08"
-status: built
+status: done
 baseline_revision: "1f387cf89f93a6283cbdc2ca99360bb164614026"
 route: full
 route_source: auto

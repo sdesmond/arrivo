@@ -109,7 +109,7 @@ None. Epic 1 is the first epic in the initiative (`epics` order), so no previous
 All are proposed; none was applied. Owner is the person who runs the dev loop.
 
 - A-1 (F-1): reuse `itemContent` for `firstItem.content` in `src/lib/api/contract/checklists.ts`, with contract, service and API E2E blank-content cases first. Owner: developer. Remediation, awaiting dev loop.
-- A-2 (F-P1): attach the 1.5 UI half to ticket 1.5 or record it as a ticket entry so `tickets.py` stops reporting it. Owner: `bmad-ticket` user. Spec reconciliation, awaiting human.
+- A-2 (F-P1): attach the 1.5 UI half to ticket 1.5 or record it as a ticket entry so `tickets.py` stops reporting it. Owner: `bmad-ticket` user. Done 2026-11-10: recorded as entry 1.11 (after 1.5), plan moved into the epic folder with `ticket: 11`, marked done; `tickets.py status` reports no problems.
 - A-3 (F-2, F-5, F-6, F-4): file one hardening story in the next epic's refinement: client request timeout, draft re-arm when a commit resolves without growth, per-key field errors, no-op item PATCH skipping effects. Owner: developer.
 - A-4 (F-D4, F-P3): run the full E2E suite (`npm run test:e2e`) before merging `feature/api-v1` toward `main`; agents do not launch it. Owner: user.
 - A-5 (F-D1): carry F-D1 and F-D2 into the itinerary epic's first story, since they need `use-day-draft` changes.

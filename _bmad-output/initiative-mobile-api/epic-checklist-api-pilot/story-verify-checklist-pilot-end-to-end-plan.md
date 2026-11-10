@@ -3,7 +3,7 @@ title: "Verify checklist pilot end to end"
 type: chore
 ticket: 10
 created: "2026-11-09"
-status: built
+status: done
 baseline_revision: "8fcd908d477ecf2bd38309cbf00094069fb05ec1"
 route: oneshot
 route_source: auto
