@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { api, ApiClientError } from "./client";
+import { api, ApiClientError, REQUEST_TIMEOUT_MS } from "./client";
 import { deleteChecklist, updateChecklistItem } from "./contract/checklists";
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 it("sends typed absolute JSON with cookie credentials and client header", async () => {
   const fetch = vi.fn().mockResolvedValue(Response.json({ id: "item", isChecked: false }));
   vi.stubGlobal("fetch", fetch);
@@ -101,4 +104,90 @@ it("keeps JSON error handling for a declared 204 endpoint", async () => {
     code: "not_found",
     message: "Gone",
   });
+});
+
+const timeoutFailure = {
+  name: "ApiClientError",
+  status: 0,
+  code: "timeout",
+  message: "The request timed out. Try again.",
+};
+const patchInput = { params: { itemId: "item" }, body: { isChecked: true } };
+/** A fetch that never settles on its own and rejects like the platform when its signal aborts. */
+function hangingFetch() {
+  return vi.fn(
+    (_path: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      })
+  );
+}
+
+it("fails a request that never answers with a timeout and aborts it", async () => {
+  vi.useFakeTimers();
+  const fetch = hangingFetch();
+  vi.stubGlobal("fetch", fetch);
+  const failure = expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject(timeoutFailure);
+  await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+  expect(fetch.mock.calls[0][1].signal?.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  await failure;
+  expect(fetch.mock.calls[0][1].signal?.aborted).toBe(true);
+});
+
+it("fails a success body that stalls after the headers with a timeout", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    }))
+  );
+  const failure = expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject(timeoutFailure);
+  await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+  await failure;
+});
+
+it("fails an error body that stalls after the headers with a timeout", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init: RequestInit) => ({
+      ok: false,
+      status: 500,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    }))
+  );
+  const failure = expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject(timeoutFailure);
+  await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+  await failure;
+});
+
+it("leaves no timer running after a fast response or failure", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ id: "item" }))
+      .mockResolvedValueOnce(Response.json({ error: { code: "not_found", message: "Gone" } }, { status: 404 }))
+      .mockRejectedValueOnce(new Error("offline"))
+  );
+  await api(updateChecklistItem, patchInput);
+  await expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject({ code: "not_found" });
+  await expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject({ code: "network_error" });
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("rethrows a malformed success body that is not a timeout", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not json", { status: 200 })));
+  await expect(api(updateChecklistItem, patchInput)).rejects.toBeInstanceOf(SyntaxError);
 });

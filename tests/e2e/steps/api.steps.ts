@@ -978,6 +978,14 @@ When("I patch the checklist item content, checked state and an empty body", asyn
   const rows = await storedItems(item.checklistId);
   expect(rows).toMatchObject([{ content: "Renamed passport", isChecked: true }]);
 });
+When("I resend the same checklist item content and checked state", async ({ page }) => {
+  const response = await page.request.patch(itemUrl(state(page).itemId), {
+    headers: headers(page),
+    data: { content: "Renamed passport", isChecked: true },
+  });
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({ content: "Renamed passport", isChecked: true });
+});
 Then("the checklist item has the patched content and checked state after reload", async ({ page }) => {
   await page.reload();
   const checklist = await expandPackingChecklist(page).catch(() => undefined);

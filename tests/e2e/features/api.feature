@@ -198,6 +198,7 @@ Feature: Absolute checklist checked-state API
   Scenario: Item partial updates preserve omitted fields and reject invalid bodies
     Given my checklist API role is "editor"
     When I patch the checklist item content, checked state and an empty body
+    And I resend the same checklist item content and checked state
     Then the checklist item has the patched content and checked state after reload
 
   Scenario: Item deletion is concealed across trips and repeatable

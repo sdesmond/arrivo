@@ -49,6 +49,7 @@ const replay = { key: "retry-1", method: "PATCH", path: `/api/v1/checklist-items
 let ancestry: { tripId: string }[];
 let returned: (typeof row)[];
 let stored: { result: unknown }[];
+let current: typeof row;
 let calls: string[];
 function envelope(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,6 +64,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   ancestry = [{ tripId: "trip" }];
   returned = [row];
+  // The stored item differs from every patch below unless a test says otherwise, so a write is expected.
+  current = { ...row, isChecked: false };
   stored = [];
   calls = [];
   mocks.select.mockReturnValue({
@@ -74,7 +77,10 @@ beforeEach(() => {
               return stored;
             },
           }
-        : { innerJoin: () => ({ innerJoin: () => ({ where: async () => ancestry }) }) },
+        : {
+            where: async () => [current],
+            innerJoin: () => ({ innerJoin: () => ({ where: async () => ancestry }) }),
+          },
   });
   mocks.execute.mockImplementation(async (statement: { queryChunks?: unknown[] }) => {
     if (JSON.stringify(statement.queryChunks).includes("pg_advisory_xact_lock")) calls.push("actor-key-lock");
@@ -94,11 +100,21 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(async (callback) => callback(mocks));
 });
 it.each([true, false])("writes absolute value %s after locking and rechecking", async (isChecked) => {
+  current = { ...row, isChecked: !isChecked };
   await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked })).resolves.toMatchObject({ id: itemId });
   expect(mocks.update().set).toHaveBeenCalledWith({ isChecked });
   expect(mocks.lockTripForUpdate).toHaveBeenCalledWith(mocks, "trip");
   expect(mocks.requireTripRole).toHaveBeenCalledWith("trip", "user", "editor", mocks);
   expect(mocks.afterTripWrite).toHaveBeenCalledWith({ userId: "user" }, "trip");
+});
+it.each([true, false])("skips the write and effects when the checked state is already %s", async (isChecked) => {
+  current = { ...row, isChecked };
+  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked })).resolves.toMatchObject({
+    id: itemId,
+    isChecked,
+  });
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
 it("rejects invalid input before DB access", async () => {
   await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: "yes" })).rejects.toThrow();
@@ -122,7 +138,23 @@ it("skips effects for failed access or deleted result", async () => {
   mocks.requireTripRole.mockRejectedValueOnce(new Error("denied"));
   await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: true })).rejects.toThrow("denied");
   returned = [];
-  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: false })).rejects.toThrow();
+  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: true })).rejects.toThrow();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("conceals an item deleted before the locked read", async () => {
+  mocks.select.mockReturnValue({
+    from: (table: unknown) =>
+      table === idempotencyKeys
+        ? { where: async () => stored }
+        : {
+            where: async () => [],
+            innerJoin: () => ({ innerJoin: () => ({ where: async () => ancestry }) }),
+          },
+  });
+  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: true })).rejects.toBeInstanceOf(
+    TripNotFoundError
+  );
+  expect(mocks.update).not.toHaveBeenCalled();
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
 
@@ -1217,6 +1249,7 @@ describe("checklist lifecycle", () => {
       return set;
     }
     it("writes only the supplied content and keeps the checked state", async () => {
+      items = [{ ...storedItem, isChecked: true }];
       const set = updateReturning({ ...storedItem, content: "Boots", isChecked: true });
       await expect(updateChecklistItem(actor, itemRowId.toUpperCase(), { content: " Boots " })).resolves.toMatchObject({
         content: "Boots",
@@ -1226,9 +1259,32 @@ describe("checklist lifecycle", () => {
       expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
     });
     it("writes content and absolute checked state together", async () => {
+      items = [{ ...storedItem, isChecked: true }];
       const set = updateReturning({ ...storedItem, content: "Boots", isChecked: false });
       await updateChecklistItem(actor, itemRowId, { content: "Boots", isChecked: false });
       expect(set).toHaveBeenCalledWith({ content: "Boots", isChecked: false });
+      expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    });
+    it("writes both supplied fields when only one differs from the stored item", async () => {
+      items = [{ ...storedItem, isChecked: true }];
+      const set = updateReturning({ ...storedItem, content: "Boots", isChecked: true });
+      await updateChecklistItem(actor, itemRowId, { content: "Boots", isChecked: true });
+      expect(set).toHaveBeenCalledWith({ content: "Boots", isChecked: true });
+      expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    });
+    it.each([
+      ["same content", { content: "Shoes" }],
+      ["same checked state", { isChecked: false }],
+      ["same content and checked state", { content: " Shoes ", isChecked: false }],
+    ])("skips the write and effects for %s", async (_label, patch) => {
+      items = [storedItem];
+      await expect(updateChecklistItem(actor, itemRowId, patch)).resolves.toMatchObject({
+        id: itemRowId,
+        content: "Shoes",
+        isChecked: false,
+      });
+      expect(mocks.update).not.toHaveBeenCalled();
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
     });
     it("treats an empty patch as a no-op that returns the stored item without effects", async () => {
       items = [{ ...storedItem, isChecked: true }];
@@ -1251,6 +1307,7 @@ describe("checklist lifecycle", () => {
       expect(mocks.select).not.toHaveBeenCalled();
     });
     it("replays a content edit without writing", async () => {
+      items = [storedItem];
       const request = { key: "edit", method: "PATCH", path: `/api/v1/checklist-items/${itemRowId}` };
       stored = [
         {
