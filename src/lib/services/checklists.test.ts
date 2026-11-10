@@ -4,6 +4,8 @@ import type { SQL } from "drizzle-orm";
 import {
   idempotencyKeys,
   days,
+  events,
+  itineraryNotes,
   itineraryChecklists,
   checklistItems,
   packingItems,
@@ -557,7 +559,8 @@ describe("checklist lifecycle", () => {
   it("creates mapped checklist and item atomically, shifting all three timeline tables", async () => {
     const result = await createChecklist(actor, tripId, input);
     expect(result).toMatchObject({ id: checklistId, tripDayId: dayId, items: [{ id: firstItemId, content: "Shoes" }] });
-    expect(mocks.update).toHaveBeenCalledTimes(3);
+    // The shared `shiftFromPosition` opens the slot across events, notes and checklists, in that order.
+    expect(mocks.update.mock.calls.map(([table]) => table)).toEqual([events, itineraryNotes, itineraryChecklists]);
     expect(mocks.lockTripForUpdate).toHaveBeenCalledWith(mocks, tripId);
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
     expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
