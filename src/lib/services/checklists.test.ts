@@ -32,6 +32,7 @@ vi.mock("./trip-access", async (original) => ({
   requireTripRole: mocks.requireTripRole,
 }));
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
+import { ConflictError } from "./conflict-error";
 import {
   createChecklist,
   updateChecklistTitle,
@@ -261,10 +262,9 @@ it("hides role-denied replays before any transaction", async () => {
 });
 it("fingerprints the service-validated payload and returns 409 for a conflicting reuse", async () => {
   stored = [{ result: envelope() }];
-  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: false }, replay)).rejects.toMatchObject({
-    status: 409,
-    code: "conflict",
-  });
+  await expect(updateChecklistItem({ userId: "user" }, itemId, { isChecked: false }, replay)).rejects.toBeInstanceOf(
+    ConflictError
+  );
   expect(mocks.update).not.toHaveBeenCalled();
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
@@ -495,7 +495,7 @@ describe("checklist lifecycle", () => {
           : operation === "title"
             ? updateChecklistTitle(actor, checklistId, body, request)
             : deleteChecklist(actor, checklistId, body, request);
-      await expect(pending).rejects.toMatchObject({ status: 409 });
+      await expect(pending).rejects.toBeInstanceOf(ConflictError);
       expect(mocks.update).not.toHaveBeenCalled();
       expect(mocks.insert).not.toHaveBeenCalled();
       expect(mocks.delete).not.toHaveBeenCalled();
@@ -559,7 +559,7 @@ describe("checklist lifecycle", () => {
       },
     ];
     items = [{ ...firstItem, ...(field === "item" ? { content: "Different" } : {}) }];
-    await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409 });
+    await expect(createChecklist(actor, tripId, input)).rejects.toBeInstanceOf(ConflictError);
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.afterTripWrite).not.toHaveBeenCalled();
   });
@@ -616,7 +616,7 @@ describe("checklist lifecycle", () => {
   it("checks visibility of a foreign UUID before returning conflict", async () => {
     existing = [checklistRow];
     checklistTrip = "other";
-    await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409 });
+    await expect(createChecklist(actor, tripId, input)).rejects.toBeInstanceOf(ConflictError);
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith("other", actor.userId, "viewer", mocks);
     expect(mocks.update).not.toHaveBeenCalled();
   });
@@ -659,7 +659,7 @@ describe("checklist lifecycle", () => {
     items = [firstItem];
     itemTrip = "foreign";
     itemGone = false;
-    await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409, code: "conflict" });
+    await expect(createChecklist(actor, tripId, input)).rejects.toBeInstanceOf(ConflictError);
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith("foreign", actor.userId, "viewer", mocks);
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.insert).not.toHaveBeenCalled();
@@ -668,7 +668,7 @@ describe("checklist lifecycle", () => {
   it("rejects a first-item UUID already used by an authorized checklist", async () => {
     items = [firstItem];
     itemGone = false;
-    await expect(createChecklist(actor, tripId, input)).rejects.toMatchObject({ status: 409 });
+    await expect(createChecklist(actor, tripId, input)).rejects.toBeInstanceOf(ConflictError);
     expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "viewer", mocks);
     expect(mocks.update).not.toHaveBeenCalled();
   });
@@ -923,7 +923,7 @@ describe("checklist lifecycle", () => {
           }),
         },
       ];
-      await expect(createChecklist(actor, tripId, input(), request)).rejects.toMatchObject({ status: 409 });
+      await expect(createChecklist(actor, tripId, input(), request)).rejects.toBeInstanceOf(ConflictError);
       expect(mocks.insert).not.toHaveBeenCalled();
       expect(mocks.afterTripWrite).not.toHaveBeenCalled();
     });
@@ -958,10 +958,7 @@ describe("checklist lifecycle", () => {
         ["position", () => (existing = [{ ...existing[0], position: 5 }])],
       ])("rejects a UUID whose stored %s differs from the source", async (_name, change) => {
         change();
-        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).rejects.toMatchObject({
-          status: 409,
-          code: "conflict",
-        });
+        await expect(createChecklist(actor, tripId, input({ id: checklistId }))).rejects.toBeInstanceOf(ConflictError);
         expect(mocks.update).not.toHaveBeenCalled();
         expect(mocks.insert).not.toHaveBeenCalled();
         expect(mocks.afterTripWrite).not.toHaveBeenCalled();
@@ -1090,19 +1087,18 @@ describe("checklist lifecycle", () => {
     });
     it.each(["content", "checklist"])("rejects a UUID already used with different %s", async (field) => {
       items = [{ ...storedItem, ...(field === "content" ? { content: "Other" } : { checklistId: tripId }) }];
-      await expect(createChecklistItem(actor, checklistId, { id: itemRowId, content: "Shoes" })).rejects.toMatchObject({
-        status: 409,
-        code: "conflict",
-      });
+      await expect(createChecklistItem(actor, checklistId, { id: itemRowId, content: "Shoes" })).rejects.toBeInstanceOf(
+        ConflictError
+      );
       expect(mocks.insert).not.toHaveBeenCalled();
       expect(mocks.afterTripWrite).not.toHaveBeenCalled();
     });
     it("reports a collision with a readable foreign item only as a conflict", async () => {
       items = [{ ...storedItem, checklistId: "foreign-list" }];
       itemTrip = "foreign";
-      await expect(createChecklistItem(actor, checklistId, { id: itemRowId, content: "Shoes" })).rejects.toMatchObject({
-        status: 409,
-      });
+      await expect(createChecklistItem(actor, checklistId, { id: itemRowId, content: "Shoes" })).rejects.toBeInstanceOf(
+        ConflictError
+      );
       expect(mocks.requireTripRole).toHaveBeenLastCalledWith("foreign", actor.userId, "viewer", mocks);
       expect(mocks.insert).not.toHaveBeenCalled();
     });
@@ -1179,9 +1175,9 @@ describe("checklist lifecycle", () => {
       stored = [
         { result: envelope({ fingerprint: fingerprintRequest("POST", request.path, { content: "Previous" }) }) },
       ];
-      await expect(createChecklistItem(actor, checklistId, { content: "Shoes" }, request)).rejects.toMatchObject({
-        status: 409,
-      });
+      await expect(createChecklistItem(actor, checklistId, { content: "Shoes" }, request)).rejects.toBeInstanceOf(
+        ConflictError
+      );
       expect(mocks.insert).not.toHaveBeenCalled();
       expect(mocks.afterTripWrite).not.toHaveBeenCalled();
     });
@@ -1318,9 +1314,9 @@ describe("checklist lifecycle", () => {
       expect(mocks.delete).not.toHaveBeenCalled();
       expect(mocks.afterTripWrite).not.toHaveBeenCalled();
       itemGone = true;
-      await expect(deleteChecklistItem(actor, itemRowId, { tripId: dayId }, request)).rejects.toMatchObject({
-        status: 409,
-      });
+      await expect(deleteChecklistItem(actor, itemRowId, { tripId: dayId }, request)).rejects.toBeInstanceOf(
+        ConflictError
+      );
     });
     it("skips effects when a delete commit rejects", async () => {
       mocks.transaction.mockImplementationOnce(async (callback) => {

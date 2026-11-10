@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CollaboratorRole } from "@/data/types";
 import { TripForbiddenError, TripNotFoundError } from "@/lib/services/trip-access";
+import { ConflictError } from "@/lib/services/conflict-error";
 import { RateLimitError } from "@/lib/rate-limit";
 export class ApiError extends Error {
   constructor(
@@ -19,6 +20,7 @@ export function errorResponse(error: unknown): Response {
   let retryAfter: number | undefined;
   if (error instanceof ApiError) failure = error;
   else if (error instanceof TripNotFoundError) failure = new ApiError(404, "not_found", error.message);
+  else if (error instanceof ConflictError) failure = new ApiError(409, "conflict", error.message);
   else if (error instanceof TripForbiddenError)
     failure = new ApiError(403, "forbidden", error.message, undefined, error.requiredRole);
   else if (error instanceof RateLimitError) {

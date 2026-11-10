@@ -14,10 +14,10 @@ import {
 import { and, asc, eq, gte, sql } from "drizzle-orm";
 import type { Actor, Checklist, ChecklistItem, IdempotentRequest } from "@/data/types";
 import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
-import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
+import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { afterTripWrite } from "./trip-write-effects";
-import { withIdempotency } from "@/lib/api/idempotency";
+import { lockTrip, runTripWrite } from "./trip-write";
+import { ConflictError } from "./conflict-error";
 import {
   createChecklist as createContract,
   updateChecklistTitle as titleContract,
@@ -26,17 +26,8 @@ import {
   updateChecklistItem as updateItemContract,
   deleteChecklistItem as deleteItemContract,
 } from "@/lib/api/contract/checklists";
-import { ApiError } from "@/lib/api/errors";
 import { getNow } from "@/lib/mock-date";
 
-async function lockTrip(transaction: DbTransaction, tripId: string): Promise<void> {
-  try {
-    await lockTripForUpdate(transaction, tripId);
-  } catch (error) {
-    if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) throw new TripNotFoundError();
-    throw error;
-  }
-}
 async function readChecklist(executor: Pick<DbTransaction, "select">, checklistId: string) {
   const [row] = await executor
     .select({ checklist: itineraryChecklists, tripId: days.tripId })
@@ -57,7 +48,7 @@ async function mappedChecklist(
   return dbChecklistToType(row, items);
 }
 function collision(): never {
-  throw new ApiError(409, "conflict", "This ID was already used for different checklist content.");
+  throw new ConflictError("This ID was already used for different checklist content.");
 }
 /** Serializes client UUIDs across trips. Sorted, so concurrent claims always lock in one order. */
 async function lockClientIds(transaction: DbTransaction, resources: (string | undefined)[]): Promise<void> {
@@ -83,33 +74,6 @@ async function itemTripId(executor: Pick<DbTransaction, "select">, itemId: strin
   if (!tripId) throw new TripNotFoundError();
   return tripId;
 }
-/**
- * Runs one write in a transaction with idempotency, then the after-commit effect. `mutate` calls `markChanged` only
- * when it wrote, so an unchanged or replayed result, or a rolled-back transaction, runs no effect.
- */
-async function runChecklistWrite<Result>(
-  actor: Actor,
-  tripId: string,
-  input: { replay?: IdempotentRequest; payload: unknown },
-  steps: (
-    transaction: DbTransaction,
-    markChanged: () => void
-  ) => { authorize: () => Promise<void>; mutate: () => Promise<Result> }
-): Promise<Result> {
-  let changed = false;
-  const { value, replayed } = await db.transaction((transaction) =>
-    withIdempotency<Result>(
-      transaction,
-      { actor, request: input.replay, payload: input.payload },
-      steps(transaction, () => {
-        changed = true;
-      })
-    )
-  );
-  if (changed && !replayed) afterTripWrite(actor, tripId);
-  return value;
-}
-
 interface PackingSourceCopy {
   title: string;
   contents: string[];
@@ -172,7 +136,7 @@ export async function createChecklist(
   tripId = createContract.params.parse({ tripId }).tripId;
   const body = createContract.body.parse(input);
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<Checklist>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => {
+  return runTripWrite<Checklist>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => {
     let packed: PackingSourceCopy | undefined;
     return {
       authorize: async () => {
@@ -284,7 +248,7 @@ export async function updateChecklistTitle(
   if (!ancestry) throw new TripNotFoundError();
   const tripId = ancestry.tripId;
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<Checklist>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
+  return runTripWrite<Checklist>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
     authorize: async () => {
       await lockTrip(transaction, tripId);
       const current = await readChecklist(transaction, checklistId);
@@ -318,7 +282,7 @@ export async function deleteChecklist(
   const body = deleteContract.body.parse(input);
   const { tripId } = body;
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
+  return runTripWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
     authorize: async () => {
       await lockTrip(transaction, tripId);
       await requireTripRole(tripId, actor.userId, "editor", transaction);
@@ -351,7 +315,7 @@ export async function createChecklistItem(
   if (!ancestry) throw new TripNotFoundError();
   const tripId = ancestry.tripId;
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<ChecklistItem>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
+  return runTripWrite<ChecklistItem>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
     authorize: async () => {
       // Same namespace and order as first-item creation in `createChecklist`, so a UUID is claimed once across trips.
       await lockClientIds(transaction, [body.id && `checklist-item:${body.id}`]);
@@ -400,7 +364,7 @@ export async function updateChecklistItem(
   const patch = updateItemContract.body.parse(input);
   const tripId = await itemTripId(db, itemId);
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<ChecklistItem>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
+  return runTripWrite<ChecklistItem>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
     authorize: async () => {
       await lockTrip(transaction, tripId);
       if ((await itemTripId(transaction, itemId)) !== tripId) throw new TripNotFoundError();
@@ -435,7 +399,7 @@ export async function deleteChecklistItem(
   const body = deleteItemContract.body.parse(input);
   const { tripId } = body;
   await requireTripRole(tripId, actor.userId, "editor");
-  return runChecklistWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
+  return runTripWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
     authorize: async () => {
       await lockTrip(transaction, tripId);
       await requireTripRole(tripId, actor.userId, "editor", transaction);

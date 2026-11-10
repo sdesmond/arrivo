@@ -20,7 +20,6 @@ import {
   itineraryPositionSchema,
   parseInput,
   updateDaySchema,
-  updateEventSchema,
   updateTripNoteSchema,
 } from "@/lib/validation-schemas";
 import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
@@ -38,7 +37,6 @@ import {
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type {
   CreateEventInput,
-  UpdateEventPatch,
   ReorderDayItemsInput,
   UpdateDayPatch,
   AddDocumentInput,
@@ -208,32 +206,6 @@ export async function createEvent(dayId: string, rawInput: CreateEventInput): Pr
     await transaction.insert(events).values({ ...values, position: appendPos });
   });
 
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function updateEvent(eventId: string, rawPatch: UpdateEventPatch): Promise<void> {
-  const user = await requireUser();
-  const patch = parseInput(updateEventSchema, rawPatch);
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(events)
-    .set({
-      // Explicit fields only: a crafted client payload must not reach id, tripId, dayId or position.
-      name: patch.name,
-      confirmationNumber: patch.confirmationNumber,
-      note: patch.note,
-      startAt: patch.startAt ? new Date(patch.startAt) : null,
-      endAt: patch.endAt ? new Date(patch.endAt) : null,
-      locationName: patch.locationName ?? null,
-      locationAddress: patch.locationAddress ?? null,
-      locationLat: patch.locationLat ?? null,
-      locationLng: patch.locationLng ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(events.id, eventId));
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);

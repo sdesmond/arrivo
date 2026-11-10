@@ -6,6 +6,7 @@ import type { Actor, IdempotentRequest } from "@/data/types";
 import { getNow } from "@/lib/mock-date";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { isUuid } from "@/lib/validation-limits";
+import { ConflictError } from "@/lib/services/conflict-error";
 import { ApiError } from "./errors";
 
 /** Prefix that keeps API replay rows apart from the raw keys `packing-actions.ts` stores in the same table. */
@@ -98,7 +99,7 @@ async function lockActorKey(transaction: DbTransaction, userId: string, storageK
     await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
   } catch (error) {
     if (isLockTimeout(error)) {
-      throw new ApiError(409, "conflict", "A request with this Idempotency-Key is still in progress. Retry shortly.");
+      throw new ConflictError("A request with this Idempotency-Key is still in progress. Retry shortly.");
     }
     throw error;
   }
@@ -144,7 +145,7 @@ export async function withIdempotency<Result>(
     const stored = readEnvelope(existing.result);
     if (Date.parse(stored.expiresAt) > now.getTime()) {
       if (stored.fingerprint !== fingerprint) {
-        throw new ApiError(409, "conflict", "This Idempotency-Key was already used for a different request.");
+        throw new ConflictError("This Idempotency-Key was already used for a different request.");
       }
       return { value: stored.response as Result, replayed: true };
     }

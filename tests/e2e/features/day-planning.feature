@@ -27,6 +27,15 @@ Feature: Day Planning
     Then the event "Lunch at the market" should show location "Paris, France"
     And the event "Lunch at the market" location is persisted with coordinates
 
+  @trip-with-untimed-event
+  Scenario: Edited name, time and location persist after reload
+    Given a day has an event without a time
+    When I open the time picker and set a start time
+    And I set the event location for "Untimed Event" using the first lookup suggestion
+    And I rename the event "Untimed Event" to "Persisted dinner"
+    And I reload the page
+    Then the event "Persisted dinner" still shows a time and the location "Paris, France"
+
   @trip-with-deletable-event
   Scenario: User deletes an event
     When I delete the event named "Event to Remove"

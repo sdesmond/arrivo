@@ -65,6 +65,10 @@ export const FEATURE_MAP = [
   entry("api", [
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
+    "src/lib/services/conflict-error.ts",
+    "src/lib/services/trip-write.ts",
+    "src/lib/services/events.ts",
+    "src/app/api/v1/events/**",
     "src/lib/services/trip-access.ts",
     "src/lib/services/trip-write-effects.ts",
     "src/app/api/v1/checklist-items/**",
@@ -438,12 +442,17 @@ export const FEATURE_MAP = [
   entry("day-planning", [
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
+    "src/lib/services/conflict-error.ts",
+    "src/lib/services/trip-write.ts",
+    "src/lib/services/events.ts",
+    "src/app/api/v1/events/**",
     "src/lib/services/trip-access.ts",
     "src/lib/services/trip-write-effects.ts",
     "src/app/api/v1/checklist-items/**",
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
     "tests/e2e/api-response.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/components/arrivo/day-card*.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/note-item.tsx",
@@ -476,9 +485,14 @@ export const FEATURE_MAP = [
     "src/components/arrivo/doc-kind-badge.tsx",
     "src/components/arrivo/trip-docs-tab.tsx",
     "src/app/(app)/trips/[tripId]/document-upload-actions.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
     ...STORAGE,
   ]),
-  entry("event-docs", ["src/components/arrivo/event-doc-row.tsx", ...STORAGE]),
+  entry("event-docs", [
+    "src/components/arrivo/event-doc-row.tsx",
+    "src/app/(app)/trips/[tripId]/actions.ts",
+    ...STORAGE,
+  ]),
   entry("linked-events", [
     "src/components/arrivo/active-trip-summary-events.ts",
     "src/components/arrivo/active-trip-summary-time.ts",
@@ -517,6 +531,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/packing-actions.ts",
     // Packing keeps raw keys in the idempotency_keys table that API replay namespaces its own rows in.
     "src/lib/api/idempotency.ts",
+    "src/lib/services/conflict-error.ts",
     "src/lib/error-utils.ts",
   ]),
   entry("packing-lists", [
@@ -525,6 +540,8 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
     "src/lib/api/contract/checklists.ts",
     "src/lib/services/checklists.ts",
+    "src/lib/services/conflict-error.ts",
+    "src/lib/services/trip-write.ts",
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
   ]),
@@ -559,7 +576,11 @@ export const FEATURE_MAP = [
   // SHARED_GLOBS (full suite) down to this one feature — and use-bfcache-refresh is mounted in
   // page-client.tsx, so it can move every trip-detail feature. use-live-sync.ts stays mapped to its
   // own features but is listed here too: the shared-channel registry exists for this modal.
-  entry("revocation-modal", ["src/components/arrivo/contributor-revocation-modal.tsx", "src/lib/use-live-sync.ts"]),
+  entry("revocation-modal", [
+    "src/components/arrivo/contributor-revocation-modal.tsx",
+    "src/lib/use-live-sync.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
+  ]),
   entry("reservations", [
     "src/components/arrivo/reservation*",
     "src/components/arrivo/add-reservation-doc-dialog.tsx",
@@ -628,6 +649,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/cover-*.tsx",
     "src/components/arrivo/trip-cover.tsx",
     "src/app/(app)/trips/[tripId]/cover-upload-actions.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/app/(app)/trips/cover-image-search-actions.ts",
     "src/app/api/mapbox/static/**",
     ...STORAGE,
@@ -642,19 +664,28 @@ export const FEATURE_MAP = [
   entry("trip-live-refresh", [
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
+    "src/lib/services/conflict-error.ts",
+    "src/lib/services/trip-write.ts",
+    "src/lib/services/events.ts",
+    "src/app/api/v1/events/**",
     "src/lib/services/trip-access.ts",
     "src/lib/services/trip-write-effects.ts",
     "src/app/api/v1/checklist-items/**",
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
     "tests/e2e/api-response.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/live-sync-constants.ts",
     "src/lib/use-live-sync.ts",
     "src/lib/use-trip-live-refresh.ts",
     "src/app/api/trips/[tripId]/events/route.ts",
     "src/lib/trip-events.ts",
   ]),
-  entry("trip-notes", ["src/components/arrivo/trip-notes-*.tsx", "src/lib/note-preview.ts"]),
+  entry("trip-notes", [
+    "src/components/arrivo/trip-notes-*.tsx",
+    "src/lib/note-preview.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
+  ]),
   entry("trip-tabs", [
     "src/components/arrivo/active-trip-summary-events.ts",
     "src/components/arrivo/active-trip-summary-time.ts",
@@ -665,6 +696,7 @@ export const FEATURE_MAP = [
   entry("trip-sharing", [
     "tests/e2e/invite-picker.ts",
     "src/app/(app)/trips/actions.ts",
+    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/trip-activity.ts",
     "src/lib/invitable-users.ts",
     "src/lib/with-timeout.ts",

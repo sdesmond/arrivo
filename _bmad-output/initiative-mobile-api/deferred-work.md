@@ -22,3 +22,23 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-retire-checklist-actions-and-complete-api-regression-coverag-plan.md`
   summary: `src/app/(app)/trips/[tripId]/actions.ts` is listed under the `app-activity` FEATURE_MAP entry, which wins over its SHARED_GLOBS entry, so editing it runs only `@feat:app-activity` instead of the full suite.
   evidence: scripts/affected-e2e.mjs checks FEATURE_MAP before SHARED_GLOBS; the module still holds event, day, note and document actions that other features exercise. Pre-existing mapping, not caused by this change.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
+  summary: A second quick event edit sends a stale full snapshot and can revert the first edit's field, because the handler sends all nine fields every time.
+  evidence: Raised by blind-hunter and edge-case-hunter. The retired action also sent the full event; a fix is sending only changed fields (diff against the stored event).
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
+  summary: A failed event PATCH leaves the row showing the unsaved draft: only a toast, no refresh.
+  evidence: Raised by blind-hunter and edge-case-hunter. The retired action had no revert either; an `onError: router.refresh` on `handleEventUpdate` would re-sync.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
+  summary: `useApiMutation` returns early when its hook has unmounted, so an edit queued behind another is discarded if the user navigates away.
+  evidence: `use-api-mutation.ts:51`; shared by every pilot handler. Fix is to let queued requests run and skip only the refresh.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
+  summary: A partial event PATCH can store `endAt` before `startAt`: only per-field format is validated.
+  evidence: Pre-existing (the retired action and `updateEventSchema` had no ordering check). Needs a merged-state check in `services/events.ts` returning 422.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
+  summary: No API reference documents `PATCH /api/v1/events/:eventId` or the pilot endpoints.
+  evidence: Raised by blind-hunter; `docs/plans/mobile-api.md` is the plan, not a reference.

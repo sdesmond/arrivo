@@ -15,6 +15,7 @@ import {
   withIdempotency,
 } from "./idempotency";
 import type { DbTransaction } from "@/lib/server-action-locks";
+import { ConflictError } from "@/lib/services/conflict-error";
 
 const actor = { userId: "user" };
 const request = { key: "retry-1", method: "PATCH", path: "/api/v1/items/abc" };
@@ -199,7 +200,7 @@ it.each([
 ])("returns 409 without mutating or disclosing the result when the %s differs", async (_name, change, body) => {
   seed(envelope());
   const failure = await run({ request: change, body }).catch((error: unknown) => error);
-  expect(failure).toMatchObject({ status: 409, code: "conflict" });
+  expect(failure).toBeInstanceOf(ConflictError);
   expect(JSON.stringify(failure)).not.toContain("stored");
   expect(mutate).not.toHaveBeenCalled();
   expect(upserts).toEqual([]);
@@ -266,9 +267,9 @@ it("fails the request when the record cannot be written so the caller rolls back
 
 it("maps a lock timeout to a retryable conflict and rethrows other lock failures", async () => {
   lockError = Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" });
-  await expect(run()).rejects.toMatchObject({ status: 409, code: "conflict" });
+  await expect(run()).rejects.toBeInstanceOf(ConflictError);
   lockError = new Error("wrapped", { cause: { code: "55P03" } });
-  await expect(run()).rejects.toMatchObject({ status: 409, code: "conflict" });
+  await expect(run()).rejects.toBeInstanceOf(ConflictError);
   lockError = new Error("db down");
   await expect(run()).rejects.toThrow("db down");
   lockError = "weird";

@@ -52,7 +52,6 @@ vi.mock("./actions", () => ({
   removeLastDay: vi.fn(),
   reorderDayItems: vi.fn(),
   updateDay: vi.fn(),
-  updateEvent: vi.fn(),
   updateNote: vi.fn(),
 }));
 
@@ -711,4 +710,61 @@ it("sends checklist item add, edit and delete to the item endpoints", async () =
       ],
     ])
   );
+});
+
+const editedEvent = { id: "event-1", tripId: "trip-1", dayId: "day-1", name: "Dinner", position: 0 };
+it("patches an edited event through the API, sending every cleared optional field as null", async () => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockResolvedValue({});
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleEventUpdate({
+      ...editedEvent,
+      startAt: "2026-08-01T19:00:00.000Z",
+      locationName: "Bistro",
+      locationLat: 0,
+    });
+  });
+  expect(api).toHaveBeenCalledOnce();
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH", path: "/api/v1/events/:eventId" }), {
+    params: { eventId: "event-1" },
+    body: {
+      name: "Dinner",
+      startAt: "2026-08-01T19:00:00.000Z",
+      endAt: null,
+      locationName: "Bistro",
+      locationAddress: null,
+      locationLat: 0,
+      locationLng: null,
+      confirmationNumber: null,
+      note: null,
+    },
+  });
+  expect(mockRefresh).toHaveBeenCalledOnce();
+});
+it("surfaces an event edit failure without refreshing", async () => {
+  const { api, ApiClientError } = await import("@/lib/api/client");
+  vi.mocked(api).mockRejectedValue(new ApiClientError(403, "forbidden", "View access only"));
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleEventUpdate(editedEvent);
+  });
+  expect(toast.error).toHaveBeenCalledWith("View access only");
+  expect(mockRefresh).not.toHaveBeenCalled();
+});
+it("sends rapid edits to one event in the order they were made", async () => {
+  const { api } = await import("@/lib/api/client");
+  const finished: string[] = [];
+  vi.mocked(api).mockImplementation(async (_endpoint, input) => {
+    const name = (input as { body: { name: string } }).body.name;
+    await new Promise((resolve) => setTimeout(resolve, name === "First" ? 20 : 0));
+    finished.push(name);
+    return {};
+  });
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleEventUpdate({ ...editedEvent, name: "First" });
+    result.current.handleEventUpdate({ ...editedEvent, name: "Second" });
+  });
+  await waitFor(() => expect(finished).toEqual(["First", "Second"]));
 });

@@ -24,9 +24,10 @@ import {
   reorderDayItems,
   removeLastDay,
   updateDay,
-  updateEvent,
   updateNote,
 } from "./actions";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { updateEvent as updateEventEndpoint } from "@/lib/api/contract/events";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
@@ -77,6 +78,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [savingTrip, startSaveTripTransition] = React.useTransition();
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
+  const eventMutation = useApiMutation(updateEventEndpoint);
   const packingHandlers = usePackingHandlers(detail);
   const checklistHandlers = useChecklistHandlers(days, {
     tripId: trip.id,
@@ -84,19 +86,25 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   });
 
   function handleEventUpdate(updated: TripEvent): void {
-    React.startTransition(() => {
-      updateEvent(updated.id, {
-        name: updated.name,
-        startAt: updated.startAt,
-        endAt: updated.endAt,
-        locationName: updated.locationName,
-        locationAddress: updated.locationAddress,
-        locationLat: updated.locationLat,
-        locationLng: updated.locationLng,
-        confirmationNumber: updated.confirmationNumber,
-        note: updated.note,
-      });
-    });
+    // The editor clears a field by leaving it undefined, and the API only clears on null, so every field is sent.
+    // Edits to one event share a queue key so they reach the server in the order they were made.
+    void eventMutation.mutate(
+      {
+        params: { eventId: updated.id },
+        body: {
+          name: updated.name,
+          startAt: updated.startAt ?? null,
+          endAt: updated.endAt ?? null,
+          locationName: updated.locationName ?? null,
+          locationAddress: updated.locationAddress ?? null,
+          locationLat: updated.locationLat ?? null,
+          locationLng: updated.locationLng ?? null,
+          confirmationNumber: updated.confirmationNumber ?? null,
+          note: updated.note ?? null,
+        },
+      },
+      { key: `event:${updated.id}` }
+    );
   }
 
   function handleEventDelete(id: string): void {

@@ -17,6 +17,17 @@ import {
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, Before } from "../fixtures";
 
+async function eventIdOf(row: Locator): Promise<string> {
+  const rowId = await row.getAttribute("id");
+  if (!rowId?.startsWith("event-")) throw new Error(`Unexpected event row id ${rowId}.`);
+  return rowId.slice("event-".length);
+}
+
+/** Arm before the save gesture and await after it: reloading first would abort the still-in-flight PATCH. */
+function armEventPatch(page: Page, eventId: string) {
+  return waitForApiResponse(page, { method: "PATCH", path: `/api/v1/events/${eventId}` });
+}
+
 async function openFirstDay(page: Page): Promise<void> {
   const dayToggles = page.locator("button").filter({ hasText: /\d+ stops/ });
   const firstDayToggle = dayToggles.first();
@@ -390,10 +401,23 @@ Given("a day has an event named {string}", async ({ page }, name: string) => {
 When("I edit the event name to {string}", async ({ page }, newName: string) => {
   const row = page.locator('[id^="event-"]').last();
   const rowId = await row.getAttribute("id");
+  const patch = armEventPatch(page, await eventIdOf(row));
   await row.hover();
   await row.locator("button").first().click();
   await page.locator(`#${rowId}`).getByRole("textbox").fill(newName);
   await page.keyboard.press("Enter");
+  await patch;
+});
+
+When("I rename the event {string} to {string}", async ({ page }, name: string, newName: string) => {
+  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+  const rowId = await row.getAttribute("id");
+  const patch = armEventPatch(page, await eventIdOf(row));
+  await row.hover();
+  await row.locator("button").first().click();
+  await page.locator(`#${rowId}`).getByRole("textbox").fill(newName);
+  await page.keyboard.press("Enter");
+  await patch;
 });
 
 Then("the day should show {string}", async ({ page }, name: string) => {
@@ -416,7 +440,9 @@ When("I set the event location for {string} using the first lookup suggestion", 
   await dialog.getByRole("option").first().click();
   await expect(input).toHaveValue("Paris, France");
   await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
+  const patch = armEventPatch(page, await eventIdOf(row));
   await dialog.getByRole("button", { name: "Save" }).click();
+  await patch;
   await expect(dialog).not.toBeVisible({ timeout: 10_000 });
   await expect(row.getByRole("button", { name: /Paris, France/ })).toBeVisible({ timeout: 10_000 });
 });
@@ -425,13 +451,25 @@ When("I open the time picker and set a start time", async ({ page }) => {
   const row = page.locator('[id^="event-"]').filter({ hasText: E2E_EVENT_UNTIMED.name }).first();
   await row.getByRole("button", { name: "Add time" }).click();
   await page.locator('input[type="time"]').first().fill("09:00");
+  const patch = armEventPatch(page, await eventIdOf(row));
   await page.getByRole("button", { name: "Save" }).click();
+  await patch;
 });
 
 Then("the event should display the time", async ({ page }) => {
   const eventRow = page.locator('[id^="event-"]').filter({ hasText: E2E_EVENT_UNTIMED.name }).first();
   await expect(eventRow.getByText(/\d+:\d{2}\s*(AM|PM)/i)).toBeVisible();
 });
+
+Then(
+  "the event {string} still shows a time and the location {string}",
+  async ({ page }, name: string, address: string) => {
+    await openFirstDay(page);
+    const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+    await expect(row.getByText(/\d+:\d{2}\s*(AM|PM)/i)).toBeVisible();
+    await expect(row.getByRole("button", { name: new RegExp(address) })).toBeVisible({ timeout: 10_000 });
+  }
+);
 
 Then("the event {string} should show location {string}", async ({ page }, name: string, address: string) => {
   await openFirstDay(page);
