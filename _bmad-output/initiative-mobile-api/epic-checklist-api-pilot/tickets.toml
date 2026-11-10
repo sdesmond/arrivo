@@ -67,6 +67,19 @@ hitl = false
 risk = "high"
 
 [[entry]]
+id = 11
+type = "story"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+title = "Complete checklist lifecycle UI migration"
+description = "Second half of entry 5, split mid-build: move web checklist creation, title editing and deletion callers onto the lifecycle API contracts, support empty DELETE responses in the API client, and retire the four migrated server actions while preserving draft, expansion and refresh behavior."
+verify = "use-checklist-handlers, client and actions tests plus day-planning lifecycle scenarios prove create, rename and delete through /api/v1 with exact API waits, draft rejection on API/auth failure, null title clearing, first-item expansion and reload persistence."
+covers = ["P5","P6","P9"]
+after = [5]
+hitl = false
+risk = "high"
+
+[[entry]]
 id = 6
 type = "story"
 notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
