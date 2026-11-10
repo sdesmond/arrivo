@@ -17,6 +17,9 @@ import {
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, Before } from "../fixtures";
 
+// A third reorderable event for the rapid-drag scenario; only this step file uses it.
+const E2E_EVENT_REORDER_THIRD = { name: "Drag Third", position: 13 } as const;
+
 async function eventIdOf(row: Locator): Promise<string> {
   const rowId = await row.getAttribute("id");
   if (!rowId?.startsWith("event-")) throw new Error(`Unexpected event row id ${rowId}.`);
@@ -169,6 +172,23 @@ Before({ tags: "@trip-with-reorder-events" }, async ({ scenario }) => {
         events: [
           { ...E2E_EVENT_REORDER_FIRST, dayNumber: 1 },
           { ...E2E_EVENT_REORDER_SECOND, dayNumber: 1 },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+});
+
+Before({ tags: "@trip-with-three-reorder-events" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        events: [
+          { ...E2E_EVENT_REORDER_FIRST, dayNumber: 1 },
+          { ...E2E_EVENT_REORDER_SECOND, dayNumber: 1 },
+          { ...E2E_EVENT_REORDER_THIRD, dayNumber: 1 },
         ],
       },
       setCurrent: true,
@@ -515,7 +535,14 @@ Given("a day has events {string} and {string} in order", async ({ page }, first:
   await expect(page.locator('[id^="event-"]').filter({ hasText: second }).first()).toBeVisible();
 });
 
-When("I drag {string} above {string}", async ({ page }, source: string, target: string) => {
+async function dayIdOfEvent(page: Page, name: string): Promise<string> {
+  const eventId = await eventIdOf(page.locator('[id^="event-"]').filter({ hasText: name }).first());
+  const [row] = await withE2EDb((db) => db.select({ dayId: events.dayId }).from(events).where(eq(events.id, eventId)));
+  if (!row?.dayId) throw new Error(`Event "${name}" is not on a day.`);
+  return row.dayId;
+}
+
+async function dragEventAbove(page: Page, source: string, target: string): Promise<void> {
   const sourceRow = page.locator('[id^="event-"]').filter({ hasText: source }).first();
   const targetRow = page.locator('[id^="event-"]').filter({ hasText: target }).first();
   await sourceRow.hover();
@@ -536,7 +563,81 @@ When("I drag {string} above {string}", async ({ page }, source: string, target: 
   await page.mouse.down();
   await page.mouse.move(targetMidX, targetMidY, { steps: 10 });
   await page.mouse.up();
+}
+
+// Arm before the drop and await after it: reloading first would abort the still-in-flight PUT.
+When("I drag {string} above {string}", async ({ page }, source: string, target: string) => {
+  const dayId = await dayIdOfEvent(page, source);
+  const saved = waitForApiResponse(page, { method: "PUT", path: `/api/v1/days/${dayId}/order` });
+  await dragEventAbove(page, source, target);
+  await saved;
 });
+
+const DAY_ORDER_PATH = /^\/api\/v1\/days\/[^/]+\/order$/;
+const daySaves = new WeakMap<Page, { ok: number; failed: number }>();
+
+function trackDayOrderSaves(page: Page): { ok: number; failed: number } {
+  let saves = daySaves.get(page);
+  if (!saves) {
+    const counts = { ok: 0, failed: 0 };
+    saves = counts;
+    daySaves.set(page, counts);
+    page.on("response", (response) => {
+      if (response.request().method() !== "PUT" || !DAY_ORDER_PATH.test(new URL(response.url()).pathname)) return;
+      if (response.ok()) counts.ok += 1;
+      else counts.failed += 1;
+    });
+  }
+  return saves;
+}
+
+When(
+  "I drag {string} above {string} without waiting for the save",
+  async ({ page }, source: string, target: string) => {
+    trackDayOrderSaves(page);
+    await dragEventAbove(page, source, target);
+    // The optimistic order shows at once; the next drag must start from it, not from the pre-drop layout.
+    await expect(async () => {
+      const sourceBox = await page.locator('[id^="event-"]').filter({ hasText: source }).first().boundingBox();
+      const targetBox = await page.locator('[id^="event-"]').filter({ hasText: target }).first().boundingBox();
+      expect(sourceBox!.y).toBeLessThan(targetBox!.y);
+    }).toPass({ timeout: 10_000 });
+  }
+);
+
+Then("{int} day order saves complete without failure", async ({ page }, count: number) => {
+  const saves = trackDayOrderSaves(page);
+  await expect.poll(() => saves.ok, { timeout: 15_000 }).toBe(count);
+  expect(saves.failed).toBe(0);
+});
+
+Then(
+  "after reload the events are ordered {string}, {string} then {string}",
+  async ({ page, scenario }, first: string, second: string, third: string) => {
+    const currentTrip = scenario.currentTrip;
+    if (!currentTrip) throw new Error("Current scenario trip is missing.");
+    await page.reload();
+    await openFirstDay(page);
+    const names = [first, second, third];
+    await expect(async () => {
+      const tops: number[] = [];
+      for (const name of names) {
+        const box = await page.locator('[id^="event-"]').filter({ hasText: name }).first().boundingBox();
+        expect(box).not.toBeNull();
+        tops.push(box!.y);
+      }
+      expect(tops).toEqual([...tops].sort((left, right) => left - right));
+    }).toPass({ timeout: 10_000 });
+    const stored = await withE2EDb((db) =>
+      db
+        .select({ name: events.name, position: events.position })
+        .from(events)
+        .where(eq(events.tripId, currentTrip.id))
+        .orderBy(events.position)
+    );
+    expect(stored).toEqual(names.map((name, position) => ({ name, position })));
+  }
+);
 
 Then("the order should be {string} then {string}", async ({ page, scenario }, first: string, second: string) => {
   await expect(async () => {

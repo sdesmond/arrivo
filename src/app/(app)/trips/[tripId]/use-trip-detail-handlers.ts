@@ -21,13 +21,13 @@ import {
   createNote,
   deleteEvent,
   deleteNote,
-  reorderDayItems,
   removeLastDay,
   updateDay,
   updateNote,
 } from "./actions";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { updateEvent as updateEventEndpoint } from "@/lib/api/contract/events";
+import { reorderDay as reorderDayEndpoint } from "@/lib/api/contract/days";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
@@ -84,6 +84,7 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const eventMutation = useApiMutation(updateEventEndpoint);
+  const dayOrderMutation = useApiMutation(reorderDayEndpoint);
   const packingHandlers = usePackingHandlers(detail);
   const checklistHandlers = useChecklistHandlers(days, {
     tripId: trip.id,
@@ -121,18 +122,12 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return;
-    React.startTransition(async () => {
-      try {
-        await reorderDayItems({ dayId: day.id!, orderedItems });
-      } catch (error) {
-        if (error instanceof Error && error.message === "CONCURRENT_MODIFICATION") {
-          toast.error("This day changed elsewhere. Refreshing the itinerary.");
-        } else {
-          toast.error("Failed to reorder items. Refreshing the itinerary.");
-        }
-        router.refresh();
-      }
-    });
+    // Every drag in one day shares a queue key, so rapid drags reach the server in order and the last list wins.
+    // The hook toasts the failure (a stale list is a 409 with its own message); the page is refreshed to the stored order.
+    void dayOrderMutation.mutate(
+      { params: { dayId: day.id }, body: { items: orderedItems } },
+      { key: `day-order:${day.id}`, onError: () => router.refresh() }
+    );
   }
 
   function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): Promise<void> {

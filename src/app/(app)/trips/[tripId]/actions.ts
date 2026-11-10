@@ -37,7 +37,6 @@ import {
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type {
   CreateEventInput,
-  ReorderDayItemsInput,
   UpdateDayPatch,
   AddDocumentInput,
   RemoveLastDayResult,
@@ -89,10 +88,6 @@ export async function saveContributorChanges(tripId: string, changes: Contributo
 }
 
 type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;
-
-function buildDayItemKey(type: "event" | "note" | "checklist", id: string): string {
-  return `${type}:${id}`;
-}
 
 function publishItineraryChanged(tripId: string): void {
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
@@ -264,61 +259,6 @@ export async function deleteEventWithDocDecision(eventId: string, keepDocs: bool
     );
   }
 
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function reorderDayItems(input: ReorderDayItemsInput): Promise<void> {
-  const user = await requireUser();
-  const tripId = await getDayTripId(input.dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, tripId);
-
-    const [currentEvents, currentNotes, currentChecklists] = await Promise.all([
-      tx.select({ id: events.id }).from(events).where(eq(events.dayId, input.dayId)),
-      tx.select({ id: itineraryNotes.id }).from(itineraryNotes).where(eq(itineraryNotes.dayId, input.dayId)),
-      tx
-        .select({ id: itineraryChecklists.id })
-        .from(itineraryChecklists)
-        .where(eq(itineraryChecklists.dayId, input.dayId)),
-    ]);
-
-    const currentItemKeys = new Set([
-      ...currentEvents.map((event) => buildDayItemKey("event", event.id)),
-      ...currentNotes.map((note) => buildDayItemKey("note", note.id)),
-      ...currentChecklists.map((checklist) => buildDayItemKey("checklist", checklist.id)),
-    ]);
-    const submittedItemKeys = new Set(input.orderedItems.map((item) => buildDayItemKey(item.type, item.id)));
-
-    if (
-      currentItemKeys.size !== submittedItemKeys.size ||
-      [...currentItemKeys].some((itemKey) => !submittedItemKeys.has(itemKey))
-    ) {
-      throw new Error(CONCURRENT_MODIFICATION_ERROR);
-    }
-
-    for (let i = 0; i < input.orderedItems.length; i++) {
-      const item = input.orderedItems[i];
-      if (item.type === "event") {
-        await tx
-          .update(events)
-          .set({ position: i })
-          .where(and(eq(events.id, item.id), eq(events.dayId, input.dayId)));
-      } else if (item.type === "note") {
-        await tx
-          .update(itineraryNotes)
-          .set({ position: i })
-          .where(and(eq(itineraryNotes.id, item.id), eq(itineraryNotes.dayId, input.dayId)));
-      } else {
-        await tx
-          .update(itineraryChecklists)
-          .set({ position: i })
-          .where(and(eq(itineraryChecklists.id, item.id), eq(itineraryChecklists.dayId, input.dayId)));
-      }
-    }
-  });
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);

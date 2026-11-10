@@ -4,20 +4,19 @@ import {
   checklistItems,
   itineraryChecklists,
   days,
-  events,
-  itineraryNotes,
   packingItems,
   packingTemplateItems,
   packingTemplates,
   tripPackingLists,
 } from "@/db/schema";
-import { and, asc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { Actor, Checklist, ChecklistItem, IdempotentRequest } from "@/data/types";
 import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite } from "./trip-write";
 import { ConflictError } from "./conflict-error";
+import { shiftFromPosition } from "./timeline-positions";
 import {
   createChecklist as createContract,
   updateChecklistTitle as titleContract,
@@ -183,12 +182,7 @@ export async function createChecklist(
             collision();
           }
         }
-        for (const table of [events, itineraryNotes, itineraryChecklists]) {
-          await transaction
-            .update(table)
-            .set({ position: sql`${table.position} + 1` })
-            .where(and(eq(table.dayId, body.dayId), gte(table.position, body.position)));
-        }
+        await shiftFromPosition(transaction, body.dayId, body.position);
         const now = getNow();
         const [created] = await transaction
           .insert(itineraryChecklists)

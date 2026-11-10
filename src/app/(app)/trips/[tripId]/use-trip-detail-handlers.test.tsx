@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { createEvent, createNote, reorderDayItems } from "./actions";
+import { createEvent, createNote } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -50,7 +50,6 @@ vi.mock("./actions", () => ({
   deleteEvent: vi.fn(),
   deleteNote: vi.fn(),
   removeLastDay: vi.fn(),
-  reorderDayItems: vi.fn(),
   updateDay: vi.fn(),
   updateNote: vi.fn(),
 }));
@@ -98,38 +97,87 @@ describe("useTripDetailHandlers", () => {
     vi.clearAllMocks();
   });
 
-  it("delegates successful day reorders without surfacing an error", async () => {
-    vi.mocked(reorderDayItems).mockResolvedValueOnce(undefined);
+  it("sends a day reorder through the API under the day's queue key without surfacing an error", async () => {
+    const { api } = await import("@/lib/api/client");
+    const items = [{ type: "event" as const, id: "event-1" }];
+    vi.mocked(api).mockResolvedValueOnce({ dayId: "day-1", items });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
-    act(() => {
-      result.current.handleDayItemsReorder(1, [{ type: "event", id: "event-1" }]);
+    await act(async () => {
+      result.current.handleDayItemsReorder(1, items);
     });
 
-    await waitFor(() =>
-      expect(reorderDayItems).toHaveBeenCalledWith({
-        dayId: "day-1",
-        orderedItems: [{ type: "event", id: "event-1" }],
-      })
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "PUT", path: "/api/v1/days/:dayId/order" }),
+      { params: { dayId: "day-1" }, body: { items } }
     );
     expect(toast.error).not.toHaveBeenCalled();
-    expect(mockRefresh).not.toHaveBeenCalled();
+    // Only the mutation hook's post-write refresh; the failure refresh is not taken.
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
 
-  it("shows a toast and refreshes the route when the server rejects a stale reorder", async () => {
-    vi.mocked(reorderDayItems).mockRejectedValueOnce(new Error("CONCURRENT_MODIFICATION"));
+  it("toasts the 409 message and refreshes the route once when the list is stale", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(409, "conflict", "This day changed since it was loaded."));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
-    act(() => {
+    await act(async () => {
       result.current.handleDayItemsReorder(1, [{ type: "event", id: "event-1" }]);
     });
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("This day changed elsewhere. Refreshing the itinerary.")
-    );
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("This day changed since it was loaded.");
     expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("refreshes the route once when the reorder fails on the network", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleDayItemsReorder(1, [{ type: "event", id: "event-1" }]);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Could not reach the server.");
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("sends rapid drags in one day in order so the last list wins", async () => {
+    const { api } = await import("@/lib/api/client");
+    const finished: string[] = [];
+    vi.mocked(api).mockImplementationOnce(async (_endpoint, input) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      finished.push((input as { body: { items: { id: string }[] } }).body.items[0].id);
+      return {};
+    });
+    vi.mocked(api).mockImplementation(async (_endpoint, input) => {
+      finished.push((input as { body: { items: { id: string }[] } }).body.items[0].id);
+      return {};
+    });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleDayItemsReorder(1, [{ type: "event", id: "first" }]);
+      result.current.handleDayItemsReorder(1, [{ type: "event", id: "second" }]);
+      result.current.handleDayItemsReorder(1, [{ type: "event", id: "third" }]);
+    });
+
+    await waitFor(() => expect(finished).toEqual(["first", "second", "third"]));
+  });
+
+  it("ignores a reorder for a day number that does not exist", async () => {
+    const { api } = await import("@/lib/api/client");
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleDayItemsReorder(9, [{ type: "event", id: "event-1" }]);
+    });
+
+    expect(api).not.toHaveBeenCalled();
   });
 
   it("deletes the trip and returns to the trips list", async () => {

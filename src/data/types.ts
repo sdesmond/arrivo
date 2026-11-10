@@ -1318,9 +1318,15 @@ export interface CreateEventInput {
 
 export type DayItemType = "event" | "note" | "checklist";
 
-export interface ReorderDayItemsInput {
+export interface DayItemRef {
+  type: DayItemType;
+  id: string;
+}
+
+/** A day's complete timeline order, as stored. */
+export interface DayItemOrder {
   dayId: string;
-  orderedItems: { type: DayItemType; id: string }[];
+  items: DayItemRef[];
 }
 
 export interface UpdateDayPatch {

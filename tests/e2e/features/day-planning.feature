@@ -47,6 +47,13 @@ Feature: Day Planning
     When I drag "Drag Second" above "Drag First"
     Then the order should be "Drag Second" then "Drag First"
 
+  @trip-with-three-reorder-events
+  Scenario: Rapid successive drags in one day keep the last order after reload
+    When I drag "Drag Third" above "Drag First" without waiting for the save
+    And I drag "Drag Second" above "Drag Third" without waiting for the save
+    Then 2 day order saves complete without failure
+    And after reload the events are ordered "Drag Second", "Drag Third" then "Drag First"
+
   Scenario: User adds, edits, and deletes a note
     Given I am on the trip detail page
     When I add a note "Pick up sunscreen at duty free"
