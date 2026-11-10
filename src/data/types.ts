@@ -1302,20 +1302,6 @@ export const TripCurrencyChangeMode = {
 } as const;
 export type TripCurrencyChangeMode = (typeof TripCurrencyChangeMode)[keyof typeof TripCurrencyChangeMode];
 
-export interface CreateEventInput {
-  name: string;
-  startAt?: string; // ISO datetime
-  endAt?: string;
-  locationName?: string;
-  locationAddress?: string;
-  locationLat?: number;
-  locationLng?: number;
-  confirmationNumber?: string;
-  note?: string;
-  afterEventId?: string;
-  insertAtPosition?: number;
-}
-
 export type DayItemType = "event" | "note" | "checklist";
 
 export interface DayItemRef {

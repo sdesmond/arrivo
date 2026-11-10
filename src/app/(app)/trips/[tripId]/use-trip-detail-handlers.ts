@@ -15,18 +15,13 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
-import {
-  addDay,
-  createEvent,
-  createNote,
-  deleteEvent,
-  deleteNote,
-  removeLastDay,
-  updateDay,
-  updateNote,
-} from "./actions";
+import { addDay, createNote, deleteNote, removeLastDay, updateDay, updateNote } from "./actions";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
-import { updateEvent as updateEventEndpoint } from "@/lib/api/contract/events";
+import {
+  createEvent as createEventEndpoint,
+  deleteEvent as deleteEventEndpoint,
+  updateEvent as updateEventEndpoint,
+} from "@/lib/api/contract/events";
 import { reorderDay as reorderDayEndpoint } from "@/lib/api/contract/days";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
@@ -41,7 +36,13 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
-  handleAddEvent: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  handleAddEvent: (
+    dayNumber: number,
+    name: string,
+    afterEventId?: string,
+    insertAtPosition?: number,
+    clientId?: string
+  ) => Promise<void>;
   handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   handleUpdateNote: (noteId: string, content: string) => void;
   handleDeleteNote: (noteId: string) => void;
@@ -84,6 +85,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const eventMutation = useApiMutation(updateEventEndpoint);
+  const eventCreateMutation = useApiMutation(createEventEndpoint);
+  const eventDeleteMutation = useApiMutation(deleteEventEndpoint);
   const dayOrderMutation = useApiMutation(reorderDayEndpoint);
   const packingHandlers = usePackingHandlers(detail);
   const checklistHandlers = useChecklistHandlers(days, {
@@ -114,9 +117,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   function handleEventDelete(id: string): void {
-    React.startTransition(() => {
-      deleteEvent(id);
-    });
+    // Documents are discarded; an event with documents goes through the dialog, which chooses.
+    void eventDeleteMutation.mutate({ params: { eventId: id }, body: { tripId: trip.id } }, { key: `event:${id}` });
   }
 
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
@@ -151,22 +153,41 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     dayNumber: number,
     name: string,
     afterEventId?: string,
-    insertAtPosition?: number
+    insertAtPosition?: number,
+    clientId?: string
   ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await createEvent(day.id!, { name, afterEventId, insertAtPosition });
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add event. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    let created = false;
+    let failure: unknown;
+    // The hook toasts a failure; rejecting keeps the draft open, and its retained id makes a retry a replay.
+    return eventCreateMutation
+      .mutate(
+        {
+          params: { dayId: day.id },
+          body: {
+            ...(clientId ? { id: clientId } : {}),
+            name,
+            ...(afterEventId ? { afterEventId } : {}),
+            ...(insertAtPosition !== undefined ? { insertAtPosition } : {}),
+          },
+        },
+        {
+          onSuccess: () => {
+            created = true;
+          },
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
+      )
+      .then(() => {
+        if (created) return;
+        throw failure instanceof Error ? failure : new Error("Failed to add event. Please try again.");
       });
-    });
   }
 
   function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): Promise<void> {

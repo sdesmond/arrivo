@@ -96,7 +96,7 @@ describe("useDayDraft", () => {
     act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "gap-0"));
     await act(async () => result.current.commitDraft("Cafe"));
 
-    expect(onAddEvent).toHaveBeenCalledWith(1, "Cafe", "event-1");
+    expect(onAddEvent).toHaveBeenCalledWith(1, "Cafe", "event-1", undefined, expect.any(String));
   });
 
   it("commitDraft falls back to insertAtPosition when the preceding item is a linked event", async () => {
@@ -109,7 +109,7 @@ describe("useDayDraft", () => {
     act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "gap-0"));
     await act(async () => result.current.commitDraft("Snack"));
 
-    expect(onAddEvent).toHaveBeenCalledWith(1, "Snack", undefined, 1);
+    expect(onAddEvent).toHaveBeenCalledWith(1, "Snack", undefined, 1, expect.any(String));
   });
 
   it("commitDraft falls back to insertAtPosition for a bottom-gap event draft", async () => {
@@ -119,7 +119,7 @@ describe("useDayDraft", () => {
     act(() => result.current.activateDraft(ItineraryItemType.Event, 3, "bottom"));
     await act(async () => result.current.commitDraft("Dinner"));
 
-    expect(onAddEvent).toHaveBeenCalledWith(1, "Dinner", undefined, 3);
+    expect(onAddEvent).toHaveBeenCalledWith(1, "Dinner", undefined, 3, expect.any(String));
   });
 
   it("keeps the draft open when the commit rejects, so the user can retry", async () => {
@@ -307,6 +307,66 @@ describe("useDayDraft", () => {
     await act(async () => result.current.commitDraft("x"));
 
     expect(onAddChecklist).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends one ID per event draft across a rejected commit and a repeat commit", async () => {
+    const onAddEvent = vi.fn().mockRejectedValueOnce(new Error("failed")).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddEvent })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("Cafe"));
+    await act(async () => result.current.commitDraft("Cafe"));
+
+    expect(onAddEvent).toHaveBeenCalledTimes(2);
+    expect(onAddEvent.mock.calls[0][4]).toEqual(expect.any(String));
+    expect(onAddEvent.mock.calls[1][4]).toBe(onAddEvent.mock.calls[0][4]);
+  });
+
+  it("clears an event draft when its own ID lands even though the commit rejected (lost response)", async () => {
+    const onAddEvent = vi.fn().mockRejectedValue(new Error("timed out"));
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddEvent }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("Cafe"));
+    expect(result.current.draft).not.toBeNull();
+    const draftId = onAddEvent.mock.calls[0][4];
+
+    rerender(buildOptions({ propTimelineItemIds: ["a", draftId], onAddEvent }));
+    expect(result.current.draft).toBeNull();
+  });
+
+  it("re-arms a committed event draft when the day changes without growing, and reuses its ID", async () => {
+    const onAddEvent = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddEvent }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("Cafe"));
+    await act(async () => result.current.commitDraft("Cafe"));
+    expect(onAddEvent).toHaveBeenCalledTimes(1);
+
+    rerender(buildOptions({ propTimelineItemIds: ["a"], onAddEvent }));
+    expect(result.current.draft).not.toBeNull();
+    await act(async () => result.current.commitDraft("Cafe"));
+
+    expect(onAddEvent).toHaveBeenCalledTimes(2);
+    expect(onAddEvent.mock.calls[1][4]).toBe(onAddEvent.mock.calls[0][4]);
+  });
+
+  it("mints a new event ID for each new event draft", async () => {
+    const onAddEvent = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddEvent })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("Cafe"));
+    act(() => result.current.cancelDraft());
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("Bar"));
+
+    expect(onAddEvent.mock.calls[1][4]).not.toBe(onAddEvent.mock.calls[0][4]);
   });
 
   it("mints a new ID after cancel and for each new draft", async () => {

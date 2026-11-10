@@ -16,7 +16,13 @@ export interface UseDayDraftOptions {
   dayNumber: number;
   timelineItems: TimelineItem[];
   propTimelineItemIds: string[];
-  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  onAddEvent?: (
+    dayNumber: number,
+    name: string,
+    afterEventId?: string,
+    insertAtPosition?: number,
+    clientId?: string
+  ) => Promise<void>;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onAddChecklist?: (
     dayNumber: number,
@@ -110,7 +116,8 @@ export function useDayDraft({
   async function commitDraft(content: string): Promise<void> {
     if (!draft || commitStartedRef.current) return;
     commitStartedRef.current = true;
-    const baseline = { count: itemCount, signature, canRearm: draft.kind === ItineraryItemType.Checklist };
+    // Events and checklists carry the draft's client ID, so only they may re-arm: a duplicate commit is a replay.
+    const baseline = { count: itemCount, signature, canRearm: draft.kind !== ItineraryItemType.Note };
     try {
       if (draft.kind === ItineraryItemType.Note) {
         await onAddNote?.(dayNumber, content, draft.insertAtPosition);
@@ -126,10 +133,11 @@ export function useDayDraft({
         const itemBefore = gapIndex >= 0 ? timelineItems[gapIndex] : undefined;
         const afterEventId =
           itemBefore?.kind === "event" && !itemBefore.data.linkedReservationId ? itemBefore.data.id : undefined;
+        const clientId = draftIdRef.current ?? undefined;
         if (afterEventId) {
-          await onAddEvent?.(dayNumber, content, afterEventId);
+          await onAddEvent?.(dayNumber, content, afterEventId, undefined, clientId);
         } else {
-          await onAddEvent?.(dayNumber, content, undefined, draft.insertAtPosition);
+          await onAddEvent?.(dayNumber, content, undefined, draft.insertAtPosition, clientId);
         }
       }
       committedRef.current = baseline;

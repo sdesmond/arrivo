@@ -90,6 +90,9 @@ vi.mock("./day-card-bottom-add", () => ({
       <button onClick={() => activateDraft(ItineraryItemType.Checklist, bottomInsertPosition, "bottom")}>
         Activate checklist draft
       </button>
+      <button onClick={() => activateDraft(ItineraryItemType.Event, bottomInsertPosition, "bottom")}>
+        Activate event draft
+      </button>
     </div>
   ),
 }));
@@ -732,6 +735,30 @@ describe("DayCardBody", () => {
         day={{ ...day, checklists: [...rest, { id: draftId, tripDayId: "day-1", position: 3, items: [] }] }}
         {...base}
       />
+    );
+
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");
+  });
+
+  it("sends an event draft's client ID to onAddEvent and clears the draft once that event lands in props", async () => {
+    const onAddEvent = vi.fn().mockResolvedValue(undefined);
+    const base = { onUpdateEvent: vi.fn(), onDeleteEvent: vi.fn(), onReorderDayItems: vi.fn(), onAddEvent };
+    const { rerender } = render(<DayCardBody day={day} {...base} />);
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate event draft" }).click();
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    expect(onAddEvent).toHaveBeenCalledWith(1, "typed content", undefined, 3, expect.any(String));
+    const draftId = onAddEvent.mock.calls[0][4] as string;
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    const [, ...rest] = day.events!;
+    rerender(
+      <DayCardBody day={{ ...day, events: [...rest, { id: draftId, name: "typed content", position: 3 }] }} {...base} />
     );
 
     expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");

@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { createEvent, createNote } from "./actions";
+import { createNote } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -45,9 +45,7 @@ vi.mock("../packing-actions", () => ({
 
 vi.mock("./actions", () => ({
   addDay: vi.fn(),
-  createEvent: vi.fn(),
   createNote: vi.fn(),
-  deleteEvent: vi.fn(),
   deleteNote: vi.fn(),
   removeLastDay: vi.fn(),
   updateDay: vi.fn(),
@@ -193,26 +191,60 @@ describe("useTripDetailHandlers", () => {
     expect(mockPush).toHaveBeenCalledWith("/trips");
   });
 
-  it("handleAddEvent resolves the returned promise on success", async () => {
-    vi.mocked(createEvent).mockResolvedValueOnce(undefined);
+  it("handleAddEvent creates through the API with the draft id and the reference event", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "draft-1" });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     let addPromise: Promise<void> | undefined;
     act(() => {
-      addPromise = result.current.handleAddEvent(1, "Museum");
+      addPromise = result.current.handleAddEvent(1, "Museum", "event-0", undefined, "draft-1");
     });
 
     await expect(addPromise).resolves.toBeUndefined();
-    expect(createEvent).toHaveBeenCalledWith("day-1", {
-      name: "Museum",
-      afterEventId: undefined,
-      insertAtPosition: undefined,
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/days/:dayId/events" }),
+      { params: { dayId: "day-1" }, body: { id: "draft-1", name: "Museum", afterEventId: "event-0" } }
+    );
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("handleAddEvent sends an insert position, including 0, and no id or reference when none is given", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({});
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleAddEvent(1, "Museum", undefined, 0);
+    });
+
+    expect(api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ method: "POST" }), {
+      params: { dayId: "day-1" },
+      body: { name: "Museum", insertAtPosition: 0 },
+    });
+  });
+
+  it("handleAddEvent appends when no placement is given", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({});
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleAddEvent(1, "Museum");
+    });
+
+    expect(api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ method: "POST" }), {
+      params: { dayId: "day-1" },
+      body: { name: "Museum" },
     });
   });
 
   it("handleAddEvent rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(createEvent).mockRejectedValueOnce(new Error("Add event failed"));
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(500, "server_error", "Add event failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -223,6 +255,63 @@ describe("useTripDetailHandlers", () => {
 
     await expect(addPromise).rejects.toThrow("Add event failed");
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add event failed"));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("handleAddEvent rejects with the session message when the session was lost", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    let addPromise: Promise<void> | undefined;
+    act(() => {
+      addPromise = result.current.handleAddEvent(1, "Museum");
+    });
+
+    await expect(addPromise).rejects.toThrow("Your session has expired.");
+  });
+
+  it("handleAddEvent ignores a day number that does not exist", async () => {
+    const { api } = await import("@/lib/api/client");
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleAddEvent(9, "Museum");
+    });
+
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("handleEventDelete deletes through the API with the trip, then refreshes", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleEventDelete("event-1");
+    });
+
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "DELETE", path: "/api/v1/events/:eventId" }),
+      { params: { eventId: "event-1" }, body: { tripId: "trip-1" } }
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("handleEventDelete toasts a failure and does not refresh", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(403, "forbidden", "View access only"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleEventDelete("event-1");
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("View access only");
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("handleAddNote resolves the returned promise on success", async () => {

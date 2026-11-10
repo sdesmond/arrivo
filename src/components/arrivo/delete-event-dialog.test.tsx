@@ -24,8 +24,9 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  deleteEventWithDocDecision: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
 const toastError = vi.fn();
@@ -36,10 +37,11 @@ vi.mock("sonner", () => ({
 }));
 
 import { DeleteEventDialog } from "./delete-event-dialog";
-import { deleteEventWithDocDecision } from "@/app/(app)/trips/[tripId]/actions";
+import { api, ApiClientError } from "@/lib/api/client";
 
 const defaultProps = {
   eventId: "ev-1",
+  tripId: "trip-1",
   eventName: "Museum Visit",
   docCount: 2,
   open: true,
@@ -49,7 +51,7 @@ const defaultProps = {
 describe("DeleteEventDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(deleteEventWithDocDecision).mockResolvedValue(undefined);
+    vi.mocked(api).mockResolvedValue(null);
   });
 
   describe("rendering", () => {
@@ -91,14 +93,17 @@ describe("DeleteEventDialog", () => {
   });
 
   describe("Keep documents path", () => {
-    it("calls deleteEventWithDocDecision(eventId, true)", async () => {
+    it("deletes through the API with the trip and keepDocuments true", async () => {
       const user = userEvent.setup();
       render(<DeleteEventDialog {...defaultProps} />);
       await user.click(screen.getByRole("button", { name: /keep documents/i }));
-      expect(deleteEventWithDocDecision).toHaveBeenCalledWith("ev-1", true);
+      expect(api).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ method: "DELETE", path: "/api/v1/events/:eventId" }),
+        { params: { eventId: "ev-1" }, body: { tripId: "trip-1", keepDocuments: true } }
+      );
     });
 
-    it("closes the dialog after the server action resolves", async () => {
+    it("closes the dialog after the API call resolves", async () => {
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
       render(<DeleteEventDialog {...defaultProps} onOpenChange={onOpenChange} />);
@@ -106,26 +111,29 @@ describe("DeleteEventDialog", () => {
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     });
 
-    it("does not close the dialog and shows a toast when the server action throws", async () => {
+    it("does not close the dialog and shows the API error when the call fails", async () => {
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
-      vi.mocked(deleteEventWithDocDecision).mockRejectedValueOnce(new Error("boom"));
+      vi.mocked(api).mockRejectedValueOnce(new ApiClientError(500, "server_error", "boom"));
       render(<DeleteEventDialog {...defaultProps} onOpenChange={onOpenChange} />);
       await user.click(screen.getByRole("button", { name: /keep documents/i }));
-      await waitFor(() => expect(toastError).toHaveBeenCalled());
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith("boom"));
       expect(onOpenChange).not.toHaveBeenCalled();
     });
   });
 
   describe("Delete everything path", () => {
-    it("calls deleteEventWithDocDecision(eventId, false)", async () => {
+    it("deletes through the API with the trip and keepDocuments false", async () => {
       const user = userEvent.setup();
       render(<DeleteEventDialog {...defaultProps} />);
       await user.click(screen.getByRole("button", { name: /delete everything/i }));
-      expect(deleteEventWithDocDecision).toHaveBeenCalledWith("ev-1", false);
+      expect(api).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ method: "DELETE", path: "/api/v1/events/:eventId" }),
+        { params: { eventId: "ev-1" }, body: { tripId: "trip-1", keepDocuments: false } }
+      );
     });
 
-    it("closes the dialog after the server action resolves", async () => {
+    it("closes the dialog after the API call resolves", async () => {
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
       render(<DeleteEventDialog {...defaultProps} onOpenChange={onOpenChange} />);
@@ -133,23 +141,23 @@ describe("DeleteEventDialog", () => {
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     });
 
-    it("does not close the dialog and shows a toast when the server action throws", async () => {
+    it("does not close the dialog and shows the API error when the call fails", async () => {
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
-      vi.mocked(deleteEventWithDocDecision).mockRejectedValueOnce(new Error("boom"));
+      vi.mocked(api).mockRejectedValueOnce(new ApiClientError(500, "server_error", "boom"));
       render(<DeleteEventDialog {...defaultProps} onOpenChange={onOpenChange} />);
       await user.click(screen.getByRole("button", { name: /delete everything/i }));
-      await waitFor(() => expect(toastError).toHaveBeenCalled());
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith("boom"));
       expect(onOpenChange).not.toHaveBeenCalled();
     });
   });
 
   describe("Cancel path", () => {
-    it("does not call deleteEventWithDocDecision when Cancel is clicked", async () => {
+    it("does not call the API when Cancel is clicked", async () => {
       const user = userEvent.setup();
       render(<DeleteEventDialog {...defaultProps} />);
       await user.click(screen.getByRole("button", { name: /cancel/i }));
-      expect(deleteEventWithDocDecision).not.toHaveBeenCalled();
+      expect(api).not.toHaveBeenCalled();
     });
 
     it("calls onOpenChange(false) when Cancel is clicked", async () => {
@@ -166,7 +174,7 @@ describe("DeleteEventDialog", () => {
       render(<DeleteEventDialog {...defaultProps} onOpenChange={onOpenChange} />);
       await user.click(screen.getByTestId("dialog-escape"));
       expect(onOpenChange).toHaveBeenCalledWith(false);
-      expect(deleteEventWithDocDecision).not.toHaveBeenCalled();
+      expect(api).not.toHaveBeenCalled();
     });
   });
 
