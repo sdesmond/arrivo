@@ -15,6 +15,7 @@ import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite } from "./trip-write";
+import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { shiftFromPosition } from "./timeline-positions";
 import {
@@ -48,12 +49,6 @@ async function mappedChecklist(
 }
 function collision(): never {
   throw new ConflictError("This ID was already used for different checklist content.");
-}
-/** Serializes client UUIDs across trips. Sorted, so concurrent claims always lock in one order. */
-async function lockClientIds(transaction: DbTransaction, resources: (string | undefined)[]): Promise<void> {
-  for (const resource of resources.filter((entry): entry is string => Boolean(entry)).sort()) {
-    await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${resource}, 0))`);
-  }
 }
 async function readItem(executor: Pick<DbTransaction, "select">, itemId: string) {
   const [item] = await executor.select().from(checklistItems).where(eq(checklistItems.id, itemId));
