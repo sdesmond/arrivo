@@ -18,6 +18,14 @@ Feature: Absolute checklist checked-state API
     When I reuse the lifecycle checklist UUID with different content
     Then the lifecycle API returns 409
 
+  Scenario: Lifecycle UUID retry after another insert shifted the position replays the stored checklist
+    Given my checklist API role is "editor"
+    When I create a checklist with its first item through the lifecycle API concurrently
+    And I create another checklist at the lifecycle position
+    And I retry the lifecycle checklist creation
+    Then the lifecycle retry returns the original checklist at its shifted position
+    And the day holds the original and the shifting checklist once after reload
+
   Scenario: Lifecycle title partial updates and repeated deletion persist
     Given my checklist API role is "editor"
     When I create a checklist with its first item through the lifecycle API concurrently
