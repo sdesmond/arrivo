@@ -1,0 +1,133 @@
+# Epic 2: notes and itinerary through the API (source phase 2, first slices). Single lane: every entry edits
+# actions.ts, tests/e2e/feature-map.mjs and api.feature, so each waits on the one before it.
+# Entries are planned; build plans own execution status. No estimates or calendar dates assigned.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Edit one event through the API"
+description = "Tracer: add a transport-neutral ConflictError (migrating the pilot's collision() and idempotency 409s), map trips/[tripId]/actions.ts so its edits run every feature it serves, and ship the event service with partial PATCH /api/v1/events/:eventId (absent unchanged, null clears, note included, unscheduled day-less events included, linked-* events refused, Idempotency-Key opted in) through useApiMutation from use-trip-detail-handlers, retiring updateEvent; entries 4, 7 and 8 reuse the ConflictError."
+verify = "Service, contract, route, errors and handler tests pass with 409 still asserted at the route; an editor edits an event's name, time and location in day-planning and sees them after reload, a day-less event PATCH persists in route tests, and viewer 403 and stranger 404 hold in api.feature, run against the production server per the pilot 1.10 plan procedure."
+covers = ["I2","I7","I10"]
+after = ["1.10","1.11"]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md","_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/epic-checklist-api-pilot-retrospective.md#action-items","_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-verify-checklist-pilot-end-to-end-plan.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Harden the API mutation client"
+description = "Add a request timeout to the API client so a hung write releases its keyed queue, keep field errors per resource key, stop reporting a throwing onSuccess as a failed save, and skip effects on a no-op checklist-item PATCH, so later itinerary queues build on it."
+verify = "client.test.ts and use-api-mutation.test.tsx prove a timed-out write fails and the next same-key write runs, concurrent independent writes keep each other's field errors, and onSuccess errors after commit are not shown as save failures; checklists.test.ts proves a same-value item PATCH publishes no activity or live-sync event."
+covers = ["I9","I10"]
+after = [1]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md","_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/epic-checklist-api-pilot-retrospective.md#diff-scope-review-bmad-review-lenses-run-inline"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Send draft-stable client IDs for checklist creates"
+description = "Mint a client UUID per draft in use-day-draft and reuse it on retry for checklist and checklist-item creates, guard the packing-source picker against double inserts, re-arm a draft whose commit resolves without growing the timeline, and decide same-ID retry equality (position drift is a replay) for every later create, recording it in the client-UUID ADR."
+verify = "use-day-draft, use-checklist-handlers and use-packing-handlers tests prove one ID per draft across retries, a single insert on double-click and draft re-arm; checklists.test.ts and api.feature prove a same-ID retry after a position shift returns the existing checklist instead of 409, and day-planning scenarios create a checklist that persists once after reload."
+covers = ["I8","I10"]
+after = [2]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md","docs/decisions/adr-client-uuids-are-locked-before-the-trip-lock.md","_bmad-output/initiative-mobile-api/deferred-work.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Extract shared timeline positioning and reorder days through the API"
+description = "Move append, insert-with-shift and full-day reorder validation for events, itinerary notes and checklists into one service module adopted by the checklist service now and by entries 5 and 6 as they migrate createEvent and createNote, and ship PUT /api/v1/days/:dayId/order (Idempotency-Key opted in) with a stale list as entry 1's ConflictError, switching the day-card drag-and-drop caller to a per-day keyed mutation, replacing the CONCURRENT_MODIFICATION toast branch in use-trip-detail-handlers with a 409-code check, and retiring reorderDayItems."
+verify = "Positioning and route tests prove mixed-type append, insert and reorder under the trip lock with 409 on a stale or foreign list; day-planning and linked-events scenarios drag items within a day, including rapid successive drags, and see the final order after reload with linked reservation rows untouched."
+covers = ["I1","I3","I10"]
+after = [3]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md","docs/decisions/adr-api-client-mutations.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Create and delete events through the API"
+description = "Ship POST /api/v1/days/:dayId/events (draft client UUID and retry equality from entry 3, afterEventId, insertAtPosition or append via entry 4's positioning) and DELETE /api/v1/events/:eventId with keepDocuments (linked-* ids refused), both opting in to Idempotency-Key, with storage cleanup after commit, unscheduled events and expense cascade preserved; switch use-trip-detail-handlers and delete-event-dialog and retire createEvent, deleteEvent and deleteEventWithDocDecision, keeping getEventTripId for document actions."
+verify = "Service and route tests prove positioned inserts, same-ID replay, keep-or-delete documents with cleanup only after commit, idempotent delete and a day removed mid-edit as entry 1's ConflictError 409; day-planning and event-docs scenarios add an event between items and delete one keeping and one discarding documents, each persisting after reload."
+covers = ["I2","I8","I10"]
+after = [4]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Move day notes to the API"
+description = "Ship POST /api/v1/days/:dayId/notes (draft client UUID with entry 3's retry equality, position via entry 4's module) and PATCH/DELETE /api/v1/itinerary-notes/:noteId, all opting in to Idempotency-Key, switch the day-note handlers and the app-activity day-note waits to API waits, and retire createNote, updateNote and deleteNote."
+verify = "Service, route and handler tests prove positioned insert, same-ID replay, content edit, idempotent delete and access boundaries; day-planning and app-activity scenarios add, edit and delete a day note among events and checklists and see it after reload."
+covers = ["I4","I8","I10"]
+after = [5]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Move trip notes to the API"
+description = "Ship POST /api/v1/trips/:tripId/notes (prepend, draft-stable client UUID reused on retry with entry 3's retry equality), PATCH/DELETE /api/v1/notes/:noteId and PUT /api/v1/trips/:tripId/notes/order (entry 1's ConflictError replaces the CONCURRENT_MODIFICATION throw, per-trip keyed queue), all opting in to Idempotency-Key, switch trip-notes-editor, -sortable and -tab and their steps to API waits, and retire the four trip-note actions."
+verify = "Service, route and component tests prove blank-note 422, partial edits, same-ID replay, idempotent delete and 409 on a stale order; trip-notes scenarios create, edit, reorder and delete notes with rapid reorders and see the result after reload."
+covers = ["I5","I8","I10"]
+after = [6]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Edit days and change trip length through the API"
+description = "Ship PATCH /api/v1/days/:dayId, POST /api/v1/trips/:tripId/days (client UUID with entry 3's retry equality, 45-day cap as 422, end-date sync) and DELETE /api/v1/days/:dayId (current last day only, 409 confirmation_required vs entry 1's ConflictError, all opting in to Idempotency-Key, storage cleanup after commit, /trips revalidated), switch the day handlers and remove-last-day dialog, and retire updateDay, addDay and removeLastDay."
+verify = "Service and route tests prove partial day edits, append with same-ID replay and the cap, end-date sync, retry-safe delete returning 204, and both 409 codes; day-planning scenarios rename a day, add one, and remove a day with content through the confirmation dialog, each persisting after reload with the trips list end date updated."
+covers = ["I6","I10"]
+after = [7]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "Review completed epic plans and deferred findings, then remove only epic-created duplication or obsolete itinerary code and helpers left unused in actions.ts, without adding scope; include matching tests for every touched runtime file."
+verify = "Targeted tests confirm unchanged itinerary, notes and checklist API behavior, and each cleanup traces to a completed plan or finding with no unrelated UI or domain change."
+covers = ["I1","I10"]
+after = [1,2,3,4,5,6,7,8]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Verify itinerary API end to end"
+description = "Close integrated gaps across the epic's routes (status, replay, client-ID and access matrix in api.feature), mixed timeline positions, rapid ordered writes, linked events, event documents and trip notes in the production build, then invoke the project-owned build-validator after targeted checks pass."
+verify = "Epic Done when 1–3 pass against the production build on arrivo_e2e (pilot 1.10 plan procedure), a search finds no remaining caller of the 15 retired actions, and build-validator reports lint, types, coverage, build and affected E2E success without migrations, new environment variables or an automatic full-suite run."
+covers = ["I1","I2","I3","I4","I5","I6","I7","I8","I9","I10"]
+after = [9]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
