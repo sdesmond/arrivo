@@ -738,6 +738,8 @@ export const FEATURE_MAP = [
   ]),
   entry("trip-notes", [
     "src/components/arrivo/trip-notes-*.tsx",
+    "src/components/arrivo/trip-notes-*.ts",
+    "src/components/arrivo/use-trip-notes-*.ts",
     "src/lib/note-preview.ts",
     "src/app/(app)/trips/[tripId]/actions.ts",
   ]),
