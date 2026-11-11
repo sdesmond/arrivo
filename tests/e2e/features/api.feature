@@ -826,3 +826,263 @@ Feature: Absolute checklist checked-state API
       | missing-trip |
       | linked-id    |
       | unknown-key  |
+
+  Scenario: Editor prepends trip notes through the API and every note shifts down
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I create the trip note "Newest" through the trip note API
+    Then the trip note API returns 200
+    And after reload the stored trip note titles are "Newest, First note, Second note, Third note"
+    And the stored trip note positions run from 0 without gaps
+
+  Scenario: A same-ID trip note create replays after another create shifted it and rejects reuse
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I create the trip note "Retry me" with a client ID through the trip note API
+    And I create the trip note "Shifter" through the trip note API
+    And I retry the client ID trip note creation
+    Then the retried trip note keeps its shifted position and the trip holds it once
+    When I reuse the client ID for the trip note "Different"
+    Then the trip note API returns 409 with code "conflict"
+    And the trip holds the client ID trip note once
+
+  Scenario: Keyed trip note creates replay once and conflict on a different body
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I send the keyed trip note create "Keyed note" twice
+    Then both keyed trip note requests return identical JSON titled "Keyed note"
+    And the trip holds 1 trip note titled "Keyed note"
+    When I reuse the trip note create key with the title "Other note"
+    Then the trip note API returns 409 with code "conflict"
+    And the trip holds 1 trip note titled "Keyed note"
+
+  Scenario Outline: Denied trip note creates leave the notes unchanged
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "<role>"
+    When I create the trip note "Denied" through the trip note API
+    Then the trip note API returns <status> with code "<code>"
+    And the stored trip notes keep their original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid trip note creates never write
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I submit trip note create case "<case>"
+    Then the trip note API returns 422 with code "validation_failed"
+    And the stored trip notes keep their original order
+    Examples:
+      | case            |
+      | empty           |
+      | blank-both      |
+      | null-title      |
+      | over-long-title |
+      | over-long-body  |
+      | non-text-body   |
+      | unknown-key     |
+      | linked-note-id  |
+
+  Scenario: Editor edits one field of a trip note, clears the other and repeating writes nothing
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I patch the first trip note with:
+      """
+      { "title": "  Edited first  " }
+      """
+    Then the trip note API returns 200
+    And the stored first trip note matches:
+      """
+      { "title": "Edited first", "body": "First body" }
+      """
+    When I patch the first trip note with:
+      """
+      { "body": null }
+      """
+    Then the trip note API returns 200
+    And the stored first trip note matches:
+      """
+      { "title": "Edited first", "body": null }
+      """
+    When I patch the first trip note with:
+      """
+      { "title": "Edited first", "body": "   " }
+      """
+    Then the trip note API returns 200
+    And the first trip note was not rewritten
+    And after reload the stored trip note titles are "Edited first, Second note, Third note"
+
+  Scenario: An edit that would leave a trip note blank is rejected
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I patch the second trip note with:
+      """
+      { "title": null }
+      """
+    Then the trip note API returns 422 with code "validation_failed"
+    And the stored second trip note matches:
+      """
+      { "title": "Second note", "body": null }
+      """
+
+  Scenario: Keyed trip note edits replay once and conflict on a different body
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I send the keyed trip note edit "Keyed edit" twice
+    Then both keyed trip note requests return identical JSON titled "Keyed edit"
+    And the stored first trip note matches:
+      """
+      { "title": "Keyed edit" }
+      """
+    When I reuse the trip note edit key with the title "Other edit"
+    Then the trip note API returns 409 with code "conflict"
+    And the stored first trip note matches:
+      """
+      { "title": "Keyed edit" }
+      """
+
+  Scenario: Editing a trip note that does not exist is not found
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I patch a trip note that does not exist
+    Then the trip note API returns 404 with code "not_found"
+
+  Scenario Outline: Denied trip note edits leave the note unchanged
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "<role>"
+    When I patch the first trip note with:
+      """
+      { "title": "Denied edit" }
+      """
+    Then the trip note API returns <status> with code "<code>"
+    And the first trip note was not rewritten
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid trip note edits never write
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I submit trip note edit case "<case>"
+    Then the trip note API returns 422 with code "validation_failed"
+    And the stored first trip note matches:
+      """
+      { "title": "First note", "body": "First body" }
+      """
+    Examples:
+      | case            |
+      | empty           |
+      | over-long-title |
+      | unknown-key     |
+      | linked-id       |
+
+  Scenario: Editor deletes a trip note and deleting it again succeeds without effect
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I delete the first trip note through the trip note API
+    Then the trip note API returns 204
+    And the first trip note is gone and the others keep their order
+    When I delete the first trip note through the trip note API
+    Then the trip note API returns 204
+
+  Scenario: Keyed trip note deletes succeed twice without further effect
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I send the keyed trip note delete twice
+    Then both keyed trip note deletes return 204
+    And the first trip note is gone and the others keep their order
+
+  Scenario Outline: Denied trip note deletes leave the note in place
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "<role>"
+    When I delete the first trip note through the trip note API
+    Then the trip note API returns <status> with code "<code>"
+    And the stored trip notes keep their original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid trip note deletes never write
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I submit trip note delete case "<case>"
+    Then the trip note API returns 422 with code "validation_failed"
+    And the stored trip notes keep their original order
+    Examples:
+      | case         |
+      | missing-trip |
+      | linked-id    |
+      | unknown-key  |
+
+  Scenario: Editor reorders trip notes and an unchanged order is accepted
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I PUT the reversed trip note order
+    Then the trip note API returns 200
+    And after reload the stored trip note titles are "Third note, Second note, First note"
+    And the stored trip note positions run from 0 without gaps
+    When I PUT the stored trip note order
+    Then the trip note API returns 200
+    And the stored trip note positions run from 0 without gaps
+
+  Scenario Outline: A stale trip note order is a conflict and writes nothing
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I PUT the trip note order case "<case>"
+    Then the trip note API returns 409 with code "conflict"
+    And the stored trip notes keep their original order
+    Examples:
+      | case         |
+      | missing-note |
+      | extra-note   |
+      | foreign-note |
+
+  Scenario: A trip note added by another editor makes the loaded order stale
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When another editor adds a trip note directly
+    And I PUT the stored trip note order
+    Then the trip note API returns 409 with code "conflict"
+    And the stored trip note titles are "First note, Second note, Third note, Added elsewhere"
+
+  Scenario: Keyed trip note orders replay once and conflict on a different order
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I PUT the reversed trip note order with an Idempotency-Key
+    And I retry the same keyed trip note order PUT
+    Then both keyed trip note order requests return the same order
+    When I PUT the stored trip note order with an Idempotency-Key
+    Then the trip note API returns 409 with code "conflict"
+    And the stored trip note titles are "Third note, Second note, First note"
+
+  Scenario Outline: Denied trip note orders leave the notes unchanged
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "<role>"
+    When I PUT the reversed trip note order
+    Then the trip note API returns <status> with code "<code>"
+    And the stored trip notes keep their original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid trip note orders never write
+    Given scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I submit trip note order case "<case>"
+    Then the trip note API returns 422 with code "validation_failed"
+    And the stored trip notes keep their original order
+    Examples:
+      | case        |
+      | duplicate   |
+      | linked-id   |
+      | unknown-key |
+      | too-many    |
+      | no-list     |

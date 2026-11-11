@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
 import { Before, Given, When, Then } from "../fixtures";
-import { waitForServerActionResponse } from "../server-action";
+import { waitForApiResponse } from "../api-response";
 
 function decodeStepValue(value: string): string {
   return value.replace(/\\n/g, "\n");
@@ -10,6 +10,21 @@ function decodeStepValue(value: string): string {
 function reorderHandle(page: Page, name: string) {
   return page.getByTitle(`Reorder ${name}`, { exact: false });
 }
+
+function currentTripId(scenario: { currentTrip?: { id: string } }): string {
+  if (!scenario.currentTrip) throw new Error("Current scenario trip is missing.");
+  return scenario.currentTrip.id;
+}
+
+// The row's Trash button carries the note id, which the PATCH and DELETE requests name in their path.
+async function noteIdIn(row: Locator): Promise<string> {
+  const deleteId = await row.locator('button[id^="trip-note-delete-"]').first().getAttribute("id");
+  if (!deleteId) throw new Error("The note row has no delete control to read its id from.");
+  return deleteId.replace("trip-note-delete-", "");
+}
+
+// The note a delete request is waiting to confirm, by page.
+const pendingDeleteIds = new WeakMap<Page, string>();
 
 // No scrollIntoViewIfNeeded here — these are pure geometry checks, not interactions, and scrolling
 // right after a viewport resize (e.g. `page.setViewportSize`) races the layout reflow, occasionally
@@ -73,23 +88,37 @@ When("I replace the note body with {string}", async ({ page }, value: string) =>
 });
 
 When("I collapse the expanded note", async ({ page }) => {
+  // Collapsing commits the edit, so the changed note is saved before the editor goes away.
+  const saved = waitForApiResponse(page, {
+    method: "PATCH",
+    path: `/api/v1/notes/${await noteIdIn(page.locator("ol > li").filter({ has: page.locator('[aria-expanded="true"]') }))}`,
+  });
   await page.locator('button[aria-expanded="true"]').click();
+  await saved;
   await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(0, { timeout: 10_000 });
 });
 
 When("I request deletion of the expanded note titled {string}", async ({ page }, title: string) => {
-  await page.getByRole("button", { name: `Delete ${title}` }).click();
+  const deleteButton = page.getByRole("button", { name: `Delete ${title}` });
+  pendingDeleteIds.set(page, await noteIdIn(page.locator("ol > li").filter({ has: deleteButton })));
+  await deleteButton.click();
 });
 
 When("I request deletion of the collapsed note titled {string}", async ({ page }, title: string) => {
   const deleteButton = page.getByRole("button", { name: `Delete ${title}`, exact: true });
   const row = page.locator("ol > li").filter({ has: deleteButton });
   await expect(row.locator('button[aria-expanded="false"]')).toBeVisible();
+  pendingDeleteIds.set(page, await noteIdIn(row));
   await deleteButton.click();
 });
 
 When("I confirm note deletion", async ({ page }) => {
+  const noteId = pendingDeleteIds.get(page);
+  if (!noteId) throw new Error("No note deletion was requested first.");
+  // Arm before the click and await after it, or a later reload aborts the still-in-flight request.
+  const deleted = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/notes/${noteId}` });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await deleted;
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
 });
 
@@ -98,8 +127,16 @@ When("I cancel note deletion", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
 });
 
-When("I close the note editor", async ({ page }) => {
+When("I close the note editor", async ({ page, scenario }) => {
+  // Closing commits the draft, so a draft with text is created before the tab changes; a blank one sends nothing.
+  const title = await page.getByLabel("Note title").inputValue();
+  const body = await page.getByLabel("Note body").inputValue();
+  const created =
+    title.trim() || body.trim()
+      ? waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${currentTripId(scenario)}/notes` })
+      : undefined;
   await page.getByRole("button", { name: "Notes" }).click();
+  await created;
   await expect(page.getByLabel("Note title")).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByRole("button", { name: "New Note", exact: true })).toBeVisible({ timeout: 10_000 });
 });
@@ -202,6 +239,12 @@ Then("the notes list shows, in order, {string}, {string}", async ({ page }, firs
   await expect(rows.nth(1)).toContainText(second);
 });
 
+Then("the notes list shows only {string}", async ({ page }, title: string) => {
+  const rows = page.locator("ol li");
+  await expect(rows).toHaveCount(1, { timeout: 10_000 });
+  await expect(rows.first()).toContainText(title);
+});
+
 Then(
   "the notes list shows, in order, {string}, {string}, {string}",
   async ({ page }, first: string, second: string, third: string) => {
@@ -215,10 +258,13 @@ Then(
 
 When(
   "I pointer-drag the note {string} onto the note {string}",
-  async ({ page }, sourceName: string, targetName: string) => {
+  async ({ page, scenario }, sourceName: string, targetName: string) => {
     const handle = reorderHandle(page, sourceName);
     const targetRow = page.locator("ol > li").filter({ hasText: targetName });
     await expect(handle).toBeVisible({ timeout: 10_000 });
+    // A reorder disables every handle until it has saved and the refreshed order arrived (dnd-kit sets aria-disabled),
+    // so a drag started before then would never lift.
+    await expect(handle).toHaveAttribute("aria-disabled", "false");
     await handle.scrollIntoViewIfNeeded();
 
     async function performDrag(): Promise<void> {
@@ -235,10 +281,12 @@ When(
       await page.mouse.move(dest.x + dest.width / 2, dest.y + dest.height / 2, { steps: 4 });
       await page.waitForTimeout(60);
 
-      // The drop fires the reorderTripNotes server action. Wait for that POST to resolve — the
-      // transaction commits and revalidatePath runs before the response returns — so a later
-      // reload cannot out-race persistence.
-      const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+      // The drop sends the order to the API. Wait for that PUT to resolve so a later reload cannot out-race
+      // persistence; the optimistic order would otherwise pass the in-page check while the request aborts.
+      const reorderResponse = waitForApiResponse(page, {
+        method: "PUT",
+        path: `/api/v1/trips/${currentTripId(scenario)}/notes/order`,
+      });
       await page.mouse.up();
       await reorderResponse;
     }
@@ -247,7 +295,7 @@ When(
   }
 );
 
-When("I keyboard-move the note {string} down one position", async ({ page }, name: string) => {
+When("I keyboard-move the note {string} down one position", async ({ page, scenario }, name: string) => {
   const handle = reorderHandle(page, name);
   await expect(handle).toBeVisible({ timeout: 10_000 });
   await handle.focus();
@@ -256,11 +304,12 @@ When("I keyboard-move the note {string} down one position", async ({ page }, nam
   await handle.press("Space");
   await handle.press("ArrowDown");
 
-  // Enter drops the item, firing the reorder server action. Wait for that POST to resolve —
-  // the transaction commits and revalidatePath runs before the response returns — so a later
-  // reload cannot out-race persistence. Not required — a move that registers as a no-op fires no
-  // POST, and the caller falls through to the position check.
-  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
+  // Enter drops the item and sends the order to the API. Wait for that PUT to resolve so a later reload cannot
+  // out-race persistence.
+  const reorderResponse = waitForApiResponse(page, {
+    method: "PUT",
+    path: `/api/v1/trips/${currentTripId(scenario)}/notes/order`,
+  });
   await handle.press("Enter");
   await reorderResponse;
 });
