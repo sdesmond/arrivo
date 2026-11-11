@@ -4,9 +4,8 @@ import { days, itineraryNotes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { Actor, IdempotentRequest, Note } from "@/data/types";
 import { dbNoteToType } from "@/lib/db-mappers";
-import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { appendPosition, shiftFromPosition } from "./timeline-positions";
@@ -17,21 +16,14 @@ import {
 } from "@/lib/api/contract/itinerary-notes";
 import { getNow } from "@/lib/mock-date";
 
-type Executor = Pick<DbTransaction, "select">;
-
 /** A note with the trip its day belongs to; the note row carries no trip of its own. */
-async function readNote(executor: Executor, noteId: string) {
+async function readNote(executor: ReadExecutor, noteId: string) {
   const [row] = await executor
     .select({ note: itineraryNotes, tripId: days.tripId })
     .from(itineraryNotes)
     .innerJoin(days, eq(itineraryNotes.dayId, days.id))
     .where(eq(itineraryNotes.id, noteId));
   return row;
-}
-
-async function readDayTripId(executor: Executor, dayId: string): Promise<string | undefined> {
-  const [day] = await executor.select({ tripId: days.tripId }).from(days).where(eq(days.id, dayId));
-  return day?.tripId;
 }
 
 /**

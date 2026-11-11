@@ -14,7 +14,7 @@ import type { Actor, Checklist, ChecklistItem, IdempotentRequest } from "@/data/
 import { dbChecklistItemToType, dbChecklistToType } from "@/lib/db-mappers";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { shiftFromPosition } from "./timeline-positions";
@@ -28,7 +28,7 @@ import {
 } from "@/lib/api/contract/checklists";
 import { getNow } from "@/lib/mock-date";
 
-async function readChecklist(executor: Pick<DbTransaction, "select">, checklistId: string) {
+async function readChecklist(executor: ReadExecutor, checklistId: string) {
   const [row] = await executor
     .select({ checklist: itineraryChecklists, tripId: days.tripId })
     .from(itineraryChecklists)
@@ -50,11 +50,11 @@ async function mappedChecklist(
 function collision(): never {
   throw new ConflictError("This ID was already used for different checklist content.");
 }
-async function readItem(executor: Pick<DbTransaction, "select">, itemId: string) {
+async function readItem(executor: ReadExecutor, itemId: string) {
   const [item] = await executor.select().from(checklistItems).where(eq(checklistItems.id, itemId));
   return item;
 }
-async function readItemTripId(executor: Pick<DbTransaction, "select">, itemId: string): Promise<string | undefined> {
+async function readItemTripId(executor: ReadExecutor, itemId: string): Promise<string | undefined> {
   const [ancestry] = await executor
     .select({ tripId: days.tripId })
     .from(checklistItems)
@@ -63,7 +63,7 @@ async function readItemTripId(executor: Pick<DbTransaction, "select">, itemId: s
     .where(eq(checklistItems.id, itemId));
   return ancestry?.tripId;
 }
-async function itemTripId(executor: Pick<DbTransaction, "select">, itemId: string): Promise<string> {
+async function itemTripId(executor: ReadExecutor, itemId: string): Promise<string> {
   const tripId = await readItemTripId(executor, itemId);
   if (!tripId) throw new TripNotFoundError();
   return tripId;
@@ -141,8 +141,7 @@ export async function createChecklist(
         ]);
         await lockTrip(transaction, tripId);
         await requireTripRole(tripId, actor.userId, "editor", transaction);
-        const [day] = await transaction.select({ tripId: days.tripId }).from(days).where(eq(days.id, body.dayId));
-        if (!day || day.tripId !== tripId) throw new TripNotFoundError();
+        if ((await readDayTripId(transaction, body.dayId)) !== tripId) throw new TripNotFoundError();
         // Re-read the source on every attempt, before any stored result or UUID collision is considered.
         packed = body.source ? await readPackingSource(transaction, actor, tripId, body.source) : undefined;
         if (body.id) {
