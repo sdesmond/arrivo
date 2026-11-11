@@ -3,13 +3,13 @@ import { z } from "zod";
 import {
   addDocumentSchema,
   createReservationSchema,
-  createTripNoteSchema,
   createTripSchema,
   parseInput,
+  tripNoteBodySchema,
+  tripNoteTitleSchema,
   updateDaySchema,
   updateEventSchema,
   updateReservationSchema,
-  updateTripNoteSchema,
   updateTripSchema,
 } from "./validation-schemas";
 import { FIELD_LIMITS, MAX_BUDGET_TOTAL } from "./validation-limits";
@@ -133,10 +133,10 @@ describe("updateDaySchema", () => {
 
 describe("trip note schemas", () => {
   it("caps title and body", () => {
-    expect(() => parseInput(createTripNoteSchema, { title: OVER(FIELD_LIMITS.noteTitle) })).toThrow("Title");
-    expect(() => parseInput(createTripNoteSchema, { body: OVER(FIELD_LIMITS.noteBody) })).toThrow("Note body");
-    expect(() => parseInput(updateTripNoteSchema, { body: OVER(FIELD_LIMITS.noteBody) })).toThrow("Note body");
-    expect(parseInput(createTripNoteSchema, { title: "a" })).toEqual({ title: "a" });
+    expect(() => parseInput(tripNoteTitleSchema, OVER(FIELD_LIMITS.noteTitle))).toThrow("Title");
+    expect(() => parseInput(tripNoteBodySchema, OVER(FIELD_LIMITS.noteBody))).toThrow("Note body");
+    expect(parseInput(tripNoteTitleSchema, "a")).toBe("a");
+    expect(parseInput(tripNoteBodySchema, "b")).toBe("b");
   });
 });
 

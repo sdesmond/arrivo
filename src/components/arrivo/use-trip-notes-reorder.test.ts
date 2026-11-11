@@ -1,22 +1,35 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripNote } from "@/data/types";
+import { api, ApiClientError } from "@/lib/api/client";
+import { reorderTripNotes } from "@/lib/api/contract/trip-notes";
 import { useTripNotesReorder } from "./use-trip-notes-reorder";
 
-const { mockReorderTripNotes, mockToastError } = vi.hoisted(() => ({
-  mockReorderTripNotes: vi.fn(),
+const { mockRefresh, mockToastError } = vi.hoisted(() => ({
+  mockRefresh: vi.fn(),
   mockToastError: vi.fn(),
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  reorderTripNotes: mockReorderTripNotes,
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
 }));
 
 vi.mock("sonner", () => ({
   toast: { error: mockToastError },
   Toaster: () => null,
 }));
+
+const mockApi = vi.mocked(api);
+
+function expectReordered(noteIds: string[]) {
+  expect(mockApi).toHaveBeenCalledWith(reorderTripNotes, { params: { tripId: "trip-1" }, body: { noteIds } });
+}
 
 function buildNote(id: string, title: string): TripNote {
   return { id, tripId: "trip-1", position: 0, title };
@@ -49,17 +62,24 @@ function dragOver(result: ReturnType<typeof renderReorder>["result"], activeId: 
   });
 }
 
+// Awaiting the drop inside `act` would deadlock: the keyed save waits for a page refresh React can only commit
+// after `act` returns. Start the drop in `act`, then poll outside it.
 async function dropOn(result: ReturnType<typeof renderReorder>["result"], activeId: string) {
-  await act(async () => {
-    await result.current.handleDragEnd({ active: { id: activeId } } as never);
+  let settled = false;
+  act(() => {
+    void result.current.handleDragEnd({ active: { id: activeId } } as never).then(() => {
+      settled = true;
+    });
   });
+  await waitFor(() => expect(settled).toBe(true));
 }
 
 describe("useTripNotesReorder", () => {
   beforeEach(() => {
-    mockReorderTripNotes.mockReset();
-    mockReorderTripNotes.mockResolvedValue(undefined);
+    mockApi.mockReset();
+    mockApi.mockResolvedValue(undefined as never);
     mockToastError.mockReset();
+    mockRefresh.mockReset();
   });
 
   it("persists the new order after a pointer drag and announces only the outcome", async () => {
@@ -71,10 +91,7 @@ describe("useTripNotesReorder", () => {
     expect(result.current.isDragInert).toBe(true);
     await dropOn(result, "note-1");
 
-    expect(mockReorderTripNotes).toHaveBeenCalledWith({
-      tripId: "trip-1",
-      orderedNoteIds: ["note-2", "note-1", "note-3"],
-    });
+    expectReordered(["note-2", "note-1", "note-3"]);
     expect(onAnnounce).toHaveBeenCalledTimes(1);
     expect(onAnnounce).toHaveBeenCalledWith("Reordered. First note now at position 2 of 3");
   });
@@ -89,10 +106,7 @@ describe("useTripNotesReorder", () => {
 
     expect(onAnnounce).toHaveBeenCalledWith(expect.stringContaining("Reordering Third note."));
     expect(onAnnounce).toHaveBeenCalledWith("Third note, position 2 of 3");
-    expect(mockReorderTripNotes).toHaveBeenCalledWith({
-      tripId: "trip-1",
-      orderedNoteIds: ["note-1", "note-3", "note-2"],
-    });
+    expectReordered(["note-1", "note-3", "note-2"]);
   });
 
   it("calls nothing when the drop leaves the order unchanged", async () => {
@@ -101,7 +115,7 @@ describe("useTripNotesReorder", () => {
     startDrag(result, "note-1", false);
     await dropOn(result, "note-1");
 
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
     expect(result.current.workingNotes).toBe(NOTES);
   });
 
@@ -119,7 +133,7 @@ describe("useTripNotesReorder", () => {
   });
 
   it("restores the persisted order, toasts and announces the restored position when the save fails", async () => {
-    mockReorderTripNotes.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(new ApiClientError(500, "server_error", "The server could not reorder the notes."));
     const { result, onAnnounce } = renderReorder();
 
     startDrag(result, "note-1", false);
@@ -127,11 +141,50 @@ describe("useTripNotesReorder", () => {
     await dropOn(result, "note-1");
 
     expect(result.current.workingNotes).toBe(NOTES);
-    expect(mockToastError).toHaveBeenCalledWith("Couldn't reorder notes. Try again.");
+    expect(mockToastError).toHaveBeenCalledWith("The server could not reorder the notes.");
+    expect(mockRefresh).not.toHaveBeenCalled();
     expect(onAnnounce).toHaveBeenCalledWith(
       "Couldn't reorder notes. Try again. First note restored to position 1 of 3"
     );
     expect(result.current.isPersisting).toBe(false);
+  });
+
+  it("restores the order and refreshes the page when the server reports a stale list", async () => {
+    mockApi.mockRejectedValue(new ApiClientError(409, "conflict", "The notes changed since they were loaded."));
+    const { result, onAnnounce } = renderReorder();
+
+    startDrag(result, "note-1", false);
+    dragOver(result, "note-1", "note-2");
+    await dropOn(result, "note-1");
+
+    expect(result.current.workingNotes).toBe(NOTES);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(onAnnounce).toHaveBeenCalledWith(
+      "Couldn't reorder notes. Try again. First note restored to position 1 of 3"
+    );
+  });
+
+  it("sends each of two rapid reorders in order, the second built from the refreshed notes", async () => {
+    const onAnnounce = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ notes }: { notes: TripNote[] }) => useTripNotesReorder({ tripId: "trip-1", notes, onAnnounce }),
+      { initialProps: { notes: NOTES } }
+    );
+
+    startDrag(result, "note-1", false);
+    dragOver(result, "note-1", "note-2");
+    await dropOn(result, "note-1");
+    const afterFirst = [NOTES[1], NOTES[0], NOTES[2]];
+    rerender({ notes: afterFirst });
+
+    startDrag(result, "note-3", false);
+    dragOver(result, "note-3", "note-2");
+    await dropOn(result, "note-3");
+
+    expect(mockApi.mock.calls.map(([, input]) => (input as { body: { noteIds: string[] } }).body.noteIds)).toEqual([
+      ["note-2", "note-1", "note-3"],
+      ["note-3", "note-2", "note-1"],
+    ]);
   });
 
   it("resets the working order on cancel and announces a keyboard cancel", () => {
@@ -146,7 +199,7 @@ describe("useTripNotesReorder", () => {
     expect(result.current.workingNotes).toBe(NOTES);
     expect(result.current.activeNote).toBeUndefined();
     expect(onAnnounce).toHaveBeenCalledWith("Reorder cancelled. First note restored to position 1 of 3");
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
   });
 
   it("announces boundary attempts only for a keyboard drag, ignoring repeats and other keys", () => {

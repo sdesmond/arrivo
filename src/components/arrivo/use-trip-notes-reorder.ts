@@ -12,9 +12,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import type { TripNote } from "@/data/types";
-import { reorderTripNotes } from "@/app/(app)/trips/[tripId]/actions";
+import { ApiClientError } from "@/lib/api/client";
+import { reorderTripNotes as reorderTripNotesEndpoint } from "@/lib/api/contract/trip-notes";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { getNoteTitle } from "@/lib/note-preview";
 import { sameNoteOrder, verticalOnlyKeyboardCoordinates } from "./trip-notes-drag-config";
 import { reorderHandleId } from "./trip-notes-sortable-row";
@@ -28,6 +30,8 @@ export interface UseTripNotesReorderOptions {
 }
 
 export function useTripNotesReorder({ tripId, notes, onAnnounce }: UseTripNotesReorderOptions) {
+  const router = useRouter();
+  const reorderMutation = useApiMutation(reorderTripNotesEndpoint);
   const [localOrder, setLocalOrder] = useState<TripNote[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isPersisting, setIsPersisting] = useState(false);
@@ -158,8 +162,26 @@ export function useTripNotesReorder({ tripId, notes, onAnnounce }: UseTripNotesR
     setWorkingOrder(finalOrder);
     setIsPersisting(true);
 
+    let persisted = false;
     try {
-      await reorderTripNotes({ tripId, orderedNoteIds: finalOrder.map((note) => note.id) });
+      // `mutate` never rejects: the hook toasts a failure. A 409 means the notes changed under this list, so reload.
+      await reorderMutation.mutate(
+        { params: { tripId }, body: { noteIds: finalOrder.map((note) => note.id) } },
+        {
+          key: `trip-notes-order:${tripId}`,
+          onSuccess: () => {
+            persisted = true;
+          },
+          onError: (error) => {
+            if (error instanceof ApiClientError && error.code === "conflict") router.refresh();
+          },
+        }
+      );
+    } finally {
+      setIsPersisting(false);
+    }
+
+    if (persisted) {
       const newIndex = finalOrder.findIndex((note) => note.id === activeIdString);
       if (newIndex !== -1) {
         const note = finalOrder[newIndex];
@@ -169,26 +191,24 @@ export function useTripNotesReorder({ tripId, notes, onAnnounce }: UseTripNotesR
       // Focus the dragged handle immediately rather than waiting for the effect, which only
       // re-runs when `workingNotes` changes identity (i.e. after the parent's refetch).
       document.getElementById(reorderHandleId(activeIdString))?.focus();
-    } catch {
-      setWorkingOrder(null);
-      toast.error(REORDER_ERROR_MESSAGE);
-      // Announce from whatever order is (or is about to be) rendered — `notesRef` is the
-      // freshest reference including any concurrent refresh during the failed flight, so the
-      // restored position matches the DOM instead of a stale pre-drag snapshot.
-      const currentNotes = notesRef.current;
-      const restoredIndex = currentNotes.findIndex((note) => note.id === activeIdString);
-      if (restoredIndex !== -1) {
-        const note = currentNotes[restoredIndex];
-        onAnnounce(
-          `${REORDER_ERROR_MESSAGE} ${getNoteTitle(note)} restored to position ${restoredIndex + 1} of ${currentNotes.length}`
-        );
-      } else {
-        onAnnounce(REORDER_ERROR_MESSAGE);
-      }
-      focusHandleIdRef.current = activeIdString;
-    } finally {
-      setIsPersisting(false);
+      return;
     }
+
+    setWorkingOrder(null);
+    // Announce from whatever order is (or is about to be) rendered — `notesRef` is the
+    // freshest reference including any concurrent refresh during the failed flight, so the
+    // restored position matches the DOM instead of a stale pre-drag snapshot.
+    const currentNotes = notesRef.current;
+    const restoredIndex = currentNotes.findIndex((note) => note.id === activeIdString);
+    if (restoredIndex !== -1) {
+      const note = currentNotes[restoredIndex];
+      onAnnounce(
+        `${REORDER_ERROR_MESSAGE} ${getNoteTitle(note)} restored to position ${restoredIndex + 1} of ${currentNotes.length}`
+      );
+    } else {
+      onAnnounce(REORDER_ERROR_MESSAGE);
+    }
+    focusHandleIdRef.current = activeIdString;
   }
 
   function handleHandleKeyDown(event: ReactKeyboardEvent, note: TripNote): void {

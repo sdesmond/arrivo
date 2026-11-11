@@ -123,12 +123,8 @@ export const updateDaySchema = z.object({
   travelSummary: text("Travel summary", FIELD_LIMITS.dayText).optional(),
 });
 
-export const createTripNoteSchema = z.object({
-  title: text("Title", FIELD_LIMITS.noteTitle).optional(),
-  body: text("Note body", FIELD_LIMITS.noteBody).optional(),
-});
-
-export const updateTripNoteSchema = createTripNoteSchema;
+export const tripNoteTitleSchema = text("Title", FIELD_LIMITS.noteTitle);
+export const tripNoteBodySchema = text("Note body", FIELD_LIMITS.noteBody);
 
 export const itineraryNoteContentSchema = text("Note", FIELD_LIMITS.itineraryNote);
 export const checklistTitleSchema = text("Checklist title", FIELD_LIMITS.checklistTitle).optional();
