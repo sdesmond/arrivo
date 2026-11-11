@@ -65,7 +65,3 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-extract-shared-timeline-positioning-and-reorder-days-through-plan.md`
   summary: Drags still waiting in a keyed `useApiMutation` queue are dropped if the component unmounts before they start, so the last rapid drag can fail to persist after immediate navigation.
   evidence: Pre-existing in `use-api-mutation.ts` (`run` returns early when `!mounted.current`); day drags now go through it instead of a server action that kept running. Settle by flushing queued writes on unmount or confirming a navigation guard exists.
-
-- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: Successive event edits (time, location, rename) each PATCH every field from the row as rendered, so an edit made before the previous save's refresh landed can write the old values back.
-  evidence: Pre-existing in `handleEventUpdate`; the `day-planning` scenario "Edited name, time and location persist after reload" failed once in a loaded full run and passed alone. The PATCH endpoint is partial, so settle by sending only the changed fields.
