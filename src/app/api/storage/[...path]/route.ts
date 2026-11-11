@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { assertTripAccess, requireUser } from "@/lib/auth-helpers";
-import { getStorageAdapter, isStorageNotFoundError } from "@/lib/storage/storage-adapter";
+import { getStorageAdapter, isStorageNotFoundError, isStorageOwnerNotFoundError } from "@/lib/storage/storage-adapter";
 import { resolveOwningTripId } from "@/lib/storage/trip-resolution";
 import { EXTENSION_MIME_TYPES, MalformedKeyError, parseUploadStorageName } from "@/lib/upload-policy";
 
@@ -21,6 +21,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (error instanceof MalformedKeyError) {
       return new Response("Not found", { status: 400 });
     }
+    // The event or reservation behind the key is gone and no document row keeps the file reachable.
+    if (isStorageOwnerNotFoundError(error)) return new Response("Not found", { status: 404 });
     throw error;
   }
 

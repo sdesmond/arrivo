@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, events, reservations } from "@/db/schema";
 import { parseUploadStorageName } from "@/lib/upload-policy";
+import { StorageOwnerNotFoundError } from "./storage-adapter";
 
 const STORAGE_PROXY_PREFIX = "/api/storage/";
 
@@ -24,7 +25,7 @@ export async function resolveOwningTripId(key: string): Promise<string> {
         .select({ tripId: documents.tripId })
         .from(documents)
         .where(eq(documents.url, `${STORAGE_PROXY_PREFIX}${key}`));
-      if (!kept?.tripId) throw new Error("Event not found");
+      if (!kept?.tripId) throw new StorageOwnerNotFoundError("Event not found");
       return kept.tripId;
     }
     case "reservation-document": {
@@ -32,7 +33,7 @@ export async function resolveOwningTripId(key: string): Promise<string> {
         .select({ tripId: reservations.tripId })
         .from(reservations)
         .where(eq(reservations.id, ownerId));
-      if (!reservation) throw new Error("Reservation not found.");
+      if (!reservation) throw new StorageOwnerNotFoundError("Reservation not found.");
       return reservation.tripId;
     }
   }

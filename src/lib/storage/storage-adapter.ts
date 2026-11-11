@@ -7,6 +7,20 @@ export class StorageNotFoundError extends Error {
   }
 }
 
+/** The event or reservation a storage key points at no longer exists, so there is no trip to authorize against. */
+export class StorageOwnerNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StorageOwnerNotFoundError";
+  }
+}
+
+export function isStorageOwnerNotFoundError(error: unknown): error is StorageOwnerNotFoundError {
+  return (
+    error instanceof StorageOwnerNotFoundError || (error instanceof Error && error.name === "StorageOwnerNotFoundError")
+  );
+}
+
 /**
  * `instanceof` alone is not enough: the adapter is cached on `globalThis` and shared by Next's separate route and
  * server-action bundles, each with its own copy of this class, so the name is checked too.

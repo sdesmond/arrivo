@@ -25,7 +25,7 @@ vi.mock("@/lib/storage/storage-adapter", async () => {
   };
 });
 
-import { StorageNotFoundError } from "@/lib/storage/storage-adapter";
+import { StorageNotFoundError, StorageOwnerNotFoundError } from "@/lib/storage/storage-adapter";
 import { MalformedKeyError } from "@/lib/upload-policy";
 import { GET } from "./route";
 
@@ -178,6 +178,29 @@ describe("GET /api/storage/[...path]", () => {
     const response = await GET(
       new Request("http://localhost/api/storage/user-avatars/user-2/gone.webp") as never,
       makeParams(["user-avatars", "user-2", "gone.webp"])
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("returns 404 when the event or reservation behind the key is gone and nothing keeps the file reachable", async () => {
+    resolveOwningTripId.mockRejectedValue(new StorageOwnerNotFoundError("Event not found"));
+    const response = await GET(
+      new Request("http://localhost/api/storage/event-documents/event-1/uuid.jpg") as never,
+      makeParams(["event-documents", "event-1", "uuid.jpg"])
+    );
+
+    expect(response.status).toBe(404);
+    expect(getStorageAdapter).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for an owner-not-found error from another module instance", async () => {
+    const foreign = new Error("Reservation not found.");
+    foreign.name = "StorageOwnerNotFoundError";
+    resolveOwningTripId.mockRejectedValue(foreign);
+    const response = await GET(
+      new Request("http://localhost/api/storage/reservation-documents/r-1/uuid.pdf") as never,
+      makeParams(["reservation-documents", "r-1", "uuid.pdf"])
     );
 
     expect(response.status).toBe(404);

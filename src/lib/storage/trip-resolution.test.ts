@@ -12,6 +12,7 @@ vi.mock("@/db", () => ({ db }));
 vi.mock("@/db/schema", () => ({ documents: documentsTable, events: eventsTable, reservations: reservationsTable }));
 
 import { MalformedKeyError } from "@/lib/upload-policy";
+import { StorageOwnerNotFoundError } from "./storage-adapter";
 import { resolveOwningTripId } from "./trip-resolution";
 
 describe("resolveOwningTripId", () => {
@@ -54,6 +55,10 @@ describe("resolveOwningTripId", () => {
     db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([]));
 
     await expect(resolveOwningTripId("event-documents/event-1/uuid.jpg")).rejects.toThrow("Event not found");
+    db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([]));
+    await expect(resolveOwningTripId("event-documents/event-1/uuid.jpg")).rejects.toBeInstanceOf(
+      StorageOwnerNotFoundError
+    );
   });
 
   it("throws 'Event not found' when the surviving document row has no trip", async () => {
@@ -79,7 +84,9 @@ describe("resolveOwningTripId", () => {
       })),
     });
 
-    await expect(resolveOwningTripId("reservation-documents/res-1/uuid.pdf")).rejects.toThrow("Reservation not found.");
+    await expect(resolveOwningTripId("reservation-documents/res-1/uuid.pdf")).rejects.toBeInstanceOf(
+      StorageOwnerNotFoundError
+    );
   });
 
   it("never resolves a user-avatar key to a trip", async () => {

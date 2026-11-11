@@ -19,7 +19,9 @@ import {
   __resetStorageAdapterCacheForTests,
   getStorageAdapter,
   isStorageNotFoundError,
+  isStorageOwnerNotFoundError,
   StorageNotFoundError,
+  StorageOwnerNotFoundError,
 } from "./storage-adapter";
 
 describe("getStorageAdapter", () => {
@@ -125,5 +127,20 @@ describe("isStorageNotFoundError", () => {
     expect(isStorageNotFoundError(new Error("disk failure"))).toBe(false);
     expect(isStorageNotFoundError("StorageNotFoundError")).toBe(false);
     expect(isStorageNotFoundError(undefined)).toBe(false);
+  });
+});
+
+describe("isStorageOwnerNotFoundError", () => {
+  it("recognizes the class and a copy from another module instance by name", () => {
+    expect(isStorageOwnerNotFoundError(new StorageOwnerNotFoundError("Event not found"))).toBe(true);
+    const foreign = new Error("Event not found");
+    foreign.name = "StorageOwnerNotFoundError";
+    expect(isStorageOwnerNotFoundError(foreign)).toBe(true);
+  });
+
+  it("rejects other errors, including a missing file, and non-errors", () => {
+    expect(isStorageOwnerNotFoundError(new Error("Event not found"))).toBe(false);
+    expect(isStorageOwnerNotFoundError(new StorageNotFoundError("a/b.webp"))).toBe(false);
+    expect(isStorageOwnerNotFoundError(undefined)).toBe(false);
   });
 });
