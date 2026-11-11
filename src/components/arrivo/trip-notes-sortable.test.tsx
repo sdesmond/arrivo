@@ -1,19 +1,22 @@
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TripNotesSortable } from "./trip-notes-sortable";
 import type { TripNote } from "@/data/types";
+import { api, ApiClientError } from "@/lib/api/client";
+import { reorderTripNotes } from "@/lib/api/contract/trip-notes";
 
-const { mockReorderTripNotes } = vi.hoisted(() => ({ mockReorderTripNotes: vi.fn() }));
-
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  reorderTripNotes: mockReorderTripNotes,
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
   Toaster: () => null,
 }));
+
+const mockApi = vi.mocked(api);
 
 const dndContextState = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
 const useSensorMock = vi.hoisted(() => vi.fn((sensor: unknown, options: unknown) => ({ sensor, options })));
@@ -65,6 +68,20 @@ function getDndProps<T>(): T {
   return dndContextState.props as T;
 }
 
+// Awaiting the drop inside `act` would deadlock: the keyed save waits for a page refresh React can only commit
+// after `act` returns. Start the drop in `act`, then poll outside it.
+async function dropNote(activeId: string): Promise<void> {
+  let settled = false;
+  act(() => {
+    void getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>()
+      .onDragEnd?.({ active: { id: activeId }, over: { id: activeId } })
+      .then(() => {
+        settled = true;
+      });
+  });
+  await waitFor(() => expect(settled).toBe(true));
+}
+
 function renderSortable(overrides: Partial<React.ComponentProps<typeof TripNotesSortable>> = {}) {
   const props = {
     tripId: "trip-1",
@@ -87,9 +104,9 @@ function renderSortable(overrides: Partial<React.ComponentProps<typeof TripNotes
 describe("TripNotesSortable", () => {
   beforeEach(() => {
     dndContextState.props = null;
-    mockReorderTripNotes.mockReset();
-    mockReorderTripNotes.mockResolvedValue(undefined);
     vi.clearAllMocks();
+    mockApi.mockReset();
+    mockApi.mockResolvedValue(undefined as never);
   });
 
   it("renders each note's reorder handle with an accessible position label", () => {
@@ -113,7 +130,7 @@ describe("TripNotesSortable", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Second note");
     expect(items[1]).toHaveTextContent("First note");
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
   });
 
   it("submits the full ordered id list and announces the confirmed drop on a successful pointer drag", async () => {
@@ -132,16 +149,11 @@ describe("TripNotesSortable", () => {
         over: { id: "note-2" },
       });
     });
-    await act(async () => {
-      await getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
-        active: { id: "note-1" },
-        over: { id: "note-2" },
-      });
-    });
+    await dropNote("note-1");
 
-    expect(mockReorderTripNotes).toHaveBeenCalledWith({
-      tripId: "trip-1",
-      orderedNoteIds: ["note-2", "note-1", "note-3"],
+    expect(mockApi).toHaveBeenCalledWith(reorderTripNotes, {
+      params: { tripId: "trip-1" },
+      body: { noteIds: ["note-2", "note-1", "note-3"] },
     });
     // Pointer drags stay silent on lift/every-candidate-position — only the confirmed outcome is announced.
     expect(onAnnounce).not.toHaveBeenCalledWith(expect.stringContaining("Reordering"));
@@ -191,7 +203,7 @@ describe("TripNotesSortable", () => {
     fireEvent.keyDown(handle, { key: "ArrowUp" });
 
     expect(onAnnounce).toHaveBeenCalledWith("First note is already at position 1 of 3");
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
   });
 
   it("announces an invalid boundary attempt at the bottom of the list without moving anything", () => {
@@ -257,11 +269,11 @@ describe("TripNotesSortable", () => {
     items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("First note");
     expect(onAnnounce).toHaveBeenCalledWith("Reorder cancelled. First note restored to position 1 of 3");
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
   });
 
   it("rolls back to the persisted order, toasts, and announces the restored position on failure", async () => {
-    mockReorderTripNotes.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(new ApiClientError(500, "server_error", "The server could not reorder the notes."));
     const onAnnounce = vi.fn();
     renderSortable({ onAnnounce });
     const { toast } = await import("sonner");
@@ -272,16 +284,11 @@ describe("TripNotesSortable", () => {
         over: { id: "note-2" },
       });
     });
-    await act(async () => {
-      await getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
-        active: { id: "note-1" },
-        over: { id: "note-2" },
-      });
-    });
+    await dropNote("note-1");
 
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("First note");
-    expect(toast.error).toHaveBeenCalledWith("Couldn't reorder notes. Try again.");
+    expect(toast.error).toHaveBeenCalledWith("The server could not reorder the notes.");
     expect(onAnnounce).toHaveBeenCalledWith(
       "Couldn't reorder notes. Try again. First note restored to position 1 of 3"
     );
@@ -292,14 +299,9 @@ describe("TripNotesSortable", () => {
   it("treats a drop with no preview change as a no-op", async () => {
     renderSortable();
 
-    await act(async () => {
-      await getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
-        active: { id: "note-1" },
-        over: { id: "note-1" },
-      });
-    });
+    await dropNote("note-1");
 
-    expect(mockReorderTripNotes).not.toHaveBeenCalled();
+    expect(mockApi).not.toHaveBeenCalled();
   });
 
   it("keeps rendering the expanded note's editor by id as it moves position", () => {
@@ -320,10 +322,10 @@ describe("TripNotesSortable", () => {
 
   it("disables every reorder handle while a reorder is persisting", async () => {
     let resolvePersist!: () => void;
-    mockReorderTripNotes.mockReturnValue(
+    mockApi.mockReturnValue(
       new Promise<void>((resolve) => {
         resolvePersist = resolve;
-      })
+      }) as never
     );
     renderSortable();
 
@@ -334,20 +336,21 @@ describe("TripNotesSortable", () => {
       });
     });
 
-    let dragEndPromise: Promise<void> | undefined;
+    let settled = false;
     act(() => {
-      dragEndPromise = getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
-        active: { id: "note-1" },
-        over: { id: "note-2" },
-      });
+      void getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>()
+        .onDragEnd?.({ active: { id: "note-1" }, over: { id: "note-2" } })
+        .then(() => {
+          settled = true;
+        });
     });
 
     expect(useSortableMock.mock.calls.slice(-3).every((call) => call[0].disabled === true)).toBe(true);
 
     await act(async () => {
       resolvePersist();
-      await dragEndPromise;
     });
+    await waitFor(() => expect(settled).toBe(true));
   });
 
   it("renders a refreshed notes prop that diverges after a confirmed reorder instead of the stale optimistic order", async () => {
@@ -365,12 +368,7 @@ describe("TripNotesSortable", () => {
         over: { id: "note-2" },
       });
     });
-    await act(async () => {
-      await getDndProps<{ onDragEnd?: (event: unknown) => Promise<void> }>().onDragEnd?.({
-        active: { id: "note-1" },
-        over: { id: "note-2" },
-      });
-    });
+    await dropNote("note-1");
 
     rerender(
       <TripNotesSortable

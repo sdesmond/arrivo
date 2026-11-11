@@ -3,22 +3,15 @@
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, days, documents, itineraryNotes, notes, itineraryChecklists, trips } from "@/db/schema";
-import { eq, and, sql, asc, inArray } from "drizzle-orm";
+import { events, days, documents, itineraryNotes, itineraryChecklists, trips } from "@/db/schema";
+import { eq, and, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
-import {
-  addDocumentSchema,
-  createTripNoteSchema,
-  documentNameSchema,
-  parseInput,
-  updateDaySchema,
-  updateTripNoteSchema,
-} from "@/lib/validation-schemas";
+import { addDocumentSchema, documentNameSchema, parseInput, updateDaySchema } from "@/lib/validation-schemas";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
@@ -32,18 +25,9 @@ import {
   uploadDocumentToEvent as uploadEventDocumentAction,
 } from "./document-upload-actions";
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
-import type {
-  UpdateDayPatch,
-  AddDocumentInput,
-  RemoveLastDayResult,
-  CreateTripNoteInput,
-  UpdateTripNoteInput,
-  ReorderTripNotesInput,
-  ContributorChange,
-} from "@/data/types";
+import type { UpdateDayPatch, AddDocumentInput, RemoveLastDayResult, ContributorChange } from "@/data/types";
 
 const MAX_TRIP_DAYS = 45;
-const CONCURRENT_MODIFICATION_ERROR = "CONCURRENT_MODIFICATION";
 
 export async function getShareDialogData(tripId: string) {
   const user = await requireUser();
@@ -324,101 +308,6 @@ export async function addDocument(rawInput: AddDocumentInput): Promise<void> {
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
-}
-
-export async function createTripNote(tripId: string, rawInput: CreateTripNoteInput): Promise<void> {
-  const user = await requireUser();
-  const input = parseInput(createTripNoteSchema, rawInput);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const title = input.title?.trim() || undefined;
-  const body = input.body?.trim() || undefined;
-  if (!title && !body) {
-    throw new Error("Note is blank");
-  }
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-    await transaction
-      .update(notes)
-      .set({ position: sql`${notes.position} + 1` })
-      .where(eq(notes.tripId, tripId));
-    await transaction.insert(notes).values({ tripId, position: 0, title, body });
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function updateTripNote(noteId: string, rawInput: UpdateTripNoteInput): Promise<void> {
-  const user = await requireUser();
-  const input = parseInput(updateTripNoteSchema, rawInput);
-  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
-  if (!note) return;
-
-  const tripId = note.tripId;
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const title = typeof input.title === "string" ? input.title.trim() || null : undefined;
-  const body = typeof input.body === "string" ? input.body.trim() || null : undefined;
-  if (!title && !body) {
-    throw new Error("Note is blank");
-  }
-
-  const updateValues: { title?: string | null; body?: string | null; updatedAt: Date } = {
-    updatedAt: new Date(),
-  };
-  if (title !== undefined) updateValues.title = title;
-  if (body !== undefined) updateValues.body = body;
-
-  await db.update(notes).set(updateValues).where(eq(notes.id, noteId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteTripNote(noteId: string): Promise<void> {
-  const user = await requireUser();
-  const [note] = await db.select({ tripId: notes.tripId }).from(notes).where(eq(notes.id, noteId));
-  if (!note) return;
-
-  await assertTripAccess(note.tripId, user.id!, "editor");
-  await db.delete(notes).where(eq(notes.id, noteId));
-  recordTripUpdated(user.id!, note.tripId);
-  publishItineraryChanged(note.tripId);
-  revalidatePath(`/trips/${note.tripId}`);
-}
-
-export async function reorderTripNotes(input: ReorderTripNotesInput): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(input.tripId, user.id!, "editor");
-
-  await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, input.tripId);
-
-    const currentNotes = await tx.select({ id: notes.id }).from(notes).where(eq(notes.tripId, input.tripId));
-    const submittedIds = new Set(input.orderedNoteIds);
-    const isValid =
-      input.orderedNoteIds.length === currentNotes.length &&
-      submittedIds.size === input.orderedNoteIds.length &&
-      currentNotes.every((note) => submittedIds.has(note.id));
-
-    if (!isValid) {
-      throw new Error(CONCURRENT_MODIFICATION_ERROR);
-    }
-
-    for (let index = 0; index < input.orderedNoteIds.length; index++) {
-      await tx
-        .update(notes)
-        .set({ position: index })
-        .where(and(eq(notes.id, input.orderedNoteIds[index]), eq(notes.tripId, input.tripId)));
-    }
-  });
-
-  recordTripUpdated(user.id!, input.tripId);
-  publishItineraryChanged(input.tripId);
-  revalidatePath(`/trips/${input.tripId}`);
 }
 
 export async function removeDocument(docId: string): Promise<void> {

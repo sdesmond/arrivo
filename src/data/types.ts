@@ -1361,19 +1361,10 @@ export interface AddDocumentInput {
   url?: string;
 }
 
-export interface CreateTripNoteInput {
-  title?: string;
-  body?: string;
-}
-
-export interface UpdateTripNoteInput {
-  title?: string;
-  body?: string;
-}
-
-export interface ReorderTripNotesInput {
+/** A trip's complete note order as stored: every note id, first to last. */
+export interface TripNoteOrder {
   tripId: string;
-  orderedNoteIds: string[];
+  noteIds: string[];
 }
 
 export interface CreateReservationInput {

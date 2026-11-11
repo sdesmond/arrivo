@@ -16,6 +16,8 @@ Feature: Trip Notes
     And I enter "Reef-safe only" as the note body
     And I close the note editor
     Then a note row titled "Pack sunscreen" with preview "Reef-safe only" is at the top of the notes list
+    When I reload the Notes tab
+    Then a note row titled "Pack sunscreen" with preview "Reef-safe only" is at the top of the notes list
 
   Scenario: Creating a note with no title uses the first body line as the implicit title
     When I open the Notes tab
@@ -75,6 +77,8 @@ Scenario: Expanding a note reveals its full body in place
     And I replace the note body with "Hats and towels"
     And I collapse the expanded note
     Then a note row titled "Beach packing" with preview "Hats and towels" is at the top of the notes list
+    When I reload the Notes tab
+    Then a note row titled "Beach packing" with preview "Hats and towels" is at the top of the notes list
 
   Scenario: Editing a note preserves its list position
     When I open the Notes tab
@@ -102,6 +106,8 @@ Scenario: Expanding a note reveals its full body in place
     Then the note delete confirmation is visible with Cancel focused
     When I confirm note deletion
     Then the note titled "Second note" is absent and the disclosure for "First note" is focused
+    When I reload the Notes tab
+    Then the notes list shows only "First note"
 
   Scenario: Cancelling note deletion leaves its expanded editor intact
     When I open the Notes tab
@@ -150,6 +156,15 @@ Scenario: Expanding a note reveals its full body in place
     Then the notes list shows, in order, "Second note", "First note", "Third note"
     When I reload the Notes tab
     Then the notes list shows, in order, "Second note", "First note", "Third note"
+
+  @trip-notes-reorder
+  Scenario: Two reorders in a row persist the final order after reload
+    When I open the Notes tab
+    And I pointer-drag the note "First note" onto the note "Second note"
+    And I pointer-drag the note "Third note" onto the note "Second note"
+    Then the notes list shows, in order, "Third note", "Second note", "First note"
+    When I reload the Notes tab
+    Then the notes list shows, in order, "Third note", "Second note", "First note"
 
   @trip-notes-reorder
   Scenario: Keyboard-reordering a note moves it down one position and persists after reload

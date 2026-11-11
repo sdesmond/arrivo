@@ -65,3 +65,6 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-extract-shared-timeline-positioning-and-reorder-days-through-plan.md`
   summary: Drags still waiting in a keyed `useApiMutation` queue are dropped if the component unmounts before they start, so the last rapid drag can fail to persist after immediate navigation.
   evidence: Pre-existing in `use-api-mutation.ts` (`run` returns early when `!mounted.current`); day drags now go through it instead of a server action that kept running. Settle by flushing queued writes on unmount or confirming a navigation guard exists.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-move-trip-notes-to-the-api-plan.md`
+  summary: A trip-note edit or create saved while the editor unmounts (tab switch) skips the hook's toast, `onSuccess` and refresh, so a failure is silent and the page may stay stale.
+  evidence: UNVERIFIED medium. `useApiMutation.mutate` returns early once unmounted; the plan assumes the live-sync publish from `afterTripWrite` refreshes the page. Settle it with an E2E that edits a note, switches tab, and checks the saved note shows.

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, StickyNote } from "lucide-react";
 import type { TripNote } from "@/data/types";
-import { deleteTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { deleteTripNote as deleteTripNoteEndpoint } from "@/lib/api/contract/trip-notes";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { getNoteTitle } from "@/lib/note-preview";
 import { TripNotesSortable } from "./trip-notes-sortable";
 import { TripNotesEditor, type TripNotesEditorCommitResult, type TripNotesEditorHandle } from "./trip-notes-editor";
@@ -29,6 +30,7 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   const focusReturnNoteIdRef = useRef<string | null>(null);
   const expandedNoteIdRef = useRef<string | null>(null);
   const isFirstRenderRef = useRef(true);
+  const deleteMutation = useApiMutation(deleteTripNoteEndpoint);
 
   useEffect(() => {
     if (isFirstRenderRef.current) {
@@ -105,23 +107,33 @@ export function TripNotesTab({ tripId, notes }: TripNotesTabProps) {
   async function handleDeleteConfirm(): Promise<void> {
     if (!deleteTargetNoteId) return;
     const noteId = deleteTargetNoteId;
+    // Decided before the request: the refresh that follows a delete removes the note, and with it the expanded state.
+    const wasExpanded = noteId === expandedNoteIdRef.current;
+    const deletedIndex = notes.findIndex((note) => note.id === noteId);
+    const focusTargetId = notes[deletedIndex + 1]?.id ?? notes[deletedIndex - 1]?.id ?? null;
+    if (wasExpanded) focusReturnNoteIdRef.current = focusTargetId;
     setIsDeleting(true);
     setDeleteError(null);
-    try {
-      await deleteTripNote(noteId);
-      setDeleteTargetNoteId(null);
-      if (noteId === expandedNoteIdRef.current) {
-        const deletedIndex = notes.findIndex((note) => note.id === noteId);
-        const focusTargetId = notes[deletedIndex + 1]?.id ?? notes[deletedIndex - 1]?.id ?? null;
-        focusReturnNoteIdRef.current = focusTargetId;
-        setExpanded(null);
+    let deleted = false;
+    // The hook toasts a failure; the dialog keeps its own inline error and Retry.
+    await deleteMutation.mutate(
+      { params: { noteId }, body: { tripId } },
+      {
+        key: `trip-note:${noteId}`,
+        onSuccess: () => {
+          deleted = true;
+        },
       }
+    );
+    if (deleted) {
+      setDeleteTargetNoteId(null);
+      if (wasExpanded) setExpanded(null);
       announce("Note deleted");
-    } catch {
+    } else {
+      if (wasExpanded) focusReturnNoteIdRef.current = null;
       setDeleteError("Couldn't delete note. Try again.");
-    } finally {
-      setIsDeleting(false);
     }
+    setIsDeleting(false);
   }
 
   async function handleToggle(noteId: string): Promise<void> {

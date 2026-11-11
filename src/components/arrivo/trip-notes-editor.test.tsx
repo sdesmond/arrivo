@@ -3,8 +3,9 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { TripNotesEditor, type TripNotesEditorHandle } from "./trip-notes-editor";
-import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
 import { toast } from "sonner";
+import { api, ApiClientError } from "@/lib/api/client";
+import { createTripNote, updateTripNote } from "@/lib/api/contract/trip-notes";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 vi.mock("sonner", () => ({
@@ -12,13 +13,34 @@ vi.mock("sonner", () => ({
   Toaster: () => null,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  createTripNote: vi.fn(),
-  updateTripNote: vi.fn(),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
-const mockCreateTripNote = vi.mocked(createTripNote);
-const mockUpdateTripNote = vi.mocked(updateTripNote);
+const mockApi = vi.mocked(api);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function createCalls() {
+  return mockApi.mock.calls.filter(([endpoint]) => endpoint === createTripNote);
+}
+
+function updateCalls() {
+  return mockApi.mock.calls.filter(([endpoint]) => endpoint === updateTripNote);
+}
+
+function expectCreated(body: Record<string, unknown>) {
+  expect(mockApi).toHaveBeenCalledWith(createTripNote, {
+    params: { tripId: "trip-1" },
+    body: { id: expect.stringMatching(UUID_PATTERN), ...body },
+  });
+}
+
+function expectUpdated(noteId: string, body: Record<string, unknown>) {
+  expect(mockApi).toHaveBeenCalledWith(updateTripNote, { params: { noteId }, body });
+}
+
+const serverFailure = () => new ApiClientError(500, "server_error", "The server could not save the note.");
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void;
@@ -33,6 +55,7 @@ function deferred<Value>() {
 describe("TripNotesEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.mockResolvedValue(undefined as never);
   });
 
   afterEach(() => {
@@ -53,12 +76,11 @@ describe("TripNotesEditor", () => {
     await userEvent.type(title, "Pack sunscreen");
     fireEvent.blur(title, { relatedTarget: body });
 
-    expect(mockCreateTripNote).not.toHaveBeenCalled();
+    expect(createCalls()).toHaveLength(0);
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it("does not commit when focus moves from the editor to a control in its row", () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     render(
       <li>
         <TripNotesEditor
@@ -78,7 +100,7 @@ describe("TripNotesEditor", () => {
 
     fireEvent.blur(title, { relatedTarget: deleteButton });
 
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("discards a blank draft on blur without calling the server action", async () => {
@@ -89,7 +111,7 @@ describe("TripNotesEditor", () => {
     fireEvent.blur(title, { relatedTarget: null });
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    expect(mockCreateTripNote).not.toHaveBeenCalled();
+    expect(createCalls()).toHaveLength(0);
   });
 
   it("discards a whitespace-only draft on blur without calling the server action", async () => {
@@ -103,11 +125,10 @@ describe("TripNotesEditor", () => {
     fireEvent.blur(title, { relatedTarget: null });
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    expect(mockCreateTripNote).not.toHaveBeenCalled();
+    expect(createCalls()).toHaveLength(0);
   });
 
   it("commits the serialized values when focus leaves the composite", async () => {
-    mockCreateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
@@ -117,14 +138,11 @@ describe("TripNotesEditor", () => {
     await userEvent.type(body, "Reef-safe only");
     fireEvent.blur(body, { relatedTarget: null });
 
-    await waitFor(() =>
-      expect(mockCreateTripNote).toHaveBeenCalledWith("trip-1", { title: "Pack sunscreen", body: "Reef-safe only" })
-    );
+    await waitFor(() => expectCreated({ title: "Pack sunscreen", body: "Reef-safe only" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("commits a body-only draft with an undefined title", async () => {
-    mockCreateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const body = screen.getByLabelText("Note body");
@@ -132,15 +150,14 @@ describe("TripNotesEditor", () => {
     await userEvent.type(body, "Buy tickets");
     fireEvent.blur(body, { relatedTarget: null });
 
-    await waitFor(() =>
-      expect(mockCreateTripNote).toHaveBeenCalledWith("trip-1", { title: undefined, body: "Buy tickets" })
-    );
+    await waitFor(() => expectCreated({ body: "Buy tickets" }));
+    expect((createCalls()[0][1] as { body: object }).body).not.toHaveProperty("title");
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("sets aria-busy on the composite while the save request is in flight", async () => {
     const { promise, resolve } = deferred<void>();
-    mockCreateTripNote.mockReturnValue(promise);
+    mockApi.mockReturnValue(promise as never);
     render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
 
@@ -156,7 +173,7 @@ describe("TripNotesEditor", () => {
   it("announces 'Saving note' only after a delay while the request is still pending", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { promise, resolve } = deferred<void>();
-    mockCreateTripNote.mockReturnValue(promise);
+    mockApi.mockReturnValue(promise as never);
     render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
 
@@ -182,7 +199,6 @@ describe("TripNotesEditor", () => {
   });
 
   it("reports a successful save exactly once before closing", async () => {
-    mockCreateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     const onSaved = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={onSaved} />);
@@ -196,7 +212,6 @@ describe("TripNotesEditor", () => {
   });
 
   it("does not create a duplicate note when a successful create unmounts the editor", async () => {
-    mockCreateTripNote.mockResolvedValue(undefined);
     const editorRef = createRef<TripNotesEditorHandle>();
     const { unmount } = render(<TripNotesEditor ref={editorRef} tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack sunscreen" } });
@@ -204,11 +219,11 @@ describe("TripNotesEditor", () => {
     await expect(editorRef.current?.commit()).resolves.toBe("saved");
     unmount();
 
-    expect(mockCreateTripNote).toHaveBeenCalledTimes(1);
+    expect(createCalls()).toHaveLength(1);
   });
 
   it("keeps the editor open with the dirty value and shows an inline error plus Retry on failure", async () => {
-    mockCreateTripNote.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(serverFailure());
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
@@ -220,11 +235,11 @@ describe("TripNotesEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Note title")).toHaveValue("Pack sunscreen");
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save note. Try again.");
-    expect(toast.error).toHaveBeenCalledWith("Couldn't save note. Try again.");
+    expect(toast.error).toHaveBeenCalledWith("The server could not save the note.");
   });
 
   it("focuses the Retry control after a failure", async () => {
-    mockCreateTripNote.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(serverFailure());
     render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
 
@@ -235,8 +250,7 @@ describe("TripNotesEditor", () => {
   });
 
   it("re-invokes the create action with the same draft when Retry is activated", async () => {
-    mockCreateTripNote.mockRejectedValueOnce(new Error("network down"));
-    mockCreateTripNote.mockResolvedValueOnce(undefined);
+    mockApi.mockRejectedValueOnce(serverFailure());
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
@@ -247,22 +261,22 @@ describe("TripNotesEditor", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    await waitFor(() => expect(mockCreateTripNote).toHaveBeenCalledTimes(2));
-    expect(mockCreateTripNote).toHaveBeenLastCalledWith("trip-1", { title: "Pack sunscreen", body: undefined });
+    await waitFor(() => expect(createCalls()).toHaveLength(2));
+    expect(createCalls().at(-1)?.[1]).toEqual({
+      params: { tripId: "trip-1" },
+      body: { id: expect.stringMatching(UUID_PATTERN), title: "Pack sunscreen" },
+    });
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("commits from the title field on Enter", async () => {
-    mockCreateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
 
     await userEvent.type(title, "Pack sunscreen{Enter}");
 
-    await waitFor(() =>
-      expect(mockCreateTripNote).toHaveBeenCalledWith("trip-1", { title: "Pack sunscreen", body: undefined })
-    );
+    await waitFor(() => expectCreated({ title: "Pack sunscreen" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
@@ -273,12 +287,12 @@ describe("TripNotesEditor", () => {
     fireEvent.change(body, { target: { value: "First line" } });
     fireEvent.keyDown(body, { key: "Enter" });
 
-    expect(mockCreateTripNote).not.toHaveBeenCalled();
+    expect(createCalls()).toHaveLength(0);
   });
 
   it("disables editing and ignores overlapping commits while a save is in flight", async () => {
     const { promise, resolve } = deferred<void>();
-    mockCreateTripNote.mockReturnValue(promise);
+    mockApi.mockReturnValue(promise as never);
     render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
     const body = screen.getByLabelText("Note body");
@@ -289,7 +303,7 @@ describe("TripNotesEditor", () => {
 
     await waitFor(() => expect(title).toBeDisabled());
     expect(body).toBeDisabled();
-    expect(mockCreateTripNote).toHaveBeenCalledTimes(1);
+    expect(createCalls()).toHaveLength(1);
 
     resolve(undefined);
     await promise;
@@ -314,7 +328,6 @@ describe("TripNotesEditor", () => {
   });
 
   it("autosaves changed edit values on composite blur and keeps the editor open", async () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(
       <TripNotesEditor
@@ -332,9 +345,7 @@ describe("TripNotesEditor", () => {
     fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "  Two each  " } });
     fireEvent.blur(screen.getByLabelText("Note body"), { relatedTarget: null });
 
-    await waitFor(() =>
-      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", { title: "Pack hats", body: "Two each" })
-    );
+    await waitFor(() => expectUpdated("note-1", { title: "Pack hats", body: "Two each" }));
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Note title")).toBeInTheDocument();
   });
@@ -355,7 +366,7 @@ describe("TripNotesEditor", () => {
     );
 
     await expect(editorRef.current?.commit()).resolves.toBe("clean");
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("discards a blank edit by restoring saved content without a server call", async () => {
@@ -377,11 +388,11 @@ describe("TripNotesEditor", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Note title")).toHaveValue("Pack sunscreen"));
     expect(screen.getByLabelText("Note body")).toHaveValue("Reef-safe only");
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("returns failed and preserves dirty edit values with linked error, focused Retry, and toast", async () => {
-    mockUpdateTripNote.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(serverFailure());
     const editorRef = createRef<TripNotesEditorHandle>();
     render(
       <TripNotesEditor
@@ -407,11 +418,11 @@ describe("TripNotesEditor", () => {
     expect(screen.getByLabelText("Note title")).toHaveAttribute("aria-describedby", "trip-note-editor-error");
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save note. Try again.");
     expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus();
-    expect(toast.error).toHaveBeenCalledWith("Couldn't save note. Try again.");
+    expect(toast.error).toHaveBeenCalledWith("The server could not save the note.");
   });
 
   it("retries a failed edit with the preserved values", async () => {
-    mockUpdateTripNote.mockRejectedValueOnce(new Error("network down")).mockResolvedValueOnce(undefined);
+    mockApi.mockRejectedValueOnce(serverFailure());
     render(
       <TripNotesEditor
         tripId="trip-1"
@@ -429,16 +440,13 @@ describe("TripNotesEditor", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(2));
-    expect(mockUpdateTripNote).toHaveBeenLastCalledWith("note-1", {
-      title: "Pack hats",
-      body: "Reef-safe only",
-    });
+    await waitFor(() => expect(updateCalls()).toHaveLength(2));
+    expect(updateCalls().at(-1)?.[1]).toEqual({ params: { noteId: "note-1" }, body: { title: "Pack hats" } });
   });
 
   it("shares one in-flight edit request across overlapping imperative commits", async () => {
     const { promise, resolve } = deferred<void>();
-    mockUpdateTripNote.mockReturnValue(promise);
+    mockApi.mockReturnValue(promise as never);
     const editorRef = createRef<TripNotesEditorHandle>();
     render(
       <TripNotesEditor
@@ -457,13 +465,12 @@ describe("TripNotesEditor", () => {
     const firstCommit = editorRef.current!.commit();
     const secondCommit = editorRef.current!.commit();
 
-    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    expect(updateCalls()).toHaveLength(1);
     resolve(undefined);
     await expect(Promise.all([firstCommit, secondCommit])).resolves.toEqual(["saved", "saved"]);
   });
 
   it("returns saved once, announces once, and resets the edit baseline", async () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     const editorRef = createRef<TripNotesEditorHandle>();
     const onSaved = vi.fn();
     render(
@@ -483,11 +490,10 @@ describe("TripNotesEditor", () => {
     await expect(editorRef.current?.commit()).resolves.toBe("saved");
     expect(onSaved).toHaveBeenCalledTimes(1);
     await expect(editorRef.current?.commit()).resolves.toBe("clean");
-    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    expect(updateCalls()).toHaveLength(1);
   });
 
   it("sends a cleared single field as empty so the explicit clear persists", async () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     render(
       <TripNotesEditor
         tripId="trip-1"
@@ -503,13 +509,10 @@ describe("TripNotesEditor", () => {
     fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "" } });
     fireEvent.blur(screen.getByLabelText("Note body"), { relatedTarget: null });
 
-    await waitFor(() =>
-      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", { title: "Pack sunscreen", body: "" })
-    );
+    await waitFor(() => expectUpdated("note-1", { body: "" }));
   });
 
   it("commits dirty edits on unmount when no blur fired", async () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     const { unmount } = render(
       <TripNotesEditor
         tripId="trip-1"
@@ -525,9 +528,7 @@ describe("TripNotesEditor", () => {
 
     unmount();
 
-    await waitFor(() =>
-      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", { title: "Pack hats", body: "Reef-safe only" })
-    );
+    await waitFor(() => expectUpdated("note-1", { title: "Pack hats" }));
   });
 
   it("does not call the action on unmount when the editor holds no changes", async () => {
@@ -545,12 +546,12 @@ describe("TripNotesEditor", () => {
 
     unmount();
 
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("reuses the in-flight request when unmount races a blur-triggered save", async () => {
     const { promise, resolve } = deferred<void>();
-    mockUpdateTripNote.mockReturnValue(promise);
+    mockApi.mockReturnValue(promise as never);
     const { unmount } = render(
       <TripNotesEditor
         tripId="trip-1"
@@ -564,17 +565,17 @@ describe("TripNotesEditor", () => {
     );
     fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Pack hats" } });
     fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
-    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(updateCalls()).toHaveLength(1));
 
     unmount();
     resolve(undefined);
     await promise;
 
-    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    expect(updateCalls()).toHaveLength(1);
   });
 
   it("stays silent when blurred again after a failed save until an explicit retry", async () => {
-    mockUpdateTripNote.mockRejectedValue(new Error("network down"));
+    mockApi.mockRejectedValue(serverFailure());
     render(
       <TripNotesEditor
         tripId="trip-1"
@@ -592,11 +593,11 @@ describe("TripNotesEditor", () => {
 
     fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
 
-    expect(mockUpdateTripNote).toHaveBeenCalledTimes(1);
+    expect(updateCalls()).toHaveLength(1);
     expect(toast.error).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(mockUpdateTripNote).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(updateCalls()).toHaveLength(2));
   });
 
   it("restores the trimmed display for a whitespace-only edit without saving", async () => {
@@ -616,7 +617,7 @@ describe("TripNotesEditor", () => {
     fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
 
     await waitFor(() => expect(screen.getByLabelText("Note title")).toHaveValue("Pack sunscreen"));
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("does not call the action when an edit-mode blur carries no changes", async () => {
@@ -634,11 +635,10 @@ describe("TripNotesEditor", () => {
 
     fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
 
-    expect(mockUpdateTripNote).not.toHaveBeenCalled();
+    expect(updateCalls()).toHaveLength(0);
   });
 
   it("commits from the title field on Enter in edit mode and stays open", async () => {
-    mockUpdateTripNote.mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(
       <TripNotesEditor
@@ -655,14 +655,109 @@ describe("TripNotesEditor", () => {
 
     await userEvent.type(title, "{End} updated{Enter}");
 
-    await waitFor(() =>
-      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", {
-        title: "Pack sunscreen updated",
-        body: "Reef-safe only",
-      })
-    );
+    await waitFor(() => expectUpdated("note-1", { title: "Pack sunscreen updated" }));
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Note title")).toBeInTheDocument();
+  });
+});
+
+describe("TripNotesEditor client id", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApi.mockResolvedValue(undefined as never);
+  });
+
+  async function failCreate(): Promise<void> {
+    render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Note title"), "Pack sunscreen");
+    fireEvent.blur(screen.getByLabelText("Note title"), { relatedTarget: null });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument());
+  }
+
+  function ids(): string[] {
+    return createCalls().map(([, input]) => (input as { body: { id: string } }).body.id);
+  }
+
+  it("sends the same id on a retry after a failed create", async () => {
+    mockApi.mockRejectedValueOnce(serverFailure());
+    await failCreate();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(createCalls()).toHaveLength(2));
+    expect(ids()[0]).toMatch(UUID_PATTERN);
+    expect(ids()[1]).toBe(ids()[0]);
+  });
+
+  it("sends a fresh id after the server reports the id belongs to a different note", async () => {
+    mockApi.mockRejectedValueOnce(
+      new ApiClientError(409, "conflict", "This ID was already used for a different note.")
+    );
+    await failCreate();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(createCalls()).toHaveLength(2));
+    expect(ids()[1]).toMatch(UUID_PATTERN);
+    expect(ids()[1]).not.toBe(ids()[0]);
+  });
+
+  it("gives each new draft its own id", async () => {
+    const first = render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Note title"), "One{Enter}");
+    await waitFor(() => expect(createCalls()).toHaveLength(1));
+    first.unmount();
+
+    render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Note title"), "Two{Enter}");
+    await waitFor(() => expect(createCalls()).toHaveLength(2));
+
+    expect(ids()[0]).not.toBe(ids()[1]);
+  });
+
+  it("gives the next draft its own id when the editor stays mounted after a save", async () => {
+    const editorRef = createRef<TripNotesEditorHandle>();
+    render(<TripNotesEditor ref={editorRef} tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "One" } });
+    await expect(editorRef.current?.commit()).resolves.toBe("saved");
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "Two" } });
+    await expect(editorRef.current?.commit()).resolves.toBe("saved");
+
+    expect(createCalls()).toHaveLength(2);
+    expect(ids()[1]).not.toBe(ids()[0]);
+  });
+
+  it("still sends a create when the draft is unmounted with text", async () => {
+    const { unmount } = render(<TripNotesEditor tripId="trip-1" onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Note body"), { target: { value: "Remember the tickets" } });
+
+    unmount();
+
+    await waitFor(() => expectCreated({ body: "Remember the tickets" }));
+  });
+
+  it("falls back to a failed result when edit mode has no note id", async () => {
+    const editorRef = createRef<TripNotesEditorHandle>();
+    render(
+      <TripNotesEditor
+        ref={editorRef}
+        tripId="trip-1"
+        mode="edit"
+        initialTitle="A"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Note title"), { target: { value: "B" } });
+
+    let result: string | undefined;
+    await act(async () => {
+      result = await editorRef.current?.commit();
+    });
+
+    expect(result).toBe("failed");
+    expect(mockApi).not.toHaveBeenCalled();
   });
 });
 

@@ -10,8 +10,13 @@ import {
   type ForwardedRef,
   type KeyboardEvent,
 } from "react";
-import { toast } from "sonner";
-import { createTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { ApiClientError } from "@/lib/api/client";
+import {
+  createTripNote as createTripNoteEndpoint,
+  updateTripNote as updateTripNoteEndpoint,
+} from "@/lib/api/contract/trip-notes";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { createRandomId } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export type TripNotesEditorCommitResult = "saved" | "failed" | "clean";
@@ -61,6 +66,9 @@ function TripNotesEditorComponent(
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
+  // One client UUID per create draft: a retry reuses it, so a create that landed server-side replays instead of
+  // duplicating. It is replaced only when the server reports the id already belongs to a different note.
+  const draftIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (error) {
@@ -81,6 +89,11 @@ function TripNotesEditorComponent(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Declared after the unmount-commit effect on purpose: effect cleanups run in declaration order, so that save is
+  // sent before these hooks mark themselves unmounted.
+  const createMutation = useApiMutation(createTripNoteEndpoint);
+  const updateMutation = useApiMutation(updateTripNoteEndpoint);
+
   function announce(message: string): void {
     setAnnouncement(message);
     setAnnouncementId((currentId) => currentId + 1);
@@ -92,6 +105,42 @@ function TripNotesEditorComponent(
     setTitle(baseline.title);
     setBody(baseline.body);
     setError(null);
+  }
+
+  /** Resolves true once the write committed. The hook has already toasted a failure. */
+  function save(values: EditorValues): Promise<boolean> {
+    const baseline = baselineRef.current;
+    let saved = false;
+    const onSuccess = () => {
+      saved = true;
+    };
+    if (mode === "edit") {
+      if (!noteId) return Promise.resolve(false);
+      // Only the fields that changed are sent; an emptied one is sent blank, which clears it.
+      const body: { title?: string; body?: string } = {};
+      if (values.title !== baseline.title) body.title = values.title;
+      if (values.body !== baseline.body) body.body = values.body;
+      return updateMutation
+        .mutate({ params: { noteId }, body }, { key: `trip-note:${noteId}`, onSuccess })
+        .then(() => saved);
+    }
+    draftIdRef.current ??= createRandomId();
+    const id = draftIdRef.current;
+    return createMutation
+      .mutate(
+        {
+          params: { tripId },
+          body: { id, ...(values.title ? { title: values.title } : {}), ...(values.body ? { body: values.body } : {}) },
+        },
+        {
+          key: `trip-note:${id}`,
+          onSuccess,
+          onError: (error) => {
+            if (error instanceof ApiClientError && error.code === "conflict") draftIdRef.current = createRandomId();
+          },
+        }
+      )
+      .then(() => saved);
   }
 
   function commit(): Promise<TripNotesEditorCommitResult> {
@@ -120,41 +169,28 @@ function TripNotesEditorComponent(
       savingTimeoutRef.current = setTimeout(() => announce("Saving note"), SAVING_ANNOUNCE_DELAY_MS);
 
       try {
+        if (!(await save(values))) {
+          clearTimeout(savingTimeoutRef.current);
+          setAnnouncement("");
+          setIsSaving(false);
+          setError(SAVE_ERROR_MESSAGE);
+          return "failed";
+        }
+        baselineRef.current = values;
+        valuesRef.current = mode === "edit" ? values : { title: "", body: "" };
         if (mode === "edit") {
-          if (!noteId) throw new Error("Edit mode requires a note ID");
-          await updateTripNote(noteId, {
-            title: values.title,
-            body: values.body,
-          });
-          baselineRef.current = values;
-          valuesRef.current = values;
           setTitle(values.title);
           setBody(values.body);
-        } else {
-          await createTripNote(tripId, {
-            title: values.title || undefined,
-            body: values.body || undefined,
-          });
-          valuesRef.current = { title: "", body: "" };
         }
-
-        baselineRef.current = values;
-        if (mode === "edit") valuesRef.current = values;
         clearTimeout(savingTimeoutRef.current);
         setAnnouncement("");
         setIsSaving(false);
         onSaved();
         if (mode === "create") {
+          draftIdRef.current = null;
           onClose();
         }
         return "saved";
-      } catch {
-        clearTimeout(savingTimeoutRef.current);
-        setAnnouncement("");
-        setIsSaving(false);
-        setError(SAVE_ERROR_MESSAGE);
-        toast.error(SAVE_ERROR_MESSAGE);
-        return "failed";
       } finally {
         inFlightCommitRef.current = null;
       }

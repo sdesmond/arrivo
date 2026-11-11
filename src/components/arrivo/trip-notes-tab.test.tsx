@@ -3,23 +3,27 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { TripNotesTab } from "./trip-notes-tab";
 import type { TripNote } from "@/data/types";
-import { createTripNote, deleteTripNote, updateTripNote } from "@/app/(app)/trips/[tripId]/actions";
+import { api } from "@/lib/api/client";
+import {
+  createTripNote as createTripNoteEndpoint,
+  deleteTripNote as deleteTripNoteEndpoint,
+  updateTripNote as updateTripNoteEndpoint,
+} from "@/lib/api/contract/trip-notes";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
   Toaster: () => null,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  createTripNote: vi.fn(),
-  deleteTripNote: vi.fn(),
-  updateTripNote: vi.fn(),
-  reorderTripNotes: vi.fn(),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
-const mockCreateTripNote = vi.mocked(createTripNote);
-const mockDeleteTripNote = vi.mocked(deleteTripNote);
-const mockUpdateTripNote = vi.mocked(updateTripNote);
+// One stub per endpoint, so each test shapes the create, edit and delete responses on its own.
+const mockCreateTripNote = vi.fn();
+const mockDeleteTripNote = vi.fn();
+const mockUpdateTripNote = vi.fn();
 
 function buildNote(overrides: Partial<TripNote> = {}): TripNote {
   return {
@@ -33,6 +37,15 @@ function buildNote(overrides: Partial<TripNote> = {}): TripNote {
 describe("TripNotesTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateTripNote.mockReset();
+    mockDeleteTripNote.mockReset();
+    mockUpdateTripNote.mockReset();
+    vi.mocked(api).mockImplementation(async (endpoint, input) => {
+      if (endpoint === createTripNoteEndpoint) return mockCreateTripNote(input);
+      if (endpoint === updateTripNoteEndpoint) return mockUpdateTripNote(input);
+      if (endpoint === deleteTripNoteEndpoint) return mockDeleteTripNote(input);
+      throw new Error("Unexpected endpoint");
+    });
   });
 
   it("renders the empty state with a New Note action and no persistent capture bar when there are no notes", () => {
@@ -184,7 +197,10 @@ describe("TripNotesTab", () => {
     await user.click(screen.getByRole("button", { name: /Second note Second body/ }));
 
     await waitFor(() =>
-      expect(mockUpdateTripNote).toHaveBeenCalledWith("note-1", { title: "Updated first", body: "First body" })
+      expect(mockUpdateTripNote).toHaveBeenCalledWith({
+        params: { noteId: "note-1" },
+        body: { title: "Updated first" },
+      })
     );
     await waitFor(() => expect(screen.getByLabelText("Note title")).toHaveValue("Second note"));
     expect(screen.getByRole("button", { name: /First note First body/ })).toHaveAttribute("aria-expanded", "false");
@@ -365,7 +381,12 @@ describe("TripNotesTab", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-1"));
+    await waitFor(() =>
+      expect(mockDeleteTripNote).toHaveBeenCalledWith({
+        params: { noteId: "note-1" },
+        body: { tripId: "trip-1" },
+      })
+    );
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: /Second note Second body/ })).toHaveFocus());
     expect(screen.getByText("Note deleted")).toBeInTheDocument();
@@ -389,7 +410,12 @@ describe("TripNotesTab", () => {
     await user.click(screen.getByRole("button", { name: "Delete Third note" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-3"));
+    await waitFor(() =>
+      expect(mockDeleteTripNote).toHaveBeenCalledWith({
+        params: { noteId: "note-3" },
+        body: { tripId: "trip-1" },
+      })
+    );
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: /Second note Second body/ })).toHaveFocus());
   });
@@ -412,7 +438,12 @@ describe("TripNotesTab", () => {
     await user.click(screen.getByRole("button", { name: "Delete Second note" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-2"));
+    await waitFor(() =>
+      expect(mockDeleteTripNote).toHaveBeenCalledWith({
+        params: { noteId: "note-2" },
+        body: { tripId: "trip-1" },
+      })
+    );
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("region")).toBeInTheDocument();
     expect(screen.getByLabelText("Note title")).toHaveValue("Still editing");
@@ -456,6 +487,26 @@ describe("TripNotesTab", () => {
     expect(screen.getByRole("region")).toBeInTheDocument();
   });
 
+  it("does not send focus to a neighbour when a failed delete of an expanded note is later removed by a refresh", async () => {
+    mockDeleteTripNote.mockRejectedValue(new Error("network down"));
+    const user = userEvent.setup();
+    const first = buildNote({ id: "note-1", title: "First note", body: "First body", position: 0 });
+    const second = buildNote({ id: "note-2", title: "Second note", body: "Second body", position: 1 });
+    const { rerender } = render(<TripNotesTab tripId="trip-1" notes={[first, second]} />);
+    await user.click(screen.getByRole("button", { name: /First note First body/ }));
+    await user.click(screen.getByRole("button", { name: "Delete First note" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    rerender(<TripNotesTab tripId="trip-1" notes={[second]} />);
+
+    await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Second note Second body/ })).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "New Note" })).toHaveFocus();
+  });
+
   it("does not announce a stale save after deletion wins a concurrent edit", async () => {
     let resolveUpdate!: () => void;
     mockUpdateTripNote.mockReturnValue(
@@ -472,7 +523,12 @@ describe("TripNotesTab", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete First note" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(mockDeleteTripNote).toHaveBeenCalledWith("note-1"));
+    await waitFor(() =>
+      expect(mockDeleteTripNote).toHaveBeenCalledWith({
+        params: { noteId: "note-1" },
+        body: { tripId: "trip-1" },
+      })
+    );
     resolveUpdate();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
