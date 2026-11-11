@@ -165,8 +165,6 @@ import {
   addDay,
   addDocument,
   attachTripDocToEvent,
-  createNote,
-  deleteNote,
   deleteTripNote,
   createTripNote,
   dismissShareInvitation,
@@ -180,7 +178,6 @@ import {
   setTripCoverWithAttribution,
   updateDay,
   uploadCoverImage,
-  updateNote,
   updateTripNote,
   rescindShareInvitation,
   resendShareInvitation,
@@ -359,9 +356,7 @@ describe("input validation", () => {
     expect(mockDbUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects oversize itinerary notes and trip notes", async () => {
-    await expect(createNote("day-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
-    await expect(updateNote("note-1", over(5000))).rejects.toThrow("Note must be 5000 characters");
+  it("rejects oversize trip notes", async () => {
     await expect(createTripNote("trip-1", { body: over(10000) })).rejects.toThrow("Note body must be 10000 characters");
     await expect(updateTripNote("note-1", { title: over(200) })).rejects.toThrow("Title must be 200 characters");
 
@@ -1403,45 +1398,6 @@ describe("publishItineraryChanged regression coverage", () => {
       run: () => {
         mockDbInsert.mockReturnValue({ values: vi.fn(async () => undefined) });
         return addDocument({ tripId: "trip-1", name: "Passport.pdf", kind: "other", url: "https://x/doc.pdf" });
-      },
-    },
-    {
-      name: "createNote",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        const transaction = {
-          execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-          select: vi.fn(() => createSimpleSelect([{ id: "day-1" }])),
-          update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
-          insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
-        };
-        mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-          callback(transaction)
-        );
-        return createNote("day-1", "Bring sunscreen", 0);
-      },
-    },
-    {
-      name: "updateNote",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ id: "note-1", dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return updateNote("note-1", "Updated content");
-      },
-    },
-    {
-      name: "deleteNote",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect
-          .mockReturnValueOnce(createSimpleSelect([{ id: "note-1", dayId: "day-1" }]))
-          .mockReturnValueOnce(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbDelete.mockReturnValue({ where: vi.fn(async () => undefined) });
-        return deleteNote("note-1");
       },
     },
     {

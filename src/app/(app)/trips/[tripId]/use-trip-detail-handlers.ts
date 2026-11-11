@@ -15,7 +15,7 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
-import { addDay, createNote, deleteNote, removeLastDay, updateDay, updateNote } from "./actions";
+import { addDay, removeLastDay, updateDay } from "./actions";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import {
   createEvent as createEventEndpoint,
@@ -23,6 +23,11 @@ import {
   updateEvent as updateEventEndpoint,
 } from "@/lib/api/contract/events";
 import { reorderDay as reorderDayEndpoint } from "@/lib/api/contract/days";
+import {
+  createDayNote as createDayNoteEndpoint,
+  deleteDayNote as deleteDayNoteEndpoint,
+  updateDayNote as updateDayNoteEndpoint,
+} from "@/lib/api/contract/itinerary-notes";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
 
@@ -43,7 +48,7 @@ export interface TripDetailHandlers extends PackingHandlers {
     insertAtPosition?: number,
     clientId?: string
   ) => Promise<void>;
-  handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
+  handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number, clientId?: string) => Promise<void>;
   handleUpdateNote: (noteId: string, content: string) => void;
   handleDeleteNote: (noteId: string) => void;
   handleAddChecklist: (
@@ -110,6 +115,9 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const eventCreateMutation = useApiMutation(createEventEndpoint);
   const eventDeleteMutation = useApiMutation(deleteEventEndpoint);
   const dayOrderMutation = useApiMutation(reorderDayEndpoint);
+  const noteCreateMutation = useApiMutation(createDayNoteEndpoint);
+  const noteUpdateMutation = useApiMutation(updateDayNoteEndpoint);
+  const noteDeleteMutation = useApiMutation(deleteDayNoteEndpoint);
   const packingHandlers = usePackingHandlers(detail);
   const checklistHandlers = useChecklistHandlers(days, {
     tripId: trip.id,
@@ -207,33 +215,52 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
       });
   }
 
-  function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): Promise<void> {
+  function handleAddNote(
+    dayNumber: number,
+    content: string,
+    insertAtPosition?: number,
+    clientId?: string
+  ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await createNote(day.id!, content, insertAtPosition);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add note. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    let created = false;
+    let failure: unknown;
+    // The hook toasts a failure; rejecting keeps the draft open, and its retained id makes a retry a replay.
+    return noteCreateMutation
+      .mutate(
+        {
+          params: { dayId: day.id },
+          body: {
+            ...(clientId ? { id: clientId } : {}),
+            content,
+            ...(insertAtPosition !== undefined ? { insertAtPosition } : {}),
+          },
+        },
+        {
+          onSuccess: () => {
+            created = true;
+          },
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
+      )
+      .then(() => {
+        if (created) return;
+        throw failure instanceof Error ? failure : new Error("Failed to add note. Please try again.");
       });
-    });
   }
 
   function handleUpdateNote(noteId: string, content: string): void {
-    React.startTransition(() => {
-      updateNote(noteId, content);
-    });
+    // Edits to one note share a queue key so they reach the server in the order they were made.
+    void noteUpdateMutation.mutate({ params: { noteId }, body: { content } }, { key: `note:${noteId}` });
   }
 
   function handleDeleteNote(noteId: string): void {
-    React.startTransition(() => {
-      deleteNote(noteId);
-    });
+    void noteDeleteMutation.mutate({ params: { noteId }, body: { tripId: trip.id } }, { key: `note:${noteId}` });
   }
 
   function handleTripSave(
