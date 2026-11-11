@@ -215,6 +215,10 @@ Then("{int} failed sign-in is recorded with no identity", async ({ scenario }, c
     gte(activityEvents.startedAt, since)
   );
   await expect.poll(async () => (await activityRows(condition)).length).toBe(count);
+  // Activity is recorded after the HTTP response; bound the later UI filter by the persisted row,
+  // rather than the callback response time, which can precede the record in a production server.
+  const [recorded] = await activityRows(condition);
+  scenario.setValue(FAILURE_WINDOW_END_KEY, recorded.endedAt);
 });
 
 Then(
