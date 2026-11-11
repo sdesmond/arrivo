@@ -103,7 +103,7 @@ describe("TripNotesEditor", () => {
     expect(updateCalls()).toHaveLength(0);
   });
 
-  it("discards a blank draft on blur without calling the server action", async () => {
+  it("discards a blank draft on blur without calling the API", async () => {
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");
@@ -114,7 +114,7 @@ describe("TripNotesEditor", () => {
     expect(createCalls()).toHaveLength(0);
   });
 
-  it("discards a whitespace-only draft on blur without calling the server action", async () => {
+  it("discards a whitespace-only draft on blur without calling the API", async () => {
     const onClose = vi.fn();
     render(<TripNotesEditor tripId="trip-1" onClose={onClose} onSaved={vi.fn()} />);
     const title = screen.getByLabelText("Note title");

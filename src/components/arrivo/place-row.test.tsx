@@ -1003,7 +1003,7 @@ describe("PlaceRow", () => {
     expect(screen.queryByTestId("delete-event-dialog")).not.toBeInTheDocument();
   });
 
-  it("confirming delete from DeleteEventDialog does NOT call parent's onDelete (dialog owns the server action)", async () => {
+  it("confirming delete from DeleteEventDialog does NOT call parent's onDelete (dialog owns the API call)", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const place = {
