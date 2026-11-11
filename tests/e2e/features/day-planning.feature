@@ -69,6 +69,19 @@ Feature: Day Planning
     When I delete the note "Buy sunscreen before flight"
     Then the note "Buy sunscreen before flight" should not be visible
 
+  Scenario: A note between an event and a checklist keeps its place through edit and delete after reload
+    Given I am on the trip detail page
+    When I add a new event named "Note anchor"
+    And I add a checklist with item "Note checklist"
+    And I add a note "Between note" below "Note anchor"
+    Then after reload the timeline reads "event, note, checklist"
+    When I edit the note "Between note" to "Between note edited"
+    Then the note "Between note edited" persists after reload
+    And after reload the timeline reads "event, note, checklist"
+    When I delete the note "Between note edited"
+    Then the note "Between note edited" is gone after reload
+    And after reload the timeline reads "event, checklist"
+
   Scenario: User creates, checks off, collapses, and deletes a checklist
     Given I am on the trip detail page
     When I add a checklist with item "Pack sunscreen"

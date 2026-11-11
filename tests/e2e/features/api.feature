@@ -666,3 +666,163 @@ Feature: Absolute checklist checked-state API
       | linked-id          |
       | non-boolean-keep   |
       | unknown-key        |
+
+  Scenario: Editor inserts notes at a position and at the end through the API among events and checklists
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the note "At front" at position 0 through the day API
+    Then the note API returns 200
+    And after reload the note "At front" sits at timeline index 0
+    When I create the note "Between" at position 3 through the day API
+    Then the note API returns 200
+    And after reload the note "Between" sits at timeline index 3
+    When I create the note "At end" at the end through the day API
+    Then the note API returns 200
+    And after reload the note "At end" sits at timeline index 6
+    And the original items keep their relative order
+
+  Scenario: A same-ID note create replays after another insert shifted it and rejects reuse
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the note "Retry me" with a client ID at position 1 through the day API
+    And I create the note "Shifter" at position 1 through the day API
+    And I retry the client ID note creation
+    Then the retried note keeps its shifted position and the day holds it once
+    When I reuse the client ID for the note "Different"
+    Then the note API returns 409 with code "conflict"
+    And the day holds the client ID note once
+
+  Scenario: Keyed note creates replay once and conflict on a different body
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I send the keyed note create "Keyed note" twice
+    Then both keyed note requests return identical JSON naming "Keyed note"
+    And the day holds 1 note with the content "Keyed note"
+    When I reuse the note create key with the content "Other note"
+    Then the note API returns 409 with code "conflict"
+    And the day holds 1 note with the content "Keyed note"
+
+  Scenario: A note create on a day that no longer exists is not found
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the note "Orphan" on a day that no longer exists
+    Then the note API returns 404 with code "not_found"
+
+  Scenario Outline: Denied note creates leave the day unchanged
+    Given my checklist API role is "<role>"
+    And the mixed day for the day order API
+    When I create the note "Denied" at the end through the day API
+    Then the note API returns <status> with code "<code>"
+    And the day stores the original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid note creates never write
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I submit note create case "<case>"
+    Then the note API returns 422 with code "validation_failed"
+    And the day stores the original order
+    Examples:
+      | case              |
+      | missing-content   |
+      | over-long-content |
+      | non-text-content  |
+      | unknown-key       |
+      | linked-day        |
+      | linked-note-id    |
+      | negative-position |
+
+  Scenario: Editor edits a note and repeating the same text writes nothing
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I patch the existing note with "Edited note"
+    Then the note API returns 200
+    And after reload the existing note holds "Edited note" in its original place
+    When I patch the existing note with "Edited note"
+    Then the note API returns 200
+    And the existing note was not rewritten
+
+  Scenario: Keyed note edits replay once and conflict on a different body
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I send the keyed note edit "Keyed edit" twice
+    Then both keyed note requests return identical JSON naming "Keyed edit"
+    And the existing note holds "Keyed edit"
+    When I reuse the note edit key with the content "Other edit"
+    Then the note API returns 409 with code "conflict"
+    And the existing note holds "Keyed edit"
+
+  Scenario: Editing a note that does not exist is not found
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I patch a note that does not exist
+    Then the note API returns 404 with code "not_found"
+
+  Scenario Outline: Denied note edits leave the note unchanged
+    Given my checklist API role is "<role>"
+    And the mixed day for the day order API
+    When I patch the existing note with "Denied edit"
+    Then the note API returns <status> with code "<code>"
+    And the existing note was not rewritten
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid note edits never write
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I submit note edit case "<case>"
+    Then the note API returns 422 with code "validation_failed"
+    And the day stores the original order
+    Examples:
+      | case              |
+      | missing-content   |
+      | over-long-content |
+      | unknown-key       |
+      | linked-id         |
+
+  Scenario: Editor deletes a note and the other items keep their order
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I delete the existing note through the note API
+    Then the note API returns 204
+    And after reload the existing note is gone and the other items keep their order
+    When I delete the existing note through the note API
+    Then the note API returns 204
+
+  Scenario: Keyed note deletes succeed twice without further effect
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I send the keyed note delete twice
+    Then both keyed note deletes return 204
+    And the existing note is gone
+
+  Scenario Outline: Denied note deletes leave the note in place
+    Given my checklist API role is "<role>"
+    And the mixed day for the day order API
+    When I delete the existing note through the note API
+    Then the note API returns <status> with code "<code>"
+    And the day stores the original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid note deletes never write
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I submit note delete case "<case>"
+    Then the note API returns 422 with code "validation_failed"
+    And the day stores the original order
+    Examples:
+      | case         |
+      | missing-trip |
+      | linked-id    |
+      | unknown-key  |
