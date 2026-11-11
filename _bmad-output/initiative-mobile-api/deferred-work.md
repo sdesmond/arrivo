@@ -67,21 +67,5 @@
   evidence: Pre-existing in `use-api-mutation.ts` (`run` returns early when `!mounted.current`); day drags now go through it instead of a server action that kept running. Settle by flushing queued writes on unmount or confirming a navigation guard exists.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: A crash between the delete commit and `removeStoredFiles` leaves the discarded files on disk, and no retry cleans them.
-  evidence: Inherent in cleanup after commit; the old actions had the same window and no sweep exists. Settle with a periodic orphan-file sweep or an outbox.
-
-- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: A kept document of a deleted event is found by exact `documents.url` equality with `/api/storage/<key>`, with no index, and an unresolvable key still surfaces as a bare 500.
-  evidence: Only the local adapter exists today and the 500 is pre-existing in the storage route. Settle by storing the storage key on the row if another adapter lands.
-
-- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: Editing the text of an event draft and committing again after an ambiguous failure reuses the draft ID and gets a 409 until cancelled.
-  evidence: Same content-drift conflict deferred for checklists; frozen boundary. A fix would mint a new ID on a conflict, which needs the handler to surface the status.
-
-- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: A direct (no-dialog) event delete discards documents attached by a collaborator since the last refresh.
-  evidence: Pre-existing: the retired `deleteEvent` discarded them too. Settle by re-checking the document count server-side or always routing through the dialog.
-
-- source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-create-and-delete-events-through-the-api-plan.md`
-  summary: `createEventSchema` in `validation-schemas.ts` has no production caller now that the `createEvent` action is retired, and its `afterEventId` is a loose string.
-  evidence: The plan forbids touching `validation-schemas.ts`. Delete it with its tests in a later story.
+  summary: Successive event edits (time, location, rename) each PATCH every field from the row as rendered, so an edit made before the previous save's refresh landed can write the old values back.
+  evidence: Pre-existing in `handleEventUpdate`; the `day-planning` scenario "Edited name, time and location persist after reload" failed once in a loaded full run and passed alone. The PATCH endpoint is partial, so settle by sending only the changed fields.
