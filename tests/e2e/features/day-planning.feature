@@ -95,6 +95,13 @@ Feature: Day Planning
     When I delete the checklist
     Then the checklist should not be visible on the timeline
 
+  Scenario: User adds a note to a day and clears it again
+    Given I am on the trip detail page
+    When I add the day note "Rest day by the lake"
+    Then the day note "Rest day by the lake" is saved and shown after reload
+    When I clear the day note "Rest day by the lake"
+    Then the first day shows no note after reload
+
   @day-append
   Scenario: User appends a day to a single-day scheduled trip
     When I add a day to the itinerary

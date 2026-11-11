@@ -17,12 +17,13 @@ export async function lockTrip(transaction: DbTransaction, tripId: string): Prom
 
 /**
  * Runs one write in a transaction with idempotency, then the after-commit effect. `mutate` calls `markChanged` only
- * when it wrote, so an unchanged or replayed result, or a rolled-back transaction, runs no effect.
+ * when it wrote, so an unchanged or replayed result, or a rolled-back transaction, runs no effect. `revalidate` names
+ * further pages the effect refreshes once.
  */
 export async function runTripWrite<Result>(
   actor: Actor,
   tripId: string,
-  input: { replay?: IdempotentRequest; payload: unknown },
+  input: { replay?: IdempotentRequest; payload: unknown; revalidate?: string[] },
   steps: (
     transaction: DbTransaction,
     markChanged: () => void
@@ -38,6 +39,9 @@ export async function runTripWrite<Result>(
       })
     )
   );
-  if (changed && !replayed) afterTripWrite(actor, tripId);
+  if (changed && !replayed) {
+    if (input.revalidate) afterTripWrite(actor, tripId, input.revalidate);
+    else afterTripWrite(actor, tripId);
+  }
   return value;
 }

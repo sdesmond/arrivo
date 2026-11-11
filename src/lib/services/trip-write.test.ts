@@ -71,12 +71,18 @@ it("passes actor, replay and payload to withIdempotency and runs the effect afte
   expect(mocks.afterTripWrite).toHaveBeenCalledWith(actor, "trip");
 });
 
+it("passes the extra paths to the effect after a real change", async () => {
+  const steps = stubIdempotency({ markChanged: true, replayed: false });
+  await runTripWrite(actor, "trip", { payload: {}, revalidate: ["/trips"] }, steps);
+  expect(mocks.afterTripWrite).toHaveBeenCalledExactlyOnceWith(actor, "trip", ["/trips"]);
+});
+
 it.each([
   ["nothing changed", { markChanged: false, replayed: false }],
   ["the result was replayed", { markChanged: true, replayed: true }],
 ])("runs no effect when %s", async (_name, options) => {
   const steps = stubIdempotency(options);
-  await expect(runTripWrite(actor, "trip", { payload: {} }, steps)).resolves.toBe("result");
+  await expect(runTripWrite(actor, "trip", { payload: {}, revalidate: ["/trips"] }, steps)).resolves.toBe("result");
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
 

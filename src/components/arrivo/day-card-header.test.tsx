@@ -112,6 +112,48 @@ describe("DayCardHeader", () => {
     expect(screen.getByRole("button", { name: "Remove day" })).toBeDisabled();
   });
 
+  it("closes the editor when the refreshed subtitle lands before the update settles", async () => {
+    const user = userEvent.setup();
+    let rerenderHeader: (subtitle: string) => void = () => {};
+    // A keyed API write resolves only after the refresh it started, so the new prop can arrive first.
+    const onUpdateDay = vi.fn(async () => {
+      rerenderHeader("Changed");
+    });
+    const { rerender } = render(<DayCardHeader {...baseProps} subtitle="Old" onUpdateDay={onUpdateDay} />);
+    rerenderHeader = (subtitle) =>
+      rerender(<DayCardHeader {...baseProps} subtitle={subtitle} onUpdateDay={onUpdateDay} />);
+    await user.click(screen.getByRole("button", { name: /old/i }));
+    const input = screen.getByDisplayValue("Old");
+    await user.clear(input);
+    await user.type(input, "Changed{Enter}");
+    expect(await screen.findByRole("button", { name: /changed/i })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Changed")).not.toBeInTheDocument();
+  });
+
+  it("keeps the editor open when the update fails", async () => {
+    const user = userEvent.setup();
+    const onUpdateDay = vi.fn().mockRejectedValue(new Error("failed"));
+    render(<DayCardHeader {...baseProps} subtitle="Old" onUpdateDay={onUpdateDay} />);
+    await user.click(screen.getByRole("button", { name: /old/i }));
+    const input = screen.getByDisplayValue("Old");
+    await user.clear(input);
+    await user.type(input, "Changed{Enter}");
+    expect(screen.getByDisplayValue("Changed")).toBeInTheDocument();
+  });
+
+  it("does not close the editor on a later prop equal to the failed draft", async () => {
+    const user = userEvent.setup();
+    const onUpdateDay = vi.fn().mockRejectedValue(new Error("failed"));
+    const { rerender } = render(<DayCardHeader {...baseProps} subtitle="Old" onUpdateDay={onUpdateDay} />);
+    await user.click(screen.getByRole("button", { name: /old/i }));
+    const input = screen.getByDisplayValue("Old");
+    await user.clear(input);
+    await user.type(input, "Changed{Enter}");
+    // Another editor's change lands with the same text as the failed draft; the abandoned save must not close the editor.
+    rerender(<DayCardHeader {...baseProps} subtitle="Changed" onUpdateDay={onUpdateDay} />);
+    expect(screen.getByDisplayValue("Changed")).toBeInTheDocument();
+  });
+
   it("saving an unchanged subtitle does not call onUpdateDay", async () => {
     const onUpdateDay = vi.fn();
     render(<DayCardHeader {...baseProps} subtitle="Same" onUpdateDay={onUpdateDay} />);

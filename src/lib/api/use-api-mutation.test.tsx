@@ -52,6 +52,24 @@ it("surfaces field errors and never refreshes failures", async () => {
   expect(error).toHaveBeenCalledWith("Invalid");
   expect(router.refresh).not.toHaveBeenCalled();
 });
+it("runs onError without a toast for a failure the caller expects, and toasts any other", async () => {
+  const onError = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  api.mockRejectedValue(new ApiClientError(409, "confirmation_required", "Confirm first."));
+  await act(async () => {
+    await result.current.mutate(input, { expectedCodes: ["confirmation_required"], onError });
+  });
+  expect(error).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenCalledOnce();
+  expect(onError.mock.calls[0][0]).toMatchObject({ code: "confirmation_required" });
+  expect(router.refresh).not.toHaveBeenCalled();
+  api.mockRejectedValue(new ApiClientError(409, "conflict", "Changed."));
+  await act(async () => {
+    await result.current.mutate(input, { expectedCodes: ["confirmation_required"], onError });
+  });
+  expect(error).toHaveBeenCalledWith("Changed.");
+  expect(onError).toHaveBeenCalledTimes(2);
+});
 it("surfaces network errors", async () => {
   api.mockRejectedValue(new Error("network"));
   const { result } = renderHook(() => useApiMutation(updateChecklistItem));

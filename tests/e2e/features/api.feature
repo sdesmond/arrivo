@@ -1086,3 +1086,212 @@ Feature: Absolute checklist checked-state API
       | unknown-key |
       | too-many    |
       | no-list     |
+
+  Scenario: Editor partially edits a day and clears text fields with null
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I patch the second day through the day API with:
+      """
+      { "label": "Old town", "subtitle": "Walking day", "weather": "Sunny", "travelSummary": "On foot" }
+      """
+    Then the day API returns 200
+    And after reload the second day is stored as:
+      """
+      { "label": "Old town", "subtitle": "Walking day", "weather": "Sunny", "travelSummary": "On foot" }
+      """
+    When I patch the second day through the day API with:
+      """
+      { "subtitle": null }
+      """
+    Then the day API returns 200
+    And after reload the second day is stored as:
+      """
+      { "label": "Old town", "subtitle": null, "weather": "Sunny", "travelSummary": "On foot" }
+      """
+    When I patch the second day through the day API with:
+      """
+      {}
+      """
+    Then the day API returns 200
+    And the day API response is the second day as stored
+    And after reload the second day is stored as:
+      """
+      { "label": "Old town", "subtitle": null, "weather": "Sunny", "travelSummary": "On foot" }
+      """
+
+  Scenario: Keyed day edits replay once and conflict on a different body
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I send the keyed day edit "Keyed day" twice
+    Then the day API returns 200
+    And after reload the second day is stored as:
+      """
+      { "label": "Keyed day" }
+      """
+    When I reuse the day edit key with the label "Other day"
+    Then the day API returns 409 with code "conflict"
+    And after reload the second day is stored as:
+      """
+      { "label": "Keyed day" }
+      """
+
+  Scenario: Editing a day that does not exist is not found
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I patch a day that does not exist through the day API
+    Then the day API returns 404 with code "not_found"
+
+  Scenario Outline: Denied day edits leave the days unchanged
+    Given scenario-owned days for the day API
+    And my checklist API role is "<role>"
+    When I patch the second day through the day API with:
+      """
+      { "label": "Hacked" }
+      """
+    Then the day API returns <status> with code "<code>"
+    And the stored days keep their original state
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid day edits never write
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I submit day edit case "<case>"
+    Then the day API returns 422 with code "validation_failed"
+    And the stored days keep their original state
+    Examples:
+      | case               |
+      | null-label         |
+      | over-long-label    |
+      | over-long-subtitle |
+      | non-text-weather   |
+      | unknown-key        |
+      | malformed-id       |
+
+  Scenario: Editor appends a day, the trip end date follows and a same-ID retry replays
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I append a day with a client ID through the day API
+    Then the appended day follows the last date and the trip ends on it
+    When I retry the client ID day append
+    Then the retry returns the stored day and the trip holds it once
+    And the trip holds 4 days
+
+  Scenario: Keyed day appends replay once and conflict on a different body
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I send the keyed day append twice
+    Then both keyed day requests return identical JSON for the client ID day
+    And the trip holds 4 days
+    When I reuse the day append key without a client ID
+    Then the day API returns 409 with code "conflict"
+    And the trip holds 4 days
+
+  Scenario: A day append at the 45-day cap is rejected and writes nothing
+    Given scenario-owned days for the day API
+    And the trip holds 45 days for the day API
+    And my checklist API role is "editor"
+    When I append a day through the day API
+    Then the day API returns 422 with code "validation_failed"
+    And the day API error message is "Max trip length is 45 days. Please shorten your date range."
+    And the stored days keep their original state
+
+  Scenario Outline: Denied day appends leave the trip unchanged
+    Given scenario-owned days for the day API
+    And my checklist API role is "<role>"
+    When I append a day through the day API
+    Then the day API returns <status> with code "<code>"
+    And the stored days keep their original state
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid day appends never write
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I submit day append case "<case>"
+    Then the day API returns 422 with code "validation_failed"
+    And the stored days keep their original state
+    Examples:
+      | case         |
+      | malformed-id |
+      | unknown-key  |
+      | date-key     |
+
+  Scenario: Editor removes an empty last day, the end date moves back and a repeat succeeds without effect
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I delete the last day through the day API
+    Then the day API returns 204
+    And the last day is gone and the trip ends on the second day's date
+    When I delete the last day through the day API
+    Then the day API returns 204
+    And the trip holds 2 days
+
+  Scenario: A populated last day needs confirmation and a confirmed removal deletes its content and files
+    Given scenario-owned days for the day API
+    And the last day holds an event with a document file for the day API
+    And my checklist API role is "editor"
+    When I delete the last day through the day API
+    Then the day API returns 409 with code "confirmation_required"
+    And the populated last day, its event and its file are untouched
+    When I delete the last day through the day API confirming the destructive removal
+    Then the day API returns 204
+    And the populated last day, its event, document and file are gone
+
+  Scenario: Keyed day deletes succeed twice without further effect
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I send the keyed day delete twice
+    Then both keyed day deletes return 204
+    And the last day is gone and the trip ends on the second day's date
+
+  Scenario Outline: A day that is not the last cannot be removed
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I delete the <which> day through the day API
+    Then the day API returns 409 with code "conflict"
+    And the stored days keep their original state
+    Examples:
+      | which  |
+      | first  |
+      | second |
+
+  Scenario: The only remaining day cannot be removed
+    Given scenario-owned days for the day API
+    And the trip holds only its first day for the day API
+    And my checklist API role is "editor"
+    When I delete the first day through the day API
+    Then the day API returns 409 with code "conflict"
+    And the stored days keep their original state
+
+  Scenario Outline: Denied day deletes leave the trip unchanged
+    Given scenario-owned days for the day API
+    And the last day holds an event with a document file for the day API
+    And my checklist API role is "<role>"
+    When I delete the last day through the day API confirming the destructive removal
+    Then the day API returns <status> with code "<code>"
+    And the populated last day, its event and its file are untouched
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid day deletes never write
+    Given scenario-owned days for the day API
+    And my checklist API role is "editor"
+    When I submit day delete case "<case>"
+    Then the day API returns 422 with code "validation_failed"
+    And the stored days keep their original state
+    Examples:
+      | case             |
+      | missing-trip     |
+      | malformed-id     |
+      | unknown-key      |
+      | bad-confirmation |

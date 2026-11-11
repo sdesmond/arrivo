@@ -3,15 +3,15 @@
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, days, documents, itineraryNotes, itineraryChecklists, trips } from "@/db/schema";
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { events, documents, trips } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
 import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
-import { addDocumentSchema, documentNameSchema, parseInput, updateDaySchema } from "@/lib/validation-schemas";
+import { addDocumentSchema, documentNameSchema, parseInput } from "@/lib/validation-schemas";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
@@ -25,9 +25,7 @@ import {
   uploadDocumentToEvent as uploadEventDocumentAction,
 } from "./document-upload-actions";
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
-import type { UpdateDayPatch, AddDocumentInput, RemoveLastDayResult, ContributorChange } from "@/data/types";
-
-const MAX_TRIP_DAYS = 45;
+import type { AddDocumentInput, ContributorChange } from "@/data/types";
 
 export async function getShareDialogData(tripId: string) {
   const user = await requireUser();
@@ -71,166 +69,10 @@ function publishItineraryChanged(tripId: string): void {
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
 }
 
-function nextCalendarDate(date: string): string {
-  const nextDate = new Date(`${date}T00:00:00Z`);
-  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
-  return nextDate.toISOString().slice(0, 10);
-}
-
-async function getDayTripId(dayId: string): Promise<string> {
-  const [day] = await db.select({ tripId: days.tripId }).from(days).where(eq(days.id, dayId));
-  if (!day) throw new Error("Day not found");
-  return day.tripId;
-}
-
 async function getEventTripId(eventId: string): Promise<string> {
   const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId));
   if (!event) throw new Error("Event not found");
   return event.tripId;
-}
-
-export async function updateDay(dayId: string, rawPatch: UpdateDayPatch): Promise<void> {
-  const user = await requireUser();
-  const patch = parseInput(updateDaySchema, rawPatch);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db
-    .update(days)
-    .set({
-      // Explicit fields only: a crafted client payload must not reach id, tripId or dayNumber.
-      label: patch.label,
-      subtitle: patch.subtitle,
-      weather: patch.weather,
-      travelSummary: patch.travelSummary,
-    })
-    .where(eq(days.id, dayId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function addDay(tripId: string): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-
-    const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
-    if (!trip) {
-      throw new Error("Trip not found.");
-    }
-    const allDays = await transaction.select().from(days).where(eq(days.tripId, tripId)).orderBy(asc(days.dayNumber));
-    const lastDay = allDays.at(-1);
-    if (!lastDay) {
-      throw new Error("Unable to add a day because this trip has no days.");
-    }
-    if (allDays.length >= MAX_TRIP_DAYS) {
-      throw new Error("Max trip length is 45 days. Please shorten your date range.");
-    }
-    if (allDays.some((day, index) => day.dayNumber !== index + 1)) {
-      throw new Error("Unable to add a day because the itinerary day order is inconsistent.");
-    }
-    const appendedDayNumber = lastDay.dayNumber + 1;
-    if (trip?.startDate && lastDay.date) {
-      const appendedDate = nextCalendarDate(lastDay.date);
-      await transaction.insert(days).values({
-        tripId,
-        dayNumber: appendedDayNumber,
-        date: appendedDate,
-        label: `Day ${appendedDayNumber}`,
-      });
-      await transaction.update(trips).set({ endDate: appendedDate, updatedAt: new Date() }).where(eq(trips.id, tripId));
-    } else {
-      await transaction.insert(days).values({
-        tripId,
-        dayNumber: appendedDayNumber,
-        date: null,
-        label: `Day ${appendedDayNumber}`,
-      });
-    }
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-}
-
-export async function removeLastDay(tripId: string, confirmedDestructiveRemoval = false): Promise<RemoveLastDayResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  let eventDocuments: { url: string | null }[] = [];
-  let result: RemoveLastDayResult = { status: "removed" };
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-
-    const scheduledDays = await transaction
-      .select()
-      .from(days)
-      .where(eq(days.tripId, tripId))
-      .orderBy(asc(days.dayNumber));
-    const lastDay = scheduledDays.at(-1);
-    if (!lastDay) {
-      throw new Error("Unable to remove a day because this itinerary has no scheduled days.");
-    }
-    const dayEvents = await transaction.select({ id: events.id }).from(events).where(eq(events.dayId, lastDay.id));
-    const dayNotes = await transaction
-      .select({ id: itineraryNotes.id })
-      .from(itineraryNotes)
-      .where(eq(itineraryNotes.dayId, lastDay.id));
-    const dayChecklists = await transaction
-      .select({ id: itineraryChecklists.id })
-      .from(itineraryChecklists)
-      .where(eq(itineraryChecklists.dayId, lastDay.id));
-    eventDocuments =
-      dayEvents.length > 0
-        ? await transaction
-            .select({ url: documents.url })
-            .from(documents)
-            .where(
-              inArray(
-                documents.eventId,
-                dayEvents.map((event) => event.id)
-              )
-            )
-        : [];
-    const hasPlannedContent = dayEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0;
-    if (scheduledDays.length === 1) {
-      throw new Error("Cannot remove the only remaining day.");
-    }
-    if (!confirmedDestructiveRemoval && hasPlannedContent) {
-      result = { status: "confirmation-required", hasPlannedContent: true };
-      return;
-    }
-    await transaction.delete(days).where(eq(days.id, lastDay.id));
-    const precedingDay = scheduledDays.at(-2);
-    if (precedingDay?.date) {
-      await transaction
-        .update(trips)
-        .set({ endDate: precedingDay.date, updatedAt: new Date() })
-        .where(eq(trips.id, tripId));
-    }
-  });
-  if (result.status === "confirmation-required") return result;
-
-  const urlsToCleanup = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0) {
-    await Promise.all(
-      urlsToCleanup.map((url) =>
-        getStorageAdapter()
-          .del(url)
-          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-      )
-    );
-  }
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-  return result;
 }
 
 export async function setTripCoverWithAttribution(

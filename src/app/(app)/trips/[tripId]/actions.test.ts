@@ -161,24 +161,21 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import {
-  addDay,
   addDocument,
   attachTripDocToEvent,
   dismissShareInvitation,
   getShareDialogData,
   promoteEventDocToTrip,
   removeDocument,
-  removeLastDay,
   removeTripCover,
   renameDocument,
   setTripCoverWithAttribution,
-  updateDay,
   uploadCoverImage,
   rescindShareInvitation,
   resendShareInvitation,
   saveContributorChanges,
 } from "./actions";
-import { days, trips } from "@/db/schema";
+import { trips } from "@/db/schema";
 import { LiveSyncEventType, type ContributorChange } from "@/data/types";
 
 function createSimpleSelect(rows: unknown[]) {
@@ -296,46 +293,6 @@ describe("share invitation actions", () => {
   });
 });
 
-describe("updateDay", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-  });
-
-  it("writes only whitelisted day fields even when the client sends extra keys", async () => {
-    const set = vi.fn(() => ({ where: vi.fn(async () => {}) }));
-    mockDbUpdate.mockReturnValue({ set });
-
-    await updateDay("day-1", {
-      label: "Arrival",
-      subtitle: "Rome",
-      weather: "Sunny",
-      travelSummary: "2h drive",
-      tripId: "victim-trip",
-      id: "victim-day",
-      dayNumber: 99,
-    } as never);
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(set).toHaveBeenCalledExactlyOnceWith({
-      label: "Arrival",
-      subtitle: "Rome",
-      weather: "Sunny",
-      travelSummary: "2h drive",
-    });
-  });
-
-  it("does not write when access is denied", async () => {
-    mockAssertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(updateDay("day-1", { label: "x" })).rejects.toThrow("not found");
-
-    expect(mockDbUpdate).not.toHaveBeenCalled();
-  });
-});
-
 describe("input validation", () => {
   const over = (limit: number) => "x".repeat(limit + 1);
 
@@ -344,11 +301,6 @@ describe("input validation", () => {
     mockRequireUser.mockResolvedValue({ id: "user-1" });
     mockAssertTripAccess.mockResolvedValue(undefined);
     mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-  });
-
-  it("rejects oversize day text", async () => {
-    await expect(updateDay("day-1", { label: over(100) })).rejects.toThrow("Day label must be 100 characters");
-    expect(mockDbUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects oversize document names and kinds", async () => {
@@ -682,240 +634,6 @@ describe("removeTripCover", () => {
   });
 });
 
-function buildAddDayTransaction({
-  tripStartDate,
-  existingDays,
-}: {
-  tripStartDate: string | null;
-  existingDays: Array<{ id: string; dayNumber: number; date: string | null }>;
-}) {
-  const inserts: Array<{ tripId: string; dayNumber: number; date: string | null; label: string }> = [];
-  const tripUpdates: Array<{ endDate: string }> = [];
-
-  const transaction = {
-    execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-    select: vi.fn(() => ({
-      from: vi.fn((table: unknown) => ({
-        where: vi.fn(() => {
-          if (table === trips) return Promise.resolve([{ startDate: tripStartDate }]);
-          if (table === days)
-            return {
-              orderBy: vi.fn(() => Promise.resolve(existingDays)),
-            };
-          return Promise.resolve([]);
-        }),
-      })),
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(
-        (row: { tripId: string; dayNumber: number; date: string | null; label: string }) => (
-          inserts.push(row),
-          Promise.resolve()
-        )
-      ),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn((payload: { endDate: string }) => ({
-        where: vi.fn(() => (tripUpdates.push(payload), Promise.resolve())),
-      })),
-    })),
-  };
-
-  return { transaction, inserts, tripUpdates };
-}
-
-describe("addDay", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("appends a dateless day when the trip has no start date", async () => {
-    const { transaction, inserts, tripUpdates } = buildAddDayTransaction({
-      tripStartDate: null,
-      existingDays: [{ id: "day-1", dayNumber: 1, date: null }],
-    });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await addDay("trip-1");
-
-    expect(transaction.execute).toHaveBeenCalledOnce();
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" });
-    expect(tripUpdates).toHaveLength(0);
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-  });
-
-  it("appends a dated day and updates trip endDate when the trip is scheduled", async () => {
-    const { transaction, inserts, tripUpdates } = buildAddDayTransaction({
-      tripStartDate: "2026-07-01",
-      existingDays: [
-        { id: "day-1", dayNumber: 1, date: "2026-07-01" },
-        { id: "day-2", dayNumber: 2, date: "2026-07-02" },
-      ],
-    });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await addDay("trip-1");
-
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0]).toMatchObject({ tripId: "trip-1", dayNumber: 3, date: "2026-07-03", label: "Day 3" });
-    expect(tripUpdates).toHaveLength(1);
-    expect(tripUpdates[0]).toMatchObject({ endDate: "2026-07-03" });
-  });
-});
-
-function buildRemoveLastDayTransaction({
-  existingDays,
-  dayEvents = [],
-  dayNotes = [],
-  dayChecklists = [],
-  eventDocuments = [],
-}: {
-  existingDays: Array<{ id: string; dayNumber: number; date: string | null }>;
-  dayEvents?: Array<{ id: string }>;
-  dayNotes?: Array<{ id: string }>;
-  dayChecklists?: Array<{ id: string }>;
-  eventDocuments?: Array<{ url: string | null }>;
-}) {
-  const deletes: Array<{ id: string }> = [];
-  const tripUpdates: Array<{ endDate: string }> = [];
-  let selectCallIndex = 0;
-
-  const selectResults: Array<unknown> = [
-    existingDays,
-    dayEvents,
-    dayNotes,
-    dayChecklists,
-    ...(dayEvents.length > 0 ? [eventDocuments] : []),
-  ];
-
-  const transaction = {
-    execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => {
-          const result = selectResults[selectCallIndex++] ?? [];
-          if (Array.isArray(result) && result.length > 0 && "dayNumber" in (result[0] as object)) {
-            return { orderBy: vi.fn(() => Promise.resolve(result)) };
-          }
-          return Promise.resolve(result);
-        }),
-        orderBy: vi.fn(() => Promise.resolve(selectResults[selectCallIndex++] ?? [])),
-      })),
-    })),
-    delete: vi.fn(() => ({
-      where: vi.fn((condition: unknown) => {
-        deletes.push({ id: condition as unknown as string });
-        return Promise.resolve();
-      }),
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn((payload: { endDate: string }) => ({
-        where: vi.fn(() => (tripUpdates.push(payload), Promise.resolve())),
-      })),
-    })),
-  };
-
-  return { transaction, deletes, tripUpdates };
-}
-
-describe("removeLastDay", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("throws when the trip has only one day (AC8)", async () => {
-    const { transaction } = buildRemoveLastDayTransaction({
-      existingDays: [{ id: "day-1", dayNumber: 1, date: null }],
-    });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) => {
-      await callback(transaction);
-    });
-
-    await expect(removeLastDay("trip-1")).rejects.toThrow("Cannot remove the only remaining day.");
-    expect(mockPublishTripEvent).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("removes last day of a multi-day dateless trip without updating trip dates", async () => {
-    const existingDays = [
-      { id: "day-1", dayNumber: 1, date: null },
-      { id: "day-2", dayNumber: 2, date: null },
-    ];
-    const { transaction, deletes, tripUpdates } = buildRemoveLastDayTransaction({ existingDays });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) => {
-      await callback(transaction);
-    });
-
-    const result = await removeLastDay("trip-1");
-
-    expect(transaction.execute).toHaveBeenCalledOnce();
-    expect(result.status).toBe("removed");
-    expect(deletes).toHaveLength(1);
-    expect(tripUpdates).toHaveLength(0);
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-  });
-
-  it("removes last day of a scheduled multi-day trip and updates trip endDate", async () => {
-    const existingDays = [
-      { id: "day-1", dayNumber: 1, date: "2026-07-01" },
-      { id: "day-2", dayNumber: 2, date: "2026-07-02" },
-    ];
-    const { transaction, deletes, tripUpdates } = buildRemoveLastDayTransaction({ existingDays });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) => {
-      await callback(transaction);
-    });
-
-    const result = await removeLastDay("trip-1");
-
-    expect(result.status).toBe("removed");
-    expect(deletes).toHaveLength(1);
-    expect(tripUpdates).toHaveLength(1);
-    expect(tripUpdates[0]).toMatchObject({ endDate: "2026-07-01" });
-  });
-
-  it("returns confirmation-required when last day has planned content", async () => {
-    const existingDays = [
-      { id: "day-1", dayNumber: 1, date: null },
-      { id: "day-2", dayNumber: 2, date: null },
-    ];
-    const { transaction, deletes } = buildRemoveLastDayTransaction({
-      existingDays,
-      dayEvents: [{ id: "event-1" }],
-      eventDocuments: [],
-    });
-    mockDbTransaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) => {
-      await callback(transaction);
-    });
-
-    const result = await removeLastDay("trip-1");
-
-    expect(result).toEqual({ status: "confirmation-required", hasPlannedContent: true });
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-    expect(deletes).toHaveLength(0);
-    expect(mockPublishTripEvent).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-});
-
 describe("removeDocument", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -994,15 +712,6 @@ describe("publishItineraryChanged regression coverage", () => {
   });
 
   const cases: PublishCase[] = [
-    {
-      name: "updateDay",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return updateDay("day-1", { label: "Day One" });
-      },
-    },
     {
       name: "addDocument",
       tripId: "trip-1",

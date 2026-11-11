@@ -10,6 +10,7 @@ import {
   itineraryChecklists,
   checklistItems,
   itineraryNotes,
+  days,
   notes,
   packingItems,
   packingTemplates,
@@ -35,6 +36,7 @@ import type {
   DocPreviewLine,
   Checklist,
   ChecklistItem,
+  DayRecord,
   Note,
   TripNote,
   LoyaltyNumber,
@@ -320,6 +322,19 @@ export function dbTemplateItemToType(row: typeof packingTemplateItems.$inferSele
     isLabel: row.isLabel,
     position: row.position,
     labelId: row.labelId ?? null,
+  };
+}
+
+export function dbDayToType(row: typeof days.$inferSelect): DayRecord {
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    dayNumber: row.dayNumber,
+    date: row.date ?? undefined,
+    label: row.label,
+    subtitle: row.subtitle ?? undefined,
+    weather: row.weather ?? undefined,
+    travelSummary: row.travelSummary ?? undefined,
   };
 }
 

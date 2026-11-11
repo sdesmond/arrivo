@@ -116,12 +116,13 @@ export const updateEventSchema = z.object({
   ...eventFields,
 });
 
-export const updateDaySchema = z.object({
-  label: text("Day label", FIELD_LIMITS.dayLabel).optional(),
-  subtitle: text("Subtitle", FIELD_LIMITS.dayText).optional(),
-  weather: text("Weather", FIELD_LIMITS.dayText).optional(),
-  travelSummary: text("Travel summary", FIELD_LIMITS.dayText).optional(),
-});
+/** Each day text field on its own, so the day API can make them partial or nullable without copying the caps. */
+export const dayFieldSchemas = {
+  label: text("Day label", FIELD_LIMITS.dayLabel),
+  subtitle: text("Subtitle", FIELD_LIMITS.dayText),
+  weather: text("Weather", FIELD_LIMITS.dayText),
+  travelSummary: text("Travel summary", FIELD_LIMITS.dayText),
+};
 
 export const tripNoteTitleSchema = text("Title", FIELD_LIMITS.noteTitle);
 export const tripNoteBodySchema = text("Note body", FIELD_LIMITS.noteBody);
