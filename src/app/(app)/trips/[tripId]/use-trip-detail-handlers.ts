@@ -15,18 +15,13 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
-import {
-  addDay,
-  createEvent,
-  createNote,
-  deleteEvent,
-  deleteNote,
-  removeLastDay,
-  updateDay,
-  updateNote,
-} from "./actions";
+import { addDay, createNote, deleteNote, removeLastDay, updateDay, updateNote } from "./actions";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
-import { updateEvent as updateEventEndpoint } from "@/lib/api/contract/events";
+import {
+  createEvent as createEventEndpoint,
+  deleteEvent as deleteEventEndpoint,
+  updateEvent as updateEventEndpoint,
+} from "@/lib/api/contract/events";
 import { reorderDay as reorderDayEndpoint } from "@/lib/api/contract/days";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 import { usePackingHandlers, type PackingHandlers } from "./use-packing-handlers";
@@ -41,7 +36,13 @@ export interface TripDetailHandlers extends PackingHandlers {
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
-  handleAddEvent: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  handleAddEvent: (
+    dayNumber: number,
+    name: string,
+    afterEventId?: string,
+    insertAtPosition?: number,
+    clientId?: string
+  ) => Promise<void>;
   handleAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   handleUpdateNote: (noteId: string, content: string) => void;
   handleDeleteNote: (noteId: string) => void;
@@ -75,6 +76,28 @@ export interface TripDetailHandlers extends PackingHandlers {
   ) => void;
 }
 
+const EVENT_OPTIONAL_FIELDS = [
+  "startAt",
+  "endAt",
+  "locationName",
+  "locationAddress",
+  "locationLat",
+  "locationLng",
+  "confirmationNumber",
+  "note",
+] as const;
+
+/** The fields of `updated` that differ from `stored` (all when `stored` is unknown); a cleared field is `null`. */
+function eventPatchBody(updated: TripEvent, stored?: TripEvent): Record<string, string | number | null> {
+  const body: Record<string, string | number | null> = {};
+  if (!stored || updated.name !== stored.name) body.name = updated.name;
+  for (const field of EVENT_OPTIONAL_FIELDS) {
+    const next = updated[field] ?? null;
+    if (!stored || next !== (stored[field] ?? null)) body[field] = next;
+  }
+  return body;
+}
+
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const router = useRouter();
@@ -84,6 +107,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
   const eventMutation = useApiMutation(updateEventEndpoint);
+  const eventCreateMutation = useApiMutation(createEventEndpoint);
+  const eventDeleteMutation = useApiMutation(deleteEventEndpoint);
   const dayOrderMutation = useApiMutation(reorderDayEndpoint);
   const packingHandlers = usePackingHandlers(detail);
   const checklistHandlers = useChecklistHandlers(days, {
@@ -92,31 +117,25 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   });
 
   function handleEventUpdate(updated: TripEvent): void {
-    // The editor clears a field by leaving it undefined, and the API only clears on null, so every field is sent.
+    // The editor builds `updated` from the row it rendered and clears a field by leaving it undefined; the API clears
+    // only on null. Send just what this edit changed against that row: resending the rest would overwrite a previous
+    // edit whose refresh has not landed yet. An event the page does not hold sends every field.
+    const stored =
+      days.flatMap((day) => day.events).find((candidate) => candidate.id === updated.id) ??
+      detail.unscheduledEvents.find((candidate) => candidate.id === updated.id);
+    const body = eventPatchBody(updated, stored);
+    if (Object.keys(body).length === 0) return;
     // Edits to one event share a queue key so they reach the server in the order they were made.
-    void eventMutation.mutate(
-      {
-        params: { eventId: updated.id },
-        body: {
-          name: updated.name,
-          startAt: updated.startAt ?? null,
-          endAt: updated.endAt ?? null,
-          locationName: updated.locationName ?? null,
-          locationAddress: updated.locationAddress ?? null,
-          locationLat: updated.locationLat ?? null,
-          locationLng: updated.locationLng ?? null,
-          confirmationNumber: updated.confirmationNumber ?? null,
-          note: updated.note ?? null,
-        },
-      },
-      { key: `event:${updated.id}` }
-    );
+    void eventMutation.mutate({ params: { eventId: updated.id }, body }, { key: `event:${updated.id}` });
   }
 
   function handleEventDelete(id: string): void {
-    React.startTransition(() => {
-      deleteEvent(id);
-    });
+    // An event the client knows has documents goes through the dialog, which chooses. Here none are known, so keep
+    // any the server holds (one attached since the last refresh) rather than destroy them unprompted.
+    void eventDeleteMutation.mutate(
+      { params: { eventId: id }, body: { tripId: trip.id, keepDocuments: true } },
+      { key: `event:${id}` }
+    );
   }
 
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
@@ -151,22 +170,41 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     dayNumber: number,
     name: string,
     afterEventId?: string,
-    insertAtPosition?: number
+    insertAtPosition?: number,
+    clientId?: string
   ): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await createEvent(day.id!, { name, afterEventId, insertAtPosition });
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add event. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    let created = false;
+    let failure: unknown;
+    // The hook toasts a failure; rejecting keeps the draft open, and its retained id makes a retry a replay.
+    return eventCreateMutation
+      .mutate(
+        {
+          params: { dayId: day.id },
+          body: {
+            ...(clientId ? { id: clientId } : {}),
+            name,
+            ...(afterEventId ? { afterEventId } : {}),
+            ...(insertAtPosition !== undefined ? { insertAtPosition } : {}),
+          },
+        },
+        {
+          onSuccess: () => {
+            created = true;
+          },
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
+      )
+      .then(() => {
+        if (created) return;
+        throw failure instanceof Error ? failure : new Error("Failed to add event. Please try again.");
       });
-    });
   }
 
   function handleAddNote(dayNumber: number, content: string, insertAtPosition?: number): Promise<void> {

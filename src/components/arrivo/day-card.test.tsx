@@ -507,7 +507,7 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add event"));
     await user.type(screen.getByPlaceholderText("Event name"), "New Museum");
     await user.keyboard("{Enter}");
-    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "New Museum", undefined, 2);
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "New Museum", undefined, 2, expect.any(String));
   });
 
   it("typing note content and pressing Enter calls onAddNote", async () => {
@@ -652,7 +652,13 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add event"));
     await user.type(screen.getByPlaceholderText("Event name"), "Afternoon Walk");
     await user.keyboard("{Enter}");
-    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Afternoon Walk", "ev-s1");
+    expect(onAddEvent).toHaveBeenCalledWith(
+      baseDay.dayNumber,
+      "Afternoon Walk",
+      "ev-s1",
+      undefined,
+      expect.any(String)
+    );
   });
 
   it("inserting event after a Linked Event row falls back to insertAtPosition instead of the linked event's id", async () => {
@@ -684,7 +690,7 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add event"));
     await user.type(screen.getByPlaceholderText("Event name"), "Late Arrival Snack");
     await user.keyboard("{Enter}");
-    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Late Arrival Snack", undefined, 0);
+    expect(onAddEvent).toHaveBeenCalledWith(baseDay.dayNumber, "Late Arrival Snack", undefined, 0, expect.any(String));
   });
 
   it("renders inline notes from d.notes", () => {

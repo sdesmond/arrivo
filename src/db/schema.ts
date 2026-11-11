@@ -302,20 +302,25 @@ export const expenses = pgTable(
   (table) => [index().on(table.tripId), index().on(table.eventId), index().on(table.reservationId)]
 );
 
-export const documents = pgTable("documents", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  tripId: uuid("trip_id").references(() => trips.id, { onDelete: "cascade" }),
-  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
-  reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  kind: text("kind").notNull(),
-  size: text("size"),
-  url: text("url"),
-  previewLines: jsonb("preview_lines"),
-  addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`),
-});
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tripId: uuid("trip_id").references(() => trips.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
+    reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    size: text("size"),
+    url: text("url"),
+    previewLines: jsonb("preview_lines"),
+    addedAt: timestamp("added_at", { withTimezone: true }).default(sql`now()`),
+  },
+  // The storage route finds a kept document's trip by file URL once its event is gone.
+  (table) => [index().on(table.url)]
+);
 
 export const collaborators = pgTable(
   "collaborators",
@@ -568,6 +573,18 @@ export const idempotencyKeys = pgTable(
   },
   (table) => [primaryKey({ columns: [table.key, table.userId] })]
 );
+
+// Stored files whose rows were deleted. Queued in the deleting transaction so a crash after the commit cannot lose the
+// file's name, then removed and cleared; a maintenance pass retries whatever is left.
+export const pendingFileDeletions = pgTable("pending_file_deletions", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`now()`)
+    .notNull(),
+});
 
 // Failed-attempt counters for sign-in, password change and two-factor codes, keyed by e.g. "username:<name>".
 export const authThrottle = pgTable("auth_throttle", {

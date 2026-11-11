@@ -529,3 +529,140 @@ Feature: Absolute checklist checked-state API
       | viewer    | 403    | forbidden       |
       | stranger  | 404    | not_found       |
       | anonymous | 401    | unauthenticated |
+
+  Scenario: Editor inserts events after an event, at a position and at the end through the API
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the event "After first" after the first event through the day API
+    Then the event create API returns 200
+    And after reload the event "After first" sits at timeline index 1
+    When I create the event "At front" at position 0 through the day API
+    Then the event create API returns 200
+    And after reload the event "At front" sits at timeline index 0
+    When I create the event "At end" at the end through the day API
+    Then the event create API returns 200
+    And after reload the event "At end" sits at timeline index 6
+
+  Scenario: A same-ID event create replays after another insert shifted it and rejects reuse
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the event "Retry me" with a client ID at position 1 through the day API
+    And I create the event "Shifter" at position 1 through the day API
+    And I retry the client ID event creation
+    Then the retried event keeps its shifted position and the day holds it once
+    When I reuse the client ID for the event "Different"
+    Then the event create API returns 409 with code "conflict"
+    And the day holds the client ID event once
+
+  Scenario: Keyed event creates replay once and conflict on a different body
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I send the keyed event create "Keyed stop" twice
+    Then both keyed event creates return identical JSON naming "Keyed stop"
+    And the day holds 1 event named "Keyed stop"
+    When I reuse the event create key with the name "Other stop"
+    Then the event create API returns 409 with code "conflict"
+    And the day holds 1 event named "Keyed stop"
+
+  Scenario: An event create on a day that no longer exists is not found
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I create the event "Orphan" on a day that no longer exists
+    Then the event create API returns 404 with code "not_found"
+
+  Scenario Outline: Denied event creates leave the day unchanged
+    Given my checklist API role is "<role>"
+    And the mixed day for the day order API
+    When I create the event "Denied" at the end through the day API
+    Then the event create API returns <status> with code "<code>"
+    And the day stores the original order
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid event creates never write
+    Given my checklist API role is "editor"
+    And the mixed day for the day order API
+    When I submit event create case "<case>"
+    Then the event create API returns 422 with code "validation_failed"
+    And the day stores the original order
+    Examples:
+      | case              |
+      | blank-name        |
+      | null-field        |
+      | unknown-key       |
+      | linked-day        |
+      | linked-event-id   |
+      | linked-after-id   |
+      | negative-position |
+
+  Scenario: Editor deletes events keeping and discarding documents and the discarded file is removed
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "editor"
+    When I delete the "keep" event through the event delete API
+    Then the event delete API returns 204
+    And after reload the "keep" event is gone and its document is a trip document with its file kept
+    When I delete the "discard" event through the event delete API
+    Then the event delete API returns 204
+    And after reload the "discard" event, its document and its expense are gone and its file is removed
+    And no file deletion is left queued
+
+  Scenario: A file left queued by a crash is removed by the next maintenance pass
+    Given a stored file is left queued for deletion
+    When I open the app
+    Then the queued file and its queue row are removed
+
+  Scenario: Editor deletes a day-less event
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "editor"
+    When I delete the "day-less" event through the event delete API
+    Then the event delete API returns 204
+    And the "day-less" event is gone
+
+  Scenario: Repeated and keyed event deletes succeed without further effect
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "editor"
+    When I send the keyed "discard" event delete twice
+    Then both keyed event deletes return 204
+    And the "discard" event is gone
+    When I delete the "discard" event through the event delete API
+    Then the event delete API returns 204
+
+  Scenario: A failed replay record write rolls an event delete back and keeps its file
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "editor"
+    And the checklist API replay record write is set to fail
+    When I send the keyed "discard" event delete twice
+    Then the event delete API returns 500 with code "server_error"
+    And the "discard" event, its document and its file are untouched
+    When the checklist API replay record write is repaired
+    And I send the keyed "discard" event delete twice
+    Then both keyed event deletes return 204
+    And the "discard" event is gone
+
+  Scenario Outline: Denied event deletes leave the event and its documents unchanged
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "<role>"
+    When I delete the "discard" event through the event delete API
+    Then the event delete API returns <status> with code "<code>"
+    And the "discard" event, its document and its file are untouched
+    Examples:
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
+
+  Scenario Outline: Invalid event deletes never write
+    Given scenario-owned events with documents for the event delete API
+    And my checklist API role is "editor"
+    When I submit event delete case "<case>"
+    Then the event delete API returns 422 with code "validation_failed"
+    And the "discard" event, its document and its file are untouched
+    Examples:
+      | case               |
+      | missing-trip       |
+      | linked-id          |
+      | non-boolean-keep   |
+      | unknown-key        |

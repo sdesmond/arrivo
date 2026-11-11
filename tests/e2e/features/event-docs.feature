@@ -77,3 +77,13 @@ Feature: Event Document Integration
     And I click "Delete everything"
     Then "E2E Event Erase" is no longer visible in the itinerary
     And the Documents tab does not show "E2E Erase Doc"
+
+  Scenario: Documents kept or discarded by deleting events persist after reload
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I delete the event "E2E Event Keep" choosing "Keep documents"
+    And I delete the event "E2E Event Erase" choosing "Delete everything"
+    And I reload the page
+    Then the stored events "E2E Event Keep" and "E2E Event Erase" no longer exist
+    And the Documents tab shows "E2E Keep Doc"
+    And the Documents tab does not show "E2E Erase Doc"

@@ -49,7 +49,9 @@ vi.mock("@/db/schema", () => ({
   documents: documentsTable,
 }));
 
-vi.mock("@/lib/storage/storage-adapter", () => ({
+// The resolver throws the real owner-not-found error; only the adapter lookup is replaced.
+vi.mock("@/lib/storage/storage-adapter", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/storage/storage-adapter")>()),
   getStorageAdapter,
 }));
 

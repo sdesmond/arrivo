@@ -85,6 +85,7 @@ export function PlaceRowDialogs({
       />
       <DeleteEventDialog
         eventId={place.id}
+        tripId={place.tripId ?? ""}
         eventName={place.name}
         docCount={place.docs?.length ?? 0}
         open={showDeleteDialog}

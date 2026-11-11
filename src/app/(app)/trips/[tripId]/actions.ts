@@ -13,7 +13,6 @@ import { deriveGraphicCover } from "@/lib/utils";
 import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
 import {
   addDocumentSchema,
-  createEventSchema,
   createTripNoteSchema,
   documentNameSchema,
   itineraryNoteContentSchema,
@@ -36,7 +35,6 @@ import {
 } from "./document-upload-actions";
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type {
-  CreateEventInput,
   UpdateDayPatch,
   AddDocumentInput,
   RemoveLastDayResult,
@@ -151,117 +149,6 @@ async function shiftItemsAtOrAbove(executor: PositionExecutor, dayId: string, fr
     .update(itineraryChecklists)
     .set({ position: sql`${itineraryChecklists.position} + 1` })
     .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
-}
-
-export async function createEvent(dayId: string, rawInput: CreateEventInput): Promise<void> {
-  const user = await requireUser();
-  const input = parseInput(createEventSchema, rawInput);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const values = {
-    dayId,
-    tripId,
-    name: input.name,
-    startAt: input.startAt ? new Date(input.startAt) : undefined,
-    endAt: input.endAt ? new Date(input.endAt) : undefined,
-    locationName: input.locationName,
-    locationAddress: input.locationAddress,
-    locationLat: input.locationLat,
-    locationLng: input.locationLng,
-    confirmationNumber: input.confirmationNumber,
-    note: input.note,
-  };
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-    await assertDayExistsInTrip(transaction, tripId, dayId);
-
-    if (input.afterEventId) {
-      const [refEvent] = await transaction
-        .select({ position: events.position })
-        .from(events)
-        .where(and(eq(events.id, input.afterEventId), eq(events.dayId, dayId)));
-
-      if (refEvent) {
-        const insertPos = refEvent.position + 1;
-        await shiftItemsAtOrAbove(transaction, dayId, insertPos);
-        await transaction.insert(events).values({ ...values, position: insertPos });
-        return;
-      }
-    }
-
-    if (input.insertAtPosition !== undefined) {
-      await shiftItemsAtOrAbove(transaction, dayId, input.insertAtPosition);
-      await transaction.insert(events).values({ ...values, position: input.insertAtPosition });
-      return;
-    }
-
-    const appendPos = await getAppendPosition(transaction, dayId);
-    await transaction.insert(events).values({ ...values, position: appendPos });
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteEvent(eventId: string): Promise<void> {
-  const user = await requireUser();
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const eventDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.eventId, eventId));
-
-  await db.delete(events).where(eq(events.id, eventId));
-
-  const urlsToCleanup = eventDocs.map((document) => document.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0) {
-    await Promise.all(
-      urlsToCleanup.map((url) =>
-        getStorageAdapter()
-          .del(url)
-          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-      )
-    );
-  }
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteEventWithDocDecision(eventId: string, keepDocs: boolean): Promise<void> {
-  const user = await requireUser();
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  let urlsToCleanup: string[] = [];
-
-  await db.transaction(async (tx) => {
-    if (keepDocs) {
-      await tx.update(documents).set({ eventId: null }).where(eq(documents.eventId, eventId));
-    } else {
-      const eventDocs = await tx.select().from(documents).where(eq(documents.eventId, eventId));
-      urlsToCleanup = eventDocs.map((document) => document.url).filter((url): url is string => !!url);
-      await tx.delete(documents).where(eq(documents.eventId, eventId));
-    }
-    await tx.delete(events).where(eq(events.id, eventId));
-  });
-
-  if (urlsToCleanup.length > 0) {
-    await Promise.all(
-      urlsToCleanup.map((url) =>
-        getStorageAdapter()
-          .del(url)
-          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-      )
-    );
-  }
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
 }
 
 export async function updateDay(dayId: string, rawPatch: UpdateDayPatch): Promise<void> {

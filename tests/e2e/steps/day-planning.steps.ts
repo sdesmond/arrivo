@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { days, events, trips } from "../../../src/db/schema";
 import { formatCurrencyChipAmount } from "../../../src/lib/currencies";
 import { withE2EDb } from "../e2e-db";
@@ -512,19 +512,79 @@ Then("the event {string} location is persisted with coordinates", async ({ scena
   });
 });
 
-When("I delete that event", async ({ page }) => {
-  const row = page.locator('[id^="event-"]').last();
+// Arm before the click and await after it: reloading first would abort the still-in-flight DELETE.
+async function deleteEventRow(page: Page, row: Locator): Promise<void> {
+  const deleted = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/events/${await eventIdOf(row)}` });
   await row.hover();
   await row.getByTitle("Delete event").click();
+  await deleted;
   await row.waitFor({ state: "detached", timeout: 10_000 });
+}
+
+When("I delete that event", async ({ page }) => {
+  await deleteEventRow(page, page.locator('[id^="event-"]').last());
 });
 
 When("I delete the event named {string}", async ({ page }, name: string) => {
-  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
-  await row.hover();
-  await row.getByTitle("Delete event").click();
-  await row.waitFor({ state: "detached", timeout: 10_000 });
+  await deleteEventRow(page, page.locator('[id^="event-"]').filter({ hasText: name }).first());
 });
+
+Then("the event {string} is gone after reload", async ({ page, scenario }, name: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  await page.reload();
+  const stored = await withE2EDb((db) =>
+    db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.tripId, currentTrip.id), eq(events.name, name)))
+  );
+  expect(stored).toHaveLength(0);
+});
+
+// The gap that follows `name` is the first "Insert item here" control after its row. The draft's own ID becomes the
+// event ID, so the POST path is only known by day: arm before Enter and await after, or a reload aborts it.
+When("I add an event named {string} below {string}", async ({ page, scenario }, name: string, above: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  const [firstDay] = await withE2EDb((db) =>
+    db
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, currentTrip.id), eq(days.dayNumber, 1)))
+  );
+  const created = waitForApiResponse(page, { method: "POST", path: `/api/v1/days/${firstDay.id}/events` });
+  const aboveRow = page.locator('[id^="event-"]').filter({ hasText: above }).first();
+  await aboveRow.locator('xpath=following::button[@title="Insert item here"][1]').click();
+  await page.getByTitle("Add event").click();
+  await page.getByPlaceholder("Event name").fill(name);
+  await page.keyboard.press("Enter");
+  await created;
+  await expect(page.locator('[id^="event-"]').filter({ hasText: name }).first()).toBeVisible({ timeout: 10_000 });
+});
+
+Then(
+  "{string} sits between {string} and {string} after reload",
+  async ({ page, scenario }, name: string, above: string, below: string) => {
+    const currentTrip = scenario.currentTrip;
+    if (!currentTrip) throw new Error("Current scenario trip is missing.");
+    await page.reload();
+    await openFirstDay(page);
+    await expect(async () => {
+      const tops: number[] = [];
+      for (const rowName of [above, name, below]) {
+        const box = await page.locator('[id^="event-"]').filter({ hasText: rowName }).first().boundingBox();
+        expect(box).not.toBeNull();
+        tops.push(box!.y);
+      }
+      expect(tops).toEqual([...tops].sort((left, right) => left - right));
+    }).toPass({ timeout: 10_000 });
+    const stored = await withE2EDb((db) =>
+      db.select({ name: events.name }).from(events).where(eq(events.tripId, currentTrip.id)).orderBy(events.position)
+    );
+    expect(stored.map((row) => row.name)).toEqual([above, name, below]);
+  }
+);
 
 Then("the day should not contain {string}", async ({ page }, name: string) => {
   await expect(page.locator('[id^="event-"]').filter({ hasText: name })).toHaveCount(0);

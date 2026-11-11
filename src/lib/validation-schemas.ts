@@ -111,13 +111,6 @@ const eventFields = {
   note: text("Note", FIELD_LIMITS.eventNote).optional(),
 };
 
-export const createEventSchema = z.object({
-  name: requiredText("Event name", FIELD_LIMITS.eventName),
-  ...eventFields,
-  afterEventId: z.string().optional(),
-  insertAtPosition: position.optional(),
-});
-
 export const updateEventSchema = z.object({
   name: requiredText("Event name", FIELD_LIMITS.eventName).optional(),
   ...eventFields,

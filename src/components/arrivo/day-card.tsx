@@ -21,7 +21,13 @@ interface DayCardProps {
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateDay?: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
-  onAddEvent?: (dayNumber: number, name: string, afterEventId?: string, insertAtPosition?: number) => Promise<void>;
+  onAddEvent?: (
+    dayNumber: number,
+    name: string,
+    afterEventId?: string,
+    insertAtPosition?: number,
+    clientId?: string
+  ) => Promise<void>;
   onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
   onUpdateNote?: (noteId: string, content: string) => void;
   onDeleteNote?: (noteId: string) => void;

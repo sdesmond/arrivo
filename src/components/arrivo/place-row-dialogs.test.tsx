@@ -75,9 +75,18 @@ vi.mock("./add-doc-dialog", () => ({
     open ? <button onClick={() => onOpenChange(false)}>doc-close</button> : null,
 }));
 vi.mock("./delete-event-dialog", () => ({
-  DeleteEventDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) =>
+  DeleteEventDialog: ({
+    open,
+    onOpenChange,
+    tripId,
+  }: {
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    tripId: string;
+  }) =>
     open ? (
       <>
+        <span data-testid="delete-trip">{tripId}</span>
         <button onClick={() => onOpenChange(false)}>confirm-delete</button>
         <button onClick={() => onOpenChange(false)}>cancel-delete</button>
       </>
@@ -135,6 +144,11 @@ describe("PlaceRowDialogs", () => {
   it("renders DeleteEventDialog when showDeleteDialog is true", () => {
     render(<PlaceRowDialogs {...defaultProps} showDeleteDialog />);
     expect(screen.getByRole("button", { name: "confirm-delete" })).toBeInTheDocument();
+  });
+
+  it("passes the event's trip to DeleteEventDialog", () => {
+    render(<PlaceRowDialogs {...defaultProps} place={{ ...place, tripId: "trip-1" }} showDeleteDialog />);
+    expect(screen.getByTestId("delete-trip")).toHaveTextContent("trip-1");
   });
 
   it("onDeleteOpenChange callback is wired through for DeleteEventDialog", async () => {

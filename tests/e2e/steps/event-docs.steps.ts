@@ -1,4 +1,8 @@
 import { expect } from "@playwright/test";
+import { and, eq, inArray } from "drizzle-orm";
+import { events } from "../../../src/db/schema";
+import { waitForApiResponse } from "../api-response";
+import { withE2EDb } from "../e2e-db";
 import { Before, Given, When, Then } from "../fixtures";
 import {
   E2E_DOCUMENT,
@@ -99,6 +103,41 @@ When("I delete the event {string}", async ({ page }, eventName: string) => {
     .getByTitle("Delete event")
     .first()
     .click();
+});
+
+// Arm before the choice and await after it: reloading first would abort the still-in-flight DELETE.
+When("I delete the event {string} choosing {string}", async ({ page, scenario }, eventName: string, choice: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  const [stored] = await withE2EDb((db) =>
+    db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.tripId, currentTrip.id), eq(events.name, eventName)))
+  );
+  expect(stored).toBeDefined();
+  const deleted = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/events/${stored.id}` });
+  await page
+    .locator("div")
+    .filter({ hasText: new RegExp(`^${escapeRegex(eventName)}`) })
+    .filter({ has: page.getByTitle("Delete event") })
+    .getByTitle("Delete event")
+    .first()
+    .click();
+  await page.getByRole("button", { name: choice }).click();
+  await deleted;
+});
+
+Then("the stored events {string} and {string} no longer exist", async ({ scenario }, first: string, second: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  const remaining = await withE2EDb((db) =>
+    db
+      .select({ name: events.name })
+      .from(events)
+      .where(and(eq(events.tripId, currentTrip.id), inArray(events.name, [first, second])))
+  );
+  expect(remaining).toEqual([]);
 });
 
 Then("the delete event dialog is shown", async ({ page }) => {
