@@ -1,12 +1,12 @@
 import "server-only";
 import { db } from "@/db";
-import { days, documents, events } from "@/db/schema";
+import { documents, events } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { Actor, IdempotentRequest, TripEvent } from "@/data/types";
 import { dbEventToType } from "@/lib/db-mappers";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { appendPosition, shiftFromPosition } from "./timeline-positions";
@@ -36,14 +36,9 @@ type EventChanges = Partial<
   >
 >;
 
-async function readEvent(executor: Pick<DbTransaction, "select">, eventId: string) {
+async function readEvent(executor: ReadExecutor, eventId: string) {
   const [row] = await executor.select().from(events).where(eq(events.id, eventId));
   return row;
-}
-
-async function readDayTripId(executor: Pick<DbTransaction, "select">, dayId: string): Promise<string | undefined> {
-  const [day] = await executor.select({ tripId: days.tripId }).from(days).where(eq(days.id, dayId));
-  return day?.tripId;
 }
 
 /** Explicit allow-list: a patch can never reach `id`, `tripId`, `dayId`, `position` or `displacedDate`. */

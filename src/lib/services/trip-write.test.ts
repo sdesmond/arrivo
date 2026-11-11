@@ -14,9 +14,10 @@ vi.mock("@/lib/server-action-locks", () => ({
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
 vi.mock("@/lib/api/idempotency", () => ({ withIdempotency: mocks.withIdempotency }));
 
+import { days } from "@/db/schema";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 
 const actor = { userId: "user" };
 const transaction = { tag: "transaction" } as unknown as DbTransaction;
@@ -92,4 +93,24 @@ it("runs no effect when the transaction rejects", async () => {
     runTripWrite(actor, "trip", { payload: {} }, () => ({ authorize: vi.fn(), mutate: vi.fn() }))
   ).rejects.toThrow("rolled back");
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+function dayLookup(rows: { tripId: string }[]) {
+  const where = vi.fn().mockResolvedValue(rows);
+  const from = vi.fn(() => ({ where }));
+  const select = vi.fn(() => ({ from }));
+  return { executor: { select } as unknown as ReadExecutor, select, from, where };
+}
+
+it("reads the trip a day belongs to", async () => {
+  const { executor, select, from, where } = dayLookup([{ tripId: "trip-1" }]);
+  await expect(readDayTripId(executor, "day-1")).resolves.toBe("trip-1");
+  expect(select).toHaveBeenCalledExactlyOnceWith({ tripId: days.tripId });
+  expect(from).toHaveBeenCalledExactlyOnceWith(days);
+  expect(where).toHaveBeenCalledOnce();
+});
+
+it("reads no trip for a day that does not exist", async () => {
+  const { executor } = dayLookup([]);
+  await expect(readDayTripId(executor, "missing")).resolves.toBeUndefined();
 });

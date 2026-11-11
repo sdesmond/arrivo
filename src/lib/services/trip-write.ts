@@ -1,10 +1,21 @@
 import "server-only";
 import { db } from "@/db";
+import { days } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import type { Actor, IdempotentRequest } from "@/data/types";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
 import { TripNotFoundError } from "./trip-access";
 import { afterTripWrite } from "./trip-write-effects";
 import { withIdempotency } from "@/lib/api/idempotency";
+
+/** Anything that can run a read: the client or a transaction. */
+export type ReadExecutor = Pick<DbTransaction, "select">;
+
+/** The trip a day belongs to, or undefined when the day is gone. */
+export async function readDayTripId(executor: ReadExecutor, dayId: string): Promise<string | undefined> {
+  const [day] = await executor.select({ tripId: days.tripId }).from(days).where(eq(days.id, dayId));
+  return day?.tripId;
+}
 
 export async function lockTrip(transaction: DbTransaction, tripId: string): Promise<void> {
   try {

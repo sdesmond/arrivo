@@ -4,9 +4,8 @@ import { notes } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { Actor, IdempotentRequest, TripNote, TripNoteOrder } from "@/data/types";
 import { dbTripNoteToType } from "@/lib/db-mappers";
-import type { DbTransaction } from "@/lib/server-action-locks";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import {
@@ -17,9 +16,7 @@ import {
 } from "@/lib/api/contract/trip-notes";
 import { getNow } from "@/lib/mock-date";
 
-type Executor = Pick<DbTransaction, "select">;
-
-async function readNote(executor: Executor, noteId: string) {
+async function readNote(executor: ReadExecutor, noteId: string) {
   const [row] = await executor.select().from(notes).where(eq(notes.id, noteId));
   return row;
 }

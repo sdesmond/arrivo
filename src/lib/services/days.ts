@@ -4,7 +4,6 @@ import { days, documents, events, itineraryChecklists, itineraryNotes, trips } f
 import { asc, eq, inArray } from "drizzle-orm";
 import type { Actor, DayItemOrder, DayRecord, IdempotentRequest } from "@/data/types";
 import { dbDayToType } from "@/lib/db-mappers";
-import type { DbTransaction } from "@/lib/server-action-locks";
 import {
   addDay as addContract,
   deleteDay as deleteContract,
@@ -14,7 +13,7 @@ import {
 import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { getNow } from "@/lib/mock-date";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { ConfirmationRequiredError } from "./confirmation-required-error";
@@ -22,19 +21,14 @@ import { ValidationFailedError } from "./validation-failed-error";
 import { applyDayOrder } from "./timeline-positions";
 import type { z } from "zod";
 
-type Executor = Pick<DbTransaction, "select">;
 type DayPatch = z.infer<typeof updateContract.body>;
 type DayChanges = Partial<Pick<typeof days.$inferInsert, "label" | "subtitle" | "weather" | "travelSummary">>;
 
 const MAX_TRIP_DAYS = 45;
 
-async function readDay(executor: Executor, dayId: string) {
+async function readDay(executor: ReadExecutor, dayId: string) {
   const [row] = await executor.select().from(days).where(eq(days.id, dayId));
   return row;
-}
-
-async function readDayTripId(executor: Executor, dayId: string): Promise<string | undefined> {
-  return (await readDay(executor, dayId))?.tripId;
 }
 
 function nextCalendarDate(date: string): string {
