@@ -42,12 +42,6 @@ vi.mock("../packing-actions", () => ({
   removePackingSection: vi.fn(),
 }));
 
-vi.mock("./actions", () => ({
-  addDay: vi.fn(),
-  removeLastDay: vi.fn(),
-  updateDay: vi.fn(),
-}));
-
 const detail: TripDetailPayload = {
   accessRole: "manager",
   collaborators: [],
@@ -1034,4 +1028,274 @@ it("sends rapid edits to one event in the order they were made", async () => {
     result.current.handleEventUpdate({ ...editedEvent, name: "Second" });
   });
   await waitFor(() => expect(finished).toEqual(["First", "Second"]));
+});
+
+describe("day handlers", () => {
+  const tripDays: TripDetailPayload = {
+    ...detail,
+    days: [1, 2, 3].map((dayNumber) => ({
+      id: `day-${dayNumber}`,
+      dayNumber,
+      date: `2026-08-0${dayNumber}`,
+      label: `Day ${dayNumber}`,
+      events: [],
+      notes: [],
+      checklists: [],
+    })),
+  };
+  const firstId = "11111111-1111-4111-8111-111111111111";
+  const secondId = "22222222-2222-4222-8222-222222222222";
+
+  beforeEach(() => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(firstId);
+  });
+
+  it("patches a day through the API, then refreshes", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue({ id: "day-1" });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    // A keyed write resolves once the refresh it started settles, which the mocked router never reports.
+    await act(async () => {
+      void result.current.handleDayUpdate(1, { label: "Arrival" });
+    });
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "PATCH", path: "/api/v1/days/:dayId" }),
+      { params: { dayId: "day-1" }, body: { label: "Arrival" } }
+    );
+    expect(mockRefresh).toHaveBeenCalledOnce();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("sends rapid edits to one day in the order they were made", async () => {
+    const { api } = await import("@/lib/api/client");
+    const finished: string[] = [];
+    vi.mocked(api).mockImplementation(async (_endpoint, input) => {
+      const label = (input as { body: { label: string } }).body.label;
+      await new Promise((resolve) => setTimeout(resolve, label === "First" ? 20 : 0));
+      finished.push(label);
+      return {};
+    });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      void result.current.handleDayUpdate(1, { label: "First" });
+      void result.current.handleDayUpdate(1, { label: "Second" });
+    });
+    await waitFor(() => expect(finished).toEqual(["First", "Second"]));
+  });
+
+  it("sends a present-but-undefined text field as null so it clears, and never a cleared label", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue({ id: "day-1" });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      void result.current.handleDayUpdate(1, {
+        label: undefined,
+        subtitle: undefined,
+        weather: undefined,
+        travelSummary: "Train",
+      });
+    });
+    expect(api).toHaveBeenCalledWith(expect.anything(), {
+      params: { dayId: "day-1" },
+      body: { subtitle: null, weather: null, travelSummary: "Train" },
+    });
+  });
+
+  it("sends nothing for an update that carries no editable field, or for an unknown day", async () => {
+    const { api } = await import("@/lib/api/client");
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      await result.current.handleDayUpdate(1, { dayNumber: 1 });
+      await result.current.handleDayUpdate(9, { label: "Ghost" });
+    });
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("rejects the returned promise and toasts when the day update fails", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Day label is too long."));
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = result.current.handleDayUpdate(1, { label: "x" });
+    });
+    await expect(pending).rejects.toThrow("Day label is too long.");
+    expect(toast.error).toHaveBeenCalledWith("Day label is too long.");
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("rejects with a fallback message for a non-API failure, and with the session message when auth is lost", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce("boom");
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = result.current.handleDayUpdate(1, { label: "x" });
+    });
+    await expect(pending).rejects.toThrow("Failed to update day. Please try again.");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+    const second = renderHook(() => useTripDetailHandlers(detail));
+    act(() => {
+      pending = second.result.current.handleDayUpdate(1, { label: "x" });
+    });
+    await expect(pending).rejects.toThrow("Your session has expired.");
+  });
+
+  it("adds a day through the API with a client id and refreshes", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue({ id: firstId });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/trips/:tripId/days" }),
+      { params: { tripId: "trip-1" }, body: { id: firstId } }
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("reuses the id after a failed add (lost response), and replaces it after a success", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(firstId).mockReturnValueOnce(secondId);
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."))
+      .mockResolvedValue({ id: firstId });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    const ids = vi.mocked(api).mock.calls.map(([, input]) => (input as { body: { id: string } }).body.id);
+    expect(ids).toEqual([firstId, firstId, secondId]);
+  });
+
+  it("replaces the id after a 409 so the next click is a fresh add", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(firstId).mockReturnValueOnce(secondId);
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(409, "conflict", "This ID was already used for a different day."))
+      .mockResolvedValue({ id: secondId });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    expect(toast.error).toHaveBeenCalledWith("This ID was already used for a different day.");
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    const ids = vi.mocked(api).mock.calls.map(([, input]) => (input as { body: { id: string } }).body.id);
+    expect(ids).toEqual([firstId, secondId]);
+  });
+
+  it("reports addingDay while the request is in flight", async () => {
+    const { api } = await import("@/lib/api/client");
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(api).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    expect(result.current.addingDay).toBe(false);
+    act(() => {
+      result.current.handleAddDay();
+    });
+    await waitFor(() => expect(result.current.addingDay).toBe(true));
+    await act(async () => {
+      finish({ id: firstId });
+    });
+    await waitFor(() => expect(result.current.addingDay).toBe(false));
+  });
+
+  it("removes the highest-numbered day with the trip in the body and no confirmation", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue(null);
+    const onConfirmationRequired = vi.fn();
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, onConfirmationRequired);
+    });
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "DELETE", path: "/api/v1/days/:dayId" }),
+      { params: { dayId: "day-3" }, body: { tripId: "trip-1" } }
+    );
+    expect(onConfirmationRequired).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
+  });
+
+  it("sends confirmDestructive once the dialog confirmed", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue(null);
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleRemoveLastDay(true, vi.fn());
+    });
+    expect(api).toHaveBeenCalledWith(expect.anything(), {
+      params: { dayId: "day-3" },
+      body: { tripId: "trip-1", confirmDestructive: true },
+    });
+  });
+
+  it("opens the confirmation with no toast and no refresh on confirmation_required", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(
+      new ApiClientError(409, "confirmation_required", "This day has planned content. Confirm to remove it.")
+    );
+    const onConfirmationRequired = vi.fn();
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, onConfirmationRequired);
+    });
+    expect(onConfirmationRequired).toHaveBeenCalledExactlyOnceWith(true);
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("toasts any other removal failure and never opens the confirmation", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(409, "conflict", "Only the last day can be removed."));
+    const onConfirmationRequired = vi.fn();
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, onConfirmationRequired);
+    });
+    expect(toast.error).toHaveBeenCalledWith("Only the last day can be removed.");
+    expect(onConfirmationRequired).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the trip has no day to remove", async () => {
+    const { api } = await import("@/lib/api/client");
+    const { result } = renderHook(() => useTripDetailHandlers({ ...detail, days: [] }));
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, vi.fn());
+    });
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("reports removingDay while the request is in flight", async () => {
+    const { api } = await import("@/lib/api/client");
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(api).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    act(() => {
+      result.current.handleRemoveLastDay(false, vi.fn());
+    });
+    await waitFor(() => expect(result.current.removingDay).toBe(true));
+    await act(async () => {
+      finish(null);
+    });
+    await waitFor(() => expect(result.current.removingDay).toBe(false));
+  });
 });

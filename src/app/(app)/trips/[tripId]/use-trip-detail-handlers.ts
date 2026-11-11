@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import type { z } from "zod";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { TripCurrencyChangeMode } from "@/data/types";
@@ -15,14 +16,20 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
-import { addDay, removeLastDay, updateDay } from "./actions";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import {
   createEvent as createEventEndpoint,
   deleteEvent as deleteEventEndpoint,
   updateEvent as updateEventEndpoint,
 } from "@/lib/api/contract/events";
-import { reorderDay as reorderDayEndpoint } from "@/lib/api/contract/days";
+import {
+  addDay as addDayEndpoint,
+  deleteDay as deleteDayEndpoint,
+  reorderDay as reorderDayEndpoint,
+  updateDay as updateDayEndpoint,
+} from "@/lib/api/contract/days";
+import { ApiClientError } from "@/lib/api/client";
+import { createRandomId } from "@/lib/utils";
 import {
   createDayNote as createDayNoteEndpoint,
   deleteDayNote as deleteDayNoteEndpoint,
@@ -81,6 +88,8 @@ export interface TripDetailHandlers extends PackingHandlers {
   ) => void;
 }
 
+const DAY_TEXT_FIELDS = ["subtitle", "weather", "travelSummary"] as const;
+
 const EVENT_OPTIONAL_FIELDS = [
   "startAt",
   "endAt",
@@ -106,8 +115,6 @@ function eventPatchBody(updated: TripEvent, stored?: TripEvent): Record<string, 
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const router = useRouter();
-  const [addingDay, startAddDayTransition] = React.useTransition();
-  const [removingDay, startRemoveDayTransition] = React.useTransition();
   const [savingTrip, startSaveTripTransition] = React.useTransition();
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
 
@@ -115,6 +122,11 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const eventCreateMutation = useApiMutation(createEventEndpoint);
   const eventDeleteMutation = useApiMutation(deleteEventEndpoint);
   const dayOrderMutation = useApiMutation(reorderDayEndpoint);
+  const dayUpdateMutation = useApiMutation(updateDayEndpoint);
+  const dayAddMutation = useApiMutation(addDayEndpoint);
+  const dayRemoveMutation = useApiMutation(deleteDayEndpoint);
+  // One id per add-day attempt: kept across a failed request so its retry is a replay, dropped once the add is settled.
+  const addDayId = React.useRef<string | undefined>(undefined);
   const noteCreateMutation = useApiMutation(createDayNoteEndpoint);
   const noteUpdateMutation = useApiMutation(updateDayNoteEndpoint);
   const noteDeleteMutation = useApiMutation(deleteDayNoteEndpoint);
@@ -160,18 +172,36 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDayUpdate(dayNumber: number, updates: Partial<DayItinerary>): Promise<void> {
     const day = days.find((candidate) => candidate.dayNumber === dayNumber);
     if (!day?.id) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await updateDay(day.id!, updates);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to update day. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    // The editor clears a text field by leaving it undefined; the API clears only on null. The label cannot be cleared.
+    const body: z.input<typeof updateDayEndpoint.body> = {};
+    if (updates.label !== undefined) body.label = updates.label;
+    for (const field of DAY_TEXT_FIELDS) {
+      if (field in updates) body[field] = updates[field] ?? null;
+    }
+    if (Object.keys(body).length === 0) return Promise.resolve();
+    let saved = false;
+    let failure: unknown;
+    // The hook toasts a failure; rejecting tells the editor to stay open.
+    return dayUpdateMutation
+      .mutate(
+        { params: { dayId: day.id }, body },
+        {
+          key: `day:${day.id}`,
+          onSuccess: () => {
+            saved = true;
+          },
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
+      )
+      .then(() => {
+        if (saved) return;
+        throw failure instanceof Error ? failure : new Error("Failed to update day. Please try again.");
       });
-    });
   }
 
   function handleAddEvent(
@@ -304,35 +334,49 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   function handleAddDay(): void {
-    startAddDayTransition(async () => {
-      try {
-        await addDay(trip.id);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to add day. Please try again.");
+    const id = (addDayId.current ??= createRandomId());
+    void dayAddMutation.mutate(
+      { params: { tripId: trip.id }, body: { id } },
+      {
+        onSuccess: () => {
+          addDayId.current = undefined;
+        },
+        onError: (error) => {
+          // A 409 means the id is taken by something else, so the next click needs a new one.
+          if (error instanceof ApiClientError && error.status === 409) addDayId.current = undefined;
+        },
       }
-    });
+    );
   }
 
   function handleRemoveLastDay(
     confirmedDestructiveRemoval: boolean,
     onConfirmationRequired: (hasPlannedContent: boolean) => void
   ): void {
-    startRemoveDayTransition(async () => {
-      try {
-        const result = await removeLastDay(trip.id, confirmedDestructiveRemoval);
-        if (result.status === "confirmation-required") {
-          onConfirmationRequired(result.hasPlannedContent ?? false);
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to remove day. Please try again.");
+    const lastDay = days.reduce<DayItinerary | undefined>(
+      (last, candidate) => (!last || candidate.dayNumber > last.dayNumber ? candidate : last),
+      undefined
+    );
+    if (!lastDay?.id) return;
+    void dayRemoveMutation.mutate(
+      {
+        params: { dayId: lastDay.id },
+        body: { tripId: trip.id, ...(confirmedDestructiveRemoval ? { confirmDestructive: true } : {}) },
+      },
+      {
+        // The server asks for confirmation when the day holds content; the dialog handles that, not a toast.
+        expectedCodes: ["confirmation_required"],
+        onError: (error) => {
+          if (error instanceof ApiClientError && error.code === "confirmation_required") onConfirmationRequired(true);
+        },
       }
-    });
+    );
   }
 
   return {
     ...packingHandlers,
-    addingDay,
-    removingDay,
+    addingDay: dayAddMutation.isPending,
+    removingDay: dayRemoveMutation.isPending,
     savingTrip,
     isDeleting,
     handleEventUpdate,

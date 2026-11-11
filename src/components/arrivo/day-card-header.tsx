@@ -57,11 +57,13 @@ export function DayCardHeader({
       setIsEditingSubtitle(false);
       return;
     }
+    // Set before awaiting: a write that waits for the refresh resolves after the new `subtitle` prop has landed.
+    pendingSubtitleRef.current = val ?? "";
     try {
       await onUpdateDay?.(dayNumber, { subtitle: val });
-      pendingSubtitleRef.current = val ?? "";
     } catch {
       // handler already surfaced a toast; keep the editor open so the user can retry
+      pendingSubtitleRef.current = null;
     }
   }
 
