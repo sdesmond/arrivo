@@ -14,6 +14,8 @@ interface MutationOptions<Result> {
   onSuccess?: (result: Result) => void;
   waitForRefresh?: (result: Result) => Promise<void>;
   onError?: (error: unknown) => void;
+  /** Error codes the caller handles in `onError` itself, so the hook shows no toast for them. */
+  expectedCodes?: string[];
   onAuthLost?: () => void;
   onSettled?: () => void;
 }
@@ -124,7 +126,7 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
             options.onAuthLost?.();
             router.push(error.code === "unauthenticated" ? "/sign-in" : "/mfa-enrollment");
           } else {
-            toast.error(error.message);
+            if (!options.expectedCodes?.includes(error.code)) toast.error(error.message);
             options.onError?.(error);
           }
         } else {

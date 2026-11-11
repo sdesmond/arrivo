@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { DayItemOrder } from "@/data/types";
+import type { DayItemOrder, DayRecord } from "@/data/types";
+import { dayFieldSchemas } from "@/lib/validation-schemas";
 import { defineEndpoint } from "../endpoint";
 
 const uuidLower = z.uuid().toLowerCase();
@@ -21,4 +22,37 @@ export const reorderDay = defineEndpoint<DayItemOrder>()({
         message: "Each item can appear once.",
       }),
   }),
+});
+
+/** A partial edit: an absent field is kept, `null` clears the text fields, and the label cannot be cleared. */
+export const updateDay = defineEndpoint<DayRecord>()({
+  method: "PATCH",
+  path: "/api/v1/days/:dayId",
+  params: z.object({ dayId: uuidLower }),
+  body: z.strictObject({
+    label: dayFieldSchemas.label.optional(),
+    subtitle: dayFieldSchemas.subtitle.nullable().optional(),
+    weather: dayFieldSchemas.weather.nullable().optional(),
+    travelSummary: dayFieldSchemas.travelSummary.nullable().optional(),
+  }),
+});
+
+/** Appends a day to the trip. A client `id` makes the create retry-safe. */
+export const addDay = defineEndpoint<DayRecord>()({
+  method: "POST",
+  path: "/api/v1/trips/:tripId/days",
+  params: z.object({ tripId: uuidLower }),
+  body: z.strictObject({ id: uuidLower.optional() }),
+});
+
+/**
+ * Removes the trip's last day. The body names the trip so a retry after the day is gone is still authorized, and
+ * `confirmDestructive` is required when the day holds events, notes or checklists.
+ */
+export const deleteDay = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/days/:dayId",
+  params: z.object({ dayId: uuidLower }),
+  body: z.strictObject({ tripId: uuidLower, confirmDestructive: z.boolean().optional() }),
+  status: 204,
 });

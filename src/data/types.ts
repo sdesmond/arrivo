@@ -1315,16 +1315,16 @@ export interface DayItemOrder {
   items: DayItemRef[];
 }
 
-export interface UpdateDayPatch {
-  label?: string;
+/** A day's own fields, without its timeline items. */
+export interface DayRecord {
+  id: string;
+  tripId: string;
+  dayNumber: number;
+  date?: string;
+  label: string;
   subtitle?: string;
   weather?: string;
   travelSummary?: string;
-}
-
-export interface RemoveLastDayResult {
-  status: "removed" | "confirmation-required";
-  hasPlannedContent?: boolean;
 }
 
 export interface InviteContributorInput {

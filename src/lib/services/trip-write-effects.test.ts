@@ -15,3 +15,8 @@ it("preserves activity, live sync, and page invalidation", () => {
   expect(publishTripEvent).toHaveBeenCalledWith("trip", { type: LiveSyncEventType.ItineraryChanged, tripId: "trip" });
   expect(revalidatePath).toHaveBeenCalledWith("/trips/trip");
 });
+it("also revalidates any extra paths, once each", () => {
+  revalidatePath.mockClear();
+  afterTripWrite({ userId: "user" }, "trip", ["/trips"]);
+  expect(revalidatePath.mock.calls).toEqual([["/trips/trip"], ["/trips"]]);
+});

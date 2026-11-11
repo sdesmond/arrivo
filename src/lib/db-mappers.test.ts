@@ -11,6 +11,7 @@ import {
   dbCollabToType,
   dbInvitationToType,
   dbNoteToType,
+  dbDayToType,
   dbTripNoteToType,
   dbChecklistToType,
   dbLoyaltyToType,
@@ -36,6 +37,7 @@ import type {
   packingTemplateItems,
   users,
   itineraryNotes,
+  days,
   notes,
   itineraryChecklists,
   checklistItems,
@@ -1046,6 +1048,32 @@ describe("dbWishlistToType", () => {
 });
 
 // ── dbNoteToType ──────────────────────────────────────────────────────────────
+
+describe("dbDayToType", () => {
+  const row: typeof days.$inferSelect = {
+    id: "day-1",
+    tripId: "trip-1",
+    dayNumber: 2,
+    date: "2026-05-02",
+    label: "Arrival",
+    subtitle: "Rome",
+    weather: "Sunny",
+    travelSummary: "Train",
+  };
+
+  it("maps every field", () => {
+    expect(dbDayToType(row)).toEqual(row);
+  });
+
+  it("maps a null date, subtitle, weather and travel summary to absent fields", () => {
+    const result = dbDayToType({ ...row, date: null, subtitle: null, weather: null, travelSummary: null });
+    expect(result).toEqual({ id: "day-1", tripId: "trip-1", dayNumber: 2, label: "Arrival" });
+    expect(result.date).toBeUndefined();
+    expect(result.subtitle).toBeUndefined();
+    expect(result.weather).toBeUndefined();
+    expect(result.travelSummary).toBeUndefined();
+  });
+});
 
 type NoteRow = typeof itineraryNotes.$inferSelect;
 

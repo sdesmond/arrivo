@@ -4,10 +4,10 @@ import {
   addDocumentSchema,
   createReservationSchema,
   createTripSchema,
+  dayFieldSchemas,
   parseInput,
   tripNoteBodySchema,
   tripNoteTitleSchema,
-  updateDaySchema,
   updateEventSchema,
   updateReservationSchema,
   updateTripSchema,
@@ -121,13 +121,15 @@ describe("updateEventSchema", () => {
   });
 });
 
-describe("updateDaySchema", () => {
-  it("caps label and text", () => {
-    expect(() => parseInput(updateDaySchema, { label: OVER(FIELD_LIMITS.dayLabel) })).toThrow("Day label");
-    expect(() => parseInput(updateDaySchema, { subtitle: OVER(FIELD_LIMITS.dayText) })).toThrow("Subtitle");
-    expect(() => parseInput(updateDaySchema, { weather: OVER(FIELD_LIMITS.dayText) })).toThrow("Weather");
-    expect(() => parseInput(updateDaySchema, { travelSummary: OVER(FIELD_LIMITS.dayText) })).toThrow("Travel summary");
-    expect(parseInput(updateDaySchema, { label: "Day 1", id: "x" })).toEqual({ label: "Day 1" });
+describe("dayFieldSchemas", () => {
+  it("caps label and text with their messages", () => {
+    const { label, subtitle, weather, travelSummary } = dayFieldSchemas;
+    expect(() => parseInput(label, OVER(FIELD_LIMITS.dayLabel))).toThrow("Day label");
+    expect(() => parseInput(subtitle, OVER(FIELD_LIMITS.dayText))).toThrow("Subtitle");
+    expect(() => parseInput(weather, OVER(FIELD_LIMITS.dayText))).toThrow("Weather");
+    expect(() => parseInput(travelSummary, OVER(FIELD_LIMITS.dayText))).toThrow("Travel summary");
+    expect(parseInput(label, "Day 1")).toBe("Day 1");
+    expect(() => parseInput(label, 3)).toThrow("Day label must be text.");
   });
 });
 
