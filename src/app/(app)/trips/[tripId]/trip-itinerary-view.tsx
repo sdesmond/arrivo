@@ -57,7 +57,7 @@ export interface TripItineraryViewProps {
     insertAtPosition?: number,
     clientId?: string
   ) => Promise<void>;
-  onAddNote: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
+  onAddNote: (dayNumber: number, content: string, insertAtPosition?: number, clientId?: string) => Promise<void>;
   onUpdateNote: (noteId: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
   onAddChecklist: (

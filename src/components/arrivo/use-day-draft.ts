@@ -24,7 +24,7 @@ export interface UseDayDraftOptions {
     insertAtPosition?: number,
     clientId?: string
   ) => Promise<void>;
-  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number) => Promise<void>;
+  onAddNote?: (dayNumber: number, content: string, insertAtPosition?: number, clientId?: string) => Promise<void>;
   onAddChecklist?: (
     dayNumber: number,
     insertAtPosition: number,
@@ -58,7 +58,7 @@ export function useDayDraft({
   const [draft, setDraft] = useState<DraftState | null>(null);
   // Set once a commit resolved, so the effect below watches the refreshed day for it. The version state re-runs the
   // effect against props that landed before the commit resolved.
-  const committedRef = useRef<{ count: number; signature: string; canRearm: boolean } | null>(null);
+  const committedRef = useRef<{ count: number; signature: string } | null>(null);
   const [commitVersion, setCommitVersion] = useState(0);
   // Enter and the blur it triggers both commit the same draft, and the draft stays mounted until the refreshed day
   // lands, so one draft must submit once; a rejected commit or a new draft re-arms it.
@@ -79,9 +79,9 @@ export function useDayDraft({
       draftIdRef.current = null;
       committedRef.current = null;
       setDraft(null);
-    } else if (committed && committed.canRearm && signature !== committed.signature) {
-      // The day changed without gaining the item (a live-sync removal): accept another commit. Only a draft with a
-      // client ID may re-arm, because the retained ID makes a duplicate commit a replay.
+    } else if (committed && signature !== committed.signature) {
+      // The day changed without gaining the item (a live-sync removal): accept another commit. The retained client ID
+      // makes a duplicate commit a replay.
       commitStartedRef.current = false;
       committedRef.current = null;
     }
@@ -117,11 +117,11 @@ export function useDayDraft({
   async function commitDraft(content: string): Promise<void> {
     if (!draft || commitStartedRef.current) return;
     commitStartedRef.current = true;
-    // Events and checklists carry the draft's client ID, so only they may re-arm: a duplicate commit is a replay.
-    const baseline = { count: itemCount, signature, canRearm: draft.kind !== ItineraryItemType.Note };
+    // Every kind carries the draft's client ID, so a duplicate commit is a replay and the draft may re-arm.
+    const baseline = { count: itemCount, signature };
     try {
       if (draft.kind === ItineraryItemType.Note) {
-        await onAddNote?.(dayNumber, content, draft.insertAtPosition);
+        await onAddNote?.(dayNumber, content, draft.insertAtPosition, draftIdRef.current ?? undefined);
       } else if (draft.kind === ItineraryItemType.Checklist) {
         await onAddChecklist?.(
           dayNumber,
@@ -148,7 +148,7 @@ export function useDayDraft({
       commitStartedRef.current = false;
       // A 409 means the retained ID already names different content (an earlier attempt landed before the user edited
       // the text), so it can never succeed again: the next commit gets a fresh one.
-      if (draft.kind !== ItineraryItemType.Note && error instanceof ApiClientError && error.code === "conflict") {
+      if (error instanceof ApiClientError && error.code === "conflict") {
         draftIdRef.current = createRandomId();
       }
     }

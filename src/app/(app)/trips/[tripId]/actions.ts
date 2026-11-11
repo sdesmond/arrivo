@@ -4,7 +4,7 @@ import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { events, days, documents, itineraryNotes, notes, itineraryChecklists, trips } from "@/db/schema";
-import { eq, and, max, gte, sql, asc, inArray } from "drizzle-orm";
+import { eq, and, sql, asc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { getContributorsAndInvitations } from "@/lib/queries";
@@ -15,13 +15,11 @@ import {
   addDocumentSchema,
   createTripNoteSchema,
   documentNameSchema,
-  itineraryNoteContentSchema,
-  itineraryPositionSchema,
   parseInput,
   updateDaySchema,
   updateTripNoteSchema,
 } from "@/lib/validation-schemas";
-import { lockTripForUpdate, type DbTransaction } from "@/lib/server-action-locks";
+import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
 import {
@@ -85,8 +83,6 @@ export async function saveContributorChanges(tripId: string, changes: Contributo
   return result;
 }
 
-type PositionExecutor = Pick<DbTransaction, "select" | "update" | "insert">;
-
 function publishItineraryChanged(tripId: string): void {
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
 }
@@ -103,52 +99,10 @@ async function getDayTripId(dayId: string): Promise<string> {
   return day.tripId;
 }
 
-async function assertDayExistsInTrip(transaction: PositionExecutor, tripId: string, dayId: string): Promise<void> {
-  const [day] = await transaction
-    .select({ id: days.id })
-    .from(days)
-    .where(and(eq(days.id, dayId), eq(days.tripId, tripId)));
-
-  if (!day) {
-    throw new Error("Day not found");
-  }
-}
-
 async function getEventTripId(eventId: string): Promise<string> {
   const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId));
   if (!event) throw new Error("Event not found");
   return event.tripId;
-}
-
-async function getAppendPosition(executor: PositionExecutor, dayId: string): Promise<number> {
-  const [{ maxEvt }] = await executor
-    .select({ maxEvt: max(events.position) })
-    .from(events)
-    .where(eq(events.dayId, dayId));
-  const [{ maxNote }] = await executor
-    .select({ maxNote: max(itineraryNotes.position) })
-    .from(itineraryNotes)
-    .where(eq(itineraryNotes.dayId, dayId));
-  const [{ maxCl }] = await executor
-    .select({ maxCl: max(itineraryChecklists.position) })
-    .from(itineraryChecklists)
-    .where(eq(itineraryChecklists.dayId, dayId));
-  return Math.max(maxEvt ?? -1, maxNote ?? -1, maxCl ?? -1) + 1;
-}
-
-async function shiftItemsAtOrAbove(executor: PositionExecutor, dayId: string, fromPosition: number): Promise<void> {
-  await executor
-    .update(events)
-    .set({ position: sql`${events.position} + 1` })
-    .where(and(eq(events.dayId, dayId), gte(events.position, fromPosition)));
-  await executor
-    .update(itineraryNotes)
-    .set({ position: sql`${itineraryNotes.position} + 1` })
-    .where(and(eq(itineraryNotes.dayId, dayId), gte(itineraryNotes.position, fromPosition)));
-  await executor
-    .update(itineraryChecklists)
-    .set({ position: sql`${itineraryChecklists.position} + 1` })
-    .where(and(eq(itineraryChecklists.dayId, dayId), gte(itineraryChecklists.position, fromPosition)));
 }
 
 export async function updateDay(dayId: string, rawPatch: UpdateDayPatch): Promise<void> {
@@ -367,57 +321,6 @@ export async function addDocument(rawInput: AddDocumentInput): Promise<void> {
     size: input.size,
     url: input.url,
   });
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function createNote(dayId: string, rawContent: string, insertAtPosition?: number): Promise<void> {
-  const user = await requireUser();
-  const content = parseInput(itineraryNoteContentSchema, rawContent);
-  if (insertAtPosition !== undefined) parseInput(itineraryPositionSchema, insertAtPosition);
-  const tripId = await getDayTripId(dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-    await assertDayExistsInTrip(transaction, tripId, dayId);
-
-    if (insertAtPosition !== undefined) {
-      await shiftItemsAtOrAbove(transaction, dayId, insertAtPosition);
-      await transaction.insert(itineraryNotes).values({ dayId, content, position: insertAtPosition });
-      return;
-    }
-
-    const appendPos = await getAppendPosition(transaction, dayId);
-    await transaction.insert(itineraryNotes).values({ dayId, content, position: appendPos });
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function updateNote(noteId: string, rawContent: string): Promise<void> {
-  const user = await requireUser();
-  const content = parseInput(itineraryNoteContentSchema, rawContent);
-  const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
-  if (!note) return;
-  const tripId = await getDayTripId(note.dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(itineraryNotes).set({ content, updatedAt: new Date() }).where(eq(itineraryNotes.id, noteId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function deleteNote(noteId: string): Promise<void> {
-  const user = await requireUser();
-  const [note] = await db.select().from(itineraryNotes).where(eq(itineraryNotes.id, noteId));
-  if (!note) return;
-  const tripId = await getDayTripId(note.dayId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);

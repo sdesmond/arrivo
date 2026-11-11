@@ -617,7 +617,7 @@ describe("DayCardBody", () => {
       screen.getByRole("button", { name: "Commit draft" }).click();
     });
 
-    expect(onAddNote).toHaveBeenCalledWith(1, "typed content", 3);
+    expect(onAddNote).toHaveBeenCalledWith(1, "typed content", 3, expect.any(String));
     expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
 
     // The action's promise resolves, but the revalidated `day` prop hasn't landed yet —
@@ -733,6 +733,33 @@ describe("DayCardBody", () => {
     rerender(
       <DayCardBody
         day={{ ...day, checklists: [...rest, { id: draftId, tripDayId: "day-1", position: 3, items: [] }] }}
+        {...base}
+      />
+    );
+
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-absent");
+  });
+
+  it("sends a note draft's client ID to onAddNote and clears the draft once that note lands in props", async () => {
+    const onAddNote = vi.fn().mockResolvedValue(undefined);
+    const base = { onUpdateEvent: vi.fn(), onDeleteEvent: vi.fn(), onReorderDayItems: vi.fn(), onAddNote };
+    const { rerender } = render(<DayCardBody day={day} {...base} />);
+
+    act(() => {
+      screen.getByRole("button", { name: "Activate note draft" }).click();
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: "Commit draft" }).click();
+    });
+
+    const draftId = onAddNote.mock.calls[0][3] as string;
+    expect(draftId).toEqual(expect.any(String));
+    expect(screen.getByTestId("has-draft")).toHaveTextContent("draft-present");
+
+    const [, ...rest] = day.notes ?? [];
+    rerender(
+      <DayCardBody
+        day={{ ...day, notes: [...rest, { id: draftId, position: 3, content: "typed content" }] }}
         {...base}
       />
     );

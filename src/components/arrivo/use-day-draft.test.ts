@@ -76,7 +76,7 @@ describe("useDayDraft", () => {
     act(() => result.current.activateDraft(ItineraryItemType.Note, 5, "bottom"));
     await act(async () => result.current.commitDraft("Bring sunscreen"));
 
-    expect(onAddNote).toHaveBeenCalledWith(3, "Bring sunscreen", 5);
+    expect(onAddNote).toHaveBeenCalledWith(3, "Bring sunscreen", 5, expect.any(String));
   });
 
   it("commitDraft routes a checklist draft through onAddChecklist, treating empty content as no first item", async () => {
@@ -251,7 +251,7 @@ describe("useDayDraft", () => {
     expect(onAddChecklist.mock.calls[1][3]).toBe(onAddChecklist.mock.calls[0][3]);
   });
 
-  it("does not re-arm a committed note draft when the day changes without growing, since notes carry no client ID", async () => {
+  it("re-arms a committed note draft when the day changes without growing, and reuses its ID", async () => {
     const onAddNote = vi.fn().mockResolvedValue(undefined);
     const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
       initialProps: buildOptions({ propTimelineItemIds: ["a", "b"], onAddNote }),
@@ -259,10 +259,42 @@ describe("useDayDraft", () => {
 
     act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
     await act(async () => result.current.commitDraft("x"));
+    await act(async () => result.current.commitDraft("x"));
+    expect(onAddNote).toHaveBeenCalledTimes(1);
+
     rerender(buildOptions({ propTimelineItemIds: ["a"], onAddNote }));
+    expect(result.current.draft).not.toBeNull();
     await act(async () => result.current.commitDraft("x"));
 
-    expect(onAddNote).toHaveBeenCalledTimes(1);
+    expect(onAddNote).toHaveBeenCalledTimes(2);
+    expect(onAddNote.mock.calls[1][3]).toBe(onAddNote.mock.calls[0][3]);
+  });
+
+  it("sends one ID per note draft across a rejected commit and a repeat commit", async () => {
+    const onAddNote = vi.fn().mockRejectedValueOnce(new Error("failed")).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddNote })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    await act(async () => result.current.commitDraft("x"));
+
+    expect(onAddNote).toHaveBeenCalledTimes(2);
+    expect(onAddNote.mock.calls[0][3]).toEqual(expect.any(String));
+    expect(onAddNote.mock.calls[1][3]).toBe(onAddNote.mock.calls[0][3]);
+  });
+
+  it("clears a note draft when its own ID lands even though the commit rejected (lost response)", async () => {
+    const onAddNote = vi.fn().mockRejectedValue(new Error("timed out"));
+    const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+      initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddNote }),
+    });
+
+    act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
+    await act(async () => result.current.commitDraft("x"));
+    expect(result.current.draft).not.toBeNull();
+
+    rerender(buildOptions({ propTimelineItemIds: ["a", onAddNote.mock.calls[0][3]], onAddNote }));
+    expect(result.current.draft).toBeNull();
   });
 
   it("clears the draft when its own ID lands even though the commit rejected (lost response)", async () => {
@@ -373,6 +405,7 @@ describe("useDayDraft", () => {
   it.each([
     ["event", ItineraryItemType.Event, "onAddEvent", 4],
     ["checklist", ItineraryItemType.Checklist, "onAddChecklist", 3],
+    ["note", ItineraryItemType.Note, "onAddNote", 3],
   ] as const)(
     "mints a new %s ID after a conflict, so an edited retry is not stuck on a 409",
     async (_name, kind, handler, idIndex) => {

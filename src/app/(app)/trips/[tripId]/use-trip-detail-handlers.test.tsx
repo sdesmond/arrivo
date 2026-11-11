@@ -2,7 +2,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { createNote } from "./actions";
 import {
   addPackingItem,
   deleteTrip,
@@ -45,11 +44,8 @@ vi.mock("../packing-actions", () => ({
 
 vi.mock("./actions", () => ({
   addDay: vi.fn(),
-  createNote: vi.fn(),
-  deleteNote: vi.fn(),
   removeLastDay: vi.fn(),
   updateDay: vi.fn(),
-  updateNote: vi.fn(),
 }));
 
 const detail: TripDetailPayload = {
@@ -314,22 +310,58 @@ describe("useTripDetailHandlers", () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("handleAddNote resolves the returned promise on success", async () => {
-    vi.mocked(createNote).mockResolvedValueOnce(undefined);
+  it("handleAddNote creates through the API with the draft's ID and position, then refreshes", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "note-1" });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     let addPromise: Promise<void> | undefined;
     act(() => {
-      addPromise = result.current.handleAddNote(1, "Tickets");
+      addPromise = result.current.handleAddNote(1, "Tickets", 2, "11111111-1111-4111-8111-111111111111");
     });
 
     await expect(addPromise).resolves.toBeUndefined();
-    expect(createNote).toHaveBeenCalledWith("day-1", "Tickets", undefined);
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/days/:dayId/notes" }),
+      {
+        params: { dayId: "day-1" },
+        body: { id: "11111111-1111-4111-8111-111111111111", content: "Tickets", insertAtPosition: 2 },
+      }
+    );
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
 
-  it("handleAddNote rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(createNote).mockRejectedValueOnce(new Error("Add note failed"));
+  it("handleAddNote omits the ID and position when none is given", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "note-1" });
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleAddNote(1, "Tickets");
+    });
+
+    expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "POST" }), {
+      params: { dayId: "day-1" },
+      body: { content: "Tickets" },
+    });
+  });
+
+  it("handleAddNote resolves without calling the API for an unknown day", async () => {
+    const { api } = await import("@/lib/api/client");
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      await result.current.handleAddNote(9, "Tickets");
+    });
+
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("handleAddNote rejects the returned promise and toasts on an API failure", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(403, "forbidden", "View access only"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -338,8 +370,63 @@ describe("useTripDetailHandlers", () => {
       addPromise = result.current.handleAddNote(1, "Tickets");
     });
 
-    await expect(addPromise).rejects.toThrow("Add note failed");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add note failed"));
+    await expect(addPromise).rejects.toThrow("View access only");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("View access only"));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("handleUpdateNote and handleDeleteNote call the note endpoints, delete carrying the trip", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValue({});
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+
+    await act(async () => {
+      result.current.handleUpdateNote("note-1", "Tickets and map");
+      result.current.handleDeleteNote("note-1");
+    });
+
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api).mock.calls).toEqual([
+      [
+        expect.objectContaining({ method: "PATCH", path: "/api/v1/itinerary-notes/:noteId" }),
+        { params: { noteId: "note-1" }, body: { content: "Tickets and map" } },
+      ],
+      [
+        expect.objectContaining({ method: "DELETE", path: "/api/v1/itinerary-notes/:noteId" }),
+        { params: { noteId: "note-1" }, body: { tripId: "trip-1" } },
+      ],
+    ]);
+  });
+
+  it("sends rapid edits to one note in the order they were made", async () => {
+    const { api } = await import("@/lib/api/client");
+    const finished: string[] = [];
+    vi.mocked(api).mockImplementation(async (_endpoint, input) => {
+      const content = (input as { body: { content: string } }).body.content;
+      await new Promise((resolve) => setTimeout(resolve, content === "First" ? 20 : 0));
+      finished.push(content);
+      return {};
+    });
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      result.current.handleUpdateNote("note-1", "First");
+      result.current.handleUpdateNote("note-1", "Second");
+    });
+    await waitFor(() => expect(finished).toEqual(["First", "Second"]));
+  });
+
+  it("handleUpdateNote surfaces an API failure", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(403, "forbidden", "View access only"));
+
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    await act(async () => {
+      result.current.handleUpdateNote("note-1", "x");
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("View access only");
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("handleAddChecklist resolves after creating through the lifecycle API", async () => {

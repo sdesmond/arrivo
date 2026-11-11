@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { days, events, trips } from "../../../src/db/schema";
+import { days, events, itineraryNotes, trips } from "../../../src/db/schema";
 import { formatCurrencyChipAmount } from "../../../src/lib/currencies";
 import { withE2EDb } from "../e2e-db";
 import {
@@ -730,7 +730,39 @@ Then("the order should be {string} then {string}", async ({ page, scenario }, fi
   }).toPass({ timeout: 10_000 });
 });
 
-When("I add a note {string}", async ({ page }, content: string) => {
+async function firstDayId(tripId: string): Promise<string> {
+  const [firstDay] = await withE2EDb((db) =>
+    db
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, tripId), eq(days.dayNumber, 1)))
+  );
+  return firstDay.id;
+}
+
+async function noteIdOf(row: Locator): Promise<string> {
+  const rowId = await row.getAttribute("id");
+  if (!rowId?.startsWith("note-")) throw new Error(`Unexpected note row id ${rowId}.`);
+  return rowId.slice("note-".length);
+}
+
+async function savedNoteVisible(page: Page, content: string): Promise<void> {
+  // The draft row stays mounted (id note-draft, its textarea matching hasText) until the saved note arrives, so wait
+  // for the saved row; a following gesture would otherwise race the in-flight write.
+  await expect(page.locator('[id^="note-"]:not(#note-draft)').filter({ hasText: content })).toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+// The draft's own ID becomes the note ID, so the POST path is only known by day. Arm before Enter and await after, or a
+// reload aborts the still-in-flight request.
+When("I add a note {string}", async ({ page, scenario }, content: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  const created = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/days/${await firstDayId(currentTrip.id)}/notes`,
+  });
   await page
     .getByRole("button", { name: /add a place/i })
     .first()
@@ -738,11 +770,24 @@ When("I add a note {string}", async ({ page }, content: string) => {
   await page.getByTitle("Add note").click();
   await page.getByPlaceholder("Add a note…").fill(content);
   await page.keyboard.press("Enter");
-  // The draft row stays mounted (id note-draft, its textarea matching hasText) until the saved note arrives, so wait
-  // for the saved row; a following gesture would otherwise race the in-flight write.
-  await expect(page.locator('[id^="note-"]:not(#note-draft)').filter({ hasText: content })).toBeVisible({
-    timeout: 5_000,
+  await created;
+  await savedNoteVisible(page, content);
+});
+
+When("I add a note {string} below {string}", async ({ page, scenario }, content: string, above: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  const created = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/days/${await firstDayId(currentTrip.id)}/notes`,
   });
+  const aboveRow = page.locator('[id^="event-"]').filter({ hasText: above }).first();
+  await aboveRow.locator('xpath=following::button[@title="Insert item here"][1]').click();
+  await page.getByTitle("Add note").click();
+  await page.getByPlaceholder("Add a note…").fill(content);
+  await page.keyboard.press("Enter");
+  await created;
+  await savedNoteVisible(page, content);
 });
 
 Then("the note {string} should be visible on the timeline", async ({ page }, content: string) => {
@@ -755,16 +800,48 @@ Then("the note {string} should not be visible", async ({ page }, content: string
 
 When("I edit the note {string} to {string}", async ({ page }, oldContent: string, newContent: string) => {
   const noteEl = page.locator('[id^="note-"]').filter({ hasText: oldContent }).first();
+  const saved = waitForApiResponse(page, {
+    method: "PATCH",
+    path: `/api/v1/itinerary-notes/${await noteIdOf(noteEl)}`,
+  });
   await noteEl.getByRole("button", { name: oldContent }).click();
   const textarea = noteEl.locator("textarea");
   await textarea.fill(newContent);
   await page.keyboard.press("Enter");
+  await saved;
 });
 
 When("I delete the note {string}", async ({ page }, content: string) => {
   const noteEl = page.locator('[id^="note-"]').filter({ hasText: content }).first();
+  const deleted = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/itinerary-notes/${await noteIdOf(noteEl)}`,
+  });
   await noteEl.hover();
   await noteEl.getByTitle("Delete note").click();
+  await deleted;
+});
+
+Then("the note {string} persists after reload", async ({ page }, content: string) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toBeVisible();
+});
+
+Then("the note {string} is gone after reload", async ({ page, scenario }, content: string) => {
+  const currentTrip = scenario.currentTrip;
+  if (!currentTrip) throw new Error("Current scenario trip is missing.");
+  await page.reload();
+  await openFirstDay(page);
+  await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toHaveCount(0);
+  const stored = await withE2EDb((db) =>
+    db
+      .select({ id: itineraryNotes.id })
+      .from(itineraryNotes)
+      .innerJoin(days, eq(days.id, itineraryNotes.dayId))
+      .where(and(eq(days.tripId, currentTrip.id), eq(itineraryNotes.content, content)))
+  );
+  expect(stored).toHaveLength(0);
 });
 
 When("I add a checklist with item {string}", async ({ page }, itemContent: string) => {
@@ -972,6 +1049,15 @@ Then("one expanded checklist sits in the timeline and the order persists after r
   expect(after).toEqual(before);
   // The only "Add a place" gap appends, so each saved item lands after the previous one.
   expect(after.map((id) => id.split("-")[0])).toEqual(["note", "event", "checklist"]);
+});
+
+Then("after reload the timeline reads {string}", async ({ page }, expected: string) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expect(async () => {
+    const kinds = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id.split("-")[0]));
+    expect(kinds.join(", ")).toBe(expected);
+  }).toPass({ timeout: 10_000 });
 });
 
 Then("the checklist should not be visible on the timeline", async ({ page }) => {

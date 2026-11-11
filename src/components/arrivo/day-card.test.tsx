@@ -527,7 +527,7 @@ describe("DayCard", () => {
     await user.click(screen.getByTitle("Add note"));
     await user.type(screen.getByPlaceholderText("Add a note…"), "Bring sunscreen");
     await user.keyboard("{Enter}");
-    expect(onAddNote).toHaveBeenCalledWith(baseDay.dayNumber, "Bring sunscreen", 2);
+    expect(onAddNote).toHaveBeenCalledWith(baseDay.dayNumber, "Bring sunscreen", 2, expect.any(String));
   });
 
   it("pressing Escape in event name input dismisses it", async () => {

@@ -22,6 +22,7 @@ import {
 } from "../activity-seed";
 import { After, Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
+import { waitForApiResponse } from "../api-response";
 import { waitForServerActionResponse } from "../server-action";
 
 // Also uses "I am signed in as an app {string}" and "app management is not found" from
@@ -407,7 +408,10 @@ When("I add two private itinerary notes for Activity", async ({ page, scenario }
     await page.getByTitle("Add note").click();
     await page.getByPlaceholder("Add a note…").fill(content);
     const since = Date.now();
-    const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}` });
+    const response = waitForApiResponse(page, {
+      method: "POST",
+      path: `/api/v1/days/${await firstDayId(trip.id)}/notes`,
+    });
     await page.keyboard.press("Enter");
     await response;
     // Wait for each write so the final assertion proves both edits joined the batch.
@@ -1183,6 +1187,17 @@ Given("Activity recording fails for my account", async ({ scenario }) => {
   scenario.setValue(FAULT_KEY, await installActivityRecorderFault(user.id));
 });
 
+/** The note POST path names the day, and the draft's own ID becomes the note's, so the day is all that is known. */
+async function firstDayId(tripId: string): Promise<string> {
+  const [firstDay] = await withE2EDb((database) =>
+    database
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, tripId), eq(days.dayNumber, 1)))
+  );
+  return firstDay.id;
+}
+
 async function itineraryNoteContents(database: E2EDb, tripId: string): Promise<string[]> {
   const rows = await database
     .select({ content: itineraryNotes.content })
@@ -1222,7 +1237,11 @@ When("I add a private note to the existing itinerary without waiting for Activit
     .click();
   await page.getByTitle("Add note").click();
   await page.getByPlaceholder("Add a note…").fill(FAULT_NOTE);
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${tripId}`, timeoutMs: 15_000 });
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/days/${await firstDayId(tripId)}/notes`,
+    timeoutMs: 15_000,
+  });
   await page.keyboard.press("Enter");
   await response;
 });
