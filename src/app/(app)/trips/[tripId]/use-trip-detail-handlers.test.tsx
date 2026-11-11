@@ -283,7 +283,7 @@ describe("useTripDetailHandlers", () => {
     expect(api).not.toHaveBeenCalled();
   });
 
-  it("handleEventDelete deletes through the API with the trip, then refreshes", async () => {
+  it("handleEventDelete keeps documents so one attached since the last refresh survives, then refreshes", async () => {
     const { api } = await import("@/lib/api/client");
     vi.mocked(api).mockResolvedValueOnce(null);
 
@@ -295,7 +295,7 @@ describe("useTripDetailHandlers", () => {
 
     expect(api).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ method: "DELETE", path: "/api/v1/events/:eventId" }),
-      { params: { eventId: "event-1" }, body: { tripId: "trip-1" } }
+      { params: { eventId: "event-1" }, body: { tripId: "trip-1", keepDocuments: true } }
     );
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });

@@ -117,8 +117,12 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   function handleEventDelete(id: string): void {
-    // Documents are discarded; an event with documents goes through the dialog, which chooses.
-    void eventDeleteMutation.mutate({ params: { eventId: id }, body: { tripId: trip.id } }, { key: `event:${id}` });
+    // An event the client knows has documents goes through the dialog, which chooses. Here none are known, so keep
+    // any the server holds (one attached since the last refresh) rather than destroy them unprompted.
+    void eventDeleteMutation.mutate(
+      { params: { eventId: id }, body: { tripId: trip.id, keepDocuments: true } },
+      { key: `event:${id}` }
+    );
   }
 
   function handleDayItemsReorder(dayNumber: number, orderedItems: { type: DayItemType; id: string }[]): void {
