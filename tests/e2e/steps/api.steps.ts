@@ -1,8 +1,8 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import postgres from "postgres";
 import {
   checklistItems,
@@ -15,6 +15,7 @@ import {
   events,
   expenses,
   itineraryNotes,
+  pendingFileDeletions,
   packingItems,
   packingTemplates,
   tripPackingLists,
@@ -2216,4 +2217,45 @@ Then("the {string} event, its document and its file are untouched", async ({ pag
   await expectEventCount(fixture.eventId, 1);
   expect(await expectDocument(fixture)).toMatchObject([{ eventId: fixture.eventId, tripId: current.tripId }]);
   expect(await fileExists(join(resolve(E2E_STORAGE_DIRECTORY), fixture.file!))).toBe(true);
+});
+
+// ── Queued file deletions ───────────────────────────────────────────────────
+// Scoped to this scenario's own file URLs: other scenarios delete events in parallel and queue rows of their own.
+const queuedFiles = new WeakMap<Page, string>();
+async function queuedRowsFor(urls: string[]) {
+  if (urls.length === 0) return [];
+  return withE2EDb((database) =>
+    database.select().from(pendingFileDeletions).where(inArray(pendingFileDeletions.url, urls))
+  );
+}
+Then("no file deletion is left queued", async ({ page }) => {
+  const files = Object.values(eventDeleteState(page).fixtures).flatMap((fixture) =>
+    fixture.file ? [`/api/storage/${fixture.file}`] : []
+  );
+  expect(await queuedRowsFor(files)).toEqual([]);
+});
+Given("a stored file is left queued for deletion", async ({ page }) => {
+  const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
+  const key = `event-documents/${randomUUID()}/${randomUUID()}.pdf`;
+  await mkdir(dirname(join(storageRoot, key)), { recursive: true });
+  await writeFile(join(storageRoot, key), "orphan");
+  await withE2EDb((database) => database.insert(pendingFileDeletions).values({ url: `/api/storage/${key}` }));
+  queuedFiles.set(page, key);
+});
+When("I open the app", async ({ page }) => {
+  // Every app page schedules the maintenance pass; the E2E server runs it on each render.
+  await page.goto("/trips");
+});
+Then("the queued file and its queue row are removed", async ({ page }) => {
+  const key = queuedFiles.get(page)!;
+  await expect.poll(() => fileExists(join(resolve(E2E_STORAGE_DIRECTORY), key)), { timeout: 15_000 }).toBe(false);
+  await expect.poll(async () => (await queuedRowsFor([`/api/storage/${key}`])).length, { timeout: 15_000 }).toBe(0);
+});
+After(async ({ page }) => {
+  const key = queuedFiles.get(page);
+  if (!key) return;
+  await rm(join(resolve(E2E_STORAGE_DIRECTORY), key), { force: true });
+  await withE2EDb((database) =>
+    database.delete(pendingFileDeletions).where(eq(pendingFileDeletions.url, `/api/storage/${key}`))
+  );
 });

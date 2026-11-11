@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { days, documents, events, idempotencyKeys } from "@/db/schema";
+import { days, documents, events, idempotencyKeys, pendingFileDeletions } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -126,6 +126,14 @@ beforeEach(() => {
   });
   mocks.insert.mockImplementation((table: unknown) => ({
     values: (values: Record<string, unknown>) => {
+      if (table === pendingFileDeletions) {
+        return {
+          returning: async () => {
+            calls.push("queue");
+            return (values as unknown as { url: string }[]).map((row, index) => ({ id: `q${index}`, url: row.url }));
+          },
+        };
+      }
       if (table === events) {
         inserted.push(values);
         return {
@@ -145,7 +153,7 @@ beforeEach(() => {
   mocks.update.mockReturnValue({ set: setSpy });
   mocks.delete.mockImplementation((table: unknown) => ({
     where: async () => {
-      calls.push(table === events ? "delete-event" : "delete-documents");
+      calls.push(table === events ? "delete-event" : table === pendingFileDeletions ? "clear" : "delete-documents");
     },
   }));
   mocks.appendPosition.mockResolvedValue(4);
@@ -653,7 +661,10 @@ function deleteEnvelope(payload: unknown) {
 it("deletes the event and its documents, then removes the files only after the commit", async () => {
   docRows = [{ url: "/uploads/a.pdf" }, { url: null }, { url: "/uploads/b.pdf" }];
   await expect(deleteEvent(actor, eventId, { tripId })).resolves.toBeNull();
-  expect(calls).toEqual(["trip-lock", "delete-documents", "delete-event", "commit", "cleanup", "cleanup"]);
+  // The file names are queued in the transaction, so only a committed delete ever reaches the cleanup.
+  expect(calls.slice(0, 5)).toEqual(["trip-lock", "queue", "delete-documents", "delete-event", "commit"]);
+  expect(calls.slice(5).filter((step) => step === "cleanup")).toHaveLength(2);
+  expect(calls.slice(5).filter((step) => step === "clear")).toHaveLength(2);
   expect(mocks.storageDelete).toHaveBeenCalledTimes(2);
   expect(mocks.storageDelete).toHaveBeenCalledWith("/uploads/a.pdf");
   expect(mocks.storageDelete).toHaveBeenCalledWith("/uploads/b.pdf");
@@ -675,6 +686,7 @@ it("keeps documents as trip documents and deletes no file", async () => {
   await deleteEvent(actor, eventId, { tripId, keepDocuments: true });
   expect(setSpy).toHaveBeenCalledExactlyOnceWith({ eventId: null, tripId });
   expect(calls).not.toContain("delete-documents");
+  expect(calls).not.toContain("queue");
   expect(calls).toContain("delete-event");
   expect(mocks.storageDelete).not.toHaveBeenCalled();
   expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
@@ -687,6 +699,8 @@ it("logs a cleanup failure and still succeeds", async () => {
   await expect(deleteEvent(actor, eventId, { tripId })).resolves.toBeNull();
   expect(warn).toHaveBeenCalledWith("Cleanup failed for /uploads/a.pdf", expect.any(Error));
   expect(mocks.storageDelete).toHaveBeenCalledTimes(2);
+  // The failed file's queue row stays for the next drain; only the removed file's row is cleared.
+  expect(calls.filter((step) => step === "clear")).toHaveLength(1);
   expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
   warn.mockRestore();
 });
@@ -724,6 +738,7 @@ it("removes no file when the transaction rolls back after the delete", async () 
   });
   await expect(deleteEvent(actor, eventId, { tripId })).rejects.toThrow("commit rejected");
   expect(mocks.storageDelete).not.toHaveBeenCalled();
+  expect(calls).not.toContain("clear");
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
 

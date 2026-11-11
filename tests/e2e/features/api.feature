@@ -607,6 +607,12 @@ Feature: Absolute checklist checked-state API
     When I delete the "discard" event through the event delete API
     Then the event delete API returns 204
     And after reload the "discard" event, its document and its expense are gone and its file is removed
+    And no file deletion is left queued
+
+  Scenario: A file left queued by a crash is removed by the next maintenance pass
+    Given a stored file is left queued for deletion
+    When I open the app
+    Then the queued file and its queue row are removed
 
   Scenario: Editor deletes a day-less event
     Given scenario-owned events with documents for the event delete API

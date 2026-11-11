@@ -15,7 +15,7 @@ import {
   deleteEvent as deleteContract,
   updateEvent as updateContract,
 } from "@/lib/api/contract/events";
-import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { getNow } from "@/lib/mock-date";
 import type { z } from "zod";
 
@@ -214,23 +214,10 @@ export async function createEvent(
   }));
 }
 
-/** Storage cleanup never fails the request: the rows are already gone, so a leftover file is only logged. */
-async function removeStoredFiles(urls: string[]): Promise<void> {
-  await Promise.all(
-    urls.map(async (url) => {
-      try {
-        await getStorageAdapter().del(url);
-      } catch (error) {
-        console.warn(`Cleanup failed for ${url}`, error);
-      }
-    })
-  );
-}
-
 /**
  * Deletes an event, day-less ones included; the DB cascades its expenses. Documents are detached as trip documents when
- * `keepDocuments` is true, otherwise deleted with their files, which go only after the commit and never on a replay or
- * rollback. An event that is already gone succeeds once the caller is authorized for the supplied trip.
+ * `keepDocuments` is true, otherwise deleted with their files. The file names are queued in the transaction, so the
+ * files go only after the commit, never on a replay or rollback, and survive a crash in between for a later drain. An event that is already gone succeeds once the caller is authorized for the supplied trip.
  */
 export async function deleteEvent(
   actor: Actor,
@@ -242,7 +229,7 @@ export async function deleteEvent(
   const body = deleteContract.body.parse(input);
   const { tripId } = body;
   await requireTripRole(tripId, actor.userId, "editor");
-  let discardedUrls: string[] = [];
+  let queued: QueuedFileDeletion[] = [];
   await runTripWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
     authorize: async () => {
       await lockTrip(transaction, tripId);
@@ -251,7 +238,7 @@ export async function deleteEvent(
       if (current && current.tripId !== tripId) throw new TripNotFoundError();
     },
     mutate: async () => {
-      discardedUrls = [];
+      queued = [];
       if (!(await readEvent(transaction, eventId))) return null;
       if (body.keepDocuments) {
         await transaction.update(documents).set({ eventId: null, tripId }).where(eq(documents.eventId, eventId));
@@ -260,7 +247,8 @@ export async function deleteEvent(
           .select({ url: documents.url })
           .from(documents)
           .where(eq(documents.eventId, eventId));
-        discardedUrls = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
+        const urls = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
+        queued = await queueFileDeletions(transaction, urls);
         await transaction.delete(documents).where(eq(documents.eventId, eventId));
       }
       await transaction.delete(events).where(eq(events.id, eventId));
@@ -268,6 +256,7 @@ export async function deleteEvent(
       return null;
     },
   }));
-  await removeStoredFiles(discardedUrls);
+  // Best effort: the rows are gone and the names are queued, so a failure only leaves the file for the next drain.
+  await removeQueuedFiles(queued);
   return null;
 }

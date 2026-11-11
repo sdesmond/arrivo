@@ -1,8 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
-const { after } = vi.hoisted(() => ({ after: vi.fn() }));
+const { after, drainPendingFileDeletions } = vi.hoisted(() => ({
+  after: vi.fn(),
+  drainPendingFileDeletions: vi.fn(),
+}));
 vi.mock("next/server", () => ({ after }));
+vi.mock("@/lib/file-cleanup", () => ({ drainPendingFileDeletions }));
 vi.mock("@/db", () => ({ db: {} }));
 import {
   ACTIVITY_MAINTENANCE_LOCK,
@@ -52,6 +56,8 @@ describe("activity maintenance", () => {
     scheduleActivityMaintenance(0);
     expect(after).toHaveBeenCalledOnce();
     await after.mock.calls[0][0]();
+    // The same pass retries file deletions left over from a crash or a storage failure.
+    expect(drainPendingFileDeletions).toHaveBeenCalledOnce();
     after.mockImplementationOnce(() => {
       throw new Error("private");
     });

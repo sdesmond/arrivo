@@ -63,7 +63,13 @@ function intervalMs(): number {
 export function scheduleActivityMaintenance(nowMs: number = Date.now()): void {
   if (nowMs - lastScheduledAt < intervalMs()) return;
   try {
-    after(() => cleanupActivity());
+    // Housekeeping shares the pass: it also retries stored-file deletions left queued by a crash or storage failure.
+    after(async () => {
+      await cleanupActivity();
+      // Loaded here, not at the top: E2E fixtures import this module under plain Node, where `server-only` throws.
+      const { drainPendingFileDeletions } = await import("@/lib/file-cleanup");
+      await drainPendingFileDeletions();
+    });
     lastScheduledAt = nowMs;
   } catch (error) {
     failure("schedule", error);
