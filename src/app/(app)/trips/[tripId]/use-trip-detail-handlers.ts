@@ -76,6 +76,28 @@ export interface TripDetailHandlers extends PackingHandlers {
   ) => void;
 }
 
+const EVENT_OPTIONAL_FIELDS = [
+  "startAt",
+  "endAt",
+  "locationName",
+  "locationAddress",
+  "locationLat",
+  "locationLng",
+  "confirmationNumber",
+  "note",
+] as const;
+
+/** The fields of `updated` that differ from `stored` (all when `stored` is unknown); a cleared field is `null`. */
+function eventPatchBody(updated: TripEvent, stored?: TripEvent): Record<string, string | number | null> {
+  const body: Record<string, string | number | null> = {};
+  if (!stored || updated.name !== stored.name) body.name = updated.name;
+  for (const field of EVENT_OPTIONAL_FIELDS) {
+    const next = updated[field] ?? null;
+    if (!stored || next !== (stored[field] ?? null)) body[field] = next;
+  }
+  return body;
+}
+
 export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHandlers {
   const { trip, days } = detail;
   const router = useRouter();
@@ -95,25 +117,16 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   });
 
   function handleEventUpdate(updated: TripEvent): void {
-    // The editor clears a field by leaving it undefined, and the API only clears on null, so every field is sent.
+    // The editor builds `updated` from the row it rendered and clears a field by leaving it undefined; the API clears
+    // only on null. Send just what this edit changed against that row: resending the rest would overwrite a previous
+    // edit whose refresh has not landed yet. An event the page does not hold sends every field.
+    const stored =
+      days.flatMap((day) => day.events).find((candidate) => candidate.id === updated.id) ??
+      detail.unscheduledEvents.find((candidate) => candidate.id === updated.id);
+    const body = eventPatchBody(updated, stored);
+    if (Object.keys(body).length === 0) return;
     // Edits to one event share a queue key so they reach the server in the order they were made.
-    void eventMutation.mutate(
-      {
-        params: { eventId: updated.id },
-        body: {
-          name: updated.name,
-          startAt: updated.startAt ?? null,
-          endAt: updated.endAt ?? null,
-          locationName: updated.locationName ?? null,
-          locationAddress: updated.locationAddress ?? null,
-          locationLat: updated.locationLat ?? null,
-          locationLng: updated.locationLng ?? null,
-          confirmationNumber: updated.confirmationNumber ?? null,
-          note: updated.note ?? null,
-        },
-      },
-      { key: `event:${updated.id}` }
-    );
+    void eventMutation.mutate({ params: { eventId: updated.id }, body }, { key: `event:${updated.id}` });
   }
 
   function handleEventDelete(id: string): void {

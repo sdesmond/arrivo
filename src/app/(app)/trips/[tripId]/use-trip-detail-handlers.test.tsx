@@ -850,7 +850,7 @@ it("sends checklist item add, edit and delete to the item endpoints", async () =
 });
 
 const editedEvent = { id: "event-1", tripId: "trip-1", dayId: "day-1", name: "Dinner", position: 0 };
-it("patches an edited event through the API, sending every cleared optional field as null", async () => {
+it("patches an event the page does not hold with every field, cleared ones as null", async () => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
   const { result } = renderHook(() => useTripDetailHandlers(detail));
@@ -878,6 +878,49 @@ it("patches an edited event through the API, sending every cleared optional fiel
     },
   });
   expect(mockRefresh).toHaveBeenCalledOnce();
+});
+const storedEvent = { ...editedEvent, startAt: "2026-08-01T19:00:00.000Z", locationName: "Bistro", note: "Window" };
+function detailWithStoredEvent(): TripDetailPayload {
+  return {
+    ...detail,
+    days: detail.days.map((day, index) => (index === 0 ? { ...day, events: [storedEvent] } : day)),
+  };
+}
+function lastPatchBody(api: unknown): unknown {
+  const calls = vi.mocked(api as (...args: unknown[]) => unknown).mock.calls;
+  return (calls[calls.length - 1][1] as { body: unknown }).body;
+}
+it("sends only the fields an edit changed, so a stale row cannot overwrite an earlier edit", async () => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockResolvedValue({});
+  const { result } = renderHook(() => useTripDetailHandlers(detailWithStoredEvent()));
+  await act(async () => {
+    result.current.handleEventUpdate({ ...storedEvent, name: "Supper" });
+  });
+  expect(lastPatchBody(api)).toEqual({ name: "Supper" });
+  await act(async () => {
+    result.current.handleEventUpdate({ ...storedEvent, locationName: undefined, note: "Corner" });
+  });
+  expect(lastPatchBody(api)).toEqual({ locationName: null, note: "Corner" });
+});
+it("finds the stored row of an unscheduled event", async () => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockResolvedValue({});
+  const unscheduled = { ...editedEvent, id: "event-2", dayId: undefined };
+  const { result } = renderHook(() => useTripDetailHandlers({ ...detail, unscheduledEvents: [unscheduled] }));
+  await act(async () => {
+    result.current.handleEventUpdate({ ...unscheduled, endAt: "2026-08-01T20:00:00.000Z" });
+  });
+  expect(lastPatchBody(api)).toEqual({ endAt: "2026-08-01T20:00:00.000Z" });
+});
+it("sends nothing for an edit that changes no field", async () => {
+  const { api } = await import("@/lib/api/client");
+  vi.mocked(api).mockClear();
+  const { result } = renderHook(() => useTripDetailHandlers(detailWithStoredEvent()));
+  await act(async () => {
+    result.current.handleEventUpdate({ ...storedEvent });
+  });
+  expect(api).not.toHaveBeenCalled();
 });
 it("surfaces an event edit failure without refreshing", async () => {
   const { api, ApiClientError } = await import("@/lib/api/client");
