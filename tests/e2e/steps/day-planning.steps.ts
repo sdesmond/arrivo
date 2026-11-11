@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { days, events, itineraryNotes, trips } from "../../../src/db/schema";
 import { formatCurrencyChipAmount } from "../../../src/lib/currencies";
 import { withE2EDb } from "../e2e-db";
@@ -29,6 +29,43 @@ async function eventIdOf(row: Locator): Promise<string> {
 /** Arm before the save gesture and await after it: reloading first would abort the still-in-flight PATCH. */
 function armEventPatch(page: Page, eventId: string) {
   return waitForApiResponse(page, { method: "PATCH", path: `/api/v1/events/${eventId}` });
+}
+
+/** Arm before the save gesture and await after it: reloading first would abort the still-in-flight PATCH. */
+function armDayPatch(page: Page, dayId: string) {
+  return waitForApiResponse(page, { method: "PATCH", path: `/api/v1/days/${dayId}` });
+}
+
+async function dayIdOf(tripId: string, dayNumber: number): Promise<string> {
+  const [day] = await withE2EDb((db) =>
+    db
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, tripId), eq(days.dayNumber, dayNumber)))
+  );
+  return day.id;
+}
+
+async function lastDayIdOf(tripId: string): Promise<string> {
+  const [day] = await withE2EDb((db) =>
+    db.select({ id: days.id }).from(days).where(eq(days.tripId, tripId)).orderBy(desc(days.dayNumber)).limit(1)
+  );
+  return day.id;
+}
+
+/** The trips list shows the stored end date, in either date format the profile can choose. */
+async function expectTripsListEndsOn(page: Page, trip: { id: string }, endDate: string): Promise<void> {
+  const date = new Date(`${endDate}T12:00:00Z`);
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  await page.goto("/trips");
+  await expect(
+    page
+      .locator(`a[href="/trips/${trip.id}"]`)
+      .filter({ hasText: new RegExp(`— (${month} ${day}, ${year}|${day} ${month} ${year})`) })
+      .first()
+  ).toBeVisible();
 }
 
 async function openFirstDay(page: Page): Promise<void> {
@@ -1064,14 +1101,16 @@ Then("the checklist should not be visible on the timeline", async ({ page }) => 
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(0);
 });
 
-When("I add a day to the itinerary", async ({ page }) => {
+When("I add a day to the itinerary", async ({ page, scenario }) => {
+  const added = waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${scenario.currentTrip!.id}/days` });
   await page.getByRole("button", { name: "Add Day" }).click();
+  await added;
   await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/\b2 days\b/)).toBeVisible();
   await expect(page.getByText(formatRangeLabel(E2E_TRIP_START_DATE, E2E_TRIP_SECOND_DATE))).toBeVisible();
 });
 
-Then("the appended day and advanced end date are persisted", async ({ scenario }) => {
+Then("the appended day and advanced end date are persisted", async ({ page, scenario }) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
@@ -1082,15 +1121,21 @@ Then("the appended day and advanced end date are persisted", async ({ scenario }
     expect(tripDays.find((day) => day.dayNumber === 2)?.date).toBe(E2E_TRIP_SECOND_DATE);
     expect(trip.endDate).toBe(E2E_TRIP_SECOND_DATE);
   });
+  await expectTripsListEndsOn(page, currentTrip, E2E_TRIP_SECOND_DATE);
 });
 
-When("I remove the final empty day", async ({ page }) => {
+When("I remove the final empty day", async ({ page, scenario }) => {
+  const removed = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/days/${await lastDayIdOf(scenario.currentTrip!.id)}`,
+  });
   await page.getByTitle("Remove day").last().click();
+  await removed;
   await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/\b1 day\b/)).toBeVisible();
 });
 
-Then("only the preceding day remains scheduled", async ({ scenario }) => {
+Then("only the preceding day remains scheduled", async ({ page, scenario }) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
@@ -1100,14 +1145,17 @@ Then("only the preceding day remains scheduled", async ({ scenario }) => {
     expect(tripDays).toHaveLength(1);
     expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
+  await expectTripsListEndsOn(page, currentTrip, E2E_TRIP_START_DATE);
 });
 
 Then("the remove day control is not visible", async ({ page }) => {
   await expect(page.getByTitle("Remove day")).not.toBeVisible();
 });
 
-When("I add a day to a dateless itinerary", async ({ page }) => {
+When("I add a day to a dateless itinerary", async ({ page, scenario }) => {
+  const added = waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${scenario.currentTrip!.id}/days` });
   await page.getByRole("button", { name: "Add Day" }).click();
+  await added;
   await expect(page.getByText("Day 2")).toBeVisible({ timeout: 10_000 });
 });
 
@@ -1139,12 +1187,18 @@ Then("planned content deletion is disclosed", async ({ page }) => {
   await expect(page.getByText(/planned content will be deleted/i)).toBeVisible();
 });
 
-When("I confirm destructive day removal", async ({ page }) => {
+When("I confirm destructive day removal", async ({ page, scenario }) => {
+  // The first click already got the 409 that opened this dialog; only the confirmed request is awaited here.
+  const removed = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/days/${await lastDayIdOf(scenario.currentTrip!.id)}`,
+  });
   await page.getByRole("button", { name: "Remove Day", exact: true }).click();
+  await removed;
   await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible({ timeout: 10_000 });
 });
 
-Then("the populated final day and its content are deleted", async ({ scenario }) => {
+Then("the populated final day and its content are deleted", async ({ page, scenario }) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Missing current scenario trip.");
 
@@ -1156,6 +1210,49 @@ Then("the populated final day and its content are deleted", async ({ scenario })
     expect(remainingEvents).toHaveLength(0);
     expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
+  await page.reload();
+  await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible();
+  await expectTripsListEndsOn(page, currentTrip, E2E_TRIP_START_DATE);
+});
+
+When("I add the day note {string}", async ({ page, scenario }, note: string) => {
+  const saved = armDayPatch(page, await dayIdOf(scenario.currentTrip!.id, 1));
+  await page.getByRole("button", { name: "Add a note", exact: true }).first().click();
+  await page.getByPlaceholder("Add a note", { exact: true }).fill(note);
+  await page.keyboard.press("Enter");
+  await saved;
+});
+
+Then("the day note {string} is saved and shown after reload", async ({ page, scenario }, note: string) => {
+  await page.reload();
+  await expect(page.getByRole("button", { name: note, exact: true })).toBeVisible();
+  const [day] = await withE2EDb((db) =>
+    db
+      .select({ subtitle: days.subtitle })
+      .from(days)
+      .where(and(eq(days.tripId, scenario.currentTrip!.id), eq(days.dayNumber, 1)))
+  );
+  expect(day.subtitle).toBe(note);
+});
+
+When("I clear the day note {string}", async ({ page, scenario }, note: string) => {
+  const saved = armDayPatch(page, await dayIdOf(scenario.currentTrip!.id, 1));
+  await page.getByRole("button", { name: note, exact: true }).click();
+  await page.getByPlaceholder("Add a note", { exact: true }).fill("");
+  await page.keyboard.press("Enter");
+  await saved;
+});
+
+Then("the first day shows no note after reload", async ({ page, scenario }) => {
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Add a note", exact: true }).first()).toBeVisible();
+  const [day] = await withE2EDb((db) =>
+    db
+      .select({ subtitle: days.subtitle })
+      .from(days)
+      .where(and(eq(days.tripId, scenario.currentTrip!.id), eq(days.dayNumber, 1)))
+  );
+  expect(day.subtitle).toBeNull();
 });
 
 When(
