@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ItineraryItemType, type TripEvent } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
 import type { TimelineItem } from "./day-card-dnd";
 import { useDayDraft, type UseDayDraftOptions } from "./use-day-draft";
 
@@ -367,6 +368,45 @@ describe("useDayDraft", () => {
     await act(async () => result.current.commitDraft("Bar"));
 
     expect(onAddEvent.mock.calls[1][4]).not.toBe(onAddEvent.mock.calls[0][4]);
+  });
+
+  it.each([
+    ["event", ItineraryItemType.Event, "onAddEvent", 4],
+    ["checklist", ItineraryItemType.Checklist, "onAddChecklist", 3],
+  ] as const)(
+    "mints a new %s ID after a conflict, so an edited retry is not stuck on a 409",
+    async (_name, kind, handler, idIndex) => {
+      const onAdd = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiClientError(409, "conflict", "This ID was already used."))
+        .mockResolvedValue(undefined);
+      const { result } = renderHook(() => useDayDraft(buildOptions({ [handler]: onAdd })));
+
+      act(() => result.current.activateDraft(kind, 1, "bottom"));
+      await act(async () => result.current.commitDraft("first"));
+      await act(async () => result.current.commitDraft("edited"));
+
+      expect(onAdd).toHaveBeenCalledTimes(2);
+      expect(onAdd.mock.calls[1][idIndex]).toEqual(expect.any(String));
+      expect(onAdd.mock.calls[1][idIndex]).not.toBe(onAdd.mock.calls[0][idIndex]);
+    }
+  );
+
+  it("keeps the ID after a rejection that is not a conflict", async () => {
+    const onAddEvent = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiClientError(500, "server_error", "boom"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDayDraft(buildOptions({ onAddEvent })));
+
+    act(() => result.current.activateDraft(ItineraryItemType.Event, 1, "bottom"));
+    await act(async () => result.current.commitDraft("a"));
+    await act(async () => result.current.commitDraft("a"));
+    await act(async () => result.current.commitDraft("a"));
+
+    expect(onAddEvent.mock.calls[1][4]).toBe(onAddEvent.mock.calls[0][4]);
+    expect(onAddEvent.mock.calls[2][4]).toBe(onAddEvent.mock.calls[0][4]);
   });
 
   it("mints a new ID after cancel and for each new draft", async () => {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GapZoneProps } from "./gap-zone";
 import type { TimelineItem } from "./day-card-dnd";
 import { ItineraryItemType } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
 import { createRandomId } from "@/lib/utils";
 
 interface DraftState {
@@ -142,9 +143,14 @@ export function useDayDraft({
       }
       committedRef.current = baseline;
       setCommitVersion((version) => version + 1);
-    } catch {
+    } catch (error) {
       // handler already surfaced a toast; keep the draft open so the user can retry
       commitStartedRef.current = false;
+      // A 409 means the retained ID already names different content (an earlier attempt landed before the user edited
+      // the text), so it can never succeed again: the next commit gets a fresh one.
+      if (draft.kind !== ItineraryItemType.Note && error instanceof ApiClientError && error.code === "conflict") {
+        draftIdRef.current = createRandomId();
+      }
     }
   }
 
