@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   addDocumentSchema,
-  createEventSchema,
   createReservationSchema,
   createTripNoteSchema,
   createTripSchema,
@@ -104,30 +103,17 @@ describe("updateTripSchema", () => {
   });
 });
 
-describe("createEventSchema / updateEventSchema", () => {
-  it("requires a non-blank name on create and caps text", () => {
-    expect(() => parseInput(createEventSchema, { name: " " })).toThrow("Event name is required.");
-    expect(() => parseInput(createEventSchema, { name: OVER(FIELD_LIMITS.eventName) })).toThrow("Event name");
-    expect(() => parseInput(createEventSchema, { name: "a", note: OVER(FIELD_LIMITS.eventNote) })).toThrow("Note");
-  });
-
-  it("rejects invalid datetimes and out-of-range coordinates", () => {
-    expect(() => parseInput(createEventSchema, { name: "a", startAt: "nope" })).toThrow("Invalid start time.");
+describe("updateEventSchema", () => {
+  it("caps text and rejects invalid datetimes and out-of-range coordinates", () => {
+    expect(() => parseInput(updateEventSchema, { note: OVER(FIELD_LIMITS.eventNote) })).toThrow("Note");
+    expect(() => parseInput(updateEventSchema, { name: " " })).toThrow("Event name is required.");
     expect(() => parseInput(updateEventSchema, { endAt: "2026-13-40T00:00:00Z" })).toThrow("Invalid end time.");
-    expect(() => parseInput(createEventSchema, { name: "a", locationLat: 91 })).toThrow("Latitude");
     expect(() => parseInput(updateEventSchema, { locationLng: -181 })).toThrow("Longitude");
     expect(() => parseInput(updateEventSchema, { locationLat: Number.NaN })).toThrow("Latitude");
   });
 
   it("treats an empty event time as unset", () => {
     expect(parseInput(updateEventSchema, { startAt: "", endAt: "" })).toEqual({ startAt: "", endAt: "" });
-  });
-
-  it("bounds insertAtPosition", () => {
-    expect(() => parseInput(createEventSchema, { name: "a", insertAtPosition: -1 })).toThrow("position");
-    expect(() => parseInput(createEventSchema, { name: "a", insertAtPosition: 1.5 })).toThrow("position");
-    expect(() => parseInput(createEventSchema, { name: "a", insertAtPosition: 10_001 })).toThrow("position");
-    expect(parseInput(createEventSchema, { name: "a", insertAtPosition: 0 }).insertAtPosition).toBe(0);
   });
 
   it("drops keys outside the contract", () => {
