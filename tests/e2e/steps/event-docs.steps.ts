@@ -190,3 +190,35 @@ When("I promote the event doc {string} to trip level", async ({ page }, docName:
 Then("the event doc {string} is no longer visible in the event", async ({ page }, docName: string) => {
   await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).not.toBeVisible({ timeout: 10_000 });
 });
+
+When("I upload {string} to event {string}", async ({ page, scenario }, name: string, eventName: string) => {
+  const [target] = await withE2EDb((database) =>
+    database
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.tripId, scenario.currentTrip!.id), eq(events.name, eventName)))
+  );
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 event upload") });
+  const uploaded = waitForApiResponse(page, { method: "POST", path: `/api/v1/events/${target.id}/documents` });
+  await page.getByRole("dialog").getByRole("button", { name: "Attach", exact: true }).click();
+  await uploaded;
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+Then(
+  "after reload event {string} shows uploaded document {string}",
+  async ({ page }, eventName: string, name: string) => {
+    await page.reload();
+    await page.getByRole("button", { name: "Itinerary", exact: true }).click();
+    const eventTitle = page.getByText(eventName, { exact: true });
+    if (!(await eventTitle.isVisible()))
+      await page
+        .getByRole("button", { name: dayButtonNamePattern(E2E_TRIP_START_DATE) })
+        .first()
+        .click();
+    const eventRow = page.locator("div").filter({ hasText: new RegExp(`^${escapeRegex(eventName)}`) });
+    await eventRow.getByTitle("Show attached documents").first().click();
+    await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
+  }
+);

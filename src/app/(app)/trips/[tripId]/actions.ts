@@ -20,7 +20,6 @@ import {
   rescindInvitation,
   saveContributorChanges as saveContributorChangesAction,
 } from "../actions";
-import { uploadDocumentToEvent as uploadEventDocumentAction } from "./document-upload-actions";
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type { AddDocumentInput, ContributorChange } from "@/data/types";
 
@@ -204,10 +203,6 @@ export async function promoteEventDocToTrip(docId: string): Promise<void> {
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
-}
-
-export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
-  return uploadEventDocumentAction(eventId, formData);
 }
 
 export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {

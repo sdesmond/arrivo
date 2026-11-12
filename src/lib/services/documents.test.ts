@@ -2,6 +2,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  recordTripUpdated: vi.fn(),
+  publishTripEvent: vi.fn(),
+  revalidatePath: vi.fn(),
   put: vi.fn(),
   del: vi.fn(),
   requireTripRole: vi.fn(),
@@ -9,11 +12,19 @@ const mocks = vi.hoisted(() => ({
   lockClientIds: vi.fn(),
   afterTripWrite: vi.fn(),
   selectRows: [] as Record<string, unknown>[],
+  targetRows: [] as Record<string, unknown>[],
+  transactionTargetRows: undefined as Record<string, unknown>[] | undefined,
   committedRows: [] as Record<string, unknown>[],
   inserted: [] as Record<string, unknown>[],
   insertError: undefined as Error | undefined,
 }));
-vi.mock("@/db", () => ({ db: { select: () => ({ from: () => ({ where: async () => mocks.committedRows }) }) } }));
+vi.mock("@/db", () => ({
+  db: {
+    select: () => ({
+      from: (table: unknown) => ({ where: async () => (table === documents ? mocks.committedRows : mocks.targetRows) }),
+    }),
+  },
+}));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ put: mocks.put, del: mocks.del }) }));
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
 vi.mock("./trip-access", async (original) => ({
@@ -34,7 +45,12 @@ vi.mock("./trip-write", () => ({
   ) => {
     let changed = false;
     const transaction = {
-      select: () => ({ from: () => ({ where: async () => mocks.selectRows }) }),
+      select: () => ({
+        from: (table: unknown) => ({
+          where: async () =>
+            table === documents ? mocks.selectRows : (mocks.transactionTargetRows ?? mocks.targetRows),
+        }),
+      }),
       insert: () => ({
         values: (values: Record<string, unknown>) => ({
           returning: async () => {
@@ -55,7 +71,13 @@ vi.mock("./trip-write", () => ({
   },
 }));
 
-import { uploadTripDocument } from "./documents";
+vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated: mocks.recordTripUpdated }));
+vi.mock("@/lib/trip-events", () => ({ publishTripEvent: mocks.publishTripEvent }));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+import { afterTripWrite } from "./trip-write-effects";
+import { LiveSyncEventType } from "@/data/types";
+import { uploadTripDocument, uploadEventDocument, uploadReservationDocument } from "./documents";
+import { documents } from "@/db/schema";
 import { TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { ConflictError } from "./conflict-error";
 import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
@@ -82,9 +104,12 @@ const stored = (overrides: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.selectRows = [];
+  mocks.targetRows = [{ tripId }];
+  mocks.transactionTargetRows = undefined;
   mocks.committedRows = [];
   mocks.inserted = [];
   mocks.insertError = undefined;
+  mocks.afterTripWrite.mockImplementation(afterTripWrite);
   mocks.requireTripRole.mockResolvedValue("editor");
   mocks.put.mockImplementation(async (key: string) => `/api/storage/${key}`);
   mocks.del.mockResolvedValue(undefined);
@@ -217,3 +242,116 @@ it("rejects a malformed trip id or body before anything else", async () => {
   await expect(uploadTripDocument(actor, tripId, { id: "nope" }, pdf())).rejects.toThrow();
   expect(mocks.requireTripRole).not.toHaveBeenCalled();
 });
+
+const targetId = "623e4567-e89b-12d3-a456-426614174000";
+it.each([uploadEventDocument, uploadReservationDocument])(
+  "classifies valid PNG bytes by MIME despite a PDF filename",
+  async (upload) => {
+    const bytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const result = await upload(actor, targetId, {}, new File([bytes], "scan.pdf", { type: "image/png" }));
+    expect(mocks.inserted[0]).toMatchObject({ name: "scan.pdf", kind: "image" });
+    expect(result).toMatchObject({ name: "scan.pdf", kind: "image" });
+  }
+);
+it.each([
+  ["event", uploadEventDocument, "eventId", "reservationId"],
+  ["reservation", uploadReservationDocument, "reservationId", "eventId"],
+] as const)("uploads and safely replays %s documents", async (scope, upload, targetColumn, siblingColumn) => {
+  const result = await upload(actor, targetId, { id: documentId }, pdf());
+  expect(result.scope).toBe(scope);
+  expect(mocks.inserted[0]).toMatchObject({ tripId, [targetColumn]: targetId });
+  expect(mocks.afterTripWrite).toHaveBeenCalledTimes(1);
+  expect(mocks.recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user", tripId);
+  expect(mocks.publishTripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+    type: LiveSyncEventType.ItineraryChanged,
+    tripId,
+  });
+  expect(mocks.revalidatePath).toHaveBeenCalledExactlyOnceWith(`/trips/${tripId}`);
+  mocks.selectRows = [stored({ [targetColumn]: targetId })];
+  await expect(upload(actor, targetId, { id: documentId }, pdf())).resolves.toMatchObject({ id: documentId });
+  expect(mocks.afterTripWrite).toHaveBeenCalledTimes(1);
+  expect(mocks.del).toHaveBeenCalledTimes(1);
+  for (const overrides of [
+    { [targetColumn]: null },
+    { [targetColumn]: otherTripId },
+    { [targetColumn]: targetId, [siblingColumn]: targetId },
+    { [targetColumn]: targetId, name: "other.pdf" },
+    { [targetColumn]: targetId, kind: "image" },
+    { [targetColumn]: targetId, size: "1.0 MB" },
+  ]) {
+    mocks.selectRows = [stored(overrides)];
+    await expect(upload(actor, targetId, { id: documentId }, pdf())).rejects.toBeInstanceOf(ConflictError);
+  }
+});
+it.each([uploadEventDocument, uploadReservationDocument])(
+  "rechecks target existence and ownership after storage under lock",
+  async (upload) => {
+    for (const rows of [[], [{ tripId: otherTripId }]]) {
+      mocks.transactionTargetRows = rows;
+      await expect(upload(actor, targetId, {}, pdf())).rejects.toBeInstanceOf(TripNotFoundError);
+    }
+    expect(mocks.del).toHaveBeenCalledTimes(2);
+    expect(mocks.inserted).toEqual([]);
+  }
+);
+it.each([uploadEventDocument, uploadReservationDocument])(
+  "rejects missing targets, invalid IDs and denied access before storage",
+  async (upload) => {
+    await expect(upload(actor, "linked-event", {}, pdf())).rejects.toThrow();
+    mocks.targetRows = [];
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toBeInstanceOf(TripNotFoundError);
+    mocks.targetRows = [{ tripId }];
+    mocks.requireTripRole.mockRejectedValueOnce(new TripForbiddenError("editor"));
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toBeInstanceOf(TripForbiddenError);
+    expect(mocks.put).not.toHaveBeenCalled();
+  }
+);
+
+it.each([uploadEventDocument, uploadReservationDocument])(
+  "applies policy and cleanup for scoped documents",
+  async (upload) => {
+    const big = pdf();
+    Object.defineProperty(big, "size", { value: 25 * 1024 * 1024 + 1 });
+    await expect(upload(actor, targetId, {}, big)).rejects.toBeInstanceOf(UploadTooLargeError);
+    await expect(
+      upload(actor, targetId, {}, new File(["bad"], "notes.doc", { type: "application/msword" }))
+    ).rejects.toBeInstanceOf(UploadInvalidError);
+    await expect(
+      upload(actor, targetId, {}, new File(["bad"], "fake.pdf", { type: "application/pdf" }))
+    ).rejects.toBeInstanceOf(UploadInvalidError);
+    expect(mocks.put).not.toHaveBeenCalled();
+    mocks.put.mockRejectedValueOnce(new Error("storage failed"));
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toThrow("storage failed");
+    expect(mocks.inserted).toEqual([]);
+    mocks.insertError = new Error("insert failed");
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toThrow("insert failed");
+    expect(mocks.del).toHaveBeenCalledTimes(1);
+    mocks.insertError = undefined;
+    mocks.afterTripWrite.mockImplementationOnce(() => {
+      throw new Error("effect failed");
+    });
+    mocks.committedRows = [stored()];
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toThrow("effect failed");
+    expect(mocks.del).toHaveBeenCalledTimes(1);
+  }
+);
+it.each([uploadEventDocument, uploadReservationDocument])(
+  "hides inaccessible document IDs and rechecks role under lock",
+  async (upload) => {
+    mocks.selectRows = [stored({ tripId: otherTripId })];
+    mocks.requireTripRole.mockImplementation(async (id: string) => {
+      if (id === otherTripId) throw new TripNotFoundError();
+      return "editor";
+    });
+    await expect(upload(actor, targetId, { id: documentId }, pdf())).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(mocks.del).toHaveBeenCalledTimes(1);
+    mocks.selectRows = [];
+    mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
+    await expect(upload(actor, targetId, {}, pdf())).rejects.toBeInstanceOf(TripForbiddenError);
+    expect(mocks.del).toHaveBeenCalledTimes(2);
+    expect(mocks.inserted).toEqual([]);
+  }
+);
