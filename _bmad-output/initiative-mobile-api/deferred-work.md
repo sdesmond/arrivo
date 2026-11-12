@@ -68,3 +68,6 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-move-trip-notes-to-the-api-plan.md`
   summary: A trip-note edit or create saved while the editor unmounts (tab switch) skips the hook's toast, `onSuccess` and refresh, so a failure is silent and the page may stay stale.
   evidence: UNVERIFIED medium. `useApiMutation.mutate` returns early once unmounted; the plan assumes the live-sync publish from `afterTripWrite` refreshes the page. Settle it with an E2E that edits a note, switches tab, and checks the saved note shows.
+- source_plan: none
+  summary: Diagnose production keyboard trip-note reorder failure after the event-edit fix.
+  evidence: User selected event fix first; retrospective F-6 repeats an API-response timeout but does not establish application versus automation cause.
