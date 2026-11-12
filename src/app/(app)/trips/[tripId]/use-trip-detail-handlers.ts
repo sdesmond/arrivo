@@ -9,7 +9,7 @@ import type {
   DayItemType,
   DayItinerary,
   TripDetailPayload,
-  TripEvent,
+  EventUpdateIntent,
   TripDateChangeConfirmation,
   TripDateConflictResolution,
   UpdateTripMetadataResult,
@@ -44,7 +44,7 @@ export interface TripDetailHandlers extends PackingHandlers {
   removingDay: boolean;
   savingTrip: boolean;
   isDeleting: boolean;
-  handleEventUpdate: (updated: TripEvent) => void;
+  handleEventUpdate: (updated: EventUpdateIntent) => void;
   handleEventDelete: (id: string) => void;
   handleDayItemsReorder: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   handleDayUpdate: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;
@@ -101,13 +101,12 @@ const EVENT_OPTIONAL_FIELDS = [
   "note",
 ] as const;
 
-/** The fields of `updated` that differ from `stored` (all when `stored` is unknown); a cleared field is `null`. */
-function eventPatchBody(updated: TripEvent, stored?: TripEvent): Record<string, string | number | null> {
+/** Only explicitly saved fields are writable; present empty values clear stored fields. */
+function eventPatchBody(updated: EventUpdateIntent): Record<string, string | number | null> {
   const body: Record<string, string | number | null> = {};
-  if (!stored || updated.name !== stored.name) body.name = updated.name;
+  if (updated.name !== undefined) body.name = updated.name;
   for (const field of EVENT_OPTIONAL_FIELDS) {
-    const next = updated[field] ?? null;
-    if (!stored || next !== (stored[field] ?? null)) body[field] = next;
+    if (field in updated) body[field] = updated[field] ?? null;
   }
   return body;
 }
@@ -136,14 +135,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     setNewlyCreatedChecklistId: packingHandlers.setNewlyCreatedChecklistId,
   });
 
-  function handleEventUpdate(updated: TripEvent): void {
-    // The editor builds `updated` from the row it rendered and clears a field by leaving it undefined; the API clears
-    // only on null. Send just what this edit changed against that row: resending the rest would overwrite a previous
-    // edit whose refresh has not landed yet. An event the page does not hold sends every field.
-    const stored =
-      days.flatMap((day) => day.events).find((candidate) => candidate.id === updated.id) ??
-      detail.unscheduledEvents.find((candidate) => candidate.id === updated.id);
-    const body = eventPatchBody(updated, stored);
+  function handleEventUpdate(updated: EventUpdateIntent): void {
+    const body = eventPatchBody(updated);
     if (Object.keys(body).length === 0) return;
     // Edits to one event share a queue key so they reach the server in the order they were made.
     void eventMutation.mutate({ params: { eventId: updated.id }, body }, { key: `event:${updated.id}` });

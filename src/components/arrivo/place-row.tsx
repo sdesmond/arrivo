@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { type CreateExpenseInput, type Document, type Expense, type TripEvent } from "@/data/types";
+import {
+  type CreateExpenseInput,
+  type Document,
+  type Expense,
+  type TripEvent,
+  type EventUpdateIntent,
+} from "@/data/types";
 import { cn, isEventNow } from "@/lib/utils";
 import { openExternalMaps } from "@/lib/open-external-maps";
 import { useNow } from "@/components/providers/mock-date-provider";
@@ -31,7 +37,7 @@ export interface PlaceRowProps {
   dayDate?: string;
   defaultCurrency?: string;
   isLast?: boolean;
-  onUpdate: (event: TripEvent) => void;
+  onUpdate: (event: EventUpdateIntent) => void;
   onDelete: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   dragHandle?: React.ReactNode;
@@ -66,9 +72,12 @@ export function PlaceRow({
 
   const [isEditingName, setIsEditingName] = useState(isDraft ?? false);
   const [draftName, setDraftName] = useState(place.name);
+  const nameEdited = useRef(false);
+  const nameSaved = useRef(false);
 
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [draftNote, setDraftNote] = useState(place.note ?? "");
+  const noteEdited = useRef(false);
 
   const [showTimeDialog, setShowTimeDialog] = useState(false);
   const [showCostDialog, setShowCostDialog] = useState(false);
@@ -125,14 +134,17 @@ export function PlaceRow({
       else onCancelDraft?.();
       return;
     }
-    if (trimmed && trimmed !== place.name) onUpdate({ ...place, name: trimmed });
+    if (nameSaved.current) return;
+    nameSaved.current = true;
+    if (trimmed && nameEdited.current) onUpdate({ id: place.id, name: trimmed });
     else setDraftName(place.name);
     setIsEditingName(false);
   }
 
   function saveNote() {
     const val = draftNote.trim() || undefined;
-    if (val !== place.note) onUpdate({ ...place, note: val });
+    if (noteEdited.current) onUpdate({ id: place.id, note: val });
+    noteEdited.current = false;
     setIsEditingNote(false);
   }
 
@@ -259,7 +271,10 @@ export function PlaceRow({
               <PlaceRowNameField
                 isEditingName={isEditingName}
                 draftName={draftName}
-                onDraftChange={setDraftName}
+                onDraftChange={(value) => {
+                  nameEdited.current = true;
+                  setDraftName(value);
+                }}
                 onBlur={saveName}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") saveName();
@@ -268,6 +283,8 @@ export function PlaceRow({
                       onCancelDraft?.();
                       return;
                     }
+                    nameSaved.current = true;
+                    nameEdited.current = false;
                     setDraftName(place.name);
                     setIsEditingName(false);
                   }
@@ -276,6 +293,8 @@ export function PlaceRow({
                 isHovered={isHovered}
                 isDraft={isDraft}
                 onStartEdit={() => {
+                  nameEdited.current = false;
+                  nameSaved.current = false;
                   setDraftName(place.name);
                   setIsEditingName(true);
                 }}
@@ -287,13 +306,18 @@ export function PlaceRow({
                   note={place.note}
                   isEditingNote={isEditingNote}
                   draftNote={draftNote}
-                  onDraftChange={setDraftNote}
+                  onDraftChange={(value) => {
+                    noteEdited.current = true;
+                    setDraftNote(value);
+                  }}
                   onSave={saveNote}
                   onCancel={() => {
+                    noteEdited.current = false;
                     setDraftNote(place.note ?? "");
                     setIsEditingNote(false);
                   }}
                   onStartEdit={() => {
+                    noteEdited.current = false;
                     setDraftNote(place.note ?? "");
                     setIsEditingNote(true);
                   }}
@@ -343,9 +367,9 @@ export function PlaceRow({
           onTimeOpenChange={setShowTimeDialog}
           onTimeSave={(time, et) => {
             if (!time) {
-              onUpdate({ ...place, startAt: undefined, endAt: undefined });
+              onUpdate({ id: place.id, startAt: undefined, endAt: undefined });
             } else {
-              onUpdate({ ...place, ...composeStartEndAt(dayDate, time, et ?? time) });
+              onUpdate({ id: place.id, ...composeStartEndAt(dayDate, time, et ?? time) });
             }
           }}
           showCostDialog={showCostDialog}
@@ -356,7 +380,7 @@ export function PlaceRow({
           onLocationOpenChange={setShowLocationDialog}
           onLocationSave={(location) =>
             onUpdate({
-              ...place,
+              id: place.id,
               locationName: location?.name,
               locationAddress: location?.address,
               locationLat: location?.lat,

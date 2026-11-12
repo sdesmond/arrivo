@@ -144,6 +144,7 @@ vi.mock("./place-row-dialogs", () => ({
           >
             loc-save
           </button>
+          <button onClick={() => onLocationSave(undefined)}>loc-clear</button>
           <button onClick={() => onLocationOpenChange(false)}>loc-close</button>
         </div>
       )}
@@ -209,6 +210,96 @@ const linkedPlace: TripEvent = {
 describe("PlaceRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each(["name", "note"])("submits edited %s baseline with unchanged props", (field) => {
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={{ ...basePlace, note: "Original note" }} onUpdate={onUpdate} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    const label = field === "name" ? "Tokyo Tower" : "Original note";
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "Pending change" } });
+    if (field === "name") fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+    expect(onUpdate).toHaveBeenCalledExactlyOnceWith({ id: basePlace.id, [field]: "Pending change" });
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "temporary" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: label } });
+    fireEvent.blur(screen.getByRole("textbox"));
+    expect(onUpdate).toHaveBeenLastCalledWith({ id: basePlace.id, [field]: label });
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["name", "note"])("ignores untouched %s blur", (field) => {
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={{ ...basePlace, note: "Original note" }} onUpdate={onUpdate} onDelete={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    fireEvent.click(screen.getByRole("button", { name: field === "name" ? "Tokyo Tower" : "Original note" }));
+    fireEvent.blur(screen.getByRole("textbox"));
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("submits explicit location clear after save with unchanged empty props", () => {
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByRole("button", { name: /add location/i }));
+    fireEvent.click(screen.getByText("loc-save"));
+    fireEvent.click(screen.getByText("loc-clear"));
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenLastCalledWith({
+      id: basePlace.id,
+      locationName: undefined,
+      locationAddress: undefined,
+      locationLat: undefined,
+      locationLng: undefined,
+    });
+  });
+
+  it("submits an explicit note clear after a pending note save from unchanged empty props", () => {
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByRole("button", { name: "Add a note..." }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Pending note" } });
+    fireEvent.blur(screen.getByRole("textbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Add a note..." }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: " " } });
+    fireEvent.blur(screen.getByRole("textbox"));
+    expect(onUpdate.mock.calls).toEqual([
+      [{ id: basePlace.id, note: "Pending note" }],
+      [{ id: basePlace.id, note: undefined }],
+    ]);
+  });
+
+  it("cancels an invalid blank name without submitting", () => {
+    const onUpdate = vi.fn();
+    render(<PlaceRow place={basePlace} onUpdate={onUpdate} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByRole("button", { name: basePlace.name }));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: " " } });
+    fireEvent.blur(screen.getByRole("textbox"));
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: basePlace.name })).toBeInTheDocument();
+  });
+
+  it("submits time clear after save with unchanged empty props", () => {
+    const onUpdate = vi.fn();
+    render(
+      <PlaceRow
+        place={{ ...basePlace, startAt: undefined, endAt: undefined }}
+        dayDate="2026-05-13"
+        onUpdate={onUpdate}
+        onDelete={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add time" }));
+    fireEvent.click(screen.getByText("picker-save"));
+    fireEvent.click(screen.getByRole("button", { name: "Add time" }));
+    fireEvent.click(screen.getByText("picker-clear"));
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenLastCalledWith({ id: basePlace.id, startAt: undefined, endAt: undefined });
   });
 
   it("renders the event name", () => {
@@ -300,7 +391,7 @@ describe("PlaceRow", () => {
     await user.type(nameInput, "Shibuya Crossing");
     fireEvent.blur(nameInput);
     expect(onUpdate).toHaveBeenCalledOnce();
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "Shibuya Crossing" }));
+    expect(onUpdate).toHaveBeenCalledWith({ id: basePlace.id, name: "Shibuya Crossing" });
   });
 
   it("clicking note area shows textarea", async () => {
@@ -323,7 +414,7 @@ describe("PlaceRow", () => {
     const textarea = screen.getByRole("textbox");
     await user.type(textarea, "Great place");
     fireEvent.blur(textarea);
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ note: "Great place" }));
+    expect(onUpdate).toHaveBeenCalledWith({ id: basePlace.id, note: "Great place" });
   });
 
   it("pressing Escape in note textarea dismisses it without saving", async () => {
@@ -474,12 +565,11 @@ describe("PlaceRow", () => {
     await user.click(timeBtn);
     // "time-dialog" mock's picker-save button always saves "10:00"/"11:00"
     await user.click(screen.getByRole("button", { name: "picker-save" }));
-    expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        startAt: "2026-05-13T10:00:00.000Z",
-        endAt: "2026-05-13T11:00:00.000Z",
-      })
-    );
+    expect(onUpdate).toHaveBeenCalledWith({
+      id: basePlace.id,
+      startAt: "2026-05-13T10:00:00.000Z",
+      endAt: "2026-05-13T11:00:00.000Z",
+    });
   });
 
   it("picker clear calls onUpdate with startAt/endAt undefined", async () => {
@@ -491,7 +581,7 @@ describe("PlaceRow", () => {
     const timeBtn = screen.getAllByRole("button").find((btn) => /\d:\d{2}\s*(AM|PM)/.test(btn.textContent ?? ""))!;
     await user.click(timeBtn);
     await user.click(screen.getByRole("button", { name: "picker-clear" }));
-    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ startAt: undefined, endAt: undefined }));
+    expect(onUpdate).toHaveBeenCalledWith({ id: basePlace.id, startAt: undefined, endAt: undefined });
   });
 
   it("picker close hides picker without calling onUpdate", async () => {
@@ -524,14 +614,13 @@ describe("PlaceRow", () => {
     });
     await user.click(screen.getByRole("button", { name: /add location/i }));
     await user.click(screen.getByRole("button", { name: "loc-save" }));
-    expect(onUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        locationAddress: "Tokyo",
-        locationName: "Tokyo Tower",
-        locationLat: 35.6586,
-        locationLng: 139.7454,
-      })
-    );
+    expect(onUpdate).toHaveBeenCalledWith({
+      id: basePlace.id,
+      locationAddress: "Tokyo",
+      locationName: "Tokyo Tower",
+      locationLat: 35.6586,
+      locationLng: 139.7454,
+    });
   });
 
   it("clicking cost button shows cost dialog", async () => {
@@ -941,6 +1030,29 @@ describe("PlaceRow", () => {
     );
     await user.keyboard("{Escape}");
     expect(onCancelDraft).toHaveBeenCalled();
+  });
+
+  it("keeps draft submission retryable while draft props remain unchanged", () => {
+    const onCreate = vi.fn();
+    const onUpdate = vi.fn();
+    render(
+      <PlaceRow
+        place={{ id: "draft", name: "", position: 0 }}
+        isDraft
+        onCreate={onCreate}
+        onUpdate={onUpdate}
+        onDelete={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    );
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "Retry stop" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onCreate).toHaveBeenCalledTimes(2);
+    expect(onCreate).toHaveBeenNthCalledWith(1, "Retry stop");
+    expect(onCreate).toHaveBeenNthCalledWith(2, "Retry stop");
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 
   it("isDraft blur with empty content calls onCancelDraft", () => {

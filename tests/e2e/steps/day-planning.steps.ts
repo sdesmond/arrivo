@@ -486,6 +486,92 @@ Given("a day has an event without a time", async ({ page }) => {
   await expect(row).toBeVisible();
 });
 
+Then(
+  "restoring the event's empty {string} while its save is pending persists after reload",
+  async ({ page }, field: string) => {
+    const row = page.locator('[id^="event-"]').filter({ hasText: E2E_EVENT_UNTIMED.name }).first();
+    const eventId = await eventIdOf(row);
+    const endpoint = `**/api/v1/events/${eventId}`;
+    const bodies: Record<string, unknown>[] = [];
+    let releaseFirst!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    await page.route(endpoint, async (route) => {
+      if (route.request().method() === "PATCH") {
+        bodies.push(route.request().postDataJSON());
+        if (bodies.length === 1) {
+          await held;
+        }
+      }
+      await route.continue();
+    });
+    try {
+      if (field === "time") {
+        await row.getByRole("button", { name: "Add time" }).click();
+        await page.locator('input[type="time"]').first().fill("09:00");
+      } else {
+        await row.getByRole("button", { name: /add location/i }).click();
+        await page.getByRole("dialog").getByRole("combobox").fill("Paris, France");
+      }
+      await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+      await expect
+        .poll(() => bodies.length, { timeout: 5000, message: "First event PATCH must arrive while held" })
+        .toBe(1);
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+      await row.getByRole("button", { name: field === "time" ? "Add time" : /add location/i }).click();
+      // Props remain empty while first request is held: an explicit Save must still clear it.
+      if (field === "time") {
+        await page.locator('input[type="time"]').first().fill("");
+      } else {
+        await page.getByRole("dialog").getByRole("combobox").fill("");
+      }
+      await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+      expect(bodies).toHaveLength(1);
+      const saved = armEventPatch(page, eventId);
+      const cleared = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === `/api/v1/events/${eventId}` &&
+          response.request().postDataJSON()[field === "time" ? "startAt" : "locationAddress"] === null
+      );
+      releaseFirst();
+      expect((await saved).ok()).toBe(true);
+      expect((await cleared).ok()).toBe(true);
+      expect(bodies).toEqual(
+        field === "time"
+          ? [
+              {
+                startAt: e2eTripDateTime(0, "09:00:00.000"),
+                endAt: e2eTripDateTime(0, "09:00:00.000"),
+              },
+              { startAt: null, endAt: null },
+            ]
+          : [
+              { locationAddress: "Paris, France", locationName: null, locationLat: null, locationLng: null },
+              { locationAddress: null, locationName: null, locationLat: null, locationLng: null },
+            ]
+      );
+      await page.reload();
+      await openFirstDay(page);
+      await expect(row.getByRole("button", { name: field === "time" ? "Add time" : /add location/i })).toBeVisible();
+      const [stored] = await withE2EDb((db) => db.select().from(events).where(eq(events.id, eventId)));
+      if (field === "time") {
+        expect(stored.startAt).toBeNull();
+        expect(stored.endAt).toBeNull();
+      } else {
+        expect(stored.locationName).toBeNull();
+        expect(stored.locationAddress).toBeNull();
+        expect(stored.locationLat).toBeNull();
+        expect(stored.locationLng).toBeNull();
+      }
+    } finally {
+      releaseFirst();
+      await page.unroute(endpoint);
+    }
+  }
+);
+
 When("I set the event location for {string} using the first lookup suggestion", async ({ page }, name: string) => {
   const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
   await expect(row).toBeVisible();

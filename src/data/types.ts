@@ -748,6 +748,23 @@ export interface Expense {
 // TRIP EVENT
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Event identity plus fields explicitly saved by an editor. Present undefined clears optional values. */
+export type EventUpdateIntent = Pick<TripEvent, "id"> &
+  Partial<
+    Pick<
+      TripEvent,
+      | "name"
+      | "startAt"
+      | "endAt"
+      | "locationName"
+      | "locationAddress"
+      | "locationLat"
+      | "locationLng"
+      | "confirmationNumber"
+      | "note"
+    >
+  >;
+
 export interface TripEvent {
   // ── Identity ──────────────────────────────────────────────────────────────
   id: string;

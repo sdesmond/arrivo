@@ -5,7 +5,8 @@ import type { ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DayCardDnd, type RenderEntry, type TimelineItem } from "./day-card-dnd";
 import { DayCardBottomAdd } from "./day-card-bottom-add";
-import type { DayItinerary, TripEvent, DayItemType, Document, TransitMode } from "@/data/types";
+import type { DayItinerary, DayItemType, Document, TransitMode } from "@/data/types";
+import type { EventUpdateIntent } from "@/data/types";
 import { DayRouteStrip } from "./day-route-strip";
 import { useScheduleConflicts } from "./use-schedule-conflicts";
 import { useDayDraft } from "./use-day-draft";
@@ -18,7 +19,7 @@ export interface DayCardBodyProps {
   walkThresholdMeters?: number | null;
   defaultExpenseCurrency?: string;
   tripDocs?: Document[];
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;

@@ -931,13 +931,52 @@ it("sends checklist item add, edit and delete to the item endpoints", async () =
 });
 
 const editedEvent = { id: "event-1", tripId: "trip-1", dayId: "day-1", name: "Dinner", position: 0 };
-it("patches an event the page does not hold with every field, cleared ones as null", async () => {
+it.each([
+  [{ name: "Supper" }, { name: "Dinner" }],
+  [{ note: "Window" }, { note: undefined }],
+  [
+    { startAt: "2026-08-01T19:00:00.000Z", endAt: "2026-08-01T20:00:00.000Z" },
+    { startAt: undefined, endAt: undefined },
+  ],
+  [
+    { locationName: "Bistro", locationAddress: "Tokyo", locationLat: 0, locationLng: 0 },
+    { locationName: undefined, locationAddress: undefined, locationLat: undefined, locationLng: undefined },
+  ],
+  [{ name: "Supper" }, { note: "Window" }],
+])("preserves explicit saves behind held write: %j then %j", async (first, second) => {
+  const { api } = await import("@/lib/api/client");
+  let releaseFirst!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  vi.mocked(api).mockImplementationOnce(async () => {
+    await held;
+    return {};
+  });
+  vi.mocked(api).mockResolvedValue({});
+  const payload = { ...detail, days: detail.days.map((day) => ({ ...day, events: [editedEvent] })) };
+  const { result } = renderHook(() => useTripDetailHandlers(payload));
+  await act(async () => {
+    result.current.handleEventUpdate({ id: editedEvent.id, ...first });
+    result.current.handleEventUpdate({ id: editedEvent.id, ...second });
+  });
+  expect(api).toHaveBeenCalledOnce();
+  await act(async () => {
+    releaseFirst();
+  });
+  await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(api).mock.calls.map(([, input]) => (input as { body: unknown }).body)).toEqual([
+    first,
+    Object.fromEntries(Object.entries(second).map(([field, value]) => [field, value ?? null])),
+  ]);
+});
+it("patches an unknown event with only explicitly supplied fields", async () => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
   const { result } = renderHook(() => useTripDetailHandlers(detail));
   await act(async () => {
     result.current.handleEventUpdate({
-      ...editedEvent,
+      id: editedEvent.id,
       startAt: "2026-08-01T19:00:00.000Z",
       locationName: "Bistro",
       locationLat: 0,
@@ -947,15 +986,9 @@ it("patches an event the page does not hold with every field, cleared ones as nu
   expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH", path: "/api/v1/events/:eventId" }), {
     params: { eventId: "event-1" },
     body: {
-      name: "Dinner",
       startAt: "2026-08-01T19:00:00.000Z",
-      endAt: null,
       locationName: "Bistro",
-      locationAddress: null,
       locationLat: 0,
-      locationLng: null,
-      confirmationNumber: null,
-      note: null,
     },
   });
   expect(mockRefresh).toHaveBeenCalledOnce();
@@ -976,30 +1009,34 @@ it("sends only the fields an edit changed, so a stale row cannot overwrite an ea
   vi.mocked(api).mockResolvedValue({});
   const { result } = renderHook(() => useTripDetailHandlers(detailWithStoredEvent()));
   await act(async () => {
-    result.current.handleEventUpdate({ ...storedEvent, name: "Supper" });
+    result.current.handleEventUpdate({ id: storedEvent.id, name: "Supper" });
   });
   expect(lastPatchBody(api)).toEqual({ name: "Supper" });
   await act(async () => {
-    result.current.handleEventUpdate({ ...storedEvent, locationName: undefined, note: "Corner" });
+    result.current.handleEventUpdate({ id: storedEvent.id, locationName: undefined, note: "Corner" });
   });
   expect(lastPatchBody(api)).toEqual({ locationName: null, note: "Corner" });
 });
-it("finds the stored row of an unscheduled event", async () => {
+it("patches an unscheduled event by identity with only its explicitly saved field", async () => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockResolvedValue({});
   const unscheduled = { ...editedEvent, id: "event-2", dayId: undefined };
   const { result } = renderHook(() => useTripDetailHandlers({ ...detail, unscheduledEvents: [unscheduled] }));
   await act(async () => {
-    result.current.handleEventUpdate({ ...unscheduled, endAt: "2026-08-01T20:00:00.000Z" });
+    result.current.handleEventUpdate({ id: unscheduled.id, endAt: "2026-08-01T20:00:00.000Z" });
   });
   expect(lastPatchBody(api)).toEqual({ endAt: "2026-08-01T20:00:00.000Z" });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" }), {
+    params: { eventId: "event-2" },
+    body: { endAt: "2026-08-01T20:00:00.000Z" },
+  });
 });
-it("sends nothing for an edit that changes no field", async () => {
+it("sends nothing for identity without explicitly saved fields", async () => {
   const { api } = await import("@/lib/api/client");
   vi.mocked(api).mockClear();
   const { result } = renderHook(() => useTripDetailHandlers(detailWithStoredEvent()));
   await act(async () => {
-    result.current.handleEventUpdate({ ...storedEvent });
+    result.current.handleEventUpdate({ id: storedEvent.id });
   });
   expect(api).not.toHaveBeenCalled();
 });
@@ -1008,7 +1045,7 @@ it("surfaces an event edit failure without refreshing", async () => {
   vi.mocked(api).mockRejectedValue(new ApiClientError(403, "forbidden", "View access only"));
   const { result } = renderHook(() => useTripDetailHandlers(detail));
   await act(async () => {
-    result.current.handleEventUpdate(editedEvent);
+    result.current.handleEventUpdate({ id: editedEvent.id, name: editedEvent.name });
   });
   expect(toast.error).toHaveBeenCalledWith("View access only");
   expect(mockRefresh).not.toHaveBeenCalled();
@@ -1024,8 +1061,8 @@ it("sends rapid edits to one event in the order they were made", async () => {
   });
   const { result } = renderHook(() => useTripDetailHandlers(detail));
   await act(async () => {
-    result.current.handleEventUpdate({ ...editedEvent, name: "First" });
-    result.current.handleEventUpdate({ ...editedEvent, name: "Second" });
+    result.current.handleEventUpdate({ id: editedEvent.id, name: "First" });
+    result.current.handleEventUpdate({ id: editedEvent.id, name: "Second" });
   });
   await waitFor(() => expect(finished).toEqual(["First", "Second"]));
 });

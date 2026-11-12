@@ -10,6 +10,7 @@ import { ReservationsTab } from "@/components/arrivo/reservations-tab";
 import { MapTab } from "@/components/arrivo/map-tab";
 import { TripNotesTab } from "@/components/arrivo/trip-notes-tab";
 import { TransitMode } from "@/data/types";
+import type { EventUpdateIntent } from "@/data/types";
 import type {
   DayItinerary,
   TripEvent,
@@ -49,7 +50,7 @@ export interface TripDetailTabBodyProps {
   highlightedEventId?: string | null;
   isNew?: boolean;
   newlyCreatedChecklistId?: string;
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateDay: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;

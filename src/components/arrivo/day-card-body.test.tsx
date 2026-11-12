@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 interface MockDayCardDndProps {
+  onUpdateEvent: (event: import("@/data/types").EventUpdateIntent) => void;
   onToggleChecklistItem?: (itemId: string) => void;
   timelineItems: { data: { id: string } }[];
   renderEntries: { type: string }[];
@@ -44,6 +45,7 @@ interface MockDayRouteStripProps {
 
 vi.mock("./day-card-dnd", () => ({
   DayCardDnd: ({
+    onUpdateEvent,
     timelineItems,
     renderEntries,
     commitDraft,
@@ -54,6 +56,7 @@ vi.mock("./day-card-dnd", () => ({
     conflictingEventIds,
   }: MockDayCardDndProps) => (
     <div data-highlighted-event-id={highlightedEventId ?? ""}>
+      <button onClick={() => onUpdateEvent({ id: "event-1", note: undefined })}>Save event intent</button>
       <button onClick={() => onToggleChecklistItem?.("item")}>Toggle API item</button>
       <span data-testid="conflicting-event-ids">{[...(conflictingEventIds ?? [])].join(",")}</span>
       {timelineItems.map((item) => (
@@ -831,4 +834,13 @@ it("forwards the checklist item toggle through day body", async () => {
     screen.getByText("Toggle API item").click();
   });
   expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
+});
+
+it("forwards narrow event intent through day body", () => {
+  const onUpdateEvent = vi.fn();
+  render(<DayCardBody day={day} onUpdateEvent={onUpdateEvent} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />);
+  act(() => {
+    screen.getByText("Save event intent").click();
+  });
+  expect(onUpdateEvent).toHaveBeenCalledExactlyOnceWith({ id: "event-1", note: undefined });
 });
