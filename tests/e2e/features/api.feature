@@ -1416,3 +1416,114 @@ Feature: Absolute checklist checked-state API
       | keyed            | 400    | bad_request        |
       | no-client-header | 403    | forbidden          |
       | cross-origin     | 403    | forbidden          |
+
+  Scenario Outline: Scoped uploads persist once across a client-id replay
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I upload "scoped.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 200
+    And the returned document belongs to its intended scope
+    When I upload "scoped.pdf" as a PDF with the scenario document id through the document API
+    Then both document API uploads return the same stored document
+    And the scoped document API stores 1 document and 1 file
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Scoped upload authorization runs before storage
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "<role>"
+    When I upload "denied.pdf" as a PDF through the document API
+    Then the document API returns <status> with code "<code>"
+    And the scoped document API stores 0 documents and 0 files
+    Examples:
+      | scope       | role     | status | code      |
+      | event       | viewer   | 403    | forbidden |
+      | event       | stranger | 404    | not_found |
+      | reservation | viewer   | 403    | forbidden |
+      | reservation | stranger | 404    | not_found |
+
+  Scenario Outline: Scoped upload policy and cross-site failures leave no files or rows
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I submit document upload case "<case>"
+    Then the document API returns <status> with code "<code>"
+    And the scoped document API stores 0 documents and 0 files
+    Examples:
+      | scope       | case             | status | code              |
+      | event       | oversize-file    | 413    | payload_too_large |
+      | event       | oversize-body    | 413    | payload_too_large |
+      | event       | unknown-field    | 422    | validation_failed |
+      | event       | keyed            | 400    | bad_request       |
+      | event       | disallowed-type  | 422    | validation_failed |
+      | event       | mismatched-type  | 422    | validation_failed |
+      | event       | missing-file     | 422    | validation_failed |
+      | event       | bad-id           | 422    | validation_failed |
+      | event       | invalid-target   | 422    | validation_failed |
+      | event       | missing-target   | 404    | not_found         |
+      | event       | no-client-header | 403    | forbidden         |
+      | event       | cross-origin     | 403    | forbidden         |
+      | reservation | oversize-file    | 413    | payload_too_large |
+      | reservation | oversize-body    | 413    | payload_too_large |
+      | reservation | unknown-field    | 422    | validation_failed |
+      | reservation | keyed            | 400    | bad_request       |
+      | reservation | disallowed-type  | 422    | validation_failed |
+      | reservation | mismatched-type  | 422    | validation_failed |
+      | reservation | missing-file     | 422    | validation_failed |
+      | reservation | bad-id           | 422    | validation_failed |
+      | reservation | invalid-target   | 422    | validation_failed |
+      | reservation | missing-target   | 404    | not_found         |
+      | reservation | no-client-header | 403    | forbidden         |
+      | reservation | cross-origin     | 403    | forbidden         |
+
+  Scenario Outline: Scoped upload conflicts discard the second file
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I upload "scoped.pdf" as a PDF with the scenario document id through the document API
+    And I upload "changed.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 409 with code "conflict"
+    And the scoped document API stores 1 document and 1 file
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Scoped uploads conceal inaccessible document IDs
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    And a document with the scenario document id exists in a trip I cannot see
+    When I upload "probe.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 404 with code "not_found"
+    And the response does not reveal the hidden document
+    And the scoped document API stores 0 documents and 0 files
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Concurrent scoped same-id uploads retain one attachment and file
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I concurrently retry the scoped document upload
+    Then every concurrent document upload returns the same stored document
+    And the scoped document API stores 1 document and 1 file
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Scoped same-id collisions preserve the original target and remove losing files
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I upload "scoped.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 200
+    When I reuse the document id on a different "<change>"
+    Then the document API returns 409 with code "conflict"
+    And the scoped document API stores 1 document and 1 file
+    Examples:
+      | scope       | change |
+      | event       | target |
+      | event       | scope  |
+      | reservation | target |
+      | reservation | scope  |

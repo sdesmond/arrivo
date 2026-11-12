@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   adapterDel,
-  adapterPut,
   assertTripAccess,
   db,
   documentsTable,
@@ -14,7 +13,6 @@ const {
   revalidatePath,
 } = vi.hoisted(() => ({
   adapterDel: vi.fn(),
-  adapterPut: vi.fn(),
   assertTripAccess: vi.fn(),
   db: {
     insert: vi.fn(),
@@ -61,176 +59,12 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
-const { assertUploadContentMatchesType } = vi.hoisted(() => ({
-  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
-}));
-vi.mock("@/lib/upload-policy", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
-  assertUploadContentMatchesType,
-}));
-
 import {
-  uploadReservationDocument,
   removeReservationDocument,
   renameReservationDocument,
   promoteReservationDocToTrip,
   attachTripDocToReservation,
 } from "./reservation-document-actions";
-
-describe("uploadReservationDocument", () => {
-  const reservationRow = { id: "res-1", tripId: "trip-1" };
-
-  function makeFile(name: string, size: number): File {
-    const file = new File(["x"], name, { type: "application/pdf" });
-    Object.defineProperty(file, "size", { value: size, configurable: true });
-    return file;
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
-    db.select.mockReset();
-    requireUser.mockResolvedValue({ id: "user-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
-    adapterPut.mockResolvedValue("https://blob.example.com/doc.pdf");
-    adapterDel.mockResolvedValue(undefined);
-    db.insert.mockReturnValue({ values: async () => undefined });
-  });
-
-  it("rejects a file whose bytes are not the type it claims, before storing or resolving the reservation", async () => {
-    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
-    const form = new FormData();
-    form.append("file", makeFile("evil.pdf", 100));
-
-    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("File contents don't match its type.");
-
-    expect(adapterPut).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("throws when the owning reservation cannot be resolved", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await expect(uploadReservationDocument("missing", form)).rejects.toThrow("Reservation not found.");
-    expect(assertTripAccess).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("checks editor access before uploading", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await uploadReservationDocument("res-1", form);
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-  });
-
-  it("rejects files larger than MAX_UPLOAD_BYTES", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-
-    const form = new FormData();
-    form.append("file", makeFile("big.pdf", 30 * 1024 * 1024));
-
-    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("File is too large.");
-    expect(adapterPut).not.toHaveBeenCalled();
-  });
-
-  it("rejects unsupported MIME types before upload or DB work", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-
-    const file = new File(["x"], "doc.docx", { type: "application/msword" });
-    Object.defineProperty(file, "size", { value: 100, configurable: true });
-    const form = new FormData();
-    form.append("file", file);
-
-    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow(
-      "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
-    );
-    expect(adapterPut).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it("calls put() with the file and inserts a document row", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-    let insertedValues: Record<string, unknown> | undefined;
-    db.insert.mockReturnValue({
-      values: async (vals: Record<string, unknown>) => {
-        insertedValues = vals;
-      },
-    });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await uploadReservationDocument("res-1", form);
-
-    expect(adapterPut).toHaveBeenCalledWith("reservation-documents/res-1/upload-1234.pdf", expect.any(File));
-    expect(insertedValues).toMatchObject({
-      tripId: "trip-1",
-      reservationId: "res-1",
-      name: "doc.pdf",
-      kind: "pdf",
-      size: "0.1 KB",
-      url: "https://blob.example.com/doc.pdf",
-    });
-  });
-
-  it("derives the document kind from the file MIME type, not the filename", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-    let insertedValues: Record<string, unknown> | undefined;
-    db.insert.mockReturnValue({
-      values: async (vals: Record<string, unknown>) => {
-        insertedValues = vals;
-      },
-    });
-
-    // Filename ends in .pdf but the MIME type is an image — kind must follow the MIME type.
-    const file = new File(["x"], "scan.pdf", { type: "image/png" });
-    Object.defineProperty(file, "size", { value: 100, configurable: true });
-    const form = new FormData();
-    form.append("file", file);
-
-    await uploadReservationDocument("res-1", form);
-
-    expect(insertedValues).toMatchObject({ kind: "image" });
-  });
-
-  it("rolls back the uploaded file when the document insert fails", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-    db.insert.mockReturnValue({
-      values: async () => {
-        throw new Error("insert failed");
-      },
-    });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await expect(uploadReservationDocument("res-1", form)).rejects.toThrow("insert failed");
-    expect(adapterDel).toHaveBeenCalledWith("https://blob.example.com/doc.pdf");
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("revalidates the trip path after upload", async () => {
-    db.select.mockReturnValue({ from: () => ({ where: async () => [reservationRow] }) });
-
-    const form = new FormData();
-    form.append("file", makeFile("doc.pdf", 100));
-
-    await uploadReservationDocument("res-1", form);
-
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-});
 
 describe("removeReservationDocument", () => {
   const docRow = { id: "doc-1", url: "https://blob.example.com/doc.pdf", reservationId: "res-1" };
@@ -241,7 +75,7 @@ describe("removeReservationDocument", () => {
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
+    getStorageAdapter.mockReturnValue({ del: adapterDel });
     adapterDel.mockResolvedValue(undefined);
     db.delete.mockReturnValue({ where: async () => undefined });
   });

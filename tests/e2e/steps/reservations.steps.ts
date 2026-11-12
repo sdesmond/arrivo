@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { reservations } from "../../../src/db/schema";
+import { waitForApiResponse } from "../api-response";
 import { withE2EDb } from "../e2e-db";
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
 import { Given, When, Then } from "../fixtures";
@@ -306,19 +307,30 @@ Given("the trip has a Lodging reservation with an attached document", async ({ p
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
 });
 
-When("I attach a file to the reservation {string}", async ({ page }, _reservationName: string) => {
+When("I attach a file to the reservation {string}", async ({ page, scenario }, reservationName: string) => {
+  const [target] = await withE2EDb((database) =>
+    database
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(and(eq(reservations.tripId, scenario.currentTrip!.id), eq(reservations.provider, reservationName)))
+  );
   await page.getByRole("button", { name: "Attach" }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "test-doc.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.4 PDF content %%EOF"),
   });
+  const uploaded = waitForApiResponse(page, { method: "POST", path: `/api/v1/reservations/${target.id}/documents` });
   await page.getByRole("dialog").getByRole("button", { name: "Attach" }).click();
+  await uploaded;
+  await expect(page.getByRole("dialog")).not.toBeVisible();
 });
 
 Then(
   "the document {string} appears on the reservation {string}",
-  async ({ page }, docName: string, _reservationName: string) => {
+  async ({ page }, docName: string, reservationName: string) => {
+    await expect(page.getByRole("dialog")).not.toBeVisible();
+    await expect(page.getByRole("button", { name: reservationName, exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^docs?$/i }).click();
     await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
   }
@@ -375,4 +387,14 @@ When("I promote the reservation doc {string} to trip level", async ({ page }, do
 
 Then("the reservation doc {string} is no longer visible on the reservation", async ({ page }, docName: string) => {
   await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).not.toBeVisible({ timeout: 10_000 });
+});
+
+Then("after reload the reservation shows uploaded document {string}", async ({ page }, name: string) => {
+  await page.reload();
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
+  const section = page.getByRole("button", { name: /^Lodging, / });
+  await expect(section).toBeVisible();
+  if ((await section.getAttribute("aria-expanded")) === "false") await section.click();
+  await page.getByTitle("Show attached documents").click();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
 });

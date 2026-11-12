@@ -1,19 +1,25 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { documents, collaborators } from "../../../src/db/schema";
+import { documents, collaborators, events, reservations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { Given, When, Then, After } from "../fixtures";
 
+import { E2E_EVENT, E2E_RESERVATION } from "../e2e-seed-data";
+
 interface DocumentApiState {
+  /** Fixture attachment stays fixed even when a request probes another target. */
+  readonly scope?: "event" | "reservation";
+  readonly targetId?: string;
   tripId: string;
   /** The client document id the scenario's uploads share. */
   id: string;
   responses: APIResponse[];
   hiddenName?: string;
+  requestedTargets?: { scope: "event" | "reservation"; id: string }[];
 }
 const documentApiStates = new WeakMap<Page, DocumentApiState>();
 const PDF_BYTES = Buffer.from("%PDF-1.4 e2e document upload");
@@ -40,20 +46,37 @@ function uploadHeaders(page: Page, extra: Record<string, string> = {}) {
 function pdfPart(name: string, buffer: Buffer = PDF_BYTES, mimeType = "application/pdf") {
   return { name, mimeType, buffer };
 }
+function uploadPath(current: DocumentApiState): string {
+  return current.scope
+    ? `/api/v1/${current.scope}s/${current.targetId}/documents`
+    : `/api/v1/trips/${current.tripId}/documents`;
+}
 async function postDocument(
   page: Page,
   scenarioTripId: string,
   multipart: Record<string, string | ReturnType<typeof pdfPart>>,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
+  target?: { scope: "event" | "reservation"; id: string }
 ): Promise<APIResponse> {
   const current = documentApi(page, scenarioTripId);
-  const response = await page.request.post(`/api/v1/trips/${current.tripId}/documents`, {
+  if (target) (current.requestedTargets ??= []).push(target);
+  const path = target ? `/api/v1/${target.scope}s/${target.id}/documents` : uploadPath(current);
+  const response = await page.request.post(path, {
     headers: uploadHeaders(page, headers),
     multipart,
     timeout: 60_000,
   });
   current.responses.push(response);
   return response;
+}
+function scopedTargets(current: DocumentApiState) {
+  const targets = current.scope
+    ? [{ scope: current.scope, id: current.targetId! }, ...(current.requestedTargets ?? [])]
+    : [];
+  return [...new Map(targets.map((target) => [`${target.scope}:${target.id}`, target])).values()];
+}
+function targetDirectory(target: { scope: "event" | "reservation"; id: string }): string {
+  return join(resolve(E2E_STORAGE_DIRECTORY), `${target.scope}-documents`, target.id);
 }
 async function storedTripDocuments(tripId: string) {
   return withE2EDb((database) =>
@@ -75,6 +98,7 @@ After(async ({ page }) => {
   const current = documentApiStates.get(page);
   if (!current) return;
   documentApiStates.delete(page);
+  for (const target of scopedTargets(current)) await rm(targetDirectory(target), { recursive: true, force: true });
   await rm(join(resolve(E2E_STORAGE_DIRECTORY), "trip-documents", current.tripId), { recursive: true, force: true });
 });
 
@@ -92,6 +116,24 @@ When("I submit document upload case {string}", async ({ page, scenario }, testCa
   const tripId = scenario.currentTrip!.id;
   const filler = (bytes: number) => Buffer.concat([PDF_BYTES, Buffer.alloc(bytes - PDF_BYTES.length, 0x20)]);
   const cases: Record<string, () => Promise<APIResponse>> = {
+    "invalid-target": () => {
+      return postDocument(
+        page,
+        tripId,
+        { file: pdfPart("a.pdf") },
+        {},
+        { scope: documentApi(page).scope!, id: "linked-event" }
+      );
+    },
+    "missing-target": () => {
+      return postDocument(
+        page,
+        tripId,
+        { file: pdfPart("a.pdf") },
+        {},
+        { scope: documentApi(page).scope!, id: randomUUID() }
+      );
+    },
     // Just over the document limit: the route reads the body and the service rejects it.
     "oversize-file": () => postDocument(page, tripId, { file: pdfPart("big.pdf", filler(25 * MEBIBYTE + 1)) }),
     // Far over: the route refuses from Content-Length before reading the body.
@@ -106,7 +148,7 @@ When("I submit document upload case {string}", async ({ page, scenario }, testCa
     keyed: () => postDocument(page, tripId, { file: pdfPart("a.pdf") }, { "idempotency-key": "document-upload-key" }),
     "no-client-header": async () => {
       const current = documentApi(page, tripId);
-      const response = await page.request.post(`/api/v1/trips/${tripId}/documents`, {
+      const response = await page.request.post(uploadPath(current), {
         headers: { origin: new URL(page.url()).origin },
         multipart: { file: pdfPart("a.pdf") },
       });
@@ -186,4 +228,116 @@ Then("after reload the Documents tab lists {string}", async ({ page }, name: str
   await page.reload();
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
+});
+
+Given("a scenario-owned {string} document API target", async ({ page, scenario }, scope: string) => {
+  if (scope !== "event" && scope !== "reservation") throw new Error("Unknown document scope");
+  const { trip } = await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        events: [
+          { ...E2E_EVENT, dayNumber: 1 },
+          { ...E2E_EVENT, name: "Second document API event", dayNumber: 1, position: 1 },
+        ],
+        reservations: [E2E_RESERVATION, { ...E2E_RESERVATION, provider: "Second document API reservation" }],
+      },
+      setCurrent: true,
+    },
+  });
+  const targetId = await withE2EDb(async (database) => {
+    if (scope === "event") {
+      const [row] = await database
+        .select({ id: events.id })
+        .from(events)
+        .where(and(eq(events.tripId, trip!.id), eq(events.name, E2E_EVENT.name)));
+      return row.id;
+    }
+    const [row] = await database
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(and(eq(reservations.tripId, trip!.id), eq(reservations.provider, E2E_RESERVATION.provider)));
+    return row.id;
+  });
+  documentApiStates.set(page, { tripId: trip!.id, id: randomUUID(), responses: [], scope, targetId });
+  await scenario.gotoCurrentTrip(page);
+});
+Then(
+  "the scoped document API stores {int} document(s) and {int} file(s)",
+  async ({ page }, count: number, fileCount: number) => {
+    const current = documentApi(page);
+    const rows = await withE2EDb((database) =>
+      database.select().from(documents).where(eq(documents.tripId, current.tripId))
+    );
+    expect(rows).toHaveLength(count);
+    for (const row of rows) expect(row[current.scope === "event" ? "eventId" : "reservationId"]).toBe(current.targetId);
+    for (const target of scopedTargets(current)) {
+      let files: string[] = [];
+      try {
+        files = await readdir(targetDirectory(target));
+      } catch {
+        /* No upload directory exists for refused writes. */
+      }
+      const isOriginal = target.scope === current.scope && target.id === current.targetId;
+      expect(files, `files retained for ${target.scope}:${target.id}`).toHaveLength(isOriginal ? fileCount : 0);
+    }
+    for (const row of rows) {
+      expect(row.id).toBe(current.id);
+      expect(row.name).toBe("scoped.pdf");
+      expect(row.url).toBe((await current.responses[0].json()).url);
+      expect(row[current.scope === "event" ? "reservationId" : "eventId"]).toBeNull();
+      expect(await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.url!.replace(/^\/api\/storage\//, "")))).toEqual(
+        PDF_BYTES
+      );
+    }
+  }
+);
+Then("the returned document belongs to its intended scope", async ({ page }) => {
+  const current = documentApi(page);
+  expect(await lastResponse(page).json()).toMatchObject({ scope: current.scope, name: "scoped.pdf", kind: "pdf" });
+});
+
+When("I concurrently retry the scoped document upload", async ({ page }) => {
+  const current = documentApi(page);
+  await Promise.all(
+    Array.from({ length: 4 }, () => postDocument(page, current.tripId, { id: current.id, file: pdfPart("scoped.pdf") }))
+  );
+});
+Then("every concurrent document upload returns the same stored document", async ({ page }) => {
+  const current = documentApi(page);
+  expect(current.responses).toHaveLength(4);
+  const first = await current.responses[0].json();
+  for (const response of current.responses) {
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual(first);
+  }
+  expect(first).toMatchObject({ id: current.id, scope: current.scope, name: "scoped.pdf" });
+});
+When("I reuse the document id on a different {string}", async ({ page }, change: string) => {
+  const current = documentApi(page);
+  if (!current.scope || (change !== "target" && change !== "scope")) throw new Error("Unknown document target change");
+  const scope = change === "target" ? current.scope : current.scope === "event" ? "reservation" : "event";
+  const targetId = await withE2EDb(async (database) => {
+    if (scope === "event") {
+      const name = change === "target" ? "Second document API event" : E2E_EVENT.name;
+      const [row] = await database
+        .select({ id: events.id })
+        .from(events)
+        .where(and(eq(events.tripId, current.tripId), eq(events.name, name)));
+      return row.id;
+    }
+    const provider = change === "target" ? "Second document API reservation" : E2E_RESERVATION.provider;
+    const [row] = await database
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(and(eq(reservations.tripId, current.tripId), eq(reservations.provider, provider)));
+    return row.id;
+  });
+  await postDocument(
+    page,
+    current.tripId,
+    { id: current.id, file: pdfPart("scoped.pdf") },
+    {},
+    { scope, id: targetId }
+  );
 });

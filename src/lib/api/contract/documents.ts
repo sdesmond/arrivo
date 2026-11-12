@@ -17,3 +17,21 @@ export const uploadTripDocument = defineEndpoint<Document>()({
   body: z.strictObject({ id: uuidLower.optional() }),
   multipart: { maxFileBytes: MAX_UPLOAD_BYTES },
 });
+
+/** Uploads one file attached to a real event; optional client id makes retries safe. */
+export const uploadEventDocument = defineEndpoint<Document>()({
+  method: "POST",
+  path: "/api/v1/events/:eventId/documents",
+  params: z.object({ eventId: uuidLower }),
+  body: z.strictObject({ id: uuidLower.optional() }),
+  multipart: { maxFileBytes: MAX_UPLOAD_BYTES },
+});
+
+/** Uploads one file attached to a real reservation; optional client id makes retries safe. */
+export const uploadReservationDocument = defineEndpoint<Document>()({
+  method: "POST",
+  path: "/api/v1/reservations/:reservationId/documents",
+  params: z.object({ reservationId: uuidLower }),
+  body: z.strictObject({ id: uuidLower.optional() }),
+  multipart: { maxFileBytes: MAX_UPLOAD_BYTES },
+});

@@ -87,3 +87,11 @@ Feature: Event Document Integration
     Then the stored events "E2E Event Keep" and "E2E Event Erase" no longer exist
     And the Documents tab shows "E2E Keep Doc"
     And the Documents tab does not show "E2E Erase Doc"
+
+  Scenario: Upload an event document and retain its attachment after reload
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I click the Attach button on "E2E Event"
+    And I click "Upload new instead"
+    And I upload "event-upload.pdf" to event "E2E Event"
+    Then after reload event "E2E Event" shows uploaded document "event-upload.pdf"

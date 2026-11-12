@@ -68,7 +68,7 @@ Feature: Reservations
     Given the trip has a Lodging reservation
     And the "Lodging" reservation section is expanded
     When I attach a file to the reservation "Original Hotel Name"
-    Then the document "test-doc.pdf" appears on the reservation "Original Hotel Name"
+    Then after reload the reservation shows uploaded document "test-doc.pdf"
 
   Scenario: Delete a reservation with an attached document
     Given the trip has a Lodging reservation with an attached document

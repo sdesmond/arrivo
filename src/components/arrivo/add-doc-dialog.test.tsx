@@ -26,13 +26,19 @@ vi.mock("@/components/ui/dialog", () => ({
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   attachTripDocToEvent: vi.fn().mockResolvedValue(undefined),
-  uploadDocumentToEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn().mockResolvedValue({ id: "doc" }),
+}));
+import { api, ApiClientError } from "@/lib/api/client";
+import { uploadEventDocument } from "@/lib/api/contract/documents";
+
 import { AddDocDialog } from "./add-doc-dialog";
-import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
+import { attachTripDocToEvent } from "@/app/(app)/trips/[tripId]/actions";
 
 const makeDoc = (overrides: Record<string, unknown> = {}) => ({
   id: "doc-1",
@@ -210,7 +216,7 @@ describe("upload mode", () => {
     expect(screen.getByRole("button", { name: /attach/i })).not.toBeDisabled();
   });
 
-  it("clicking Attach with a file calls uploadDocumentToEvent and closes", async () => {
+  it("clicking Attach with a file uploads through the multipart API and closes", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(<AddDocDialog open eventId="ev-1" onOpenChange={onOpenChange} />);
@@ -219,7 +225,10 @@ describe("upload mode", () => {
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
     await waitFor(() => {
-      expect(uploadDocumentToEvent).toHaveBeenCalledWith("ev-1", expect.any(FormData));
+      expect(api).toHaveBeenCalledWith(
+        uploadEventDocument,
+        expect.objectContaining({ params: { eventId: "ev-1" }, file: validFile, body: { id: expect.any(String) } })
+      );
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
@@ -234,7 +243,7 @@ describe("upload mode", () => {
 
   it("upload failure shows toast error", async () => {
     const { toast } = await import("sonner");
-    vi.mocked(uploadDocumentToEvent).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(<AddDocDialog open eventId="ev-1" onOpenChange={onOpenChange} />);
@@ -243,7 +252,7 @@ describe("upload mode", () => {
     await user.upload(fileInput, validFile);
     await user.click(screen.getByRole("button", { name: /attach/i }));
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Network error");
+      expect(toast.error).toHaveBeenCalledWith("Could not save changes. Try again.");
     });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
@@ -278,4 +287,61 @@ describe("focus management", () => {
       { timeout: 500 }
     );
   });
+});
+
+describe("API retry lifecycle", () => {
+  it("keeps failed file and client id across retry, but changes id for a new target or file", async () => {
+    vi.mocked(api).mockRejectedValue(new Error("offline"));
+    const onOpenChange = vi.fn();
+    const view = render(<AddDocDialog open eventId="target-1" onOpenChange={onOpenChange} />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(["pdf"], "pass.pdf", { type: "application/pdf" })] } });
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^attach$/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api).mock.calls[1][1].body).toEqual(vi.mocked(api).mock.calls[0][1].body);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByText("pass.pdf")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^attach$/i })).toBeEnabled());
+    view.rerender(<AddDocDialog open eventId="target-2" onOpenChange={onOpenChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    expect(vi.mocked(api).mock.calls[2][1].body).not.toEqual(vi.mocked(api).mock.calls[1][1].body);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^attach$/i })).toBeEnabled());
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["different"], "other.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(4));
+    expect(vi.mocked(api).mock.calls[3][1].body).not.toEqual(vi.mocked(api).mock.calls[2][1].body);
+    vi.mocked(api).mockResolvedValue({ id: "doc" });
+  });
+  it("disables repeat submission while upload is pending", async () => {
+    let finish!: (value: unknown) => void;
+    vi.mocked(api).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    render(<AddDocDialog open eventId="target-1" onOpenChange={vi.fn()} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["pdf"], "pass.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    expect(screen.getByRole("button", { name: /^attach$/i })).toBeDisabled();
+    finish({ id: "doc" });
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+  });
+});
+
+it.each(["unauthenticated", "mfa_enrollment_required"])("closes upload dialog on auth loss: %s", async (code) => {
+  vi.mocked(api).mockRejectedValueOnce(new ApiClientError(401, code, "Sign in again"));
+  const onOpenChange = vi.fn();
+  render(<AddDocDialog open eventId="target-1" onOpenChange={onOpenChange} />);
+  fireEvent.change(document.querySelector('input[type="file"]')!, {
+    target: { files: [new File(["pdf"], "pass.pdf", { type: "application/pdf" })] },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+  await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 });

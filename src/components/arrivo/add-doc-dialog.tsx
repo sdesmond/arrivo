@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
-import { attachTripDocToEvent, uploadDocumentToEvent } from "@/app/(app)/trips/[tripId]/actions";
+import { attachTripDocToEvent } from "@/app/(app)/trips/[tripId]/actions";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOOSER_LABEL } from "@/lib/upload-policy";
+
+import { uploadEventDocument } from "@/lib/api/contract/documents";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { createRandomId } from "@/lib/utils";
 
 type DialogMode = "pick" | "upload";
 
@@ -24,7 +28,10 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [isUploading, startTransition] = useTransition();
+  const [isPicking, startTransition] = useTransition();
+  const { mutate, isPending } = useApiMutation(uploadEventDocument);
+  const attempt = useRef<{ file: File; targetId: string; id: string }>(undefined);
+  const isUploading = isPicking || isPending;
 
   const defaultMode = (): DialogMode => ((tripDocs?.length ?? 0) > 0 ? "pick" : "upload");
   const [mode, setMode] = useState<DialogMode>(defaultMode);
@@ -40,6 +47,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
     if (!open) {
       setMode(defaultMode());
       setPendingFile(null);
+      attempt.current = undefined;
     }
     onOpenChange(open);
   }
@@ -69,17 +77,14 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
   }
 
   function handleUpload() {
-    if (!pendingFile) return;
-    const formData = new FormData();
-    formData.append("file", pendingFile);
-    startTransition(async () => {
-      try {
-        await uploadDocumentToEvent(eventId, formData);
-        handleClose(false);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
-      }
-    });
+    if (!pendingFile || isUploading) return;
+    if (attempt.current?.file !== pendingFile || attempt.current?.targetId !== eventId) {
+      attempt.current = { file: pendingFile, targetId: eventId, id: createRandomId() };
+    }
+    void mutate(
+      { params: { eventId }, body: { id: attempt.current.id }, file: pendingFile },
+      { onSuccess: () => handleClose(false), onAuthLost: () => handleClose(false) }
+    );
   }
 
   return (
@@ -131,6 +136,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
                   fontSize: "calc(12px * var(--font-scale))",
                   cursor: "pointer",
                   padding: "4px 0",
+                  minHeight: 44,
                   textDecoration: "underline",
                 }}
               >
@@ -169,6 +175,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
                   border: "1.5px dashed var(--line-strong)",
                   borderRadius: 6,
                   padding: "12px 16px",
+                  minHeight: 44,
                   cursor: "pointer",
                   color: pendingFile ? "var(--fg)" : "var(--fg-4)",
                   fontSize: "calc(13px * var(--font-scale))",
@@ -187,6 +194,7 @@ export function AddDocDialog({ eventId, eventName, open, onOpenChange, tripDocs 
                     fontSize: "calc(12px * var(--font-scale))",
                     cursor: "pointer",
                     padding: "4px 0",
+                    minHeight: 44,
                     textDecoration: "underline",
                   }}
                 >

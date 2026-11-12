@@ -91,6 +91,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/checklists/**",
     "src/app/api/v1/trips/*/notes/**",
     "src/app/api/v1/trips/*/documents/**",
+    "src/app/api/v1/reservations/*/documents/**",
     "src/app/api/v1/meta/**",
     "tests/e2e/steps/api-documents.steps.ts",
     // The delete scenario fetches a kept document through the storage route after its event is gone.
@@ -307,7 +308,6 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
     "src/app/(app)/trips/[tripId]/transit-actions.ts",
     "src/app/(app)/trips/[tripId]/cover-upload-actions.ts",
-    "src/app/(app)/trips/[tripId]/document-upload-actions.ts",
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
     "src/app/(app)/trips/[tripId]/reservations/actions.ts",
     "src/app/(app)/trips/[tripId]/reservations/reservation-document-actions.ts",
@@ -522,6 +522,9 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("documents", [
+    "src/lib/api/contract/documents.ts",
+    "src/app/api/v1/events/*/documents/**",
+    "src/app/api/v1/reservations/*/documents/**",
     "src/components/arrivo/add-doc-dialog.tsx",
     "src/components/arrivo/doc-row.tsx",
     "src/components/arrivo/doc-viewer.tsx",
@@ -529,7 +532,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/docs-rail.tsx",
     "src/components/arrivo/doc-kind-badge.tsx",
     "src/components/arrivo/trip-docs-tab.tsx",
-    "src/app/(app)/trips/[tripId]/document-upload-actions.ts",
     "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/api/**",
     "src/lib/services/documents.ts",
@@ -543,6 +545,11 @@ export const FEATURE_MAP = [
     ...STORAGE,
   ]),
   entry("event-docs", [
+    "src/components/arrivo/add-doc-dialog.tsx",
+    "src/lib/services/documents.ts",
+    "src/lib/api/contract/documents.ts",
+    "src/app/api/v1/events/*/documents/**",
+    "src/app/api/v1/reservations/*/documents/**",
     "src/components/arrivo/event-doc-row.tsx",
     "src/app/(app)/trips/[tripId]/actions.ts",
     // Deleting an event keeping or discarding its documents runs through the delete API.
@@ -661,6 +668,10 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/actions.ts",
   ]),
   entry("reservations", [
+    "src/lib/services/documents.ts",
+    "src/lib/api/contract/documents.ts",
+    "src/app/api/v1/events/*/documents/**",
+    "src/app/api/v1/reservations/*/documents/**",
     "src/components/arrivo/reservation*",
     "src/components/arrivo/add-reservation-doc-dialog.tsx",
     "src/components/arrivo/delete-reservation-alert-dialog.tsx",
