@@ -30,10 +30,12 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A failed event PATCH leaves the row showing the unsaved draft: only a toast, no refresh.
   evidence: Raised by blind-hunter and edge-case-hunter. The retired action had no revert either; an `onError: router.refresh` on `handleEventUpdate` would re-sync.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; `handleEventUpdate` refreshes on error.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: `useApiMutation` returns early when its hook has unmounted, so an edit queued behind another is discarded if the user navigates away.
   evidence: `use-api-mutation.ts:51`; shared by every pilot handler. Fix is to let queued requests run and skip only the refresh.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; queued and post-unmount writes now send; only callbacks and refresh are skipped, and a failure toasts.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A partial event PATCH can store `endAt` before `startAt`: only per-field format is validated.
@@ -50,10 +52,12 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
   summary: After a timeout the hook shows "Try again" and does not refresh, so the UI can stay stale after a write that committed.
   evidence: Same refresh-on-error choice as the story 2.1 entry; `use-api-mutation.test.tsx` asserts failures never refresh.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; event edits refresh on timeout via the same `onError`; other handlers unchanged.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
   summary: `api()` rethrows a raw `SyntaxError` for a malformed 200 body instead of an `ApiClientError`.
   evidence: Pre-existing at `client.ts`; `client.test.ts` now documents it. Fix maps it to `ApiClientError(status, "server_error", ...)`.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; mapped to `ApiClientError(status, "server_error", ...)`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-send-draft-stable-client-ids-for-checklist-creates-plan.md`
   summary: A draft whose commit is still pending when the user cancels and opens another draft arms the new draft's baseline when the old commit resolves.
@@ -65,9 +69,12 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-extract-shared-timeline-positioning-and-reorder-days-through-plan.md`
   summary: Drags still waiting in a keyed `useApiMutation` queue are dropped if the component unmounts before they start, so the last rapid drag can fail to persist after immediate navigation.
   evidence: Pre-existing in `use-api-mutation.ts` (`run` returns early when `!mounted.current`); day drags now go through it instead of a server action that kept running. Settle by flushing queued writes on unmount or confirming a navigation guard exists.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; fixed by the hook change; no navigation-guard E2E added.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-move-trip-notes-to-the-api-plan.md`
   summary: A trip-note edit or create saved while the editor unmounts (tab switch) skips the hook's toast, `onSuccess` and refresh, so a failure is silent and the page may stay stale.
   evidence: UNVERIFIED medium. `useApiMutation.mutate` returns early once unmounted; the plan assumes the live-sync publish from `afterTripWrite` refreshes the page. Settle it with an E2E that edits a note, switches tab, and checks the saved note shows.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; write already in flight before unmount; E2E `Leaving the Notes tab while a note is open still saves the edit` passes. A failure now toasts.
 - source_plan: none
   summary: Diagnose production keyboard trip-note reorder failure after the event-edit fix.
   evidence: User selected event fix first; retrospective F-6 repeats an API-response timeout but does not establish application versus automation cause.
+  completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; not reproduced on this tree: production build, scenario 4/4 isolated, `@feat:trip-notes` 20/20. No root cause established; likely harness-related at the retro cut.
