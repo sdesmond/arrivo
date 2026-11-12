@@ -88,6 +88,8 @@ context: ["{project-root}/_bmad-output/initiative-mobile-api/AGENTS.md"]
 
 ## Plan Change Log
 
+- 2026-11-12: Commit `3b2f9f4d` replaced the in-memory cleanup closure in Design Notes with a durable queue, adding migration `0014` (`pending_file_deletions`, document URL index), although Boundaries said never to touch migrations. Reason: a process that dies after the DB commit would orphan the files. Recorded as an exception to the no-migration constraint; the initiative and `docs/plans/mobile-api.md` now say so.
+
 ## Review Triage Log
 
 | finding | lens | verdict | route | evidence |
@@ -118,7 +120,7 @@ context: ["{project-root}/_bmad-output/initiative-mobile-api/AGENTS.md"]
 
 ## Design Notes
 
-A day gone before the request cannot be authorized (the path carries only `dayId`), so that is 404; only a day that vanishes between the pre-read and the lock is the entry-1 `ConflictError`. Delete takes `tripId` in the body for the same reason the checklist delete does. `keepDocuments` absent means discard, matching the retired `deleteEvent`. Cleanup is a closure over URLs collected in `mutate` and run after `runTripWrite` returns, so a rollback or replay leaves it empty.
+A day gone before the request cannot be authorized (the path carries only `dayId`), so that is 404; only a day that vanishes between the pre-read and the lock is the entry-1 `ConflictError`. Delete takes `tripId` in the body for the same reason the checklist delete does. `keepDocuments` absent means discard, matching the retired `deleteEvent`. Cleanup is a closure over URLs collected in `mutate` and run after `runTripWrite` returns, so a rollback or replay leaves it empty. (Superseded by a durable queue; see the Plan Change Log.)
 
 ## Verification
 

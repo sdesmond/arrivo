@@ -35,7 +35,7 @@ Web and mobile clients use the same authorized domain operations and stable cont
 1. Web mutations and client-side reads covered by R2–R5 run through `/api/v1`; Server Components continue reading services or queries directly.
 2. The checklist pilot demonstrates persistent edits and rapid ordered writes without optimistic flicker; API tests prove the documented auth, role, validation, CSRF, idempotency, and client-generated-ID behavior.
 3. The web migration preserves existing feature behavior, passes project validation with affected E2E coverage, and leaves only the temporary auth-boundary server actions allowed by R6.
-4. Phases 1–5 require no new migrations, environment variables, or reverse-proxy configuration for self-hosters.
+4. Phases 1–5 require no new environment variables or reverse-proxy configuration for self-hosters, and no new migrations except migration `0014` (the `pending_file_deletions` queue and a document URL index, commit `3b2f9f4d`), which the container applies automatically on start. It is a recorded exception: it keeps event-delete file removal crash-safe, as described in the epic 2 retrospective.
 5. At the later session milestone, web and app clients share the database-backed session resolver, Auth.js and the remaining server actions are retired, the security review is complete, and upgrade instructions explain migrations and sign-out.
 6. Mobile contracts have runtime response schemas and generated OpenAPI with drift checks; app sessions and metadata support the phone client.
 
@@ -54,7 +54,7 @@ R3 is partitioned between itinerary (notes/events/days), documents-covers (files
 Trips-packing explicitly owns trip metadata including transit-actions.ts/updateTripTransitMode. Packing-templates owns saveTripListAsTemplate and its caller; trips-packing consumes it while migrating other list operations.
 
 - Touch point: existing Auth.js session resolution and proxy — pilot consumes sessions and configures the public API boundary; unified-sessions later replaces the session system.
-- Touch point: schema, DB singleton, mappers, and locking — each domain epic consumes existing infrastructure; pilot owns shared transaction/replay integration; only unified-sessions generates migrations.
+- Touch point: schema, DB singleton, mappers, and locking — each domain epic consumes existing infrastructure; pilot owns shared transaction/replay integration; only unified-sessions generates migrations (apart from the epic 2 exception `0014`, see Done when 4).
 - Touch point: storage adapter and upload policy — documents-covers owns document/cover integration; profile owns avatar integration.
 - Touch point: activity and live sync — pilot owns the shared trip-write effects; each domain migration preserves its existing events.
 - Touch point: feature map, test fixtures, and validation tooling — pilot establishes API ownership/waits, each domain updates its mappings and fixtures, cleanup enforces final route coverage.

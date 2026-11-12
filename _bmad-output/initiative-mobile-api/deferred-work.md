@@ -40,6 +40,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A partial event PATCH can store `endAt` before `startAt`: only per-field format is validated.
   evidence: Pre-existing (the retired action and `updateEventSchema` had no ordering check). Needs a merged-state check in `services/events.ts` returning 422.
+  tracked: https://github.com/sdesmond/arrivo/issues/504 (needs the overnight-capable time dialog first; the plain-event dialog cannot express overnight spans).
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: No API reference documents `PATCH /api/v1/events/:eventId` or the pilot endpoints.

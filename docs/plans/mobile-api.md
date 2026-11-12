@@ -448,7 +448,9 @@ Web E2E stays green at every step; it's the regression net for the refactor.
 
 ## Self-hosting
 
-- Nothing new to run in phases 1–5: no migrations, no environment variables.
+- Nothing new to run in phases 1–5: no environment variables. The one migration is `0014`, added in epic 2: it creates
+  `pending_file_deletions` and an index on document URLs so file removal after an event delete survives a crash. The
+  container applies it on start like any other; source-run installs apply it with their usual migration step.
 - Phase 6a adds a migration (`user_sessions`, later dropping the Auth.js adapter tables) and signs everyone out once
   on upgrade. Release notes must say so.
 - Reverse proxies need no change for same-origin `/api/v1` calls. The `Origin` check must use the forwarded host the
