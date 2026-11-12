@@ -301,8 +301,11 @@ When("I keyboard-move the note {string} down one position", async ({ page, scena
   await handle.focus();
   await expect(handle).toBeFocused();
 
+  const position = Number((await handle.getAttribute("aria-label"))!.match(/position (\d+)/)![1]);
   await handle.press("Space");
+  await expect(handle).toHaveAttribute("aria-pressed", "true");
   await handle.press("ArrowDown");
+  await expect(handle).toHaveAttribute("aria-label", new RegExp(`position ${position + 1} of`));
 
   // Enter drops the item and sends the order to the API. Wait for that PUT to resolve so a later reload cannot
   // out-race persistence.
