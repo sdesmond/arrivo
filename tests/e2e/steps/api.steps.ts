@@ -1,4 +1,4 @@
-import { expect, type APIResponse, type Page } from "@playwright/test";
+import { expect, request, type APIRequestContext, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
@@ -27,6 +27,23 @@ import { E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, After } from "../fixtures";
+const rememberedCookies = new WeakMap<Page, Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>>>();
+const anonymousTripNoteRequests = new WeakMap<Page, APIRequestContext>();
+After(async ({ page }) => {
+  await anonymousTripNoteRequests.get(page)?.dispose();
+  anonymousTripNoteRequests.delete(page);
+});
+Given("I remember the signed-in browser cookies", async ({ page }) => {
+  const cookies = await page.context().cookies();
+  expect(cookies.some((cookie) => cookie.name.includes("session-token"))).toBe(true);
+  rememberedCookies.set(page, cookies);
+});
+Given("the signed-in browser cookies return", async ({ page }) => {
+  await page.context().addCookies(rememberedCookies.get(page)!);
+});
+Then("the signed-in browser cookies remain available", async ({ page }) => {
+  expect((await page.context().cookies()).some((cookie) => cookie.name.includes("session-token"))).toBe(true);
+});
 interface KeyedResult {
   status: number;
   body: unknown;
@@ -2583,9 +2600,14 @@ async function sendTripNote(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  const response = await page.request[method](url, {
+  let client = page.request;
+  if (state(page).role === "anonymous") {
+    client =
+      anonymousTripNoteRequests.get(page) ??
+      (await request.newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } }));
+    anonymousTripNoteRequests.set(page, client);
+  }
+  const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
   });
@@ -2631,7 +2653,10 @@ Then("the trip note API returns {int}", async ({ page }, status: number) => {
 });
 Then("the trip note API returns {int} with code {string}", async ({ page }, status: number, code: string) => {
   const response = tripNoteApi(page).response!;
-  expect(response.status()).toBe(status);
+  expect(
+    response.status(),
+    `Trip note API response URL: ${response.url()}, body: ${(await response.text()).slice(0, 200)}`
+  ).toBe(status);
   expect(response.headers()["cache-control"]).toBe("no-store");
   const body = await response.json();
   expect(body.error.code).toBe(code);

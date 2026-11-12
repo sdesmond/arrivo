@@ -150,9 +150,19 @@ describe("isolated E2E preparation", async () => {
 });
 
 describe("runner integration", async () => {
-  const { main, buildPackageInvocation } = await import("./run-e2e.mjs");
+  const { main, buildPackageInvocation, clearE2ECaches } = await import("./run-e2e.mjs");
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+  it("removes only the two dedicated E2E caches", () => {
+    const remove = vi.fn();
+    clearE2ECaches(process.cwd(), remove);
+    expect(remove.mock.calls.map(([target]) => target.replaceAll("\\", "/").split("/").at(-1))).toEqual([
+      ".next-e2e",
+      ".next-e2e-bootstrap",
+    ]);
+    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenCalledWith(expect.any(String), { recursive: true, force: true });
   });
   it("prepares both ports and databases before generating and running selected tests", async () => {
     vi.stubEnv("E2E_DATABASE_URL", "postgres://host/arrivo_e2e");
@@ -160,6 +170,7 @@ describe("runner integration", async () => {
     const commands = [];
     const ensureDatabase = vi.fn(async () => undefined);
     await main(["--grep=@feat:auth|@feat:app-bootstrap"], {
+      clearE2ECaches: vi.fn(),
       prepareServer: ({ port }) => {
         ports.push(port);
       },
@@ -179,6 +190,19 @@ describe("runner integration", async () => {
     expect(commands[4].args).toEqual(["bddgen"]);
     expect(commands[5].args).toEqual(["playwright", "test", "--grep", "@feat:auth|@feat:app-bootstrap"]);
     expect(process.env.E2E_DATABASE_URL).toBe("postgres://host/arrivo_e2e");
+  });
+  it.each(["kill", "reuse"])("handles E2E caches in %s mode after preparing both ports", async (mode) => {
+    vi.stubEnv("E2E_DATABASE_URL", "postgres://host/arrivo_e2e");
+    const calls = [];
+    await main([`--server=${mode}`, "--grep=@feat:auth"], {
+      prepareServer: ({ port }) => calls.push(`port:${port}`),
+      clearE2ECaches: () => calls.push("clear"),
+      ensureDatabase: async () => calls.push("database"),
+      runPackage: () => undefined,
+    });
+    expect(calls).toEqual(
+      mode === "kill" ? ["port:3001", "port:3002", "clear", "database"] : ["port:3001", "port:3002", "database"]
+    );
   });
   it("rejects port collisions before preparing servers or databases", async () => {
     const prepareServer = vi.fn();

@@ -905,6 +905,16 @@ Feature: Absolute checklist checked-state API
     Then the trip note API returns 409 with code "conflict"
     And the trip holds 1 trip note titled "Keyed note"
 
+  Scenario: Anonymous trip note create stays anonymous if browser cookies return
+    Given scenario-owned trip notes for the trip note API
+    And I remember the signed-in browser cookies
+    And my checklist API role is "anonymous"
+    And the signed-in browser cookies return
+    When I create the trip note "Denied" through the trip note API
+    Then the trip note API returns 401 with code "unauthenticated"
+    And the signed-in browser cookies remain available
+    And the stored trip notes keep their original order
+
   Scenario Outline: Denied trip note creates leave the notes unchanged
     Given scenario-owned trip notes for the trip note API
     And my checklist API role is "<role>"
