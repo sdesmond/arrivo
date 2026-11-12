@@ -79,3 +79,15 @@
   summary: Diagnose production keyboard trip-note reorder failure after the event-edit fix.
   evidence: User selected event fix first; retrospective F-6 repeats an API-response timeout but does not establish application versus automation cause.
   completed: 2026-11-12 on `story/2-11-api-mutation-hook-lifetime-and-keyboard-reorder`; not reproduced on this tree: production build, scenario 4/4 isolated, `@feat:trip-notes` 20/20. No root cause established; likely harness-related at the retro cut.
+- source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
+  summary: Consider exact byte-size replay metadata rather than rounded display size.
+  evidence: Shared uploader compares formatted size, so different byte lengths within one rounding bucket can replay; behavior predates story 3.2.
+- source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
+  summary: Prevent pending document uploads from clearing newer dialog selections or sessions.
+  evidence: Both original dialogs leave file/mode controls enabled and unconditionally close after asynchronous completion; changing file or cancel/reopen can lose newer pending selection.
+- source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
+  summary: Serialize document picking with an in-flight upload in both attachment dialogs.
+  evidence: Existing mode controls and picker buttons remain enabled while upload runs, allowing two competing attachments before either completion closes dialog.
+- source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
+  summary: Coordinate reservation deletion and document upload to avoid orphaned storage.
+  evidence: Existing deleteReservation enumerates attached files before deleting reservation without shared trip lock; a concurrent upload may insert after enumeration and cascade-delete its row without file cleanup.
