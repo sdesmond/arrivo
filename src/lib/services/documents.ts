@@ -2,7 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, events, reservations } from "@/db/schema";
-import type { Actor, Document } from "@/data/types";
+import type { Actor, Document, IdempotentRequest } from "@/data/types";
 import { dbDocToType } from "@/lib/db-mappers";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import {
@@ -12,6 +12,8 @@ import {
 } from "@/lib/upload-policy";
 import { formatFileSize, inferDocKind } from "@/lib/utils";
 import {
+  updateDocument as updateContract,
+  deleteDocument as deleteContract,
   uploadTripDocument as uploadContract,
   uploadEventDocument as eventContract,
   uploadReservationDocument as reservationContract,
@@ -19,6 +21,7 @@ import {
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
+import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { ConflictError } from "./conflict-error";
 
 async function readDocument(executor: ReadExecutor, documentId: string) {
@@ -168,4 +171,73 @@ export async function uploadReservationDocument(
   const tripId = await readTargetTripId(db, { reservationId });
   if (!tripId) throw new TripNotFoundError();
   return uploadDocument(actor, tripId, input, file, { reservationId });
+}
+
+async function documentTripId(executor: ReadExecutor, row: typeof documents.$inferSelect): Promise<string | undefined> {
+  return (
+    row.tripId ??
+    (row.eventId ? await readTargetTripId(executor, { eventId: row.eventId }) : undefined) ??
+    (row.reservationId ? await readTargetTripId(executor, { reservationId: row.reservationId }) : undefined)
+  );
+}
+export async function renameDocument(
+  actor: Actor,
+  documentId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<Document> {
+  documentId = updateContract.params.parse({ documentId }).documentId;
+  const patch = updateContract.body.parse(input);
+  const row = await readDocument(db, documentId);
+  const tripId = row && (await documentTripId(db, row));
+  if (!tripId) throw new TripNotFoundError();
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<Document>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
+    authorize: async () => {
+      await lockTrip(transaction, tripId);
+      await requireTripRole(tripId, actor.userId, "editor", transaction);
+      const current = await readDocument(transaction, documentId);
+      if (!current || (await documentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
+    },
+    mutate: async () => {
+      const current = await readDocument(transaction, documentId);
+      if (!current) throw new TripNotFoundError();
+      if (patch.name === undefined || patch.name === current.name) return dbDocToType(current);
+      const [updated] = await transaction.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
+      if (!updated) throw new TripNotFoundError();
+      markChanged();
+      return dbDocToType(updated);
+    },
+  }));
+}
+export async function removeDocument(
+  actor: Actor,
+  documentId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<null> {
+  documentId = deleteContract.params.parse({ documentId }).documentId;
+  const body = deleteContract.body.parse(input);
+  const { tripId } = body;
+  await requireTripRole(tripId, actor.userId, "editor");
+  let queued: QueuedFileDeletion[] = [];
+  await runTripWrite<null>(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
+    authorize: async () => {
+      await lockTrip(transaction, tripId);
+      await requireTripRole(tripId, actor.userId, "editor", transaction);
+      const current = await readDocument(transaction, documentId);
+      if (current && (await documentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
+    },
+    mutate: async () => {
+      queued = [];
+      const current = await readDocument(transaction, documentId);
+      if (!current) return null;
+      queued = await queueFileDeletions(transaction, current.url ? [current.url] : []);
+      await transaction.delete(documents).where(eq(documents.id, documentId));
+      markChanged();
+      return null;
+    },
+  }));
+  await removeQueuedFiles(queued);
+  return null;
 }

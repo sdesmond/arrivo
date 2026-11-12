@@ -1,6 +1,12 @@
 import { expect, it } from "vitest";
 import { MAX_UPLOAD_BYTES } from "@/lib/utils";
-import { uploadTripDocument, uploadEventDocument, uploadReservationDocument } from "./documents";
+import {
+  uploadTripDocument,
+  uploadEventDocument,
+  uploadReservationDocument,
+  updateDocument,
+  deleteDocument,
+} from "./documents";
 
 const uuid = "123e4567-e89b-12d3-a456-426614174000";
 const tripId = "523e4567-e89b-12d3-a456-426614174000";
@@ -37,4 +43,14 @@ it.each([
   ["an unknown field", { name: "x" }],
 ])("rejects %s", (_label, body) => {
   expect(uploadTripDocument.body.safeParse(body).success).toBe(false);
+});
+
+it("validates strict document names and delete trip authorization", () => {
+  expect(updateDocument.body.parse({})).toEqual({});
+  expect(updateDocument.body.parse({ name: "pass" })).toEqual({ name: "pass" });
+  for (const body of [{ name: " " }, { name: "x".repeat(201) }, { eventId: uuid }, { reservationId: uuid }])
+    expect(updateDocument.body.safeParse(body).success).toBe(false);
+  expect(deleteDocument.body.parse({ tripId })).toEqual({ tripId });
+  expect(deleteDocument.body.safeParse({}).success).toBe(false);
+  expect(deleteDocument.status).toBe(204);
 });

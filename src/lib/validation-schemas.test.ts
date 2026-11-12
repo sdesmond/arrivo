@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
-  addDocumentSchema,
   createReservationSchema,
   createTripSchema,
   dayFieldSchemas,
@@ -175,20 +174,5 @@ describe("reservation schemas", () => {
     );
     expect(() => parseInput(updateReservationSchema, { startLocationLat: 95 })).toThrow("Latitude");
     expect(() => parseInput(createReservationSchema, { ...base, endLocationLng: 181 })).toThrow("Longitude");
-  });
-});
-
-describe("addDocumentSchema", () => {
-  it("requires name and kind and caps them", () => {
-    expect(() => parseInput(addDocumentSchema, { name: "", kind: "pdf" })).toThrow("Document name is required.");
-    expect(() => parseInput(addDocumentSchema, { name: OVER(FIELD_LIMITS.documentName), kind: "pdf" })).toThrow(
-      "Document name"
-    );
-    expect(() => parseInput(addDocumentSchema, { name: "a", kind: OVER(FIELD_LIMITS.documentKind) })).toThrow("Kind");
-    expect(parseInput(addDocumentSchema, { name: "a", kind: "pdf", url: "https://x.test/a.pdf" })).toEqual({
-      name: "a",
-      kind: "pdf",
-      url: "https://x.test/a.pdf",
-    });
   });
 });

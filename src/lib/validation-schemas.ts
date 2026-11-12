@@ -167,13 +167,3 @@ export const updateReservationSchema = z.object({
   endAt: isoDateTime("Invalid end date and time.").or(z.literal("")).optional(),
   ...reservationFields,
 });
-
-export const addDocumentSchema = z.object({
-  tripId: z.string().optional(),
-  eventId: z.string().optional(),
-  reservationId: z.string().optional(),
-  name: documentNameSchema,
-  kind: requiredText("Kind", FIELD_LIMITS.documentKind),
-  size: text("Size", FIELD_LIMITS.documentSize).optional(),
-  url: z.string().optional(),
-});

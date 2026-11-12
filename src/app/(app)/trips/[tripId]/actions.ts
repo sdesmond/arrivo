@@ -6,12 +6,12 @@ import { db } from "@/db";
 import { events, documents, trips } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getStorageAdapter } from "@/lib/storage/storage-adapter";
+
 import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 import { deriveGraphicCover } from "@/lib/utils";
-import { assertValidCoverImageUrl, assertValidDocumentUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
-import { addDocumentSchema, documentNameSchema, parseInput } from "@/lib/validation-schemas";
+import { assertValidCoverImageUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
+
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { publishTripEvent } from "@/lib/trip-events";
 import { LiveSyncEventType } from "@/data/types";
@@ -21,7 +21,7 @@ import {
   saveContributorChanges as saveContributorChangesAction,
 } from "../actions";
 import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
-import type { AddDocumentInput, ContributorChange } from "@/data/types";
+import type { ContributorChange } from "@/data/types";
 
 export async function getShareDialogData(tripId: string) {
   const user = await requireUser();
@@ -114,63 +114,6 @@ export async function removeTripCover(tripId: string): Promise<void> {
       .where(eq(trips.id, tripId));
   });
 
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function addDocument(rawInput: AddDocumentInput): Promise<void> {
-  const user = await requireUser();
-  const input = parseInput(addDocumentSchema, rawInput);
-  // The event's own trip is authoritative: a caller must not pass access for one trip and attach to another's event.
-  const eventTripId = input.eventId ? await getEventTripId(input.eventId) : null;
-  if (input.tripId && eventTripId && input.tripId !== eventTripId) {
-    throw new Error("Event does not belong to this trip.");
-  }
-  const tripId = eventTripId ?? input.tripId;
-  if (!tripId) throw new Error("tripId or eventId required");
-  await assertTripAccess(tripId, user.id!, "editor");
-  if (input.url !== undefined) assertValidDocumentUrl(input.url, { tripId, eventId: input.eventId });
-  await db.insert(documents).values({
-    tripId: input.tripId,
-    eventId: input.eventId,
-    name: input.name,
-    kind: input.kind,
-    size: input.size,
-    url: input.url,
-  });
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function removeDocument(docId: string): Promise<void> {
-  const user = await requireUser();
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
-  if (!doc) return;
-  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
-  if (!tripId) return;
-  await assertTripAccess(tripId, user.id!, "editor");
-  if (doc.url) {
-    await getStorageAdapter()
-      .del(doc.url)
-      .catch((error) => console.warn(`Cleanup failed for ${doc.url}`, error));
-  }
-  await db.delete(documents).where(eq(documents.id, docId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function renameDocument(docId: string, rawName: string): Promise<void> {
-  const user = await requireUser();
-  const newName = parseInput(documentNameSchema, rawName);
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
-  if (!doc) return;
-  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
-  if (!tripId) return;
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(documents).set({ name: newName }).where(eq(documents.id, docId));
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
