@@ -3,7 +3,7 @@ title: "Send draft-stable client IDs for checklist creates"
 type: "feature"
 ticket: "3"
 created: "2026-11-10"
-status: "built"
+status: done
 baseline_revision: "90a391e65d96219bbd26245758b7e9f37669a93b"
 route: "full"
 route_source: "auto"

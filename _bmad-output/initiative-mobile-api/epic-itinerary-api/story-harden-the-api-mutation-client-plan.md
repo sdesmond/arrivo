@@ -3,7 +3,7 @@ title: "Harden the API mutation client"
 type: "feature"
 ticket: "2"
 created: "2026-11-10"
-status: "built"
+status: done
 baseline_revision: "2a216e5860cd93f1f49ff3ac886842c0d1e3cabe"
 route: "full"
 route_source: "auto"

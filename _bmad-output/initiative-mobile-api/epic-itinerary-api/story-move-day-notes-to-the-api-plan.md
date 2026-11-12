@@ -3,7 +3,7 @@ title: "Move day notes to the API"
 type: "feature"
 ticket: "6"
 created: "2026-11-10"
-status: "built"
+status: done
 baseline_revision: "396a8d2d9b01c85c36632e0020e3b7d3f3bae39e"
 route: "full"
 route_source: "auto"
