@@ -98,6 +98,14 @@ When("I collapse the expanded note", async ({ page }) => {
   await expect(page.locator('[id^="trip-note-region-"][role="region"]')).toHaveCount(0, { timeout: 10_000 });
 });
 
+When("I switch to the Itinerary tab while the note is open", async ({ page }) => {
+  // Leaving the tab unmounts the open editor, which saves the edit. The save must still reach the API.
+  const noteId = await noteIdIn(page.locator("ol > li").filter({ has: page.locator('[aria-expanded="true"]') }));
+  const saved = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/notes/${noteId}` });
+  await page.getByRole("button", { name: "Itinerary" }).click();
+  await saved;
+});
+
 When("I request deletion of the expanded note titled {string}", async ({ page }, title: string) => {
   const deleteButton = page.getByRole("button", { name: `Delete ${title}` });
   pendingDeleteIds.set(page, await noteIdIn(page.locator("ol > li").filter({ has: deleteButton })));

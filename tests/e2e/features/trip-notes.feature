@@ -80,6 +80,17 @@ Scenario: Expanding a note reveals its full body in place
     When I reload the Notes tab
     Then a note row titled "Beach packing" with preview "Hats and towels" is at the top of the notes list
 
+  Scenario: Leaving the Notes tab while a note is open still saves the edit
+    When I open the Notes tab
+    And I activate New Note
+    And I enter "Packing" as the note title
+    And I close the note editor
+    And I expand the note titled "Packing"
+    And I replace the note title with "Beach packing"
+    And I switch to the Itinerary tab while the note is open
+    And I reload the Notes tab
+    Then the notes list shows only "Beach packing"
+
   Scenario: Editing a note preserves its list position
     When I open the Notes tab
     And I activate New Note
