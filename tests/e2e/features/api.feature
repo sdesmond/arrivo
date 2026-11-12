@@ -3,6 +3,55 @@ Feature: Absolute checklist checked-state API
   Background:
     Given a scenario-owned checklist API item
 
+  Scenario Outline: Cached itinerary replay denies access lost after a successful write
+    Given the mixed day for the day order API
+    And scenario-owned trip notes for the trip note API
+    And my checklist API role is "editor"
+    When I commit the keyed itinerary operation "<operation>"
+    And my checklist API role is "<role>"
+    And I replay the exact committed itinerary request
+    Then the itinerary replay returns <status> with code "<code>" and preserves the committed snapshot
+    Examples:
+      | operation        | role     | status | code      |
+      | event-create     | viewer   | 403    | forbidden |
+      | event-create     | stranger | 404    | not_found |
+      | event-edit       | viewer   | 403    | forbidden |
+      | event-edit       | stranger | 404    | not_found |
+      | event-delete     | viewer   | 403    | forbidden |
+      | event-delete     | stranger | 404    | not_found |
+      | day-order        | viewer   | 403    | forbidden |
+      | day-order        | stranger | 404    | not_found |
+      | day-note-create  | viewer   | 403    | forbidden |
+      | day-note-create  | stranger | 404    | not_found |
+      | day-note-edit    | viewer   | 403    | forbidden |
+      | day-note-edit    | stranger | 404    | not_found |
+      | day-note-delete  | viewer   | 403    | forbidden |
+      | day-note-delete  | stranger | 404    | not_found |
+      | trip-note-create | viewer   | 403    | forbidden |
+      | trip-note-create | stranger | 404    | not_found |
+      | trip-note-edit   | viewer   | 403    | forbidden |
+      | trip-note-edit   | stranger | 404    | not_found |
+      | trip-note-delete | viewer   | 403    | forbidden |
+      | trip-note-delete | stranger | 404    | not_found |
+      | trip-note-order  | viewer   | 403    | forbidden |
+      | trip-note-order  | stranger | 404    | not_found |
+      | day-edit         | viewer   | 403    | forbidden |
+      | day-edit         | stranger | 404    | not_found |
+      | day-append       | viewer   | 403    | forbidden |
+      | day-append       | stranger | 404    | not_found |
+      | day-delete       | viewer   | 403    | forbidden |
+      | day-delete       | stranger | 404    | not_found |
+
+  Scenario: Changed day order with the same key conflicts and preserves the first order
+    Given the mixed day for the day order API
+    And my checklist API role is "editor"
+    When I PUT the reversed day order with an Idempotency-Key
+    Then the day order API returns 200
+    And after reload the day stores the reversed order
+    When I PUT the original day order with the same Idempotency-Key
+    Then the day order API returns 409 with code "conflict"
+    And after reload the day stores the reversed order
+
   Scenario Outline: Distinct-trip lifecycle UUID races serialize globally
     When I concurrently create lifecycle checklists in distinct trips sharing a "<resource>" UUID
     Then the cross-trip lifecycle collision has one winner and an untouched loser
