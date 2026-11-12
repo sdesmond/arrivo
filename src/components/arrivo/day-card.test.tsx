@@ -29,6 +29,7 @@ interface MockChecklistItemProps {
   onCancelDraft?: () => void;
 }
 interface MockPlaceRowProps {
+  onUpdate: (event: import("@/data/types").EventUpdateIntent) => void;
   place: { id: string; name: string; linkedReservationId?: string };
   isDraft?: boolean;
   onCreate?: (name: string) => void;
@@ -124,7 +125,15 @@ vi.mock("./checklist-item", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place, isDraft, onCreate, onCancelDraft, onLinkedEventTap, isHighlighted }: MockPlaceRowProps) => {
+  PlaceRow: ({
+    place,
+    onUpdate,
+    isDraft,
+    onCreate,
+    onCancelDraft,
+    onLinkedEventTap,
+    isHighlighted,
+  }: MockPlaceRowProps) => {
     if (isDraft) {
       return (
         <input
@@ -163,6 +172,7 @@ vi.mock("./place-row", () => ({
     return (
       <div data-testid={`place-row-${place.id}`} data-highlighted={String(!!isHighlighted)}>
         {place.name}
+        <button onClick={() => onUpdate({ id: place.id, note: undefined })}>Save event intent</button>
       </div>
     );
   },
@@ -1071,4 +1081,15 @@ it("forwards the checklist item toggle through day card", async () => {
   );
   await userEvent.click(screen.getByText("Toggle API item"));
   expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
+});
+
+it("forwards narrow event intent through day card", () => {
+  const onUpdateEvent = vi.fn();
+  render(<DayCard day={baseDay} onUpdateEvent={onUpdateEvent} onDeleteEvent={vi.fn()} onReorderDayItems={vi.fn()} />, {
+    wrapper: Wrapper,
+  });
+  act(() => {
+    screen.getAllByText("Save event intent")[0].click();
+  });
+  expect(onUpdateEvent).toHaveBeenCalledExactlyOnceWith({ id: baseDay.events[0].id, note: undefined });
 });

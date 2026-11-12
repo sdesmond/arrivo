@@ -24,6 +24,7 @@ interface MockPlaceRowProps {
 }
 
 interface MockSortablePlaceRowProps {
+  onUpdate: (event: import("@/data/types").EventUpdateIntent) => void;
   place: { id: string; name: string };
   isHighlighted?: boolean;
   hasScheduleConflict?: boolean;
@@ -79,13 +80,14 @@ vi.mock("./place-row", () => ({
 }));
 
 vi.mock("./day-card-sortables", () => ({
-  SortablePlaceRow: ({ place, isHighlighted, hasScheduleConflict }: MockSortablePlaceRowProps) => (
+  SortablePlaceRow: ({ place, onUpdate, isHighlighted, hasScheduleConflict }: MockSortablePlaceRowProps) => (
     <div
       data-testid={`sortable-place-row-${place.id}`}
       data-highlighted={String(!!isHighlighted)}
       data-has-conflict={String(!!hasScheduleConflict)}
     >
       sortable-place-row-{place.id}
+      <button onClick={() => onUpdate({ id: place.id, note: undefined })}>Save event intent</button>
     </div>
   ),
   SortableNoteItem: ({ note }: { note: { id: string } }) => <div data-testid={`sortable-note-${note.id}`} />,
@@ -851,4 +853,32 @@ it("forwards the checklist item toggle through DnD", async () => {
   );
   await userEvent.click(screen.getByText("Toggle API item"));
   expect(onToggleChecklistItem).toHaveBeenCalledWith("item");
+});
+
+it("forwards narrow event intent through sortable day entries", () => {
+  const onUpdateEvent = vi.fn();
+  render(
+    <DayCardDnd
+      dayNumber={1}
+      timelineItems={timelineItems}
+      renderEntries={renderEntries}
+      makeGapProps={() => ({
+        gapKey: "gap",
+        isActive: false,
+        onOpen: vi.fn(),
+        onSelectType: vi.fn(),
+        onDismiss: vi.fn(),
+      })}
+      commitDraft={vi.fn()}
+      cancelDraft={vi.fn()}
+      setOptimisticOrder={vi.fn()}
+      onReorderDayItems={vi.fn()}
+      onUpdateEvent={onUpdateEvent}
+      onDeleteEvent={vi.fn()}
+    />
+  );
+  act(() => {
+    screen.getByText("Save event intent").click();
+  });
+  expect(onUpdateEvent).toHaveBeenCalledExactlyOnceWith({ id: manualEventItem.data.id, note: undefined });
 });

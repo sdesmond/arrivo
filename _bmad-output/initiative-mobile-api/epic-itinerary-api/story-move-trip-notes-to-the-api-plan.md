@@ -3,7 +3,7 @@ title: "Move trip notes to the API"
 type: "feature"
 ticket: "7"
 created: "2026-11-11"
-status: "built"
+status: done
 baseline_revision: "55eb6b008ddf2cb31be6e209460924fbe2d4dd1b"
 route: "full"
 route_source: "auto"

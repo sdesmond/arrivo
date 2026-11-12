@@ -20,6 +20,16 @@ Feature: Day Planning
     When I open the time picker and set a start time
     Then the event should display the time
 
+  @trip-with-untimed-event @pending-event-reversion
+  Scenario Outline: Explicit event clear survives pending save
+    Given a day has an event without a time
+    Then restoring the event's empty "<field>" while its save is pending persists after reload
+
+    Examples:
+      | field    |
+      | time     |
+      | location |
+
   Scenario: User selects an event location suggestion
     Given a day has an event named "Lunch at the market"
     When I set the event location for "Lunch at the market" using the first lookup suggestion

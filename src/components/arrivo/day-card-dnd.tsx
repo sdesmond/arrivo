@@ -24,6 +24,7 @@ import {
   type ItineraryNote,
   ItineraryItemType,
   type TripEvent,
+  type EventUpdateIntent,
 } from "@/data/types";
 
 export type TimelineItem =
@@ -51,7 +52,7 @@ export interface DayCardDndProps {
   cancelDraft: () => void;
   setOptimisticOrder: (order: string[]) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onUpdateNote?: (noteId: string, content: string) => void;

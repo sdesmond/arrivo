@@ -3,7 +3,7 @@ title: "Create and delete events through the API"
 type: "feature"
 ticket: "5"
 created: "2026-11-10"
-status: "built"
+status: done
 baseline_revision: "4406beed803bc023697d29827cfb029eb321f97a"
 route: "full"
 route_source: "auto"

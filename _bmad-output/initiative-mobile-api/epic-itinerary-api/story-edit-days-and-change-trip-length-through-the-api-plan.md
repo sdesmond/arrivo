@@ -3,7 +3,7 @@ title: "Edit days and change trip length through the API"
 type: "feature"
 ticket: "8"
 created: "2026-11-11"
-status: "built"
+status: done
 baseline_revision: "fe042cd2aa2a904a48fad27e6b73cdfd3e01fecc"
 route: "full"
 route_source: "auto"

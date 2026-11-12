@@ -3,7 +3,7 @@ title: "Extract shared timeline positioning and reorder days through the API"
 type: "feature"
 ticket: "4"
 created: "2026-11-10"
-status: "built"
+status: done
 baseline_revision: "6a2c993efb8c1be307a7c0d3ba9a582e19f2e725"
 route: "full"
 route_source: "auto"

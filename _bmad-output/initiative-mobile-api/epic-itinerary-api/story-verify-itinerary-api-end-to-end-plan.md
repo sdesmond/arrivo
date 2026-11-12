@@ -3,7 +3,7 @@ title: "Verify itinerary API end to end"
 type: chore
 ticket: "10"
 created: "2026-11-11"
-status: built
+status: done
 baseline_revision: "42f0b73221975832e06baa45a9385ecdcc31dce0"
 route: full
 route_source: auto

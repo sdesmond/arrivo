@@ -3,7 +3,7 @@ title: "Edit one event through the API"
 type: "feature"
 ticket: "1"
 created: "2026-11-10"
-status: "in-review"
+status: done
 baseline_revision: "be3213463c530502b888fdcd7fd4cf3374a3be1c"
 route: "full"
 route_source: "auto"

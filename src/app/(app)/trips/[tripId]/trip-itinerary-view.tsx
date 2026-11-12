@@ -16,6 +16,7 @@ import type {
   PackingTemplate,
   TransitMode,
 } from "@/data/types";
+import type { EventUpdateIntent } from "@/data/types";
 import { useCanEditTrip } from "@/components/arrivo/trip-edit-access";
 import { UnscheduledEventsSection } from "./unscheduled-events-section";
 import { RemoveLastDayDialog } from "./remove-last-day-dialog";
@@ -46,7 +47,7 @@ export interface TripItineraryViewProps {
     sourceType: "packing-list" | "template",
     sourceId: string
   ) => Promise<void>;
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;
   onUpdateDay: (dayNumber: number, updates: Partial<DayItinerary>) => Promise<void>;

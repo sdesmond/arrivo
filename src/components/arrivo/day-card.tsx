@@ -5,7 +5,8 @@ import type { ReactElement } from "react";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DayCardBody } from "./day-card-body";
 import { DayCardHeader } from "./day-card-header";
-import type { DayItinerary, TripEvent, DayItemType, Document, TransitMode } from "@/data/types";
+import type { DayItinerary, DayItemType, Document, TransitMode } from "@/data/types";
+import type { EventUpdateIntent } from "@/data/types";
 
 interface DayCardProps {
   day: DayItinerary;
@@ -16,7 +17,7 @@ interface DayCardProps {
   dateFormat?: string;
   tripDocs?: Document[];
   initialOpen?: boolean;
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   onReorderDayItems: (dayNumber: number, orderedItems: { type: DayItemType; id: string }[]) => void;

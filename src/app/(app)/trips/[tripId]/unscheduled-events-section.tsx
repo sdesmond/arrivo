@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { PlaceRow } from "@/components/arrivo/place-row";
 import type { Document, TripEvent } from "@/data/types";
+import type { EventUpdateIntent } from "@/data/types";
 import { formatDate, pluralize } from "@/lib/utils";
 
 export interface UnscheduledEventsSectionProps {
@@ -12,7 +13,7 @@ export interface UnscheduledEventsSectionProps {
   defaultExpenseCurrency?: string;
   dateFormat?: string;
   tripDocs?: Document[];
-  onUpdateEvent: (event: TripEvent) => void;
+  onUpdateEvent: (event: EventUpdateIntent) => void;
   onDeleteEvent: (id: string) => void;
 }
 
