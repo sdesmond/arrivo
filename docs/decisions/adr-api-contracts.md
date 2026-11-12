@@ -16,4 +16,15 @@ A handler opts in with `apiRoute(endpoint, handler, { idempotent: { expiryMs? } 
 - **Outcomes.** Same fingerprint inside the window: the stored JSON, no write, no activity, live-sync or revalidation. Different method, resource or payload inside the window: 409 `conflict`. Past `expiresAt` (the instant itself counts as expired): the request runs again and replaces the record. If the mutation, the record write or the commit fails, nothing persists and a retry can succeed. After-commit effects run only for a new mutation.
 - **Expiry.** `expiryMs` must be positive and finite; the default is 24 hours, and the mobile phase can lengthen it per endpoint.
 
+## Multipart uploads
+
+Date: 2026-11-12. Status: accepted.
+
+An endpoint opts in with `multipart: { maxFileBytes }` in `defineEndpoint`. The request is `multipart/form-data` with exactly one part named `file` plus the string fields named by the contract `body` schema (strict, so an unknown or repeated field is rejected). `apiRoute` hands the handler `{ actor, params, body, file }`, and `api()` takes `{ params, body, file, timeoutMs? }`, sends no `Content-Type` (the browser adds the boundary) and defaults an upload to a 120-second timeout instead of 30.
+
+- **Limits.** `upload-policy.ts` owns type, size and content checks and throws `UploadTooLargeError` (413 `payload_too_large`) and `UploadInvalidError` (422 `validation_failed`, with the message under `fields.file`). Both the document (25 MB) and cover (12 MB) policies use them, so their messages are unchanged for the server actions that still call them.
+- **Proxy buffer.** Next buffers a proxied body only up to `experimental.proxyClientMaxBodySize` (default 10 MB) and truncates the rest silently. `next.config.ts` sets `26mb` (the 25 MB document limit plus `MULTIPART_OVERHEAD_BYTES`, 1 MiB), with no new environment variable. A test fails if the value drops below that floor. `apiRoute` also answers 413 from `Content-Length` before reading, so a larger body is refused instead of being parsed after truncation; a chunked body with no length that is larger still fails as a 400 malformed multipart.
+- **No `Idempotency-Key`.** A keyed multipart request is 400 `bad_request`. Retry safety comes from a client-generated document id in the form (see the client-UUID ADR), so no file body is hashed. This narrows the plan's "`Idempotency-Key` on every mutation" for uploads only.
+- **CSRF.** `X-Arrivo-Client: web` and the same-origin check apply as for JSON; `multipart/form-data` is an accepted content type.
+
 Source: [API direction and phase 0 decisions](../plans/mobile-api.md).
