@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { BOOTSTRAP_E2E_PORT, deriveBootstrapConnectionString, ensureBootstrapDatabase } from "./e2e-bootstrap.mjs";
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { rmSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -292,6 +293,14 @@ export function getE2EServerPorts(port) {
   return [port, BOOTSTRAP_E2E_PORT];
 }
 
+export function clearE2ECaches(rootDir, remove = rmSync) {
+  for (const directory of [".next-e2e", ".next-e2e-bootstrap"]) {
+    const target = resolve(rootDir, directory);
+    if (dirname(target) !== resolve(rootDir)) throw new Error("Invalid E2E cache path");
+    remove(target, { recursive: true, force: true });
+  }
+}
+
 export async function prepareE2EDatabases(source, runDatabaseCommand, ensureDatabase = ensureBootstrapDatabase) {
   const bootstrap = deriveBootstrapConnectionString(source);
   await ensureDatabase(source);
@@ -317,6 +326,10 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
 
   for (const port of getE2EServerPorts(plan.port)) {
     prepareServer({ serverMode: plan.serverMode, port, rootDir });
+  }
+
+  if (plan.serverMode === SERVER_MODE_KILL) {
+    (dependencies.clearE2ECaches ?? clearE2ECaches)(rootDir);
   }
 
   const env = {
