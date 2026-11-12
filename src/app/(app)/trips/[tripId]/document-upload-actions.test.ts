@@ -68,7 +68,7 @@ vi.mock("@/lib/upload-policy", async (importOriginal) => ({
   assertUploadContentMatchesType,
 }));
 
-import { uploadDocument, uploadDocumentToEvent } from "./document-upload-actions";
+import { uploadDocumentToEvent } from "./document-upload-actions";
 import { LiveSyncEventType } from "@/data/types";
 
 function makeFile(name: string, type: string, size = 100): File {
@@ -76,75 +76,6 @@ function makeFile(name: string, type: string, size = 100): File {
   Object.defineProperty(file, "size", { value: size, configurable: true });
   return file;
 }
-
-describe("uploadDocument", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
-    requireUser.mockResolvedValue({ id: "user-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-    getStorageAdapter.mockReturnValue({ put: adapterPut, del: adapterDel });
-    adapterPut.mockResolvedValue("https://blob.example.com/doc.pdf");
-    db.insert.mockReturnValue({
-      values: vi.fn(async () => undefined),
-    });
-  });
-
-  it("rejects a file whose bytes are not the type it claims, before upload or DB work", async () => {
-    assertUploadContentMatchesType.mockRejectedValueOnce(new Error("File contents don't match its type."));
-    const formData = new FormData();
-    formData.append("file", makeFile("evil.pdf", "application/pdf"));
-
-    await expect(uploadDocument("trip-1", formData)).rejects.toThrow("File contents don't match its type.");
-
-    expect(adapterPut).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("rejects unsupported MIME types before upload or DB work", async () => {
-    const formData = new FormData();
-    formData.append("file", makeFile("doc.docx", "application/msword"));
-
-    await expect(uploadDocument("trip-1", formData)).rejects.toThrow(
-      "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
-    );
-
-    expect(adapterPut).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("uploads with a generated storage name and preserves the original filename in the DB row", async () => {
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("upload-1234");
-    let insertedValues: Record<string, unknown> | undefined;
-    db.insert.mockReturnValue({
-      values: vi.fn(async (values: Record<string, unknown>) => {
-        insertedValues = values;
-      }),
-    });
-    const file = makeFile("Boarding Pass.pdf", "application/pdf");
-    const formData = new FormData();
-    formData.append("file", file);
-
-    await uploadDocument("trip-1", formData);
-
-    expect(adapterPut).toHaveBeenCalledWith("trip-documents/trip-1/upload-1234.pdf", file);
-    expect(insertedValues).toMatchObject({
-      tripId: "trip-1",
-      name: "Boarding Pass.pdf",
-      kind: "pdf",
-      size: "0.1 KB",
-      url: "https://blob.example.com/doc.pdf",
-    });
-    expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-});
 
 describe("uploadDocumentToEvent", () => {
   beforeEach(() => {

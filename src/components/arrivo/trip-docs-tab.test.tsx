@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
-import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
+import { uploadTripDocument } from "@/lib/api/contract/documents";
 import { DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
 import { toast } from "sonner";
 
@@ -12,8 +12,22 @@ vi.mock("sonner", () => ({
   Toaster: () => null,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  uploadDocument: vi.fn().mockResolvedValue(undefined),
+const { mutate, isPending, endpoints } = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  isPending: { value: false },
+  endpoints: [] as unknown[],
+}));
+vi.mock("@/lib/api/use-api-mutation", () => ({
+  useApiMutation: (endpoint: unknown) => {
+    endpoints.push(endpoint);
+    return {
+      mutate,
+      get isPending() {
+        return isPending.value;
+      },
+      fields: {},
+    };
+  },
 }));
 
 vi.mock("./doc-row", () => ({
@@ -27,9 +41,17 @@ const makeDoc = (id: string, name?: string): Document => ({
   scope: "trip",
 });
 
+function selectFile(file: File) {
+  const input = document.getElementById("doc-upload") as HTMLInputElement;
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  fireEvent.change(input);
+}
+
 describe("TripDocsTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    isPending.value = false;
+    mutate.mockResolvedValue(undefined);
   });
 
   it("renders empty state message when docs array is empty", () => {
@@ -70,15 +92,46 @@ describe("TripDocsTab", () => {
     expect(label).toHaveAttribute("for", "doc-upload");
   });
 
-  it("calls uploadDocument when a file is selected", async () => {
+  it("uploads through the API with the trip, a client document id and the file", async () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
-    const input = document.getElementById("doc-upload") as HTMLInputElement;
     const file = new File(["pdf content"], "test.pdf", { type: "application/pdf" });
-    Object.defineProperty(input, "files", { value: [file], writable: false });
-    fireEvent.change(input);
-    await waitFor(() => {
-      expect(vi.mocked(uploadDocument)).toHaveBeenCalledWith("trip-1", expect.any(FormData));
+    selectFile(file);
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+    expect(mutate.mock.calls[0][0]).toEqual({
+      params: { tripId: "trip-1" },
+      body: { id: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+      file,
     });
+  });
+
+  it("sends uploads through the trip document contract", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    expect(endpoints).toContain(uploadTripDocument);
+  });
+
+  it("keeps one document id across a retry of the same file and gets a new one after success", async () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const file = () => new File(["pdf content"], "test.pdf", { type: "application/pdf", lastModified: 1 });
+    selectFile(file());
+    selectFile(file());
+    const [first, second] = mutate.mock.calls.map((call) => call[0].body.id);
+    expect(second).toBe(first);
+    mutate.mock.calls[1][1].onSuccess();
+    selectFile(file());
+    expect(mutate.mock.calls[2][0].body.id).not.toBe(first);
+  });
+
+  it("uses a new document id for a different file", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    selectFile(new File(["a"], "a.pdf", { type: "application/pdf" }));
+    selectFile(new File(["bb"], "b.pdf", { type: "application/pdf" }));
+    expect(mutate.mock.calls[1][0].body.id).not.toBe(mutate.mock.calls[0][0].body.id);
+  });
+
+  it("dims the Add control while an upload is pending", () => {
+    isPending.value = true;
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    expect(screen.getByText("Add document").closest("label")).toHaveStyle({ opacity: "0.5" });
   });
 
   it("renders a visually hidden label 'Search documents' associated with the search input", () => {
@@ -113,7 +166,7 @@ describe("TripDocsTab", () => {
     expect(screen.getByText(DOCUMENT_UPLOAD_HINT)).toBeInTheDocument();
   });
 
-  it("does not call uploadDocument when the selected file exceeds the size limit", async () => {
+  it("does not upload when the selected file exceeds the size limit", async () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     const input = document.getElementById("doc-upload") as HTMLInputElement;
     const oversized = new File(["x".repeat(100)], "huge.pdf", { type: "application/pdf" });
@@ -121,7 +174,7 @@ describe("TripDocsTab", () => {
     Object.defineProperty(input, "files", { value: [oversized], writable: false });
     fireEvent.change(input);
     await waitFor(() => {
-      expect(vi.mocked(uploadDocument)).not.toHaveBeenCalled();
+      expect(mutate).not.toHaveBeenCalled();
     });
   });
 
@@ -137,7 +190,7 @@ describe("TripDocsTab", () => {
     });
   });
 
-  it("rejects unsupported file types before calling uploadDocument", async () => {
+  it("rejects unsupported file types before uploading", async () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     const input = document.getElementById("doc-upload") as HTMLInputElement;
     const unsupported = new File(["word content"], "notes.docx", { type: "application/msword" });
@@ -146,7 +199,7 @@ describe("TripDocsTab", () => {
     fireEvent.change(input);
 
     await waitFor(() => {
-      expect(vi.mocked(uploadDocument)).not.toHaveBeenCalled();
+      expect(mutate).not.toHaveBeenCalled();
       expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
         "Unsupported file type. Choose PDF, JPG, PNG, WEBP, or HEIC."
       );
@@ -162,17 +215,5 @@ describe("TripDocsTab", () => {
     fireEvent.change(input);
     await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
     expect(screen.getByText(DOCUMENT_UPLOAD_HINT)).toBeInTheDocument();
-  });
-
-  it("calls toast.error when uploadDocument rejects", async () => {
-    vi.mocked(uploadDocument).mockRejectedValueOnce(new Error("server error"));
-    render(<TripDocsTab tripId="trip-1" docs={[]} />);
-    const input = document.getElementById("doc-upload") as HTMLInputElement;
-    const file = new File(["pdf content"], "test.pdf", { type: "application/pdf" });
-    Object.defineProperty(input, "files", { value: [file], writable: false });
-    fireEvent.change(input);
-    await waitFor(() => {
-      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("server error");
-    });
   });
 });

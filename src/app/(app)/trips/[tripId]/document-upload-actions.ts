@@ -16,28 +16,6 @@ import {
 } from "@/lib/upload-policy";
 import { LiveSyncEventType } from "@/data/types";
 
-export async function uploadDocument(tripId: string, formData: FormData): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const file = formData.get("file");
-  if (!(file instanceof File)) throw new Error("No file provided");
-
-  assertValidDocumentUpload(file);
-  await assertUploadContentMatchesType(file);
-
-  const name = file.name;
-  const kind = inferDocKind(file.type);
-  const size = formatFileSize(file.size);
-  const storageName = createUploadStorageName("trip-document", tripId, file.type);
-  const url = await getStorageAdapter().put(storageName, file);
-
-  await db.insert(documents).values({ tripId, name, kind, size, url });
-  recordTripUpdated(user.id!, tripId);
-  publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
-  revalidatePath(`/trips/${tripId}`);
-}
-
 export async function uploadDocumentToEvent(eventId: string, formData: FormData): Promise<void> {
   const user = await requireUser();
 
