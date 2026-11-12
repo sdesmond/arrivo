@@ -1354,3 +1354,65 @@ Feature: Absolute checklist checked-state API
       | malformed-id     |
       | unknown-key      |
       | bad-confirmation |
+
+  Scenario: Editor uploads a trip document through the API and it persists
+    Given my checklist API role is "editor"
+    When I upload "boarding.pdf" as a PDF through the document API
+    Then the document API returns 200
+    And the uploaded document is a PDF trip document named "boarding.pdf"
+    And the trip holds 1 uploaded file
+    And after reload the Documents tab lists "boarding.pdf"
+
+  Scenario: A same-id retry of the same file returns the stored document and keeps one file
+    Given my checklist API role is "editor"
+    When I upload "retry.pdf" as a PDF with the scenario document id through the document API
+    And I upload "retry.pdf" as a PDF with the scenario document id through the document API
+    Then both document API uploads return the same stored document
+    And the trip stores 1 trip document
+    And the trip holds 1 uploaded file
+
+  Scenario: Reusing a document id for a different file conflicts and stores nothing more
+    Given my checklist API role is "editor"
+    When I upload "first.pdf" as a PDF with the scenario document id through the document API
+    And I upload "second.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 409 with code "conflict"
+    And the trip stores 1 trip document
+    And the trip holds 1 uploaded file
+
+  Scenario: A document id held by a trip the user cannot see is never returned
+    Given my checklist API role is "editor"
+    And a document with the scenario document id exists in a trip I cannot see
+    When I upload "probe.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 404 with code "not_found"
+    And the response does not reveal the hidden document
+    And the trip holds 0 uploaded files
+
+  Scenario Outline: Denied document uploads store nothing
+    Given my checklist API role is "<role>"
+    When I upload "denied.pdf" as a PDF through the document API
+    Then the document API returns <status> with code "<code>"
+    And the trip stores 0 trip documents
+    And the trip holds 0 uploaded files
+    Examples:
+      | role     | status | code      |
+      | viewer   | 403    | forbidden |
+      | stranger | 404    | not_found |
+
+  Scenario Outline: Bad document uploads never store anything
+    Given my checklist API role is "editor"
+    When I submit document upload case "<case>"
+    Then the document API returns <status> with code "<code>"
+    And the trip stores 0 trip documents
+    And the trip holds 0 uploaded files
+    Examples:
+      | case             | status | code               |
+      | oversize-file    | 413    | payload_too_large  |
+      | oversize-body    | 413    | payload_too_large  |
+      | disallowed-type  | 422    | validation_failed  |
+      | mismatched-type  | 422    | validation_failed  |
+      | missing-file     | 422    | validation_failed  |
+      | bad-id           | 422    | validation_failed  |
+      | unknown-field    | 422    | validation_failed  |
+      | keyed            | 400    | bad_request        |
+      | no-client-header | 403    | forbidden          |
+      | cross-origin     | 403    | forbidden          |

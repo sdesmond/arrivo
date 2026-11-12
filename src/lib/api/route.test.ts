@@ -11,7 +11,9 @@ vi.mock("@/lib/rate-limit", async (original) => ({
   assertWithinRateLimit,
 }));
 import { apiRoute } from "./route";
-import { defineEndpoint } from "./endpoint";
+import { defineEndpoint, MULTIPART_OVERHEAD_BYTES } from "./endpoint";
+import nextConfig from "../../../next.config";
+import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 import { ApiError } from "./errors";
 import { RateLimitError } from "@/lib/rate-limit";
 const endpoint = defineEndpoint<{ done: boolean }>()({
@@ -167,4 +169,153 @@ it("rejects an unsupported key before body or param validation", async () => {
     expect((await response.json()).error.code).toBe("bad_request");
   }
   expect(handler).not.toHaveBeenCalled();
+});
+
+const uploadEndpoint = defineEndpoint<{ stored: boolean }>()({
+  method: "POST",
+  path: "/api/v1/items/:id/files",
+  params: z.object({ id: z.uuid() }),
+  body: z.strictObject({ id: z.uuid().optional() }),
+  multipart: { maxFileBytes: 1024 },
+});
+const uploadHandler = vi.fn<(input: unknown) => Promise<{ stored: boolean }>>(async () => ({ stored: true }));
+const uploadRoute = apiRoute(uploadEndpoint, uploadHandler);
+const fileId = "123e4567-e89b-12d3-a456-426614174001";
+function multipartRequest(
+  build: (form: FormData) => void = (form) => form.append("file", new File(["%PDF-1.4"], "a.pdf")),
+  headers: Record<string, string> = {}
+) {
+  const form = new FormData();
+  build(form);
+  return new Request("http://arrivo.test/api/v1/items/item/files", {
+    method: "POST",
+    headers: { "x-arrivo-client": "web", "sec-fetch-site": "same-origin", ...headers },
+    body: form,
+  });
+}
+it("parses one file part and named fields for a multipart endpoint", async () => {
+  const response = await uploadRoute(
+    multipartRequest((form) => {
+      form.append("id", fileId);
+      form.append("file", new File(["%PDF-1.4"], "a.pdf", { type: "application/pdf" }));
+    }),
+    context
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ stored: true });
+  const input = uploadHandler.mock.calls[0][0] as { body: unknown; file: File };
+  expect(input.body).toEqual({ id: fileId });
+  expect(input.file.name).toBe("a.pdf");
+  expect(input.file.type).toBe("application/pdf");
+  expect(assertWithinRateLimit).toHaveBeenCalledWith("api", "user");
+});
+it("keeps CSRF, auth and the key rule ahead of the multipart body", async () => {
+  expect((await uploadRoute(multipartRequest(undefined, { "sec-fetch-site": "same-site" }), context)).status).toBe(403);
+  expect((await uploadRoute(multipartRequest(undefined, { "x-arrivo-client": "" }), context)).status).toBe(403);
+  requireApiUser.mockRejectedValueOnce(new ApiError(401, "unauthenticated", "Sign in."));
+  expect((await uploadRoute(multipartRequest(), context)).status).toBe(401);
+  const keyed = await uploadRoute(multipartRequest(undefined, { "idempotency-key": "k" }), context);
+  expect(keyed.status).toBe(400);
+  expect(uploadHandler).not.toHaveBeenCalled();
+});
+it("answers 413 from Content-Length before reading the body", async () => {
+  const response = await uploadRoute(
+    multipartRequest(undefined, { "content-length": String(1024 + MULTIPART_OVERHEAD_BYTES + 1) }),
+    context
+  );
+  expect(response.status).toBe(413);
+  expect((await response.json()).error.code).toBe("payload_too_large");
+  expect(uploadHandler).not.toHaveBeenCalled();
+});
+it("passes a body whose Content-Length is within the limit to the handler", async () => {
+  const response = await uploadRoute(multipartRequest(undefined, { "content-length": "100" }), context);
+  expect(response.status).toBe(200);
+});
+it("rejects a body that is not valid multipart with 400", async () => {
+  const request = new Request("http://arrivo.test/api/v1/items/item/files", {
+    method: "POST",
+    headers: {
+      "x-arrivo-client": "web",
+      "sec-fetch-site": "same-origin",
+      "content-type": "multipart/form-data; boundary=x",
+    },
+    body: "not multipart",
+  });
+  const response = await uploadRoute(request, context);
+  expect(response.status).toBe(400);
+  expect((await response.json()).error.code).toBe("bad_request");
+});
+it.each([
+  [
+    "a second file part",
+    (form: FormData) => {
+      form.append("file", new File(["a"], "a"));
+      form.append("file", new File(["b"], "b"));
+    },
+  ],
+  [
+    "a file under another name",
+    (form: FormData) => {
+      form.append("other", new File(["a"], "a"));
+    },
+  ],
+  [
+    "a repeated field",
+    (form: FormData) => {
+      form.append("file", new File(["a"], "a"));
+      form.append("id", fileId);
+      form.append("id", fileId);
+    },
+  ],
+  [
+    "text in the file field",
+    (form: FormData) => {
+      form.append("file", "text");
+    },
+  ],
+])("rejects %s with 400", async (_label, build) => {
+  const response = await uploadRoute(multipartRequest(build), context);
+  expect(response.status).toBe(400);
+  expect(uploadHandler).not.toHaveBeenCalled();
+});
+it("returns 422 for a missing file, an unknown field or a bad field value", async () => {
+  const missing = await uploadRoute(
+    multipartRequest((form) => form.append("id", fileId)),
+    context
+  );
+  expect(missing.status).toBe(422);
+  expect((await missing.json()).error.fields.file).toBeDefined();
+  const unknown = await uploadRoute(
+    multipartRequest((form) => {
+      form.append("file", new File(["a"], "a"));
+      form.append("extra", "1");
+    }),
+    context
+  );
+  expect(unknown.status).toBe(422);
+  const badId = await uploadRoute(
+    multipartRequest((form) => {
+      form.append("file", new File(["a"], "a"));
+      form.append("id", "nope");
+    }),
+    context
+  );
+  expect(badId.status).toBe(422);
+  expect((await uploadRoute(multipartRequest(), { params: Promise.resolve({ id: "bad" }) })).status).toBe(422);
+  expect(uploadHandler).not.toHaveBeenCalled();
+});
+it("rejects a JSON body sent to a multipart endpoint", async () => {
+  const response = await uploadRoute(request("{}"), context);
+  expect(response.status).toBe(400);
+  expect(uploadHandler).not.toHaveBeenCalled();
+});
+it("does not accept a multipart body on a JSON endpoint", async () => {
+  const response = await route(multipartRequest(), context);
+  expect(response.status).toBe(400);
+  expect(handler).not.toHaveBeenCalled();
+});
+it("raises the proxy body buffer above the 25 MB document limit plus form overhead", () => {
+  const raw = nextConfig.experimental?.proxyClientMaxBodySize;
+  const bytes = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10) * 1024 * 1024;
+  expect(bytes).toBeGreaterThanOrEqual(MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES);
 });

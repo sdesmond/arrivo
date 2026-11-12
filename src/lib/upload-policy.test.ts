@@ -18,6 +18,8 @@ import {
   parseUploadStorageName,
   UPLOAD_SCOPE_PREFIX_REVERSE,
   UPLOAD_SCOPE_PREFIXES,
+  UploadInvalidError,
+  UploadTooLargeError,
 } from "./upload-policy";
 
 describe("upload-policy", () => {
@@ -47,6 +49,27 @@ describe("upload-policy", () => {
     Object.defineProperty(file, "size", { value: 25 * 1024 * 1024 + 1 });
 
     expect(() => assertValidDocumentUpload(file)).toThrow("File is too large. Max 25.0 MB.");
+  });
+
+  it("throws typed errors for document and cover policy failures", () => {
+    const wrongType = new File(["x"], "doc.docx", { type: "application/msword" });
+    expect(() => assertValidDocumentUpload(wrongType)).toThrow(UploadInvalidError);
+    const oversizeDocument = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(oversizeDocument, "size", { value: 25 * 1024 * 1024 + 1 });
+    expect(() => assertValidDocumentUpload(oversizeDocument)).toThrow(UploadTooLargeError);
+    expect(() => assertValidCoverUpload(new File(["x"], "cover.svg", { type: "image/svg+xml" }))).toThrow(
+      UploadInvalidError
+    );
+    const oversizeCover = new File(["x"], "cover.png", { type: "image/png" });
+    Object.defineProperty(oversizeCover, "size", { value: 12 * 1024 * 1024 + 1 });
+    expect(() => assertValidCoverUpload(oversizeCover)).toThrow(UploadTooLargeError);
+  });
+
+  it("throws a typed error when the contents do not match the claimed type", async () => {
+    const html = new File(["<html></html>"], "fake.pdf", { type: "application/pdf" });
+    await expect(assertUploadContentMatchesType(html)).rejects.toBeInstanceOf(UploadInvalidError);
+    const unknown = new File(["x"], "a.bin", { type: "application/x-unknown" });
+    await expect(assertUploadContentMatchesType(unknown)).rejects.toBeInstanceOf(UploadInvalidError);
   });
 
   it("accepts supported cover upload MIME types", () => {

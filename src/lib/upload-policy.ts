@@ -51,6 +51,22 @@ const DOCUMENT_UPLOAD_TYPE_ERROR = "Unsupported file type. Choose PDF, JPG, PNG,
 const AVATAR_UPLOAD_TYPE_ERROR = "Unsupported photo type. Choose JPG, PNG, or WEBP.";
 const COVER_UPLOAD_TYPE_ERROR = "Unsupported cover image type. Choose JPG, PNG, WEBP, HEIC, GIF, or AVIF.";
 
+/** A file over its size limit; the API maps it to 413 `payload_too_large`. */
+export class UploadTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadTooLargeError";
+  }
+}
+
+/** A file of a disallowed type, or whose bytes do not match its type; the API maps it to 422. */
+export class UploadInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadInvalidError";
+  }
+}
+
 export class MalformedKeyError extends Error {
   constructor(key: string) {
     super(`Malformed upload storage name: ${key}`);
@@ -111,11 +127,11 @@ export function parseUploadStorageName(key: string): ParsedUploadStorageName {
 
 export function assertValidDocumentUpload(file: File): void {
   if (!DOCUMENT_UPLOAD_MIME_TYPE_SET.has(file.type)) {
-    throw new Error(DOCUMENT_UPLOAD_TYPE_ERROR);
+    throw new UploadInvalidError(DOCUMENT_UPLOAD_TYPE_ERROR);
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error(`File is too large. Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+    throw new UploadTooLargeError(`File is too large. Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
   }
 }
 
@@ -164,9 +180,9 @@ const CONTENT_SIGNATURE_CHECKS: Record<string, (bytes: Uint8Array) => boolean> =
 
 export async function assertUploadContentMatchesType(file: File): Promise<void> {
   const matches = CONTENT_SIGNATURE_CHECKS[file.type];
-  if (!matches) throw new Error(CONTENT_MISMATCH_ERROR);
+  if (!matches) throw new UploadInvalidError(CONTENT_MISMATCH_ERROR);
   const head = new Uint8Array(await file.slice(0, SIGNATURE_READ_BYTES).arrayBuffer());
-  if (!matches(head)) throw new Error(CONTENT_MISMATCH_ERROR);
+  if (!matches(head)) throw new UploadInvalidError(CONTENT_MISMATCH_ERROR);
 }
 
 export function assertValidAvatarUpload(file: File): void {
@@ -181,11 +197,11 @@ export function assertValidAvatarUpload(file: File): void {
 
 export function assertValidCoverUpload(file: File): void {
   if (!COVER_UPLOAD_MIME_TYPE_SET.has(file.type)) {
-    throw new Error(COVER_UPLOAD_TYPE_ERROR);
+    throw new UploadInvalidError(COVER_UPLOAD_TYPE_ERROR);
   }
 
   if (file.size > MAX_COVER_IMAGE_UPLOAD_BYTES) {
-    throw new Error("Cover image exceeds 12 MB limit.");
+    throw new UploadTooLargeError("Cover image exceeds 12 MB limit.");
   }
 }
 

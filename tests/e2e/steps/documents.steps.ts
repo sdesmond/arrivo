@@ -1,7 +1,8 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { documents } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { E2E_DOCUMENT } from "../e2e-seed-data";
+import { waitForApiResponse } from "../api-response";
 import { Given, When, Then } from "../fixtures";
 
 // Uploads are checked against the file's first bytes, so each fixture carries the real signature of its type.
@@ -43,13 +44,39 @@ Given("the Documents tab has one seeded document", async ({ page, scenario }) =>
   await expect(page.getByText(E2E_DOCUMENT.name)).toBeVisible();
 });
 
-When("I upload a file named {string} with MIME type {string}", async ({ page }, filename: string, mimeType: string) => {
-  const fileInput = page.locator('input[type="file"]');
-  await fileInput.setInputFiles({
-    name: filename,
-    mimeType,
-    buffer: bufferFor(mimeType),
-  });
+const SUPPORTED_UPLOAD_TYPES = new Set(["application/pdf", "image/png", "image/jpeg"]);
+
+// A supported type posts to the API, so the step waits for that response before returning: a later reload would
+// otherwise race the commit. An unsupported type is refused in the browser and sends no request.
+async function uploadFile(
+  page: Page,
+  tripId: string,
+  { name, mimeType, buffer }: { name: string; mimeType: string; buffer: Buffer }
+) {
+  const posted = SUPPORTED_UPLOAD_TYPES.has(mimeType)
+    ? waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${tripId}/documents`, timeoutMs: 30_000 })
+    : undefined;
+  await page.locator('input[type="file"]').setInputFiles({ name, mimeType, buffer });
+  await posted;
+}
+
+When(
+  "I upload a file named {string} with MIME type {string}",
+  async ({ page, scenario }, filename: string, mimeType: string) => {
+    await uploadFile(page, scenario.currentTrip!.id, { name: filename, mimeType, buffer: bufferFor(mimeType) });
+  }
+);
+
+When("I upload a {int} MB PDF named {string}", async ({ page, scenario }, megabytes: number, filename: string) => {
+  const header = FILE_SIGNATURES["application/pdf"];
+  const buffer = Buffer.concat([header, Buffer.alloc(megabytes * 1024 * 1024 - header.length, 0x20)]);
+  await uploadFile(page, scenario.currentTrip!.id, { name: filename, mimeType: "application/pdf", buffer });
+});
+
+Then("the document {string} is listed after reloading", async ({ page }, filename: string) => {
+  await page.reload();
+  await page.getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByText(filename)).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the document {string} appears in the Documents list", async ({ page }, filename: string) => {

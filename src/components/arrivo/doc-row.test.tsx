@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  uploadDocument: vi.fn().mockResolvedValue(undefined),
   removeDocument: vi.fn().mockResolvedValue(undefined),
   renameDocument: vi.fn().mockResolvedValue(undefined),
 }));

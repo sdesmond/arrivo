@@ -1,6 +1,17 @@
 import { expect, it } from "vitest";
 import { z } from "zod";
-import { defineEndpoint } from "./endpoint";
+import { defineEndpoint, MULTIPART_OVERHEAD_BYTES } from "./endpoint";
+it("declares a multipart endpoint with its file limit", () => {
+  const endpoint = defineEndpoint<string>()({
+    method: "POST",
+    path: "/api/v1/files",
+    params: z.object({}),
+    body: z.object({}),
+    multipart: { maxFileBytes: 1024 },
+  });
+  expect(endpoint.multipart).toEqual({ maxFileBytes: 1024 });
+  expect(MULTIPART_OVERHEAD_BYTES).toBeGreaterThan(0);
+});
 it("declares an empty success response independently of its serializable result", () => {
   const endpoint = defineEndpoint<null>()({
     method: "DELETE",

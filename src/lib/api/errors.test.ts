@@ -5,13 +5,21 @@ import { ConflictError } from "@/lib/services/conflict-error";
 import { ConfirmationRequiredError } from "@/lib/services/confirmation-required-error";
 import { ValidationFailedError } from "@/lib/services/validation-failed-error";
 import { RateLimitError } from "@/lib/rate-limit";
+import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
 import { z } from "zod";
+it("reports an invalid upload against the file field", async () => {
+  const body = await errorResponse(new UploadInvalidError("File contents mismatch.")).json();
+  expect(body.error.fields).toEqual({ file: ["File contents mismatch."] });
+  expect(body.error.message).toBe("File contents mismatch.");
+});
 it.each([
   [new TripNotFoundError(), 404, "not_found"],
   [new TripForbiddenError("editor"), 403, "forbidden"],
   [new ConflictError("Reused ID."), 409, "conflict"],
   [new ConfirmationRequiredError("Confirm first."), 409, "confirmation_required"],
   [new ValidationFailedError("Max trip length is 45 days."), 422, "validation_failed"],
+  [new UploadTooLargeError("File is too large. Max 25.0 MB."), 413, "payload_too_large"],
+  [new UploadInvalidError("Unsupported file type."), 422, "validation_failed"],
   [new RateLimitError(12), 429, "rate_limited"],
   [new ApiError(401, "unauthenticated", "Sign in."), 401, "unauthenticated"],
   [new ApiError(403, "mfa_enrollment_required", "Enroll MFA."), 403, "mfa_enrollment_required"],

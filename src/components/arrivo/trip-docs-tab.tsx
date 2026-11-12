@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
-import { uploadDocument } from "@/app/(app)/trips/[tripId]/actions";
-import { cn } from "@/lib/utils";
+import { uploadTripDocument } from "@/lib/api/contract/documents";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { cn, createRandomId } from "@/lib/utils";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
 import { buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -18,7 +19,10 @@ export interface TripDocsTabProps {
 
 export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isPending, startTransition] = useTransition();
+  const { mutate, isPending } = useApiMutation(uploadTripDocument);
+  // One client document id per file: a retry after a lost response or a failure sends the same id, so the server
+  // returns the stored row instead of storing the file twice. It resets once the upload succeeds.
+  const attempt = useRef<{ signature: string; id: string }>(undefined);
   const [query, setQuery] = useState("");
 
   const visible = query.trim() ? docs.filter((doc) => doc.name.toLowerCase().includes(query.toLowerCase())) : docs;
@@ -33,15 +37,16 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    const formData = new FormData();
-    formData.append("file", file);
-    startTransition(async () => {
-      try {
-        await uploadDocument(tripId, formData);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Upload failed. Please try again.");
+    const signature = `${file.name}:${file.size}:${file.lastModified}`;
+    if (attempt.current?.signature !== signature) attempt.current = { signature, id: createRandomId() };
+    void mutate(
+      { params: { tripId }, body: { id: attempt.current.id }, file },
+      {
+        onSuccess: () => {
+          attempt.current = undefined;
+        },
       }
-    });
+    );
     if (inputRef.current) inputRef.current.value = "";
   }
 

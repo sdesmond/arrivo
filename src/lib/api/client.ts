@@ -18,27 +18,43 @@ export class ApiClientError extends Error {
  * frees a keyed write queue that a hung request would otherwise stall.
  */
 export const REQUEST_TIMEOUT_MS = 30_000;
+/** A multipart upload sends up to 25 MB, so it gets longer than a JSON write unless the caller sets its own. */
+export const UPLOAD_TIMEOUT_MS = 120_000;
 function timeoutError(): ApiClientError {
   return new ApiClientError(0, "timeout", "The request timed out. Try again.");
 }
 export async function api<Result, Params extends z.ZodType, Body extends z.ZodType>(
   endpoint: Endpoint<Result, Params, Body>,
-  input: { params: z.input<Params>; body: z.input<Body> }
+  input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number }
 ): Promise<Result> {
   const params = input.params as Record<string, string>;
   const path = endpoint.path.replace(/:([A-Za-z][A-Za-z0-9]*)/g, (_match, key: string) =>
     encodeURIComponent(params[key])
   );
+  let headers: Record<string, string> = { "Content-Type": "application/json", "X-Arrivo-Client": "web" };
+  let body: string | FormData = JSON.stringify(input.body);
+  if (endpoint.multipart) {
+    if (!input.file) throw new Error("A multipart request needs a file.");
+    const form = new FormData();
+    for (const [name, value] of Object.entries(input.body as Record<string, unknown>)) {
+      if (value !== undefined) form.append(name, String(value));
+    }
+    form.append("file", input.file);
+    // The browser sets the multipart content type with its boundary.
+    headers = { "X-Arrivo-Client": "web" };
+    body = form;
+  }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutMs = input.timeoutMs ?? (endpoint.multipart ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let response: Response;
     try {
       response = await fetch(path, {
         method: endpoint.method,
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-Arrivo-Client": "web" },
-        body: JSON.stringify(input.body),
+        headers,
+        body,
         signal: controller.signal,
       });
     } catch {
