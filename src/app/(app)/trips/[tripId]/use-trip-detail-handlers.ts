@@ -139,7 +139,11 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     const body = eventPatchBody(updated);
     if (Object.keys(body).length === 0) return;
     // Edits to one event share a queue key so they reach the server in the order they were made.
-    void eventMutation.mutate({ params: { eventId: updated.id }, body }, { key: `event:${updated.id}` });
+    // A failed or timed-out write leaves the row showing the unsaved draft, so re-sync to the stored event.
+    void eventMutation.mutate(
+      { params: { eventId: updated.id }, body },
+      { key: `event:${updated.id}`, onError: () => router.refresh() }
+    );
   }
 
   function handleEventDelete(id: string): void {
