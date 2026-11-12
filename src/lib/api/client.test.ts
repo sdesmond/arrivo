@@ -187,7 +187,12 @@ it("leaves no timer running after a fast response or failure", async () => {
   expect(vi.getTimerCount()).toBe(0);
 });
 
-it("rethrows a malformed success body that is not a timeout", async () => {
+it("maps a malformed success body that is not a timeout to a server error", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not json", { status: 200 })));
-  await expect(api(updateChecklistItem, patchInput)).rejects.toBeInstanceOf(SyntaxError);
+  await expect(api(updateChecklistItem, patchInput)).rejects.toMatchObject({
+    name: "ApiClientError",
+    status: 200,
+    code: "server_error",
+    message: "Could not save changes. Try again.",
+  });
 });

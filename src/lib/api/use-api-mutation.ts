@@ -67,20 +67,22 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
     input: { params: z.input<Params>; body: z.input<Body> },
     options: MutationOptions<Result> = {}
   ): Promise<void> {
-    if (!mounted.current) return Promise.resolve();
+    // A write the user made still goes out after the component unmounts (navigation, tab switch): only the UI
+    // follow-up is skipped, so a queued edit or drag is not silently dropped.
     if (authLost.current) {
-      options.onAuthLost?.();
+      if (mounted.current) options.onAuthLost?.();
       return Promise.resolve();
     }
-    setPendingCount((count) => count + 1);
+    const counted = mounted.current;
+    if (counted) setPendingCount((count) => count + 1);
     async function run(): Promise<void> {
       try {
-        if (!mounted.current || authLost.current) {
+        if (authLost.current) {
           if (mounted.current) options.onAuthLost?.();
           return;
         }
         const fieldsKey = options.key ?? UNKEYED;
-        setFields((current) => omitKey(current, fieldsKey));
+        if (mounted.current) setFields((current) => omitKey(current, fieldsKey));
         const result = await api(endpoint, input);
         if (!mounted.current || authLost.current) return;
         // The write has committed, so nothing below may surface as a failed save.
@@ -115,10 +117,12 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
           reportAfterCommit(afterCommitError);
         }
       } catch (error) {
-        if (!mounted.current || authLost.current) return;
+        if (authLost.current) return;
         if (error instanceof ApiClientError) {
           const errorFields = error.fields;
-          if (errorFields) setFields((current) => ({ ...current, [options.key ?? UNKEYED]: errorFields }));
+          if (errorFields && mounted.current) {
+            setFields((current) => ({ ...current, [options.key ?? UNKEYED]: errorFields }));
+          }
           if (error.code === "unauthenticated" || error.code === "mfa_enrollment_required") {
             authLost.current = true;
             for (const resolve of refreshWaiters.current) resolve();
@@ -126,17 +130,18 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
             options.onAuthLost?.();
             router.push(error.code === "unauthenticated" ? "/sign-in" : "/mfa-enrollment");
           } else {
-            if (!options.expectedCodes?.includes(error.code)) toast.error(error.message);
-            options.onError?.(error);
+            // An unmounted caller cannot handle its expected code, so the toast is the only report left.
+            if (!mounted.current || !options.expectedCodes?.includes(error.code)) toast.error(error.message);
+            if (mounted.current) options.onError?.(error);
           }
         } else {
           toast.error("Could not save changes. Try again.");
-          options.onError?.(error);
+          if (mounted.current) options.onError?.(error);
         }
       } finally {
         if (mounted.current) {
           options.onSettled?.();
-          setPendingCount((count) => count - 1);
+          if (counted) setPendingCount((count) => count - 1);
         }
       }
     }

@@ -198,27 +198,72 @@ it("holds the same-resource queue until a delayed refresh commits", async () => 
   router.refresh.mockReset();
 });
 
-it("skips queued writes and callbacks after unmount", async () => {
-  let releaseRequest!: (value: unknown) => void;
+it("still sends a queued write after unmount but skips callbacks and refresh", async () => {
+  const releases: Array<(value: unknown) => void> = [];
   api.mockImplementation(
     () =>
       new Promise((resolve) => {
-        releaseRequest = resolve;
+        releases.push(resolve);
       })
   );
+  const onSuccess = vi.fn();
   const onSettled = vi.fn();
   const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
   let pending!: Promise<void>;
   act(() => {
-    void result.current.mutate(input, { key: "item", onSettled });
-    pending = result.current.mutate(input, { key: "item", onSettled });
+    void result.current.mutate(input, { key: "item", onSuccess, onSettled });
+    pending = result.current.mutate(input, { key: "item", onSuccess, onSettled });
   });
   unmount();
-  releaseRequest({ id: "item" });
+  releases[0]({ id: "item" });
+  await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+  releases[1]({ id: "item" });
   await pending;
-  expect(api).toHaveBeenCalledOnce();
+  expect(onSuccess).not.toHaveBeenCalled();
   expect(onSettled).not.toHaveBeenCalled();
   expect(router.refresh).not.toHaveBeenCalled();
+});
+
+it("sends a write started after unmount", async () => {
+  api.mockResolvedValue({ id: "item" });
+  const onSuccess = vi.fn();
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  unmount();
+  await result.current.mutate(input, { key: "item", onSuccess });
+  expect(api).toHaveBeenCalledOnce();
+  expect(onSuccess).not.toHaveBeenCalled();
+  expect(router.refresh).not.toHaveBeenCalled();
+});
+
+it("toasts a failed write after unmount instead of failing silently, without running onError", async () => {
+  api.mockRejectedValue(new ApiClientError(422, "validation_failed", "Invalid"));
+  const onError = vi.fn();
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  unmount();
+  await result.current.mutate(input, { onError, expectedCodes: ["validation_failed"] });
+  expect(error).toHaveBeenCalledWith("Invalid");
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it("toasts an unexpected failure after unmount", async () => {
+  api.mockRejectedValue(new Error("boom"));
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  unmount();
+  await result.current.mutate(input);
+  expect(error).toHaveBeenCalledWith("Could not save changes. Try again.");
+});
+
+it("does not call onAuthLost after unmount once auth is lost", async () => {
+  api.mockRejectedValue(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const onAuthLost = vi.fn();
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input);
+  });
+  unmount();
+  await result.current.mutate(input, { onAuthLost });
+  expect(onAuthLost).not.toHaveBeenCalled();
+  expect(api).toHaveBeenCalledOnce();
 });
 
 it("continues through a middle failure so the final absolute write wins", async () => {
