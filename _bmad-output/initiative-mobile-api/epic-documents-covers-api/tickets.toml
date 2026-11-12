@@ -1,0 +1,134 @@
+# Epic 3: documents and covers through the API (source phase 2). Single lane for entries 1-7 and 9-10: each edits
+# tests/e2e/feature-map.mjs, api.feature/api.steps.ts and the trip-detail action files, so each waits on the one before it.
+# Entry 8 edits only src/lib/file-cleanup.ts, but shares the E2E database, port and build cache, so it runs in sequence before entry 3.
+# Entries are planned; build plans own execution status. No estimates or calendar dates assigned.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Upload one trip document through the API"
+description = "Tracer: teach defineEndpoint, apiRoute and api() multipart bodies (one file part, named fields, per-request timeout), make upload-policy throw typed errors mapped to 413 payload_too_large and 422 for both the document and cover policies, raise the proxy body buffer for 25 MB, and ship a document service and POST /api/v1/trips/:tripId/documents (client document id kept across a user retry of the same file, stored file removed when the insert fails, afterTripWrite), switching trip-docs-tab, retiring uploadDocument and its wrapper, and recording the multipart contract and form-id replay in adr-api-contracts.md and the client-UUID ADR; entries 2-4 build on this document service and entries 2 and 6 on its multipart handling."
+verify = "Route tests prove 413 over 25 MB, 422 for a disallowed or mismatched type, no row on storage failure and file removed on insert failure (both through getStorageAdapter), same-id replay, and a same-id upload from a user without access never returning the row; against the production server a 20 MB PDF uploads and shows after reload, documents.feature upload and bad-type scenarios use API waits, and api.feature proves viewer 403, stranger 404 and 403 for multipart without X-Arrivo-Client."
+covers = ["D1","D2","D3","D8","D10"]
+after = ["1.10","2.10"]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Upload event and reservation documents through the API"
+description = "Ship POST /api/v1/events/:eventId/documents and /api/v1/reservations/:reservationId/documents on entry 1's multipart handling and document service (client document id replay, linked-* event ids refused, reservation uploads gain live sync), switch the add-doc-dialog upload panel and add-reservation-doc-dialog upload, and retire uploadDocumentToEvent, uploadReservationDocument and the uploadDocumentToEvent wrapper."
+verify = "Route tests prove stranger 404 for an event or reservation in another trip, viewer 403, same-id replay and the entry 1 policy errors; event-docs and reservations scenarios upload a document that persists after reload, and an api.feature case covers each route."
+covers = ["D2","D3","D8","D10"]
+after = [1]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Keep file cleanup progressing past failing files"
+description = "Change the pending_file_deletions drain so rows that keep failing no longer block newer rows (for example by moving a failed row to the back of the queue), without a migration, before entries 3, 5 and 6 route document and cover removal through it, keeping deletion after commit and rollback behavior unchanged."
+verify = "file-cleanup.test.ts proves that with more than 200 permanently failing rows a later drain still removes newer queued files, and that rows queued in a rolled-back transaction are never drained."
+covers = ["D9"]
+after = [2]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Rename and remove documents through the API"
+description = "On entry 1's document service, ship PATCH /api/v1/documents/:documentId for name (documentNameSchema in every scope, so reservation documents gain name validation) and idempotent DELETE /api/v1/documents/:documentId with file removal through the pending_file_deletions queue after commit (entry 8's fair drain), both opting in to Idempotency-Key; switch doc-row, event-doc-row and reservation-doc-row rename and remove with a per-document keyed mutation, and retire renameDocument, removeDocument, renameReservationDocument, removeReservationDocument and the dead addDocument. Entry 4 extends this PATCH."
+verify = "Service and route tests prove a blank or overlong reservation-document name is 422, delete queues the file and removes it only after commit, a rolled-back delete keeps the file, a repeat delete is 204 and reservation-document writes publish live sync; row tests prove a rapid rename A to B to A persists A; api.feature covers both routes; documents, event-docs and reservations scenarios rename and delete a document and see the result after reload."
+covers = ["D4","D5","D8","D10"]
+after = [8]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Attach and promote documents through the API"
+description = "Extend entry 3's PATCH /api/v1/documents/:documentId on entry 1's document service with absolute eventId and reservationId (a document has one scope, so setting one clears the other and the first change normalizes rows that carry both today, with no backfill; null promotes to trip scope, a target in another trip is 404, both set is 422, linked-* event ids refused), switch the add-doc-dialog and add-reservation-doc-dialog pick lists and the event-doc-row and reservation-doc-row promote actions, and retire attachTripDocToEvent, promoteEventDocToTrip, attachTripDocToReservation and promoteReservationDocToTrip."
+verify = "Service and route tests prove attach, promote, a repeated attach as a no-op, attaching a reservation document to an event clears its reservation, cross-trip 404, both-ids 422 and live sync on reservation-document attach and promote; api.feature covers the attach and promote cases; event-docs and reservations scenarios attach a trip document and promote it back, and after reload it has left and then returned to the Documents tab."
+covers = ["D4","D8","D10"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Select and remove a cover through the API"
+description = "Ship a cover service with PUT /api/v1/trips/:tripId/cover (Unsplash URL and photographer attribution validated) and DELETE /api/v1/trips/:tripId/cover (graphic cover under the trip lock), reading the previous cover, updating it and queuing a previously stored cover (a URL in the trip-cover upload scope, Mapbox tiles included; Unsplash and graphic covers untouched) through entry 8's fair drain in one locked transaction, both through afterTripWrite and opting in to Idempotency-Key, switch trip-detail-hero, and retire setTripCoverWithAttribution and removeTripCover; entry 6 adds the upload to this service."
+verify = "Route tests prove 422 for an invalid image or photographer URL, a replaced uploaded cover file removed only after commit, viewer 403, stranger 404 and an idempotent repeat, with api.feature cases for both routes; trip-cover-overflow scenarios select an Unsplash cover with attribution and remove it, each persisting after reload, and viewer-trip-access still shows no cover controls."
+covers = ["D6","D8","D10"]
+after = [4]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Upload a cover through the API"
+description = "Add POST /api/v1/trips/:tripId/cover/image to entry 5's cover service (reusing its after-commit removal of the replaced stored cover) on entry 1's multipart handling (12 MB cover policy, attribution cleared, the replaced stored cover queued for removal after commit, the new file removed when the update fails; no Idempotency-Key per the epic decision, so a retry replaces the cover again), switch cover-image-picker-upload, and retire uploadCoverImage and its wrapper."
+verify = "Route tests prove 413 over 12 MB, a GIF accepted, an unsupported type 422, the previous file removed only after commit and the new file removed on failure, with api.feature cases for 413 and 422; trip-cover-overflow scenarios upload a custom cover that persists after reload and reject an unsupported type."
+covers = ["D2","D6","D8","D10"]
+after = [5]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Search cover images and destinations through GET endpoints"
+description = "Add GET with a validated query to defineEndpoint, apiRoute and api(), apply the X-Arrivo-Client and same-origin check to API reads, move Unsplash search and destination lookup into one service that createTrip also calls, ship GET /api/v1/cover-images and GET /api/v1/cover-images/destination with the per-user limits as 429, switch cover-image-picker-search-tab, retire cover-image-search-actions.ts, and extend adr-api-cookie-csrf.md to API reads."
+verify = "Route tests prove 401 signed out, 422 for a bad query or page, 429 with Retry-After past each per-user limit, and 403 for a cross-origin GET without X-Arrivo-Client; trip-cover-overflow searches and selects a stubbed Unsplash image, and trips/actions.test.ts proves createTrip calls the new service with its rate-limit bucket and stub unchanged."
+covers = ["D1","D7","D10"]
+after = [6]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Refactor sweep"
+description = "Review completed epic plans and deferred findings, then remove only epic-created duplication or document and cover code left unused (getEventTripId and emptied action files included), without adding scope; include matching tests for every touched runtime file."
+verify = "Targeted tests confirm unchanged document, reservation-document and cover API behavior, and each cleanup traces to a completed plan or finding with no unrelated UI or domain change."
+covers = ["D8","D10"]
+after = [1,2,3,4,5,6,7,8]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Verify documents and covers end to end"
+description = "Close integrated gaps across the epic's routes (status, replay, access and cross-site matrix in api.feature), uploads near each size limit, document scope moves and cover replacement in the production build, recording the observed commands and results, then invoke build-validator after targeted checks pass."
+verify = "Epic Done when 1-4 pass against the production build on arrivo_e2e (pilot 1.10 plan procedure), a search finds no remaining caller of the 17 retired actions or their wrappers, and build-validator reports lint, types, coverage, build and affected E2E success with no migration, new environment variable or automatic full-suite run."
+covers = ["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"]
+after = [9]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
