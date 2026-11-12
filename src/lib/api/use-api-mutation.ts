@@ -64,7 +64,7 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
   }, []);
 
   function mutate(
-    input: { params: z.input<Params>; body: z.input<Body> },
+    input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number },
     options: MutationOptions<Result> = {}
   ): Promise<void> {
     // A write the user made still goes out after the component unmounts (navigation, tab switch): only the UI

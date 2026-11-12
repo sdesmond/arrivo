@@ -5,6 +5,7 @@ import { ConflictError } from "@/lib/services/conflict-error";
 import { ConfirmationRequiredError } from "@/lib/services/confirmation-required-error";
 import { ValidationFailedError } from "@/lib/services/validation-failed-error";
 import { RateLimitError } from "@/lib/rate-limit";
+import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -27,6 +28,9 @@ export function errorResponse(error: unknown): Response {
     failure = new ApiError(409, "confirmation_required", error.message);
   else if (error instanceof ValidationFailedError)
     failure = new ApiError(422, "validation_failed", error.message, error.fields);
+  else if (error instanceof UploadTooLargeError) failure = new ApiError(413, "payload_too_large", error.message);
+  else if (error instanceof UploadInvalidError)
+    failure = new ApiError(422, "validation_failed", error.message, { file: [error.message] });
   else if (error instanceof TripForbiddenError)
     failure = new ApiError(403, "forbidden", error.message, undefined, error.requiredRole);
   else if (error instanceof RateLimitError) {

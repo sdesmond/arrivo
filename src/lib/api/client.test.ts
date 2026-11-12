@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { api, ApiClientError, REQUEST_TIMEOUT_MS } from "./client";
+import { api, ApiClientError, REQUEST_TIMEOUT_MS, UPLOAD_TIMEOUT_MS } from "./client";
+import { uploadTripDocument } from "./contract/documents";
 import { deleteChecklist, updateChecklistItem } from "./contract/checklists";
 afterEach(() => {
   vi.useRealTimers();
@@ -195,4 +196,71 @@ it("maps a malformed success body that is not a timeout to a server error", asyn
     code: "server_error",
     message: "Could not save changes. Try again.",
   });
+});
+
+const uploadInput = (file: File, id?: string) => ({ params: { tripId }, body: id ? { id } : {}, file });
+const pdf = () => new File(["%PDF-1.4"], "pass.pdf", { type: "application/pdf" });
+
+it("sends a multipart body with the file and fields and no JSON content type", async () => {
+  const fetch = vi.fn().mockResolvedValue(Response.json({ id: "doc" }));
+  vi.stubGlobal("fetch", fetch);
+  await api(uploadTripDocument, uploadInput(pdf(), "123e4567-e89b-12d3-a456-426614174000"));
+  const [path, init] = fetch.mock.calls[0] as [string, RequestInit];
+  expect(path).toBe(`/api/v1/trips/${tripId}/documents`);
+  expect(init.method).toBe("POST");
+  expect(init.credentials).toBe("same-origin");
+  expect(init.headers).toEqual({ "X-Arrivo-Client": "web" });
+  const form = init.body as FormData;
+  expect(form.get("id")).toBe("123e4567-e89b-12d3-a456-426614174000");
+  expect((form.get("file") as File).name).toBe("pass.pdf");
+});
+
+it("omits unset fields from the multipart body", async () => {
+  const fetch = vi.fn().mockResolvedValue(Response.json({ id: "doc" }));
+  vi.stubGlobal("fetch", fetch);
+  await api(uploadTripDocument, { params: { tripId }, body: { id: undefined }, file: pdf() });
+  expect([...(fetch.mock.calls[0][1].body as FormData).keys()]).toEqual(["file"]);
+});
+
+it("refuses a multipart call without a file before any request", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  await expect(api(uploadTripDocument, { params: { tripId }, body: {} })).rejects.toThrow("file");
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("keeps the error envelope for a rejected upload", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ error: { code: "payload_too_large", message: "File is too large." } }, { status: 413 })
+      )
+  );
+  await expect(api(uploadTripDocument, uploadInput(pdf()))).rejects.toMatchObject({
+    status: 413,
+    code: "payload_too_large",
+  });
+});
+
+it("gives an upload the longer timeout and honours a per-request one", async () => {
+  vi.useFakeTimers();
+  const fetch = hangingFetch();
+  vi.stubGlobal("fetch", fetch);
+  const upload = expect(api(uploadTripDocument, uploadInput(pdf()))).rejects.toMatchObject(timeoutFailure);
+  await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
+  expect(fetch.mock.calls[0][1].signal?.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS - REQUEST_TIMEOUT_MS);
+  await upload;
+  const short = expect(api(uploadTripDocument, { ...uploadInput(pdf()), timeoutMs: 1000 })).rejects.toMatchObject(
+    timeoutFailure
+  );
+  await vi.advanceTimersByTimeAsync(1000);
+  await short;
+  const json = expect(api(updateChecklistItem, { ...patchInput, timeoutMs: 5000 })).rejects.toMatchObject(
+    timeoutFailure
+  );
+  await vi.advanceTimersByTimeAsync(5000);
+  await json;
 });

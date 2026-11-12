@@ -30,6 +30,15 @@ it("refreshes after success", async () => {
   expect(router.refresh).toHaveBeenCalledOnce();
   expect(error).not.toHaveBeenCalled();
 });
+it("passes a file and a per-request timeout through to the api call", async () => {
+  api.mockResolvedValue({ id: "doc" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  const file = new File(["x"], "a.pdf");
+  await act(async () => {
+    await result.current.mutate({ ...input, file, timeoutMs: 5000 });
+  });
+  expect(api).toHaveBeenCalledWith(updateChecklistItem, { ...input, file, timeoutMs: 5000 });
+});
 it.each([
   [401, "unauthenticated", "/sign-in"],
   [403, "mfa_enrollment_required", "/mfa-enrollment"],
