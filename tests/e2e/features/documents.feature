@@ -18,6 +18,7 @@ Feature: Document Upload
     Then the document "delete-me.pdf" appears in the Documents list
     When I delete the document "delete-me.pdf"
     Then the document "delete-me.pdf" is no longer visible
+    And after reload the document "delete-me.pdf" remains deleted
 
   Scenario: Upload a PDF to the Documents tab
     When I upload a file named "boarding-pass.pdf" with MIME type "application/pdf"
@@ -39,6 +40,7 @@ Feature: Document Upload
     When I rename the document "rename-me.pdf" to "My Boarding Pass"
     Then the document "My Boarding Pass" appears in the Documents list
     And the document "rename-me.pdf" is no longer visible
+    And the document "My Boarding Pass" is listed after reloading
 
   Scenario: View a document in the in-app viewer
     When I upload a file named "view-test.pdf" with MIME type "application/pdf"

@@ -1527,3 +1527,69 @@ Feature: Absolute checklist checked-state API
       | event       | scope  |
       | reservation | target |
       | reservation | scope  |
+
+  Scenario Outline: Rename and delete document mutations persist with replay and repeat deletion
+    Given a scenario-owned "<scope>" document ready for mutation
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 200
+    When the document name is changed behind the API to "Behind.pdf"
+    And I submit document mutation "PATCH" case "keyed"
+    Then the last two document mutation responses match
+    And the document mutation persisted name "Behind.pdf"
+    When I submit document mutation "DELETE" case "keyed"
+    Then the document API returns 204
+    When I submit document mutation "DELETE" case "keyed"
+    Then the last two document mutation responses match
+    When I submit document mutation "DELETE" case "normal"
+    Then the document API returns 204
+    And the document mutation removed its row and file
+    Examples:
+      | scope       |
+      | trip        |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Document mutations validate names and refuse out of scope fields
+    Given a scenario-owned "<scope>" document ready for mutation
+    When I submit document mutation "PATCH" case "<case>"
+    Then the document API returns 422 with code "validation_failed"
+    And the document mutation persisted name "original.pdf"
+    Examples:
+      | scope       | case        |
+      | trip        | blank       |
+      | event       | long        |
+      | reservation | blank       |
+      | reservation | long        |
+      | trip        | scope-field |
+
+  Scenario Outline: Document mutations enforce access and same site protections
+    Given a scenario-owned "reservation" document ready for mutation
+    And my checklist API role is "<role>"
+    When I submit document mutation "<method>" case "<case>"
+    Then the document API returns <status> with code "<code>"
+    And the document mutation persisted name "original.pdf"
+    Examples:
+      | method | role     | case             | status | code      |
+      | PATCH  | viewer   | normal           | 403    | forbidden |
+      | DELETE | viewer   | normal           | 403    | forbidden |
+      | PATCH  | stranger | normal           | 404    | not_found |
+      | DELETE | stranger | normal           | 404    | not_found |
+      | PATCH  | editor   | no-client-header | 403    | forbidden |
+      | DELETE | editor   | no-client-header | 403    | forbidden |
+      | PATCH  | editor   | cross-origin     | 403    | forbidden |
+      | DELETE | editor   | cross-origin     | 403    | forbidden |
+      | PATCH  | editor   | unknown          | 404    | not_found |
+      | DELETE | editor   | foreign-trip     | 404    | not_found |
+
+  Scenario: An empty document patch leaves its stored name intact
+    Given a scenario-owned "trip" document ready for mutation
+    When I submit document mutation "PATCH" case "empty"
+    Then the document API returns 200
+    And the document mutation persisted name "original.pdf"
+
+  Scenario: A rolled-back document delete keeps its row and file without queue residue
+    Given a scenario-owned "reservation" document ready for mutation
+    When I force the scenario document delete transaction to roll back
+    Then the document API returns 500 with code "server_error"
+    And the document mutation persisted name "original.pdf"
+    And the rolled-back document has no queued file deletion

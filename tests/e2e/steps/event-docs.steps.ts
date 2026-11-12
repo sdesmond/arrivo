@@ -1,3 +1,4 @@
+import { findScenarioDocument } from "../document-fixture";
 import { expect } from "@playwright/test";
 import { and, eq, inArray } from "drizzle-orm";
 import { events } from "../../../src/db/schema";
@@ -172,11 +173,15 @@ When("I expand the docs for event {string}", async ({ page }, eventName: string)
   await expect(page.getByRole("button", { name: `View ${E2E_MANAGE_DOC.name}` })).toBeVisible({ timeout: 5_000 });
 });
 
-When("I rename the event doc {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+When("I rename the event doc {string} to {string}", async ({ page, scenario }, oldName: string, newName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, oldName);
+  if (!document) throw new Error("Scenario document missing");
   await page.getByText(oldName, { exact: true }).first().click();
   const input = page.getByRole("textbox");
   await input.fill(newName);
+  const renamed = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await input.press("Enter");
+  await renamed;
 });
 
 Then("the event doc {string} is visible", async ({ page }, docName: string) => {
@@ -222,3 +227,8 @@ Then(
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
   }
 );
+
+Then("the stored document {string} is deleted", async ({ page, scenario }, name: string) => {
+  expect(await findScenarioDocument(scenario.currentTrip!.id, name)).toBeUndefined();
+  await expect(page.getByRole("button", { name: "View " + name })).not.toBeVisible();
+});

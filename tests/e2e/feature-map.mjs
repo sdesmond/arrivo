@@ -63,6 +63,8 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/app/api/v1/documents/**",
+    "tests/e2e/document-fixture.ts",
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
@@ -522,6 +524,8 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("documents", [
+    "src/app/api/v1/documents/**",
+    "tests/e2e/document-fixture.ts",
     "src/lib/api/contract/documents.ts",
     "src/app/api/v1/events/*/documents/**",
     "src/app/api/v1/reservations/*/documents/**",
@@ -545,6 +549,8 @@ export const FEATURE_MAP = [
     ...STORAGE,
   ]),
   entry("event-docs", [
+    "src/app/api/v1/documents/**",
+    "tests/e2e/document-fixture.ts",
     "src/components/arrivo/add-doc-dialog.tsx",
     "src/lib/services/documents.ts",
     "src/lib/api/contract/documents.ts",
@@ -668,6 +674,8 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/actions.ts",
   ]),
   entry("reservations", [
+    "src/app/api/v1/documents/**",
+    "tests/e2e/document-fixture.ts",
     "src/lib/services/documents.ts",
     "src/lib/api/contract/documents.ts",
     "src/app/api/v1/events/*/documents/**",

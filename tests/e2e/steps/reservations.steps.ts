@@ -1,3 +1,4 @@
+import { findScenarioDocument } from "../document-fixture";
 import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { reservations } from "../../../src/db/schema";
@@ -368,13 +369,20 @@ Given(
   }
 );
 
-When("I rename the reservation doc {string} to {string}", async ({ page }, oldName: string, newName: string) => {
-  await page.getByRole("button", { name: /^docs?$/i }).click();
-  await page.getByText(oldName, { exact: true }).first().click();
-  const input = page.getByRole("textbox");
-  await input.fill(newName);
-  await input.press("Enter");
-});
+When(
+  "I rename the reservation doc {string} to {string}",
+  async ({ page, scenario }, oldName: string, newName: string) => {
+    const document = await findScenarioDocument(scenario.currentTrip!.id, oldName);
+    if (!document) throw new Error("Scenario document missing");
+    await page.getByRole("button", { name: /^docs?$/i }).click();
+    await page.getByText(oldName, { exact: true }).first().click();
+    const input = page.getByRole("textbox");
+    await input.fill(newName);
+    const renamed = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
+    await input.press("Enter");
+    await renamed;
+  }
+);
 
 Then("the reservation doc {string} is visible", async ({ page }, docName: string) => {
   await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
@@ -397,4 +405,8 @@ Then("after reload the reservation shows uploaded document {string}", async ({ p
   if ((await section.getAttribute("aria-expanded")) === "false") await section.click();
   await page.getByTitle("Show attached documents").click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
+});
+
+When("I expand reservation documents", async ({ page }) => {
+  await page.getByRole("button", { name: /^docs?$/i }).click();
 });
