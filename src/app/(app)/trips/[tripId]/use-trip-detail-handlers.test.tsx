@@ -1040,7 +1040,7 @@ it("sends nothing for identity without explicitly saved fields", async () => {
   });
   expect(api).not.toHaveBeenCalled();
 });
-it("surfaces an event edit failure without refreshing", async () => {
+it("surfaces an event edit failure and refreshes to the stored event", async () => {
   const { api, ApiClientError } = await import("@/lib/api/client");
   vi.mocked(api).mockRejectedValue(new ApiClientError(403, "forbidden", "View access only"));
   const { result } = renderHook(() => useTripDetailHandlers(detail));
@@ -1048,7 +1048,17 @@ it("surfaces an event edit failure without refreshing", async () => {
     result.current.handleEventUpdate({ id: editedEvent.id, name: editedEvent.name });
   });
   expect(toast.error).toHaveBeenCalledWith("View access only");
-  expect(mockRefresh).not.toHaveBeenCalled();
+  expect(mockRefresh).toHaveBeenCalledOnce();
+});
+it("refreshes after a timed-out event edit so the row stops showing the unsaved draft", async () => {
+  const { api, ApiClientError } = await import("@/lib/api/client");
+  vi.mocked(api).mockRejectedValue(new ApiClientError(0, "timeout", "The request timed out. Try again."));
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    result.current.handleEventUpdate({ id: editedEvent.id, name: "Supper" });
+  });
+  expect(toast.error).toHaveBeenCalledWith("The request timed out. Try again.");
+  expect(mockRefresh).toHaveBeenCalledOnce();
 });
 it("sends rapid edits to one event in the order they were made", async () => {
   const { api } = await import("@/lib/api/client");

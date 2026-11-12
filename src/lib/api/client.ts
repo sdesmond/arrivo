@@ -76,8 +76,10 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
     }
     try {
       return (await response.json()) as Result;
-    } catch (error) {
-      throw controller.signal.aborted ? timeoutError() : error;
+    } catch {
+      throw controller.signal.aborted
+        ? timeoutError()
+        : new ApiClientError(response.status, "server_error", "Could not save changes. Try again.");
     }
   } finally {
     clearTimeout(timer);
