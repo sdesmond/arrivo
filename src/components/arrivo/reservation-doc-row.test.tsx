@@ -1,11 +1,22 @@
+const mutationMocks = vi.hoisted(() => ({
+  rename: vi.fn().mockResolvedValue({}),
+  remove: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/api/client", () => ({
+  api: (endpoint: { method: string }, input: unknown) =>
+    endpoint.method === "PATCH" ? mutationMocks.rename(input) : mutationMocks.remove(input),
+  ApiClientError: class extends Error {
+    code = "unauthenticated";
+  },
+}));
+const renameDocument = mutationMocks.rename;
+const removeDocument = mutationMocks.remove;
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
 vi.mock("@/app/(app)/trips/[tripId]/reservations/reservation-document-actions", () => ({
-  removeReservationDocument: vi.fn().mockResolvedValue(undefined),
-  renameReservationDocument: vi.fn().mockResolvedValue(undefined),
   promoteReservationDocToTrip: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -59,11 +70,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { ReservationDocRow } from "./reservation-doc-row";
-import {
-  removeReservationDocument,
-  renameReservationDocument,
-  promoteReservationDocToTrip,
-} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
+import { promoteReservationDocToTrip } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
@@ -81,12 +88,12 @@ describe("ReservationDocRow", () => {
   });
 
   it("renders the document name", () => {
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.getByText("Confirmation.pdf")).toBeInTheDocument();
   });
 
   it("renders view, share, promote, and delete buttons", () => {
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.getByRole("button", { name: "View Confirmation.pdf" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share Confirmation.pdf" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" })).toBeInTheDocument();
@@ -95,43 +102,43 @@ describe("ReservationDocRow", () => {
 
   it("clicking the name enters edit mode with input pre-filled", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Confirmation.pdf"));
     const input = screen.getByRole("textbox");
     expect(input).toHaveValue("Confirmation.pdf");
   });
 
-  it("pressing Enter calls renameReservationDocument with trimmed new name", async () => {
+  it("pressing Enter calls renameDocument with trimmed new name", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ id: "doc-1", name: "Confirmation.pdf" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1", name: "Confirmation.pdf" })} />);
     await user.click(screen.getByText("Confirmation.pdf"));
     const input = screen.getByRole("textbox");
     await user.clear(input);
     await user.type(input, "New Name");
     await user.keyboard("{Enter}");
-    expect(renameReservationDocument).toHaveBeenCalledWith("doc-1", "New Name");
+    expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { name: "New Name" } });
   });
 
-  it("pressing Escape cancels rename without calling renameReservationDocument", async () => {
+  it("pressing Escape cancels rename without calling renameDocument", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Confirmation.pdf"));
     const input = screen.getByRole("textbox");
     await user.type(input, "Cancelled");
     await user.keyboard("{Escape}");
-    expect(renameReservationDocument).not.toHaveBeenCalled();
+    expect(renameDocument).not.toHaveBeenCalled();
   });
 
   it("clicking the view button opens the DocViewer", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "View Confirmation.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
   });
 
   it("closing the DocViewer hides it", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "View Confirmation.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
     await user.click(screen.getByTestId("doc-viewer-close"));
@@ -140,14 +147,14 @@ describe("ReservationDocRow", () => {
 
   it("clicking share button calls shareDoc with the doc", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ url: "https://example.com/doc.pdf" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ url: "https://example.com/doc.pdf" })} />);
     await user.click(screen.getByRole("button", { name: "Share Confirmation.pdf" }));
     expect(shareDoc).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/doc.pdf" }));
   });
 
   it("clicking the promote button calls promoteReservationDocToTrip with doc id", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ id: "doc-42" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-42" })} />);
     await user.click(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" }));
     expect(promoteReservationDocToTrip).toHaveBeenCalledWith("doc-42");
   });
@@ -161,7 +168,7 @@ describe("ReservationDocRow", () => {
         })
     );
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ id: "doc-99" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-99" })} />);
     const promoteBtn = screen.getByRole("button", { name: "Move Confirmation.pdf to trip" });
     await user.click(promoteBtn);
     await user.click(promoteBtn);
@@ -174,7 +181,7 @@ describe("ReservationDocRow", () => {
   it("silently recovers when promoteReservationDocToTrip rejects", async () => {
     vi.mocked(promoteReservationDocToTrip).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ id: "doc-err" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-err" })} />);
     await user.click(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" }));
     expect(promoteReservationDocToTrip).toHaveBeenCalledWith("doc-err");
     expect(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" })).toBeInTheDocument();
@@ -182,31 +189,31 @@ describe("ReservationDocRow", () => {
 
   it("opens the confirm dialog when the delete button is clicked", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 
-  it("calls removeReservationDocument with doc id after the dialog Delete button is clicked", async () => {
+  it("calls removeDocument with doc id after the dialog Delete button is clicked", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc({ id: "doc-42" })} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-42" })} />);
     await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(removeReservationDocument).toHaveBeenCalledWith("doc-42");
+    expect(removeDocument).toHaveBeenCalledWith({ params: { documentId: "doc-42" }, body: { tripId: "trip-1" } });
   });
 
-  it("does not call removeReservationDocument when Cancel is clicked", async () => {
+  it("does not call removeDocument when Cancel is clicked", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(removeReservationDocument).not.toHaveBeenCalled();
+    expect(removeDocument).not.toHaveBeenCalled();
   });
 
-  it("shows an error message when removeReservationDocument rejects", async () => {
-    vi.mocked(removeReservationDocument).mockRejectedValueOnce(new Error("boom"));
+  it("shows an error message when removeDocument rejects", async () => {
+    vi.mocked(removeDocument).mockRejectedValueOnce(new Error("boom"));
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
@@ -216,8 +223,103 @@ describe("ReservationDocRow", () => {
 describe("ReservationDocRow rename limit", () => {
   it("caps the rename input at the shared document name limit", async () => {
     const user = userEvent.setup();
-    render(<ReservationDocRow doc={makeDoc()} />);
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Confirmation.pdf"));
     expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
+  });
+});
+
+it("serializes rapid A to B to A renames and keeps the final optimistic name", async () => {
+  let finish: () => void = () => undefined;
+  mutationMocks.rename.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+  );
+  const user = userEvent.setup();
+  render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+  await user.click(screen.getByRole("button", { name: "A" }));
+  expect(screen.getByRole("textbox", { name: "Document name" })).toHaveAttribute("aria-label", "Document name");
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "B{Enter}");
+  await user.click(screen.getByRole("button", { name: "B" }));
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "A{Enter}");
+  expect(mutationMocks.rename).toHaveBeenCalledTimes(1);
+  await act(async () => finish());
+  await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+  expect(mutationMocks.rename.mock.calls.map((call) => call[0].body.name)).toEqual(["B", "A"]);
+  expect(screen.getByRole("button", { name: "A" })).toBeVisible();
+});
+it("closes deletion dialog on auth loss without showing retry error", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  mutationMocks.remove.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const user = userEvent.setup();
+  render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
+  await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
+  await user.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument());
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+describe("ReservationDocRow rename failure and retry", () => {
+  beforeEach(() => {
+    mutationMocks.rename.mockClear();
+    mutationMocks.remove.mockClear();
+  });
+
+  async function renameTo(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+    await user.click(screen.getByRole("button", { name: from }));
+    await user.clear(screen.getByRole("textbox"));
+    await user.type(screen.getByRole("textbox"), `${to}{Enter}`);
+  }
+
+  it("restores the saved name when a rename fails", async () => {
+    mutationMocks.rename.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("restores the last saved name, not the stale prop, when a later rename fails", async () => {
+    mutationMocks.rename.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(1));
+    await act(async () => undefined);
+    await renameTo(user, "B", "A");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "B" })).toBeVisible();
+  });
+
+  it("restores the saved name when a rename loses auth", async () => {
+    const { ApiClientError } = await import("@/lib/api/client");
+    mutationMocks.rename.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+    const user = userEvent.setup();
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("sends delete again after a failed attempt", async () => {
+    mutationMocks.remove.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Confirmation.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mutationMocks.remove).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps the name button and rename input at 44px", async () => {
+    const user = userEvent.setup();
+    render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    expect(screen.getByRole("button", { name: "A" })).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+    await user.click(screen.getByRole("button", { name: "A" }));
+    expect(screen.getByRole("textbox", { name: "Document name" })).toHaveStyle({ minHeight: "44px" });
   });
 });

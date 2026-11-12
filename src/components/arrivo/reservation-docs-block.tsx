@@ -6,10 +6,11 @@ import { ReservationDocRow } from "./reservation-doc-row";
 
 export interface ReservationDocsBlockProps {
   docs: Document[];
+  tripId: string;
   onAdd: () => void;
 }
 
-export function ReservationDocsBlock({ docs, onAdd }: ReservationDocsBlockProps) {
+export function ReservationDocsBlock({ docs, onAdd, tripId }: ReservationDocsBlockProps) {
   return (
     <div className="mt-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
       <div
@@ -27,7 +28,7 @@ export function ReservationDocsBlock({ docs, onAdd }: ReservationDocsBlockProps)
       </div>
       <div className="flex flex-col gap-1.5">
         {docs.map((doc) => (
-          <ReservationDocRow key={doc.id} doc={doc} />
+          <ReservationDocRow key={doc.id} doc={doc} tripId={tripId} />
         ))}
         <button
           onClick={onAdd}

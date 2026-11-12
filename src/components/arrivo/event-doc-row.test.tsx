@@ -1,11 +1,22 @@
+const mutationMocks = vi.hoisted(() => ({
+  rename: vi.fn().mockResolvedValue({}),
+  remove: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/api/client", () => ({
+  api: (endpoint: { method: string }, input: unknown) =>
+    endpoint.method === "PATCH" ? mutationMocks.rename(input) : mutationMocks.remove(input),
+  ApiClientError: class extends Error {
+    code = "unauthenticated";
+  },
+}));
+const renameDocument = mutationMocks.rename;
+const removeDocument = mutationMocks.remove;
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  removeDocument: vi.fn().mockResolvedValue(undefined),
-  renameDocument: vi.fn().mockResolvedValue(undefined),
   promoteEventDocToTrip: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -60,7 +71,7 @@ vi.mock("@/components/ui/dialog", () => ({
 
 import { EventDocRow } from "./event-doc-row";
 import { TripEditAccessProvider } from "./trip-edit-access";
-import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
+import { promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
@@ -80,66 +91,66 @@ describe("EventDocRow", () => {
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   it("renders the document name", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.getByText("Boarding Pass.pdf")).toBeInTheDocument();
   });
 
   it("renders PDF badge for pdf kind", () => {
-    render(<EventDocRow doc={makeDoc({ kind: "pdf" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ kind: "pdf" })} />);
     expect(screen.getByText("PDF")).toBeInTheDocument();
   });
 
   it("renders IMG badge for image kind", () => {
-    render(<EventDocRow doc={makeDoc({ kind: "image", name: "photo.jpg" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ kind: "image", name: "photo.jpg" })} />);
     expect(screen.getByText("IMG")).toBeInTheDocument();
   });
 
   it("renders DOC badge for doc kind", () => {
-    render(<EventDocRow doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
   });
 
   it("renders view button with correct title and aria-label", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
     expect(btn).toHaveAttribute("title", "View Boarding Pass.pdf");
     expect(btn).toHaveAttribute("aria-label", "View Boarding Pass.pdf");
   });
 
   it("renders share button with correct title and aria-label", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
     expect(btn).toHaveAttribute("title", "Share Boarding Pass.pdf");
     expect(btn).toHaveAttribute("aria-label", "Share Boarding Pass.pdf");
   });
 
   it("renders promote button with correct title and aria-label", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "Move Boarding Pass.pdf to trip" });
     expect(btn).toHaveAttribute("title", "Move Boarding Pass.pdf to trip");
     expect(btn).toHaveAttribute("aria-label", "Move Boarding Pass.pdf to trip");
   });
 
   it("renders delete button with correct title and aria-label", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "Delete Boarding Pass.pdf" });
     expect(btn).toHaveAttribute("title", "Delete Boarding Pass.pdf");
     expect(btn).toHaveAttribute("aria-label", "Delete Boarding Pass.pdf");
   });
 
-  it("compact icon buttons have 28px min dimensions", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+  it("compact icon buttons have 44px min dimensions", () => {
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     const viewBtn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
-    expect(viewBtn).toHaveStyle({ minWidth: "28px", minHeight: "28px" });
+    expect(viewBtn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
     const deleteBtn = screen.getByRole("button", { name: "Delete Boarding Pass.pdf" });
-    expect(deleteBtn).toHaveStyle({ minWidth: "28px", minHeight: "28px" });
+    expect(deleteBtn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
   });
 
   // ── Rename ────────────────────────────────────────────────────────────────
 
   it("clicking the name enters edit mode with input pre-filled", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     const input = screen.getByRole("textbox");
     expect(input).toBeInTheDocument();
@@ -148,37 +159,37 @@ describe("EventDocRow", () => {
 
   it("rename input has underline border using var(--accent-brand)", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     expect(screen.getByRole("textbox")).toHaveAttribute("style", expect.stringContaining("var(--accent-brand)"));
   });
 
   it("pressing Enter calls renameDocument with trimmed new name", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     const input = screen.getByRole("textbox");
     await user.clear(input);
     await user.type(input, "New Name");
     await user.keyboard("{Enter}");
-    expect(renameDocument).toHaveBeenCalledWith("doc-1", "New Name");
+    expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { name: "New Name" } });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("blurring the input calls renameDocument", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     const input = screen.getByRole("textbox");
     await user.clear(input);
     await user.type(input, "Renamed");
     await user.tab();
-    expect(renameDocument).toHaveBeenCalledWith("doc-1", "Renamed");
+    expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { name: "Renamed" } });
   });
 
   it("pressing Escape cancels rename without calling renameDocument", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     const input = screen.getByRole("textbox");
     await user.clear(input);
@@ -190,7 +201,7 @@ describe("EventDocRow", () => {
 
   it("does not call renameDocument when input is cleared to empty", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-1" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1" })} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     const input = screen.getByRole("textbox");
     await user.clear(input);
@@ -200,7 +211,7 @@ describe("EventDocRow", () => {
 
   it("does not call renameDocument when name is unchanged", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf" })} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     await user.keyboard("{Enter}");
     expect(renameDocument).not.toHaveBeenCalled();
@@ -210,7 +221,7 @@ describe("EventDocRow", () => {
 
   it("clicking the view button opens the DocViewer", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
@@ -218,7 +229,7 @@ describe("EventDocRow", () => {
 
   it("closing the DocViewer hides it", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
     await user.click(screen.getByTestId("doc-viewer-close"));
@@ -230,7 +241,10 @@ describe("EventDocRow", () => {
   it("clicking share button calls shareDoc with the doc", async () => {
     const user = userEvent.setup();
     render(
-      <EventDocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })} />
+      <EventDocRow
+        tripId="trip-1"
+        doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })}
+      />
     );
     await user.click(screen.getByRole("button", { name: "Share Boarding Pass.pdf" }));
     expect(shareDoc).toHaveBeenCalledWith(
@@ -242,7 +256,7 @@ describe("EventDocRow", () => {
 
   it("clicking the promote button calls promoteEventDocToTrip with doc id", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-42" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-42" })} />);
     await user.click(screen.getByRole("button", { name: "Move Boarding Pass.pdf to trip" }));
     expect(promoteEventDocToTrip).toHaveBeenCalledWith("doc-42");
   });
@@ -256,7 +270,7 @@ describe("EventDocRow", () => {
         })
     );
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-99" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-99" })} />);
     const promoteBtn = screen.getByRole("button", { name: "Move Boarding Pass.pdf to trip" });
     await user.click(promoteBtn);
     await user.click(promoteBtn);
@@ -269,7 +283,7 @@ describe("EventDocRow", () => {
   it("silently recovers when promoteEventDocToTrip rejects", async () => {
     vi.mocked(promoteEventDocToTrip).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-err" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-err" })} />);
     await user.click(screen.getByRole("button", { name: "Move Boarding Pass.pdf to trip" }));
     expect(promoteEventDocToTrip).toHaveBeenCalledWith("doc-err");
     // Component stays mounted with no unhandled error
@@ -279,13 +293,13 @@ describe("EventDocRow", () => {
   // ── Delete ────────────────────────────────────────────────────────────────
 
   it("does not open the confirm dialog on initial render", () => {
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.queryByText("This cannot be undone.")).not.toBeInTheDocument();
   });
 
   it("opens the confirm dialog when the delete button is clicked", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
@@ -294,22 +308,22 @@ describe("EventDocRow", () => {
 
   it("does not call removeDocument when only the trash icon is clicked", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     expect(removeDocument).not.toHaveBeenCalled();
   });
 
   it("calls removeDocument with doc id after the dialog Delete button is clicked", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-42" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-42" })} />);
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(removeDocument).toHaveBeenCalledWith("doc-42");
+    expect(removeDocument).toHaveBeenCalledWith({ params: { documentId: "doc-42" }, body: { tripId: "trip-1" } });
   });
 
   it("does not call removeDocument when Cancel is clicked", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(removeDocument).not.toHaveBeenCalled();
@@ -318,7 +332,7 @@ describe("EventDocRow", () => {
   it("shows an error message when removeDocument rejects", async () => {
     vi.mocked(removeDocument).mockRejectedValueOnce(new Error("boom"));
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
@@ -333,7 +347,7 @@ describe("EventDocRow", () => {
         })
     );
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc({ id: "doc-99" })} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ id: "doc-99" })} />);
     await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
     const confirm = screen.getByRole("button", { name: "Delete" });
     await user.click(confirm);
@@ -349,7 +363,7 @@ describe("EventDocRow for a viewer", () => {
   function renderAsViewer() {
     return render(
       <TripEditAccessProvider canEdit={false}>
-        <EventDocRow doc={makeDoc()} />
+        <EventDocRow tripId="trip-1" doc={makeDoc()} />
       </TripEditAccessProvider>
     );
   }
@@ -374,8 +388,103 @@ describe("EventDocRow for a viewer", () => {
 describe("EventDocRow rename limit", () => {
   it("caps the rename input at the shared document name limit", async () => {
     const user = userEvent.setup();
-    render(<EventDocRow doc={makeDoc()} />);
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
+  });
+});
+
+it("serializes rapid A to B to A renames and keeps the final optimistic name", async () => {
+  let finish: () => void = () => undefined;
+  mutationMocks.rename.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+  );
+  const user = userEvent.setup();
+  render(<EventDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+  await user.click(screen.getByRole("button", { name: "A" }));
+  expect(screen.getByRole("textbox", { name: "Document name" })).toHaveAttribute("aria-label", "Document name");
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "B{Enter}");
+  await user.click(screen.getByRole("button", { name: "B" }));
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "A{Enter}");
+  expect(mutationMocks.rename).toHaveBeenCalledTimes(1);
+  await act(async () => finish());
+  await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+  expect(mutationMocks.rename.mock.calls.map((call) => call[0].body.name)).toEqual(["B", "A"]);
+  expect(screen.getByRole("button", { name: "A" })).toBeVisible();
+});
+it("closes deletion dialog on auth loss without showing retry error", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  mutationMocks.remove.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const user = userEvent.setup();
+  render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
+  await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+  await user.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument());
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+describe("EventDocRow rename failure and retry", () => {
+  beforeEach(() => {
+    mutationMocks.rename.mockClear();
+    mutationMocks.remove.mockClear();
+  });
+
+  async function renameTo(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+    await user.click(screen.getByRole("button", { name: from }));
+    await user.clear(screen.getByRole("textbox"));
+    await user.type(screen.getByRole("textbox"), `${to}{Enter}`);
+  }
+
+  it("restores the saved name when a rename fails", async () => {
+    mutationMocks.rename.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("restores the last saved name, not the stale prop, when a later rename fails", async () => {
+    mutationMocks.rename.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(1));
+    await act(async () => undefined);
+    await renameTo(user, "B", "A");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "B" })).toBeVisible();
+  });
+
+  it("restores the saved name when a rename loses auth", async () => {
+    const { ApiClientError } = await import("@/lib/api/client");
+    mutationMocks.rename.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+    const user = userEvent.setup();
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("sends delete again after a failed attempt", async () => {
+    mutationMocks.remove.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<EventDocRow tripId="trip-1" doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mutationMocks.remove).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps the name button and rename input at 44px", async () => {
+    const user = userEvent.setup();
+    render(<EventDocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    expect(screen.getByRole("button", { name: "A" })).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+    await user.click(screen.getByRole("button", { name: "A" }));
+    expect(screen.getByRole("textbox", { name: "Document name" })).toHaveStyle({ minHeight: "44px" });
   });
 });

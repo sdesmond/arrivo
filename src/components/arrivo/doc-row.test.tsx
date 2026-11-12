@@ -1,12 +1,22 @@
+const mutationMocks = vi.hoisted(() => ({
+  rename: vi.fn().mockResolvedValue({}),
+  remove: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("@/lib/api/client", () => ({
+  api: (endpoint: { method: string }, input: unknown) =>
+    endpoint.method === "PATCH" ? mutationMocks.rename(input) : mutationMocks.remove(input),
+  ApiClientError: class extends Error {
+    code = "unauthenticated";
+  },
+}));
+const renameDocument = mutationMocks.rename;
+const removeDocument = mutationMocks.remove;
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  removeDocument: vi.fn().mockResolvedValue(undefined),
-  renameDocument: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({}));
 
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -59,7 +69,7 @@ vi.mock("@/components/ui/dialog", () => ({
 
 import { DocRow } from "./doc-row";
 import { shareDoc } from "@/lib/utils";
-import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 const makeDoc = (overrides: Partial<Document> = {}): Document => ({
@@ -76,46 +86,46 @@ describe("DocRow", () => {
   });
 
   it("renders the document name", () => {
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.getByText("Boarding Pass.pdf")).toBeInTheDocument();
   });
 
   it("renders PDF badge for pdf kind", () => {
-    render(<DocRow doc={makeDoc({ kind: "pdf" })} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc({ kind: "pdf" })} />);
     expect(screen.getByText("PDF")).toBeInTheDocument();
   });
 
   it("renders IMG badge for image kind", () => {
-    render(<DocRow doc={makeDoc({ kind: "image", name: "photo.jpg" })} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc({ kind: "image", name: "photo.jpg" })} />);
     expect(screen.getByText("IMG")).toBeInTheDocument();
   });
 
   it("renders DOC badge for doc kind", () => {
-    render(<DocRow doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc({ kind: "doc", name: "contract.docx" })} />);
     expect(screen.getByText("DOC")).toBeInTheDocument();
   });
 
   it("renders document name for image doc", () => {
-    render(<DocRow doc={makeDoc({ kind: "image", name: "vacation-photo.png" })} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc({ kind: "image", name: "vacation-photo.png" })} />);
     expect(screen.getByText("vacation-photo.png")).toBeInTheDocument();
   });
 
   it("renders a view button with correct title and aria-label", () => {
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
     expect(btn).toHaveAttribute("title", "View Boarding Pass.pdf");
     expect(btn).toHaveAttribute("aria-label", "View Boarding Pass.pdf");
   });
 
   it("view button has min 44px touch target", () => {
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     const btn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
     expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
   });
 
   it("clicking the view button opens the DocViewer", async () => {
     const user = userEvent.setup();
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
@@ -123,7 +133,7 @@ describe("DocRow", () => {
 
   it("closing the DocViewer hides it", async () => {
     const user = userEvent.setup();
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByRole("button", { name: "View Boarding Pass.pdf" }));
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
     await user.click(screen.getByTestId("doc-viewer-close"));
@@ -131,13 +141,13 @@ describe("DocRow", () => {
   });
 
   it("DocViewer is not in the DOM when viewerOpen is false (initial state)", () => {
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     expect(screen.queryByTestId("doc-viewer")).not.toBeInTheDocument();
   });
 
   it("focus returns to the view button after the DocViewer is closed", async () => {
     const user = userEvent.setup();
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     const viewBtn = screen.getByRole("button", { name: "View Boarding Pass.pdf" });
     await user.click(viewBtn);
     expect(screen.getByTestId("doc-viewer")).toBeInTheDocument();
@@ -147,26 +157,31 @@ describe("DocRow", () => {
 
   describe("share button", () => {
     it("renders a share button with correct title and aria-label", () => {
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const btn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
       expect(btn).toHaveAttribute("title", "Share Boarding Pass.pdf");
       expect(btn).toHaveAttribute("aria-label", "Share Boarding Pass.pdf");
     });
 
     it("share button uses doc name in title/aria-label", () => {
-      render(<DocRow doc={makeDoc({ name: "insurance.pdf" })} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc({ name: "insurance.pdf" })} />);
       expect(screen.getByRole("button", { name: "Share insurance.pdf" })).toBeInTheDocument();
     });
 
     it("share button has min 44px touch target", () => {
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const btn = screen.getByRole("button", { name: "Share Boarding Pass.pdf" });
       expect(btn).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
     });
 
     it("clicking share button calls shareDoc with the doc", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })} />);
+      render(
+        <DocRow
+          tripId="trip-1"
+          doc={makeDoc({ id: "doc-1", name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })}
+        />
+      );
       await user.click(screen.getByRole("button", { name: "Share Boarding Pass.pdf" }));
       expect(shareDoc).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Boarding Pass.pdf", url: "https://example.com/doc.pdf" })
@@ -182,30 +197,30 @@ describe("DocRow", () => {
 
     it("renames the document on blur when the name changed", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const input = await startEditing(user);
       await user.clear(input);
       await user.type(input, "Renamed.pdf");
       await user.tab();
 
-      expect(renameDocument).toHaveBeenCalledWith("doc-1", "Renamed.pdf");
+      expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { name: "Renamed.pdf" } });
       expect(screen.getByText("Renamed.pdf")).toBeInTheDocument();
     });
 
     it("renames the document when Enter is pressed", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const input = await startEditing(user);
       await user.clear(input);
       await user.type(input, "ViaEnter.pdf{Enter}");
 
-      expect(renameDocument).toHaveBeenCalledWith("doc-1", "ViaEnter.pdf");
+      expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { name: "ViaEnter.pdf" } });
       expect(screen.getByText("ViaEnter.pdf")).toBeInTheDocument();
     });
 
     it("discards the rename when Escape is pressed", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const input = await startEditing(user);
       await user.clear(input);
       await user.type(input, "Discarded.pdf{Escape}");
@@ -216,7 +231,7 @@ describe("DocRow", () => {
 
     it("does not rename when the name is unchanged", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       await startEditing(user);
       await user.tab();
 
@@ -225,7 +240,7 @@ describe("DocRow", () => {
 
     it("does not rename when the name is blank", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       const input = await startEditing(user);
       await user.clear(input);
       await user.tab();
@@ -241,17 +256,17 @@ describe("DocRow", () => {
 
     it("deletes the document after confirming", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       await openConfirm(user);
       await user.click(screen.getByRole("button", { name: "Delete" }));
 
-      expect(removeDocument).toHaveBeenCalledWith("doc-1");
+      expect(removeDocument).toHaveBeenCalledWith({ params: { documentId: "doc-1" }, body: { tripId: "trip-1" } });
     });
 
     it("shows an error and keeps the row when deletion fails", async () => {
       vi.mocked(removeDocument).mockRejectedValueOnce(new Error("network down"));
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       await openConfirm(user);
       await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -260,7 +275,7 @@ describe("DocRow", () => {
 
     it("clears the error and closes the dialog on Cancel", async () => {
       const user = userEvent.setup();
-      render(<DocRow doc={makeDoc()} />);
+      render(<DocRow tripId="trip-1" doc={makeDoc()} />);
       await openConfirm(user);
       expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
 
@@ -273,8 +288,103 @@ describe("DocRow", () => {
 describe("DocRow rename limit", () => {
   it("caps the rename input at the shared document name limit", async () => {
     const user = userEvent.setup();
-    render(<DocRow doc={makeDoc()} />);
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
     await user.click(screen.getByText("Boarding Pass.pdf"));
     expect(screen.getByRole("textbox")).toHaveAttribute("maxLength", String(FIELD_LIMITS.documentName));
+  });
+});
+
+it("serializes rapid A to B to A renames and keeps the final optimistic name", async () => {
+  let finish: () => void = () => undefined;
+  mutationMocks.rename.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+  );
+  const user = userEvent.setup();
+  render(<DocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+  await user.click(screen.getByRole("button", { name: "A" }));
+  expect(screen.getByRole("textbox", { name: "Document name" })).toHaveAttribute("aria-label", "Document name");
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "B{Enter}");
+  await user.click(screen.getByRole("button", { name: "B" }));
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "A{Enter}");
+  expect(mutationMocks.rename).toHaveBeenCalledTimes(1);
+  await act(async () => finish());
+  await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+  expect(mutationMocks.rename.mock.calls.map((call) => call[0].body.name)).toEqual(["B", "A"]);
+  expect(screen.getByRole("button", { name: "A" })).toBeVisible();
+});
+it("closes deletion dialog on auth loss without showing retry error", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  mutationMocks.remove.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const user = userEvent.setup();
+  render(<DocRow tripId="trip-1" doc={makeDoc()} />);
+  await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+  await user.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument());
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+describe("DocRow rename failure and retry", () => {
+  beforeEach(() => {
+    mutationMocks.rename.mockClear();
+    mutationMocks.remove.mockClear();
+  });
+
+  async function renameTo(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+    await user.click(screen.getByRole("button", { name: from }));
+    await user.clear(screen.getByRole("textbox"));
+    await user.type(screen.getByRole("textbox"), `${to}{Enter}`);
+  }
+
+  it("restores the saved name when a rename fails", async () => {
+    mutationMocks.rename.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<DocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("restores the last saved name, not the stale prop, when a later rename fails", async () => {
+    mutationMocks.rename.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<DocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(1));
+    await act(async () => undefined);
+    await renameTo(user, "B", "A");
+    await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "B" })).toBeVisible();
+  });
+
+  it("restores the saved name when a rename loses auth", async () => {
+    const { ApiClientError } = await import("@/lib/api/client");
+    mutationMocks.rename.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+    const user = userEvent.setup();
+    render(<DocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    await renameTo(user, "A", "B");
+    expect(await screen.findByRole("button", { name: "A" })).toBeVisible();
+  });
+
+  it("sends delete again after a failed attempt", async () => {
+    mutationMocks.remove.mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    render(<DocRow tripId="trip-1" doc={makeDoc()} />);
+    await user.click(screen.getByRole("button", { name: "Delete Boarding Pass.pdf" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't delete. Try again.");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mutationMocks.remove).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps the name button and rename input at 44px", async () => {
+    const user = userEvent.setup();
+    render(<DocRow tripId="trip-1" doc={makeDoc({ name: "A" })} />);
+    expect(screen.getByRole("button", { name: "A" })).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
+    await user.click(screen.getByRole("button", { name: "A" }));
+    expect(screen.getByRole("textbox", { name: "Document name" })).toHaveStyle({ minHeight: "44px" });
   });
 });

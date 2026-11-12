@@ -31,7 +31,11 @@ vi.mock("@/lib/api/use-api-mutation", () => ({
 }));
 
 vi.mock("./doc-row", () => ({
-  DocRow: ({ doc }: { doc: Document }) => <div data-testid="doc-row">{doc.name}</div>,
+  DocRow: ({ doc, tripId }: { doc: Document; tripId: string }) => (
+    <div data-trip-id={tripId} data-testid="doc-row">
+      {doc.name}
+    </div>
+  ),
 }));
 
 const makeDoc = (id: string, name?: string): Document => ({
@@ -73,6 +77,7 @@ describe("TripDocsTab", () => {
   it("renders a DocRow for each document", () => {
     render(<TripDocsTab tripId="trip-1" docs={[makeDoc("1"), makeDoc("2"), makeDoc("3")]} />);
     expect(screen.getAllByTestId("doc-row")).toHaveLength(3);
+    for (const row of screen.getAllByTestId("doc-row")) expect(row).toHaveAttribute("data-trip-id", "trip-1");
   });
 
   it("renders the Add label with visible text", () => {

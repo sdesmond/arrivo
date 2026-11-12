@@ -164,7 +164,7 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
           </div>
           <div>
             {visible.map((doc) => (
-              <DocRow key={doc.id} doc={doc} />
+              <DocRow key={doc.id} doc={doc} tripId={tripId} />
             ))}
           </div>
         </>

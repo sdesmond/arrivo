@@ -31,8 +31,8 @@ vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
 }));
 
 vi.mock("./reservation-docs-block", () => ({
-  ReservationDocsBlock: ({ docs, onAdd }: { docs: Document[]; onAdd: () => void }) => (
-    <div>
+  ReservationDocsBlock: ({ docs, onAdd, tripId }: { tripId: string; docs: Document[]; onAdd: () => void }) => (
+    <div data-testid="docs-block" data-trip-id={tripId}>
       {docs.map((doc) => (
         <span key={doc.id}>{doc.name}</span>
       ))}
@@ -928,6 +928,7 @@ describe("ReservationRow", () => {
     await user.click(docsChip);
 
     expect(docsChip).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("docs-block")).toHaveAttribute("data-trip-id", "trip-1");
     expect(screen.getByText("confirmation.pdf")).toBeInTheDocument();
   });
 

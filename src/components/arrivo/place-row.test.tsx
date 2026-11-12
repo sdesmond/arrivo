@@ -38,8 +38,16 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 vi.mock("./docs-block", () => ({
-  DocsBlock: ({ docs, onAdd }: { docs: { id: string; name: string }[]; onAdd?: () => void }) => (
-    <div data-testid="docs-block">
+  DocsBlock: ({
+    docs,
+    onAdd,
+    tripId,
+  }: {
+    tripId: string;
+    docs: { id: string; name: string }[];
+    onAdd?: () => void;
+  }) => (
+    <div data-testid="docs-block" data-trip-id={tripId}>
       {docs.map((doc) => (
         <span key={doc.id}>{doc.name}</span>
       ))}
@@ -668,7 +676,7 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("docs-block")).not.toBeInTheDocument();
     await user.click(screen.getByTitle("Show attached documents"));
-    expect(screen.getByTestId("docs-block")).toBeInTheDocument();
+    expect(screen.getByTestId("docs-block")).toHaveAttribute("data-trip-id", "trip-1");
     await user.click(screen.getByTitle("Show attached documents"));
     expect(screen.queryByTestId("docs-block")).not.toBeInTheDocument();
   });
