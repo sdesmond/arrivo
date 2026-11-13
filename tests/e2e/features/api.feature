@@ -1666,3 +1666,57 @@ Feature: Absolute checklist checked-state API
       | reservation | editor   | cross-origin     | 403    | forbidden |
       | event       | editor   | no-client-header | 403    | forbidden |
       | reservation | editor   | no-client-header | 403    | forbidden |
+
+  Scenario Outline: Mixed-trip document ancestry is concealed from rename, empty patch and delete
+    Given a scenario-owned "trip" document ready for mutation
+    And the scenario document claims "<claim>" of another trip I also edit
+    When I submit document mutation "<method>" case "<case>"
+    Then the document API returns 404 with code "not_found"
+    And the corrupted document row and file are unchanged
+    Examples:
+      | claim        | method | case             |
+      | reservation  | PATCH  | normal           |
+      | reservation  | PATCH  | empty            |
+      | reservation  | DELETE | normal           |
+      | reservation  | DELETE | owned-other-trip |
+      | event        | PATCH  | normal           |
+      | event        | DELETE | owned-other-trip |
+      | legacy mixed | PATCH  | normal           |
+      | legacy mixed | PATCH  | empty            |
+      | legacy mixed | DELETE | normal           |
+      | legacy mixed | DELETE | owned-other-trip |
+
+  Scenario Outline: Mixed-trip document ancestry blocks attaching and promoting
+    Given a scenario-owned "trip" document ready for mutation
+    And the scenario document claims "<claim>" of another trip I also edit
+    When I set the document scope to "<scope>" case "<case>"
+    Then the document API returns 404 with code "not_found"
+    And the corrupted document row and file are unchanged
+    Examples:
+      | claim        | scope       | case    |
+      | reservation  | event       | normal  |
+      | event        | reservation | normal  |
+      | legacy mixed | reservation | normal  |
+      | legacy mixed | event       | normal  |
+      | legacy mixed | event       | promote |
+      | event        | reservation | promote |
+
+  Scenario: A keyed document rename is not replayed once the document ancestry is inconsistent
+    Given a scenario-owned "trip" document ready for mutation
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 200
+    Given the scenario document claims "reservation" of another trip I also edit
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 404 with code "not_found"
+    And the last document API response does not contain "Renamed.pdf"
+    And the corrupted document row and file are unchanged
+
+  Scenario: A keyed document scope change is not replayed once the document ancestry is inconsistent
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "event" case "keyed"
+    Then the document API returns 200
+    Given the scenario document claims "reservation" of another trip I also edit
+    When I set the document scope to "event" case "keyed"
+    Then the document API returns 404 with code "not_found"
+    And the last document API response does not contain "original.pdf"
+    And the corrupted document row and file are unchanged

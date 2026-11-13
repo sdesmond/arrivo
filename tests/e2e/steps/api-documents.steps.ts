@@ -21,6 +21,10 @@ interface DocumentApiState {
   hiddenName?: string;
   uploadedUrl?: string;
   scopeReplay?: unknown;
+  /** Another trip the actor also edits, holding the parents the corrupted document claims. */
+  otherTripId?: string;
+  /** The stored row right after the scenario corrupted its ancestry. */
+  corrupted?: { name: string; tripId: string | null; eventId: string | null; reservationId: string | null };
   requestedTargets?: { scope: "event" | "reservation"; id: string }[];
 }
 const documentApiStates = new WeakMap<Page, DocumentApiState>();
@@ -421,6 +425,7 @@ When("I submit document mutation {string} case {string}", async ({ page }, metho
   else if (testCase === "unknown-field") body = { scope: "event" };
   else if (testCase === "unknown") documentId = randomUUID();
   else if (testCase === "foreign-trip") body = { tripId: randomUUID() };
+  else if (testCase === "owned-other-trip") body = { tripId: current.otherTripId! };
   else if (testCase === "no-client-header")
     headers = { origin: new URL(page.url()).origin, "content-type": "application/json" };
   else if (testCase === "cross-origin")
@@ -509,7 +514,7 @@ When(
     if (response.ok() && ["normal", "keyed", "promote"].includes(testCase)) {
       expect(await response.json()).toMatchObject({ id: current.id, scope: testCase === "promote" ? "trip" : scope });
     }
-    if (testCase === "keyed") {
+    if (testCase === "keyed" && response.ok()) {
       const result = await response.json();
       if (current.scopeReplay !== undefined) expect(result).toEqual(current.scopeReplay);
       else current.scopeReplay = result;
@@ -543,4 +548,59 @@ Then("the document has persisted {string} scope", async ({ page }, scope: string
   expect(await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.url!.replace(/^\/api\/storage\//, "")))).toEqual(
     PDF_BYTES
   );
+});
+
+Given(
+  "the scenario document claims {string} of another trip I also edit",
+  async ({ page, scenario }, flavor: string) => {
+    const current = documentApi(page);
+    const { trip: otherTrip } = await scenario.materialize({
+      trip: {
+        mother: "threeDayTrip",
+        overrides: { events: [{ ...E2E_EVENT, dayNumber: 1 }], reservations: [E2E_RESERVATION] },
+        setCurrent: false,
+      },
+    });
+    current.otherTripId = otherTrip!.id;
+    current.corrupted = await withE2EDb(async (database) => {
+      const [ownEvent] = await database.select({ id: events.id }).from(events).where(eq(events.tripId, current.tripId));
+      const [otherEvent] = await database
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.tripId, otherTrip!.id));
+      const [otherReservation] = await database
+        .select({ id: reservations.id })
+        .from(reservations)
+        .where(eq(reservations.tripId, otherTrip!.id));
+      const claims: Record<string, Partial<typeof documents.$inferInsert>> = {
+        reservation: { reservationId: otherReservation.id },
+        event: { eventId: otherEvent.id },
+        // No explicit trip: the event says this trip and the reservation says the other one.
+        "legacy mixed": { tripId: null, eventId: ownEvent.id, reservationId: otherReservation.id },
+      };
+      if (!claims[flavor]) throw new Error(`Unknown document ancestry corruption ${flavor}`);
+      await database.update(documents).set(claims[flavor]).where(eq(documents.id, current.id));
+      const [row] = await database.select().from(documents).where(eq(documents.id, current.id));
+      return { name: row.name, tripId: row.tripId, eventId: row.eventId, reservationId: row.reservationId };
+    });
+  }
+);
+Then("the corrupted document row and file are unchanged", async ({ page }) => {
+  const current = documentApi(page);
+  const [row] = await withE2EDb((database) => database.select().from(documents).where(eq(documents.id, current.id)));
+  expect({ name: row.name, tripId: row.tripId, eventId: row.eventId, reservationId: row.reservationId }).toEqual(
+    current.corrupted
+  );
+  expect(row.url).toBe(current.uploadedUrl);
+  expect(await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.url!.replace(/^\/api\/storage\//, "")))).toEqual(
+    PDF_BYTES
+  );
+  expect(
+    await withE2EDb((database) =>
+      database.select().from(pendingFileDeletions).where(eq(pendingFileDeletions.url, current.uploadedUrl!))
+    )
+  ).toHaveLength(0);
+});
+Then("the last document API response does not contain {string}", async ({ page }, text: string) => {
+  expect(await lastResponse(page).text()).not.toContain(text);
 });

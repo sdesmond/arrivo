@@ -38,6 +38,8 @@ const entry = (stem, sourceGlobs) => ({
 // File storage: upload, serve, and delete paths (trip delete and account cleanup remove files).
 const STORAGE = [
   "src/lib/storage/**",
+  // The storage route serves a promoted document whose reservation is gone, after validating its ancestry.
+  "src/lib/document-ancestry.ts",
   "src/lib/upload-policy.ts",
   "src/lib/url-policy.ts",
   "src/lib/avatar-image.ts",
@@ -74,6 +76,7 @@ export const FEATURE_MAP = [
     "src/lib/services/itinerary-notes.ts",
     "src/lib/services/trip-notes.ts",
     "src/lib/services/documents.ts",
+    "src/lib/document-ancestry.ts",
     "src/lib/file-cleanup.ts",
     "src/lib/services/timeline-positions.ts",
     "src/lib/services/days.ts",
@@ -538,6 +541,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/api/**",
     "src/lib/services/documents.ts",
+    "src/lib/document-ancestry.ts",
     "src/lib/services/client-ids.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
@@ -553,6 +557,7 @@ export const FEATURE_MAP = [
     "tests/e2e/document-fixture.ts",
     "src/components/arrivo/add-doc-dialog.tsx",
     "src/lib/services/documents.ts",
+    "src/lib/document-ancestry.ts",
     "src/lib/api/contract/documents.ts",
     "src/app/api/v1/events/*/documents/**",
     "src/app/api/v1/reservations/*/documents/**",
@@ -677,7 +682,13 @@ export const FEATURE_MAP = [
     "src/components/arrivo/document-delete-dialog.tsx",
     "src/app/api/v1/documents/**",
     "tests/e2e/document-fixture.ts",
+    // The race scenarios hold the trip lock through this helper.
+    "tests/e2e/document-scope-concurrency.ts",
     "src/lib/services/documents.ts",
+    "src/lib/document-ancestry.ts",
+    // Reservation deletion locks the trip, checks the role in its transaction and queues its files.
+    "src/lib/file-cleanup.ts",
+    "src/lib/services/trip-access.ts",
     "src/lib/api/contract/documents.ts",
     "src/app/api/v1/events/*/documents/**",
     "src/app/api/v1/reservations/*/documents/**",

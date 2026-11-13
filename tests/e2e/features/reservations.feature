@@ -124,3 +124,54 @@ Feature: Reservations
     And I delete the document "test-doc.pdf"
     And I reload the page
     Then the stored document "test-doc.pdf" is deleted
+
+  Scenario: A promoted reservation document stays downloadable after its reservation is deleted
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I attach a file to the reservation "Original Hotel Name"
+    And I reload the page
+    And I return to reservation documents
+    And I promote the reservation doc "test-doc.pdf" to trip level
+    And I return to reservation documents
+    And I delete the reservation "Original Hotel Name"
+    And I confirm the deletion and wait for it to save
+    And I reload the page
+    Then the Documents tab shows "test-doc.pdf"
+    And the trip document "test-doc.pdf" downloads its original bytes
+    And a stranger cannot download the trip document "test-doc.pdf"
+
+  Scenario: A promotion that reaches the trip lock first keeps the document through the reservation deletion
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I attach a file to the reservation "Original Hotel Name"
+    And I reload the page
+    And I return to reservation documents
+    And I hold the trip lock for a document promotion and a reservation deletion
+    And I start promoting the reservation doc "test-doc.pdf" over the API
+    Then the trip lock has 1 blocked writer
+    When I start deleting the reservation "Original Hotel Name" and leave it waiting
+    Then the trip lock has 2 blocked writers
+    When I release the trip lock and let both writers finish
+    Then the promotion answered 200 and the reservation deletion saved
+    When I reload the page
+    Then the Documents tab shows "test-doc.pdf"
+    And the trip document "test-doc.pdf" downloads its original bytes
+    And a stranger cannot download the trip document "test-doc.pdf"
+
+  Scenario: A reservation deletion that reaches the trip lock first removes the document and its file
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I attach a file to the reservation "Original Hotel Name"
+    And I reload the page
+    And I return to reservation documents
+    And I note the stored file of the reservation doc "test-doc.pdf"
+    And I hold the trip lock for a document promotion and a reservation deletion
+    And I start deleting the reservation "Original Hotel Name" and leave it waiting
+    Then the trip lock has 1 blocked writer
+    When I start promoting the reservation doc "test-doc.pdf" over the API
+    Then the trip lock has 2 blocked writers
+    When I release the trip lock and let both writers finish
+    Then the promotion answered 404 and the reservation deletion saved
+    And the reservation document "test-doc.pdf" and its noted file are gone
+    When I reload the page
+    Then the Documents tab does not show "test-doc.pdf"

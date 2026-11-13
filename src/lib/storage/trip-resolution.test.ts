@@ -77,16 +77,62 @@ describe("resolveOwningTripId", () => {
     await expect(resolveOwningTripId("reservation-documents/res-1/uuid.pdf")).resolves.toBe("trip-3");
   });
 
-  it("throws 'Reservation not found.' when the reservation record does not exist", async () => {
-    db.select.mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => []),
-      })),
+  describe("a reservation document whose reservation is gone", () => {
+    const key = "reservation-documents/res-1/uuid.pdf";
+    const url = "/api/storage/reservation-documents/res-1/uuid.pdf";
+    const survivor = (overrides: Record<string, unknown> = {}) => ({
+      id: "doc-1",
+      tripId: "trip-5",
+      eventId: null,
+      reservationId: null,
+      url,
+      ...overrides,
     });
 
-    await expect(resolveOwningTripId("reservation-documents/res-1/uuid.pdf")).rejects.toBeInstanceOf(
-      StorageOwnerNotFoundError
-    );
+    it("throws 'Reservation not found.' when no reservation or surviving document exists", async () => {
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([]));
+
+      await expect(resolveOwningTripId(key)).rejects.toBeInstanceOf(StorageOwnerNotFoundError);
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([]));
+      await expect(resolveOwningTripId(key)).rejects.toThrow("Reservation not found.");
+    });
+
+    it("serves the promoted document that kept the file, looked up by its exact URL", async () => {
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([survivor()]));
+
+      await expect(resolveOwningTripId(key)).resolves.toBe("trip-5");
+      expect(db.select).toHaveBeenCalledTimes(2);
+    });
+
+    it("validates a surviving row's remaining links before trusting its trip", async () => {
+      db.select
+        .mockReturnValueOnce(selectResult([]))
+        .mockReturnValueOnce(selectResult([survivor({ eventId: "event-1" })]))
+        .mockReturnValueOnce(selectResult([{ tripId: "trip-5" }]));
+      await expect(resolveOwningTripId(key)).resolves.toBe("trip-5");
+
+      db.select
+        .mockReturnValueOnce(selectResult([]))
+        .mockReturnValueOnce(selectResult([survivor({ eventId: "event-1" })]))
+        .mockReturnValueOnce(selectResult([{ tripId: "trip-other" }]));
+      await expect(resolveOwningTripId(key)).rejects.toBeInstanceOf(StorageOwnerNotFoundError);
+    });
+
+    it.each([
+      ["an orphan row", [survivor({ tripId: null })]],
+      ["two rows claiming the file", [survivor(), survivor({ id: "doc-2", tripId: "trip-other" })]],
+    ])("rejects %s", async (_label, rows) => {
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult(rows));
+
+      await expect(resolveOwningTripId(key)).rejects.toBeInstanceOf(StorageOwnerNotFoundError);
+    });
+
+    it("never consults a surviving document while the reservation still exists", async () => {
+      db.select.mockReturnValueOnce(selectResult([{ tripId: "trip-3" }]));
+
+      await expect(resolveOwningTripId(key)).resolves.toBe("trip-3");
+      expect(db.select).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("never resolves a user-avatar key to a trip", async () => {
