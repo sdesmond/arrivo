@@ -82,7 +82,12 @@ Feature: Reservations
     And the "Lodging" reservation section is expanded
     When I click "Attach"
     And I select "E2E Trip Pick Doc" from the pick list
-    Then the document "E2E Trip Pick Doc" appears on the reservation "Original Hotel Name"
+    Then after reload the reservation shows uploaded document "E2E Trip Pick Doc"
+    And the Documents tab does not show "E2E Trip Pick Doc"
+    When I return to reservation documents
+    And I promote the reservation doc "E2E Trip Pick Doc" to trip level
+    And I reload the page
+    Then the Documents tab shows "E2E Trip Pick Doc"
 
   Scenario: Rename a reservation document
     Given the trip has a Lodging reservation with an attached document

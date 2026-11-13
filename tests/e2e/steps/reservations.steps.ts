@@ -327,16 +327,6 @@ When("I attach a file to the reservation {string}", async ({ page, scenario }, r
   await expect(page.getByRole("dialog")).not.toBeVisible();
 });
 
-Then(
-  "the document {string} appears on the reservation {string}",
-  async ({ page }, docName: string, reservationName: string) => {
-    await expect(page.getByRole("dialog")).not.toBeVisible();
-    await expect(page.getByRole("button", { name: reservationName, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /^docs?$/i }).click();
-    await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
-  }
-);
-
 Given(
   "the trip has a Lodging reservation and a trip-level document {string}",
   async ({ page, scenario }, docName: string) => {
@@ -388,9 +378,15 @@ Then("the reservation doc {string} is visible", async ({ page }, docName: string
   await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
 });
 
-When("I promote the reservation doc {string} to trip level", async ({ page }, docName: string) => {
-  await page.getByRole("button", { name: /^docs?$/i }).click();
+When("I promote the reservation doc {string} to trip level", async ({ page, scenario }, docName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, docName);
+  if (!document) throw new Error("Scenario document missing");
+  if (!(await page.getByRole("button", { name: `Move ${docName} to trip` }).isVisible())) {
+    await page.getByRole("button", { name: /^docs?$/i }).click();
+  }
+  const promoted = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+  await promoted;
 });
 
 Then("the reservation doc {string} is no longer visible on the reservation", async ({ page }, docName: string) => {
@@ -409,4 +405,11 @@ Then("after reload the reservation shows uploaded document {string}", async ({ p
 
 When("I expand reservation documents", async ({ page }) => {
   await page.getByRole("button", { name: /^docs?$/i }).click();
+});
+
+When("I return to reservation documents", async ({ page }) => {
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
+  const section = page.getByRole("button", { name: /^Lodging, / });
+  await expect(section).toBeVisible();
+  if ((await section.getAttribute("aria-expanded")) === "false") await section.click();
 });

@@ -20,6 +20,7 @@ interface DocumentApiState {
   responses: APIResponse[];
   hiddenName?: string;
   uploadedUrl?: string;
+  scopeReplay?: unknown;
   requestedTargets?: { scope: "event" | "reservation"; id: string }[];
 }
 const documentApiStates = new WeakMap<Page, DocumentApiState>();
@@ -417,7 +418,7 @@ When("I submit document mutation {string} case {string}", async ({ page }, metho
   else if (testCase === "blank") body = { name: " " };
   else if (testCase === "long") body = { name: "x".repeat(201) };
   else if (testCase === "empty") body = {};
-  else if (testCase === "scope-field") body = { eventId: randomUUID() };
+  else if (testCase === "unknown-field") body = { scope: "event" };
   else if (testCase === "unknown") documentId = randomUUID();
   else if (testCase === "foreign-trip") body = { tripId: randomUUID() };
   else if (testCase === "no-client-header")
@@ -460,4 +461,86 @@ Then("the last two document mutation responses match", async ({ page }) => {
   expect(responses[0].status()).toBe(responses[1].status());
   if (responses[0].status() === 204) expect(await responses[1].text()).toBe("");
   else expect(await responses[0].json()).toEqual(await responses[1].json());
+});
+
+When(
+  "I set the document scope to {string} case {string}",
+  async ({ page, scenario }, scope: string, testCase: string) => {
+    if (scope !== "event" && scope !== "reservation") throw new Error("Unknown scope target");
+    const current = documentApi(page);
+    let targetTripId = current.tripId;
+    if (testCase === "foreign") {
+      const { trip } = await scenario.materialize({
+        trip: {
+          mother: "threeDayTrip",
+          overrides: { events: [{ ...E2E_EVENT, dayNumber: 1 }], reservations: [E2E_RESERVATION] },
+          setCurrent: false,
+        },
+      });
+      targetTripId = trip!.id;
+    }
+    const targetId = await withE2EDb(async (database) => {
+      if (scope === "event") {
+        const [target] = await database.select({ id: events.id }).from(events).where(eq(events.tripId, targetTripId));
+        return target.id;
+      }
+      const [target] = await database
+        .select({ id: reservations.id })
+        .from(reservations)
+        .where(eq(reservations.tripId, targetTripId));
+      return target.id;
+    });
+    let body: Record<string, unknown> = { [scope + "Id"]: targetId };
+    let headers: Record<string, string> = { ...uploadHeaders(page), "content-type": "application/json" };
+    if (testCase === "keyed") headers["idempotency-key"] = `scope-${current.id}-${scope}`;
+    else if (testCase === "promote") body = { [scope + "Id"]: null };
+    else if (testCase === "missing") body = { [scope + "Id"]: randomUUID() };
+    else if (testCase === "both") body = { eventId: targetId, reservationId: null };
+    else if (testCase === "both-null") body = { eventId: null, reservationId: null };
+    else if (testCase === "linked") body = { [scope + "Id"]: "linked-" + targetId };
+    else if (testCase === "malformed") body = { [scope + "Id"]: "invalid-uuid" };
+    else if (testCase === "cross-origin")
+      headers = { ...headers, origin: "https://evil.example", "sec-fetch-site": "cross-site" };
+    else if (testCase === "no-client-header")
+      headers = { origin: new URL(page.url()).origin, "content-type": "application/json" };
+    else if (testCase !== "normal" && testCase !== "foreign") throw new Error("Unknown scope mutation case");
+    const response = await page.request.patch(`/api/v1/documents/${current.id}`, { headers, data: body });
+    current.responses.push(response);
+    if (response.ok() && ["normal", "keyed", "promote"].includes(testCase)) {
+      expect(await response.json()).toMatchObject({ id: current.id, scope: testCase === "promote" ? "trip" : scope });
+    }
+    if (testCase === "keyed") {
+      const result = await response.json();
+      if (current.scopeReplay !== undefined) expect(result).toEqual(current.scopeReplay);
+      else current.scopeReplay = result;
+    }
+  }
+);
+
+Then("the document has persisted {string} scope", async ({ page }, scope: string) => {
+  const current = documentApi(page);
+  const [row] = await withE2EDb((database) => database.select().from(documents).where(eq(documents.id, current.id)));
+  expect(row.tripId).toBe(current.tripId);
+  expect(row.url).toBe(current.uploadedUrl);
+  if (scope === "trip") {
+    expect(row.eventId).toBeNull();
+    expect(row.reservationId).toBeNull();
+  } else if (scope === "event" || scope === "reservation") {
+    const targetId = await withE2EDb(async (database) => {
+      if (scope === "event") {
+        const [target] = await database.select({ id: events.id }).from(events).where(eq(events.tripId, current.tripId));
+        return target.id;
+      }
+      const [target] = await database
+        .select({ id: reservations.id })
+        .from(reservations)
+        .where(eq(reservations.tripId, current.tripId));
+      return target.id;
+    });
+    expect(row[scope === "event" ? "eventId" : "reservationId"]).toBe(targetId);
+    expect(row[scope === "event" ? "reservationId" : "eventId"]).toBeNull();
+  } else throw new Error("Unknown persisted scope");
+  expect(await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.url!.replace(/^\/api\/storage\//, "")))).toEqual(
+    PDF_BYTES
+  );
 });
