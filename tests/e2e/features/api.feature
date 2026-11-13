@@ -1820,3 +1820,22 @@ Feature: Absolute checklist checked-state API
     Then the cover API returns 500 without changing the cover
     And the rolled-back cover upload left no new file
     And the rolled-back cover file and row remain
+
+  @cover-search
+  Scenario Outline: Cover search GET validates access and queries
+    When I request cover search case "<case>"
+    Then the cover search response is <status>
+    Examples:
+      | case                 | status |
+      | signed-out           | 401    |
+      | cross-origin         | 403    |
+      | destination-cross    | 403    |
+      | empty                | 422    |
+      | page-zero            | 422    |
+      | page-above-cap       | 422    |
+      | repeated             | 400    |
+      | keyed                | 400    |
+      | search               | 200    |
+      | http-referer         | 200    |
+      | page-two             | 200    |
+      | destination          | 200    |

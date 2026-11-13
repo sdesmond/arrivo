@@ -67,7 +67,7 @@ import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { searchCoverImages } from "./cover-image-search-actions";
+import { searchCoverImages } from "@/lib/services/cover-search";
 import {
   addPackingItem as addPackingItemAction,
   pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
@@ -370,7 +370,7 @@ export async function createTrip(rawInput: CreateTripInput): Promise<{ tripId: s
         const tileFile = new File([tileBlob], storageName, { type: "image/jpeg" });
         coverUrl = await getStorageAdapter().put(storageName, tileFile);
       } else if (coverType === CoverType.Photo && input.destinationName) {
-        const images = await searchCoverImages(input.destinationName);
+        const images = await searchCoverImages({ userId: sessionUser.id! }, input.destinationName);
         const firstImage = images[0];
         coverUrl = firstImage?.url ?? null;
         coverPhotographer = firstImage?.photographer ?? null;

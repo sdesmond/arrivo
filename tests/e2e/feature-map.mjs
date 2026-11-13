@@ -65,6 +65,9 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "tests/e2e/steps/api-cover-search.steps.ts",
+    "src/lib/services/cover-search.ts",
+    "src/app/api/v1/cover-images/**",
     "src/lib/services/covers.ts",
     "src/app/api/v1/trips/*/cover/**",
     "tests/e2e/steps/api-covers.steps.ts",
@@ -465,6 +468,8 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/profile.steps.ts",
   ]),
   entry("create-trip", [
+    "src/lib/services/cover-search.ts",
+    "src/app/api/v1/cover-images/**",
     "src/components/arrivo/new-trip-card.tsx",
     "src/components/arrivo/new-trip-dialog.tsx",
     "src/components/arrivo/trip-confetti.tsx",
@@ -758,6 +763,8 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("trip-cover-overflow", [
+    "src/lib/services/cover-search.ts",
+    "src/app/api/v1/cover-images/**",
     "src/components/arrivo/trip-cover-controls.tsx",
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
     "src/lib/services/covers.ts",
@@ -766,7 +773,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/cover-*.tsx",
     "src/components/arrivo/trip-cover.tsx",
     "src/app/(app)/trips/[tripId]/actions.ts",
-    "src/app/(app)/trips/cover-image-search-actions.ts",
     "src/app/api/mapbox/static/**",
     ...STORAGE,
   ]),

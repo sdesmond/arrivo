@@ -319,3 +319,39 @@ it("raises the proxy body buffer above the 25 MB document limit plus form overhe
   const bytes = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10) * 1024 * 1024;
   expect(bytes).toBeGreaterThanOrEqual(MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES);
 });
+
+const getEndpoint = defineEndpoint<{ done: boolean }>()({
+  method: "GET",
+  path: "/search",
+  params: z.object({}),
+  body: z.strictObject({ query: z.string().min(1), page: z.coerce.number().int().min(1).optional() }),
+});
+const getRoute = apiRoute(getEndpoint, handler);
+function getRequest(query = "query=Paris&page=2", headers: Record<string, string> = {}) {
+  return new Request("http://arrivo.test/search?" + query, {
+    headers: { "x-arrivo-client": "web", "sec-fetch-site": "same-origin", ...headers },
+  });
+}
+it("validates GET queries without reading JSON", async () => {
+  expect((await getRoute(getRequest(), context)).status).toBe(200);
+  expect(handler).toHaveBeenCalledWith({ actor: { userId: "user" }, params: {}, body: { query: "Paris", page: 2 } });
+});
+it("rejects repeated GET keys and invalid queries", async () => {
+  expect((await getRoute(getRequest("query=Paris&query=Rome"), context)).status).toBe(400);
+  expect((await getRoute(getRequest("query=Paris", { "idempotency-key": "key" }), context)).status).toBe(400);
+  for (const query of ["query=", "query=Paris&page=0", "query=Paris&extra=x"])
+    expect((await getRoute(getRequest(query), context)).status).toBe(422);
+  expect(handler).not.toHaveBeenCalled();
+});
+it("authenticates and guards GET before spending budget", async () => {
+  requireApiUser.mockRejectedValueOnce(new ApiError(401, "unauthenticated", "Sign in."));
+  expect((await getRoute(getRequest(), context)).status).toBe(401);
+  expect((await getRoute(getRequest(undefined, { "x-arrivo-client": "" }), context)).status).toBe(403);
+  expect(assertWithinRateLimit).not.toHaveBeenCalled();
+});
+
+it("accepts static GET routes whose Next context has no params", async () => {
+  const staticContext = {} as { params: Promise<Record<string, string>> };
+  expect((await getRoute(getRequest(), staticContext)).status).toBe(200);
+  expect(handler).toHaveBeenCalledWith({ actor: { userId: "user" }, params: {}, body: { query: "Paris", page: 2 } });
+});

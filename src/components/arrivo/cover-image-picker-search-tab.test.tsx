@@ -9,9 +9,18 @@ const mockResolveDestinationCenter = vi.fn();
 const mockSearchLocations = vi.fn();
 const mockRetrieveLocation = vi.fn();
 
-vi.mock("@/app/(app)/trips/cover-image-search-actions", () => ({
-  searchCoverImages: (...args: unknown[]) => mockSearchCoverImages(...args),
-  resolveDestinationCenter: (...args: unknown[]) => mockResolveDestinationCenter(...args),
+vi.mock("@/lib/api/client", () => ({
+  api: vi.fn(
+    (
+      endpoint: { path: string },
+      input: { body: { query?: string; name?: string; page?: number; perPage?: number } }
+    ) =>
+      endpoint.path.endsWith("/destination")
+        ? mockResolveDestinationCenter(input.body.name).then((center: unknown) => ({ center }))
+        : mockSearchCoverImages(input.body.query, { page: input.body.page, perPage: input.body.perPage }).then(
+            (images: unknown) => ({ images })
+          )
+  ),
 }));
 
 vi.mock("@/app/(app)/trips/actions", () => ({
@@ -25,6 +34,8 @@ vi.mock("sonner", () => ({
 
 import { CoverImagePickerSearchTab } from "./cover-image-picker-search-tab";
 import { toast } from "sonner";
+import { api } from "@/lib/api/client";
+import { searchCoverImages, resolveDestinationCenter } from "@/lib/api/contract/cover-images";
 
 function makeImage(id: string): CoverImageSearchResult {
   return {
@@ -106,6 +117,10 @@ describe("CoverImagePickerSearchTab", () => {
 
     await waitFor(() => {
       expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.objectContaining({ page: 1 }));
+      expect(api).toHaveBeenCalledWith(searchCoverImages, {
+        params: {},
+        body: { query: "Paris", page: 1, perPage: 19 },
+      });
     });
   });
 
@@ -130,6 +145,7 @@ describe("CoverImagePickerSearchTab", () => {
 
     await waitFor(() => {
       expect(mockResolveDestinationCenter).toHaveBeenCalledWith("Paris");
+      expect(api).toHaveBeenCalledWith(resolveDestinationCenter, { params: {}, body: { name: "Paris" } });
     });
   });
 

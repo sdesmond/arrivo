@@ -28,12 +28,20 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
   input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number }
 ): Promise<Result> {
   const params = input.params as Record<string, string>;
-  const path = endpoint.path.replace(/:([A-Za-z][A-Za-z0-9]*)/g, (_match, key: string) =>
+  let path = endpoint.path.replace(/:([A-Za-z][A-Za-z0-9]*)/g, (_match, key: string) =>
     encodeURIComponent(params[key])
   );
   let headers: Record<string, string> = { "Content-Type": "application/json", "X-Arrivo-Client": "web" };
-  let body: string | FormData = JSON.stringify(input.body);
-  if (endpoint.multipart) {
+  let body: string | FormData | undefined = JSON.stringify(input.body);
+  if (endpoint.method === "GET") {
+    const query = new URLSearchParams();
+    for (const [name, value] of Object.entries(input.body as Record<string, unknown>)) {
+      if (value !== undefined) query.append(name, String(value));
+    }
+    if (query.size) path += (path.includes("?") ? "&" : "?") + query.toString();
+    headers = { "X-Arrivo-Client": "web" };
+    body = undefined;
+  } else if (endpoint.multipart) {
     if (!input.file) throw new Error("A multipart request needs a file.");
     const form = new FormData();
     for (const [name, value] of Object.entries(input.body as Record<string, unknown>)) {
@@ -54,7 +62,7 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
         method: endpoint.method,
         credentials: "same-origin",
         headers,
-        body,
+        ...(body === undefined ? {} : { body }),
         signal: controller.signal,
       });
     } catch {

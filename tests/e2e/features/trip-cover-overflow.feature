@@ -4,7 +4,7 @@ Feature: Trip cover overflow menu
   Background:
     Given I am signed in
 
-  Scenario: User selects an Unsplash cover and views attribution info
+  Scenario: User searches cover images through GET, selects a cover and views attribution info
     Given I have an existing trip with a photo destination
     When I open the cover options menu
     And I choose the first stub cover photo
