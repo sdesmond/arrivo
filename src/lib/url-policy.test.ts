@@ -102,6 +102,27 @@ describe("isValidCoverImageUrl", () => {
   });
 });
 
+describe("map tile cover images", () => {
+  it("accepts the picker's same-origin map tile URL", () => {
+    expect(isValidCoverImageUrl("/api/mapbox/static?lng=2.3522&lat=48.8566", TRIP_ID)).toBe(true);
+    expect(isValidCoverImageUrl("/api/mapbox/static?lng=-122.4&lat=37.77")).toBe(true);
+  });
+
+  it.each([
+    "/api/mapbox/static",
+    "/api/mapbox/static?lng=2.3&lat=",
+    "/api/mapbox/static?lng=abc&lat=48.8",
+    "/api/mapbox/static?lng=181&lat=48.8",
+    "/api/mapbox/static?lng=2.3&lat=91",
+    "/api/mapbox/static?lng=2.3&lat=48.8&extra=1",
+    "/api/mapbox/static?lng=2.3&lat=48.8&lat=1",
+    "/api/mapbox/static/other?lng=2.3&lat=48.8",
+    "//evil.example/api/mapbox/static?lng=2.3&lat=48.8",
+  ])("rejects %j", (value) => {
+    expect(isValidCoverImageUrl(value, TRIP_ID)).toBe(false);
+  });
+});
+
 describe("E2E stub cover images", () => {
   const stubCover = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"/>')}`;
 

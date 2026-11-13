@@ -16,6 +16,7 @@ it.each([
   "http://example.com/photo.jpg",
   deriveGraphicCover("Paris"),
   `/api/storage/trip-covers/${tripId}/cover.png`,
+  "/api/mapbox/static?lng=2.3522&lat=48.8566",
 ])("preserves picker URL %s", (coverImageUrl) => {
   expect(setTripCover.body.parse({ coverImageUrl })).toEqual({ coverImageUrl });
 });

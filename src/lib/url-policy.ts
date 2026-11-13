@@ -36,6 +36,26 @@ function isKnownGraphicCover(value: string): boolean {
   );
 }
 
+const MAP_TILE_COVER_PATH = "/api/mapbox/static";
+
+// The picker's map view saves this same-origin tile URL; the route proxies Mapbox with the server token.
+function isMapTileCover(value: string): boolean {
+  if (value.length > MAX_URL_LENGTH || !value.startsWith(`${MAP_TILE_COVER_PATH}?`)) return false;
+  const params = new URLSearchParams(value.slice(MAP_TILE_COVER_PATH.length + 1));
+  const keys = [...params.keys()].sort();
+  if (keys.length !== 2 || keys[0] !== "lat" || keys[1] !== "lng") return false;
+  const lat = Number(params.get("lat"));
+  const lng = Number(params.get("lng"));
+  return (
+    params.get("lat") !== "" &&
+    params.get("lng") !== "" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180
+  );
+}
+
 const E2E_STUB_COVER_PREFIX = "data:image/svg+xml;charset=utf-8,";
 const MAX_E2E_STUB_COVER_LENGTH = 4096;
 
@@ -50,11 +70,11 @@ function isE2EStubCover(value: string): boolean {
 }
 
 /**
- * A cover is an http(s) image, a built-in graphic, or a cover uploaded for `tripId`.
+ * A cover is an http(s) image, a built-in graphic, the picker's map tile, or a cover uploaded for `tripId`.
  * Pass no `tripId` where no upload can exist yet (trip creation).
  */
 export function isValidCoverImageUrl(value: string, tripId?: string): boolean {
-  if (isHttpUrl(value) || isKnownGraphicCover(value) || isE2EStubCover(value)) return true;
+  if (isHttpUrl(value) || isKnownGraphicCover(value) || isMapTileCover(value) || isE2EStubCover(value)) return true;
   const stored = parseOwnStorageUrl(value);
   return stored !== null && tripId !== undefined && stored.scope === "trip-cover" && stored.ownerId === tripId;
 }
