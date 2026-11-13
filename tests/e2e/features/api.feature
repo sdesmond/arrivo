@@ -1768,3 +1768,55 @@ Feature: Absolute checklist checked-state API
     And a stored map cover owned by the cover API trip
     When I force the cover cleanup transaction to roll back
     Then the rolled-back cover file and row remain
+
+  Scenario: Editor uploads a GIF then a PNG cover through the API and attribution is cleared
+    Given a scenario-owned trip for the cover API
+    When I select an attributed cover through the API
+    And I upload a "GIF" cover through the API
+    Then the API cover is a stored upload without attribution
+    When I upload a "PNG" cover through the API
+    Then the API cover is a stored upload without attribution
+
+  Scenario: Cover upload replaces a stored cover and removes the old file after commit
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    When I upload a "PNG" cover through the API
+    Then the API cover is a stored upload without attribution
+    And the replaced stored cover file is removed after commit
+
+  Scenario Outline: Cover upload API rejects unsafe input atomically
+    Given a scenario-owned trip for the cover API
+    When I submit cover upload API case "<case>"
+    Then the cover API returns <status> without changing the cover
+    And the cover upload API returns <status> with code "<code>"
+    And the cover upload stored no new file
+    Examples:
+      | case             | status | code              |
+      | oversize-file    | 413    | payload_too_large |
+      | oversize-body    | 413    | payload_too_large |
+      | disallowed-type  | 422    | validation_failed |
+      | mismatched-type  | 422    | validation_failed |
+      | missing-file     | 422    | validation_failed |
+      | unknown-field    | 422    | validation_failed |
+      | keyed            | 400    | bad_request       |
+      | no-client-header | 403    | forbidden         |
+      | cross-origin     | 403    | forbidden         |
+
+  Scenario Outline: Cover upload API enforces collaborator access
+    Given a scenario-owned trip for the cover API
+    And my cover API role is "<role>"
+    When I submit cover upload API case "valid"
+    Then the cover API returns <status> without changing the cover
+    And the cover upload stored no new file
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Cover upload rollback keeps the old cover and removes the new file
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    When I force the cover cleanup transaction to roll back during an upload
+    Then the cover API returns 500 without changing the cover
+    And the rolled-back cover upload left no new file
+    And the rolled-back cover file and row remain

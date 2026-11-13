@@ -4,18 +4,18 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { LoaderIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uploadCoverImage } from "@/app/(app)/trips/[tripId]/actions";
+import { uploadTripCoverImage } from "@/lib/api/contract/covers";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { assertValidCoverUpload, COVER_UPLOAD_ACCEPT, COVER_UPLOAD_HINT } from "@/lib/upload-policy";
 
 export interface CoverImagePickerUploadProps {
   tripId: string;
-  onImageSelected: (url: string) => void;
   onClose: () => void;
 }
 
-export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: CoverImagePickerUploadProps) {
+export function CoverImagePickerUpload({ tripId, onClose }: CoverImagePickerUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { mutate, isPending: uploading } = useApiMutation(uploadTripCoverImage);
   const [dragOver, setDragOver] = useState(false);
 
   function resetInputValue() {
@@ -24,7 +24,7 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
     }
   }
 
-  async function handleFile(file: File) {
+  function handleFile(file: File) {
     try {
       assertValidCoverUpload(file);
     } catch (error) {
@@ -33,24 +33,17 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
       return;
     }
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const url = await uploadCoverImage(tripId, formData);
-      onImageSelected(url);
-      onClose();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed. Try again.");
-      resetInputValue();
-      setUploading(false);
-    }
+    // The hook reports an API error itself; the picker only stays open so the user can pick another file.
+    void mutate(
+      { params: { tripId }, body: {}, file },
+      { onSuccess: onClose, onError: resetInputValue, onAuthLost: onClose }
+    );
   }
 
   function onFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) void handleFile(file);
+    if (file) handleFile(file);
   }
 
   function onDragOver(event: React.DragEvent) {
@@ -66,7 +59,7 @@ export function CoverImagePickerUpload({ tripId, onImageSelected, onClose }: Cov
     event.preventDefault();
     setDragOver(false);
     const file = event.dataTransfer.files[0];
-    if (file) void handleFile(file);
+    if (file) handleFile(file);
   }
 
   function onTriggerKeyDown(event: React.KeyboardEvent<HTMLLabelElement>) {
