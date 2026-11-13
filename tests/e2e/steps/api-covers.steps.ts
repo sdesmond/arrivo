@@ -1,0 +1,198 @@
+import { expect, type APIResponse, type Page } from "@playwright/test";
+import { and, eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { access, mkdir, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { trips, collaborators, pendingFileDeletions } from "../../../src/db/schema";
+import { deriveGraphicCover } from "../../../src/lib/utils";
+import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
+import { withE2EDb } from "../e2e-db";
+import { Given, When, Then, After } from "../fixtures";
+interface CoverState {
+  tripId: string;
+  key: string;
+  original: string;
+  file?: string;
+  response?: APIResponse;
+}
+const states = new WeakMap<Page, CoverState>();
+const selection = {
+  coverImageUrl: "https://images.unsplash.com/cover-api",
+  coverPhotographer: "API Photographer",
+  coverPhotographerUrl: "https://unsplash.com/@api",
+};
+function state(page: Page) {
+  const current = states.get(page);
+  if (!current) throw new Error("Cover fixture missing");
+  return current;
+}
+function headers(page: Page) {
+  return { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+}
+async function send(page: Page, method: "PUT" | "DELETE", data: unknown, extra: Record<string, string> = {}) {
+  const current = state(page);
+  const response = await page.request.fetch(`/api/v1/trips/${current.tripId}/cover`, {
+    method,
+    headers: { ...headers(page), ...extra },
+    data,
+  });
+  current.response = response;
+  return response;
+}
+async function cover(page: Page) {
+  const [row] = await withE2EDb((database) =>
+    database
+      .select({
+        name: trips.name,
+        coverImageUrl: trips.coverImageUrl,
+        coverPhotographer: trips.coverPhotographer,
+        coverPhotographerUrl: trips.coverPhotographerUrl,
+      })
+      .from(trips)
+      .where(eq(trips.id, state(page).tripId))
+  );
+  return row;
+}
+Given("a scenario-owned trip for the cover API", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip("threeDayTrip");
+  await scenario.gotoCurrentTrip(page);
+  const original = deriveGraphicCover(trip.name);
+  await withE2EDb((database) =>
+    database
+      .update(trips)
+      .set({ coverImageUrl: original, coverPhotographer: null, coverPhotographerUrl: null })
+      .where(eq(trips.id, trip.id))
+  );
+  states.set(page, { tripId: trip.id, key: randomUUID(), original });
+});
+Given("my cover API role is {string}", async ({ page, scenario }, role: string) => {
+  const current = state(page);
+  await withE2EDb(async (database) => {
+    const match = and(eq(collaborators.tripId, current.tripId), eq(collaborators.userId, scenario.currentUser!.id));
+    if (role === "stranger") await database.delete(collaborators).where(match);
+    else await database.update(collaborators).set({ role }).where(match);
+  });
+});
+When("I select an attributed cover through the API", async ({ page }) => {
+  expect((await send(page, "PUT", selection)).status()).toBe(204);
+});
+Then("the attributed API cover persists", async ({ page }) => {
+  expect(await cover(page)).toMatchObject(selection);
+});
+When("I remove the cover through the API", async ({ page }) => {
+  expect((await send(page, "DELETE", {})).status()).toBe(204);
+});
+Then("the API cover is a graphic without attribution", async ({ page }) => {
+  const row = await cover(page);
+  expect(row).toMatchObject({
+    coverImageUrl: deriveGraphicCover(row.name),
+    coverPhotographer: null,
+    coverPhotographerUrl: null,
+  });
+});
+When("I submit cover API case {string}", async ({ page }, testCase: string) => {
+  const bodies: Record<string, unknown> = {
+    "unsafe-image": { coverImageUrl: "javascript:alert(1)" },
+    "unsafe-photographer": { ...selection, coverPhotographerUrl: "javascript:alert(1)" },
+    "foreign-storage": { coverImageUrl: `/api/storage/trip-covers/${randomUUID()}/cover.png` },
+    "unknown-field": { ...selection, extra: true },
+    "delete-field": { extra: true },
+  };
+  await send(
+    page,
+    testCase === "delete-field" ? "DELETE" : "PUT",
+    bodies[testCase] ?? selection,
+    testCase === "cross-site" ? { origin: "https://other.example", "sec-fetch-site": "cross-site" } : {}
+  );
+});
+Then("the cover API returns {int} without changing the cover", async ({ page }, status: number) => {
+  expect(state(page).response!.status()).toBe(status);
+  expect((await cover(page)).coverImageUrl).toBe(state(page).original);
+});
+When("I replay keyed cover writes after later changes", async ({ page }) => {
+  const key = state(page).key;
+  expect((await send(page, "PUT", selection, { "idempotency-key": key })).status()).toBe(204);
+  expect((await send(page, "DELETE", {})).status()).toBe(204);
+  expect((await send(page, "PUT", selection, { "idempotency-key": key })).status()).toBe(204);
+  expect((await cover(page)).coverImageUrl).toBe(state(page).original);
+  expect(
+    (await send(page, "PUT", { coverImageUrl: "https://example.com/other" }, { "idempotency-key": key })).status()
+  ).toBe(409);
+  const removeKey = randomUUID();
+  expect((await send(page, "DELETE", {}, { "idempotency-key": removeKey })).status()).toBe(204);
+  expect((await send(page, "PUT", selection)).status()).toBe(204);
+  expect((await send(page, "DELETE", {}, { "idempotency-key": removeKey })).status()).toBe(204);
+  expect(await cover(page)).toMatchObject(selection);
+});
+Given("a stored map cover owned by the cover API trip", async ({ page }) => {
+  const current = state(page);
+  const directory = join(resolve(E2E_STORAGE_DIRECTORY), "trip-covers", current.tripId);
+  await mkdir(directory, { recursive: true });
+  current.file = join(directory, "map.png");
+  await writeFile(
+    current.file,
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
+      "base64"
+    )
+  );
+  current.original = `/api/storage/trip-covers/${current.tripId}/map.png`;
+  await withE2EDb((database) =>
+    database.update(trips).set({ coverImageUrl: current.original }).where(eq(trips.id, current.tripId))
+  );
+});
+Then("the replaced stored cover file is removed after commit", async ({ page }) => {
+  await expect
+    .poll(async () => {
+      try {
+        await access(state(page).file!);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(false);
+  const queued = await withE2EDb((database) =>
+    database
+      .select()
+      .from(pendingFileDeletions)
+      .where(eq(pendingFileDeletions.url, state(page).original))
+  );
+  expect(queued).toHaveLength(0);
+});
+When("I force the cover cleanup transaction to roll back", async ({ page }) => {
+  const current = state(page);
+  const identifier = "cover_rollback_" + randomUUID().replaceAll("-", "");
+  await withE2EDb(async (database) => {
+    await database.execute(
+      sql`CREATE FUNCTION ${sql.identifier(identifier)}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'scenario cover rollback'; END; $$`
+    );
+    try {
+      await database.execute(
+        sql`CREATE TRIGGER ${sql.identifier(identifier)} BEFORE INSERT ON pending_file_deletions FOR EACH ROW WHEN (NEW.url = ${sql.raw("'" + current.original + "'")}) EXECUTE FUNCTION ${sql.identifier(identifier)}()`
+      );
+      await send(page, "DELETE", {});
+    } finally {
+      await database.execute(sql`DROP TRIGGER IF EXISTS ${sql.identifier(identifier)} ON pending_file_deletions`);
+      await database.execute(sql`DROP FUNCTION ${sql.identifier(identifier)}()`);
+    }
+  });
+});
+Then("the rolled-back cover file and row remain", async ({ page }) => {
+  expect(state(page).response!.status()).toBe(500);
+  expect((await cover(page)).coverImageUrl).toBe(state(page).original);
+  await access(state(page).file!);
+  expect(
+    await withE2EDb((database) =>
+      database
+        .select()
+        .from(pendingFileDeletions)
+        .where(eq(pendingFileDeletions.url, state(page).original))
+    )
+  ).toHaveLength(0);
+});
+After(async ({ page }) => {
+  const current = states.get(page);
+  if (current?.file) await rm(current.file, { force: true });
+  states.delete(page);
+});

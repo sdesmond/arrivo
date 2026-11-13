@@ -1720,3 +1720,51 @@ Feature: Absolute checklist checked-state API
     Then the document API returns 404 with code "not_found"
     And the last document API response does not contain "original.pdf"
     And the corrupted document row and file are unchanged
+
+  Scenario: Editor selects and removes a cover through the API
+    Given a scenario-owned trip for the cover API
+    When I select an attributed cover through the API
+    Then the attributed API cover persists
+    When I remove the cover through the API
+    Then the API cover is a graphic without attribution
+
+  Scenario Outline: Cover API rejects unsafe input atomically
+    Given a scenario-owned trip for the cover API
+    When I submit cover API case "<case>"
+    Then the cover API returns <status> without changing the cover
+    Examples:
+      | case                | status |
+      | unsafe-image        | 422    |
+      | unsafe-photographer | 422    |
+      | foreign-storage     | 422    |
+      | unknown-field       | 422    |
+      | delete-field        | 422    |
+      | cross-site          | 403    |
+
+  Scenario Outline: Cover API enforces collaborator access
+    Given a scenario-owned trip for the cover API
+    And my cover API role is "<role>"
+    When I submit cover API case "valid"
+    Then the cover API returns <status> without changing the cover
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Keyed cover replays retain their original result after later changes
+    Given a scenario-owned trip for the cover API
+    When I replay keyed cover writes after later changes
+    Then the attributed API cover persists
+
+  Scenario: Stored map cover is deleted only after committed removal
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    When I remove the cover through the API
+    Then the API cover is a graphic without attribution
+    And the replaced stored cover file is removed after commit
+
+  Scenario: Cover rollback retains original row and stored map file
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    When I force the cover cleanup transaction to roll back
+    Then the rolled-back cover file and row remain

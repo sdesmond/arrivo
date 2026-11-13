@@ -65,6 +65,9 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/lib/services/covers.ts",
+    "src/app/api/v1/trips/*/cover/**",
+    "tests/e2e/steps/api-covers.steps.ts",
     "src/app/api/v1/documents/**",
     "tests/e2e/document-fixture.ts",
     "src/lib/api/**",
@@ -756,6 +759,11 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("trip-cover-overflow", [
+    "src/components/arrivo/trip-cover-controls.tsx",
+    "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+    "src/lib/services/covers.ts",
+    "src/lib/api/contract/covers.ts",
+    "src/app/api/v1/trips/*/cover/**",
     "src/components/arrivo/cover-*.tsx",
     "src/components/arrivo/trip-cover.tsx",
     "src/app/(app)/trips/[tripId]/cover-upload-actions.ts",
@@ -869,6 +877,10 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("viewer-trip-access", [
+    "src/components/arrivo/trip-cover-controls.tsx",
+    "src/lib/services/covers.ts",
+    "src/lib/api/contract/covers.ts",
+    "src/app/api/v1/trips/*/cover/**",
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
     "src/components/arrivo/trip-edit-access.tsx",
     "src/components/arrivo/place-row*.tsx",

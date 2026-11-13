@@ -1,5 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, Then, When } from "../fixtures";
+import { waitForApiResponse } from "../api-response";
+import { eq } from "drizzle-orm";
+import { trips } from "../../../src/db/schema";
+import { withE2EDb } from "../e2e-db";
 
 const STUB_PHOTOGRAPHER_NAME = "Stub Photographer 1";
 const STUB_PHOTOGRAPHER_URL = "https://unsplash.com/@stub-photographer-1";
@@ -22,23 +26,18 @@ async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
   await expect(page.getByText("Paris, France")).toBeVisible({ timeout: 10_000 });
   await page.getByText("Paris, France").click();
   await expect(stubPhotoButton).toBeVisible({ timeout: 15_000 });
+  const saved = waitForApiResponse(page, { method: "PUT", path: "/api/v1" + new URL(page.url()).pathname + "/cover" });
   await stubPhotoButton.click();
+  await saved;
   await expect(pickerDialog).not.toBeVisible();
 }
 
 async function openCoverOptionsMenu(page: Page): Promise<void> {
   const editCoverItem = page.getByRole("menuitem", { name: "Edit Cover" });
 
-  // Idempotent: clicking the trigger toggles the Base UI menu, so re-clicking an
-  // already-open menu closes it mid-animation and detaches the items. Only open
-  // when the menu is closed.
-  try {
-    await expect(editCoverItem).toBeVisible({ timeout: 2000 });
-    return;
-  } catch {
-    /* menu is closed — open it below */
-  }
-  await page.getByTitle("Cover options").click();
+  const trigger = page.getByTitle("Cover options");
+  await expect(trigger).toBeEnabled();
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
   await expect(editCoverItem).toBeVisible({ timeout: 5000 });
 }
 
@@ -78,11 +77,15 @@ Then("the cover attribution dialog shows the stub photographer", async ({ page }
 });
 
 When("I remove the current cover photo", async ({ page }) => {
+  const saved = waitForApiResponse(page, {
+    method: "DELETE",
+    path: "/api/v1" + new URL(page.url()).pathname + "/cover",
+  });
   await page.getByRole("menuitem", { name: "Remove Cover" }).click();
+  await saved;
 });
 
 Then("the cover options menu hides remove and info actions", async ({ page }) => {
-  await page.keyboard.press("Escape");
   await openCoverOptionsMenu(page);
   await expect(page.getByRole("menuitem", { name: "Edit Cover" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Remove Cover" })).not.toBeVisible();
@@ -157,4 +160,15 @@ Then("I see no cover image editing controls", async ({ page }) => {
   await expect(dialog.getByText("Cover image")).not.toBeVisible();
   await expect(dialog.getByRole("button", { name: "Edit cover image" })).not.toBeVisible();
   await expect(dialog.getByRole("button", { name: "Remove image" })).not.toBeVisible();
+});
+
+Then("the selected stub cover persists after reload", async ({ page, scenario }) => {
+  await page.reload();
+  // TripCover deliberately does not render data URLs; the offline search stub is still persisted with attribution.
+  const [trip] = await withE2EDb((database) =>
+    database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  expect(trip.coverImageUrl).toMatch(/^data:image\/svg\+xml/);
+  expect(trip.coverPhotographer).toBe(STUB_PHOTOGRAPHER_NAME);
+  expect(trip.coverPhotographerUrl).toBe(STUB_PHOTOGRAPHER_URL);
 });
