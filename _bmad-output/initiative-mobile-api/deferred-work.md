@@ -109,7 +109,3 @@
 - source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
   summary: Harden the `event-document` branch of `resolveOwningTripId` with the same single-row and ancestry validation the reservation branch now has.
   evidence: Pre-existing; `src/lib/storage/trip-resolution.ts` still takes the first `documents` row for the URL and trusts its `tripId` alone, so a corrupt or duplicated row names its trip unvalidated after the event is gone. Medium; a mixed-ancestry retained event-document row asserting the wrong trip should settle handling.
-
-- source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
-  summary: Decide how deleting a reservation treats a consistent dual-linked legacy document that still holds an event link.
-  evidence: Pre-existing; `documents.reservationId` and `documents.eventId` both cascade on delete (`src/db/schema.ts`), so `deleteReservation` removes the row and queues its file although the row is still attached to a live event in the same trip. Medium; a dual-linked document regression should settle whether to detach or preserve it.

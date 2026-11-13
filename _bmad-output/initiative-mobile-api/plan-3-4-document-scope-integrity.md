@@ -86,7 +86,7 @@ context:
 | Finding | Lens | Verdict | Route | Evidence |
 | --- | --- | --- | --- | --- |
 | `event-document` fallback trusts first row's `tripId`, no ancestry check | blind, edge, verification-gap, intent | medium | defer | Pre-existing code at `trip-resolution.ts` event-document branch; plan says preserve other scopes. Logged in deferred-work. |
-| Cascade deletes consistent dual-linked document still tied to an event | blind | medium | defer | FK cascade on both `documents.eventId` and `reservationId` is pre-existing; matrix keeps existing dual-link semantics. Logged in deferred-work. |
+| Cascade deletes consistent dual-linked document still tied to an event | blind | false | reject | Owner confirmed an event-and-reservation dual link cannot exist, so the cascade never meets one. |
 | Corrupt attached document makes reservation undeletable (404) | blind, edge, verification-gap | false | reject | Matrix requires 404 with row and file unchanged on mixed ancestry; intended behavior. |
 | No E2E for mixed ancestry during `deleteReservation`; role-lost and moved paths unit-only | blind | low | reject | Plan lists API and real-PDF reservation E2E; unit tests cover these rows. Adding a scenario is more than a direct fix. |
 | Sequential ancestry queries run under trip lock | blind | low | reject | Per-document count is small; no named harm. |
