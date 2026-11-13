@@ -95,3 +95,11 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-rename-and-remove-documents-through-the-api-plan.md`
   summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
   evidence: `uploadDocument` inserts when no row exists for `draft.id` and `removeDocument` leaves no tombstone; severity unverified (medium if real). Check how events handle create-after-delete and decide whether documents need a tombstone or the retry window already covers it.
+
+- source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
+  summary: Validate retained ancestry for legacy documents whose event and reservation belong to different trips.
+  evidence: Pre-existing documentTripId uses event-first fallback while mapper uses reservation precedence; a corrupt mixed-trip dual-linked row can authorize through the wrong retained scope. Medium; distinct-trip ancestry regression should settle handling.
+
+- source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
+  summary: Coordinate reservation deletion with document scope writes to avoid deleting a promoted document's file.
+  evidence: Pre-existing deleteReservation reads attached document URLs and deletes storage without trip lock; old and new promotion can interleave after URL selection but before reservation removal. High; deletion must recheck ownership under shared lock/transaction and use queued file cleanup.
