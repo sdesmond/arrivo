@@ -204,11 +204,6 @@ vi.mock("@/components/arrivo/trip-edit-sheet", () => ({
     ) : null,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  removeTripCover: vi.fn(),
-  setTripCoverWithAttribution: vi.fn(),
-}));
-
 vi.mock("@/app/(app)/trips/actions", () => ({
   leaveTrip: mockLeaveTrip,
 }));

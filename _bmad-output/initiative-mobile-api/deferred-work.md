@@ -109,3 +109,10 @@
 - source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
   summary: Harden the `event-document` branch of `resolveOwningTripId` with the same single-row and ancestry validation the reservation branch now has.
   evidence: Pre-existing; `src/lib/storage/trip-resolution.ts` still takes the first `documents` row for the URL and trusts its `tripId` alone, so a corrupt or duplicated row names its trip unvalidated after the event is gone. Medium; a mixed-ancestry retained event-document row asserting the wrong trip should settle handling.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
+  summary: Bound and normalize `coverPhotographer` (max length, reject empty string) in the cover PUT contract.
+  evidence: Columns are unbounded text; direct API callers can persist "" or huge names. The removed server action had the same laxness.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
+  summary: Uploaded cover files whose follow-up PUT fails or is abandoned are never cleaned up.
+  evidence: Upload stays a server action until entry 6; selection/removal now queue deletions for replaced own covers, uploads do not.

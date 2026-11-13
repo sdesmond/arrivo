@@ -8,7 +8,8 @@ Feature: Trip cover overflow menu
     Given I have an existing trip with a photo destination
     When I open the cover options menu
     And I choose the first stub cover photo
-    And I open the cover options menu
+    Then the selected stub cover persists after reload
+    When I open the cover options menu
     And I open the cover attribution dialog
     Then the cover attribution dialog shows the stub photographer
 
