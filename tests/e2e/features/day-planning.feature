@@ -87,10 +87,10 @@ Feature: Day Planning
     Then after reload the timeline reads "event, note, checklist"
     When I edit the note "Between note" to "Between note edited"
     Then the note "Between note edited" persists after reload
-    And after reload the timeline reads "event, note, checklist"
+    And the timeline reads "event, note, checklist"
     When I delete the note "Between note edited"
     Then the note "Between note edited" is gone after reload
-    And after reload the timeline reads "event, checklist"
+    And the timeline reads "event, checklist"
 
   Scenario: User creates, checks off, collapses, and deletes a checklist
     Given I am on the trip detail page

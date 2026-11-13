@@ -1,11 +1,10 @@
-"use server";
+import "server-only";
 
-import { requireUser } from "@/lib/auth-helpers";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
 import { MAX_COVER_SEARCH_PAGE, MAX_COVER_SEARCH_PAGE_SIZE } from "@/lib/validation-limits";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import type { CoverImageSearchResult } from "@/data/types";
+import type { Actor, CoverImageSearchResult } from "@/data/types";
 
 interface SearchCoverImagesOptions {
   page?: number;
@@ -64,19 +63,20 @@ function buildE2EUnsplashStub(query: string, page: number, perPage: number): Cov
   });
 }
 
-export async function resolveDestinationCenter(destinationName: string): Promise<[number, number] | null> {
+export async function resolveDestinationCenter(
+  actor: Actor,
+  destinationName: string
+): Promise<[number, number] | null> {
   if (!destinationName.trim()) return null;
 
   if (process.env.E2E_MAPBOX_STUB === "true") {
-    await requireUser();
     return [2.3488, 48.8534];
   }
 
   const token = process.env.MAPBOX_ACCESS_TOKEN;
   if (!token) return null;
 
-  const user = await requireUser();
-  assertWithinRateLimit("mapboxSearch", user.id!);
+  assertWithinRateLimit("mapboxSearch", actor.userId);
 
   const sessionToken = crypto.randomUUID();
   const search = new SearchBoxCore({ accessToken: token });
@@ -111,6 +111,7 @@ export async function resolveDestinationCenter(destinationName: string): Promise
 }
 
 export async function searchCoverImages(
+  actor: Actor,
   query: string,
   options: SearchCoverImagesOptions = {}
 ): Promise<CoverImageSearchResult[]> {
@@ -134,13 +135,11 @@ export async function searchCoverImages(
     throw new Error(`Search page size must be a whole number from 1 to ${MAX_COVER_SEARCH_PAGE_SIZE}`);
   }
 
-  const user = await requireUser();
-
   if (process.env.E2E_UNSPLASH_STUB === "true") {
     return buildE2EUnsplashStub(query, page, perPage);
   }
 
-  assertWithinRateLimit("unsplashSearch", user.id!);
+  assertWithinRateLimit("unsplashSearch", actor.userId);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);

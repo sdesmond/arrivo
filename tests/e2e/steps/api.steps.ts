@@ -28,11 +28,19 @@ import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, After } from "../fixtures";
 const rememberedCookies = new WeakMap<Page, Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>>>();
-const anonymousTripNoteRequests = new WeakMap<Page, APIRequestContext>();
+const anonymousApiRequests = new WeakMap<Page, APIRequestContext>();
 After(async ({ page }) => {
-  await anonymousTripNoteRequests.get(page)?.dispose();
-  anonymousTripNoteRequests.delete(page);
+  await anonymousApiRequests.get(page)?.dispose();
+  anonymousApiRequests.delete(page);
 });
+async function apiRequestClient(page: Page): Promise<APIRequestContext> {
+  if (state(page).role !== "anonymous") return page.request;
+  const client =
+    anonymousApiRequests.get(page) ??
+    (await request.newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } }));
+  anonymousApiRequests.set(page, client);
+  return client;
+}
 Given("I remember the signed-in browser cookies", async ({ page }) => {
   const cookies = await page.context().cookies();
   expect(cookies.some((cookie) => cookie.name.includes("session-token"))).toBe(true);
@@ -1085,14 +1093,14 @@ When("I attempt the checklist item API operation {string}", async ({ page, scena
   const item = await ensureItemApi(page, scenario.currentTrip!.id);
   item.countBefore = (await storedItems(item.checklistId)).length;
   const requestHeaders = headers(page);
-  if (state(page).role === "anonymous") await page.context().clearCookies();
+  const client = await apiRequestClient(page);
   state(page).response =
     operation === "create"
-      ? await page.request.post(itemsUrl(item.checklistId), {
+      ? await client.post(itemsUrl(item.checklistId), {
           headers: requestHeaders,
           data: { id: item.id, content: item.content },
         })
-      : await page.request.delete(itemUrl(state(page).itemId), {
+      : await client.delete(itemUrl(state(page).itemId), {
           headers: requestHeaders,
           data: { tripId: item.tripId },
         });
@@ -1511,8 +1519,8 @@ When(
     if (testCase === "no-header") requestHeaders["x-arrivo-client"] = "";
     if (testCase === "wrong-type") requestHeaders["content-type"] = "text/plain";
     if (testCase === "cross-origin") requestHeaders.origin = "https://other.test";
-    if (state(page).role === "anonymous") await page.context().clearCookies();
-    state(page).response = await page.request.fetch(request.url, {
+    const client = await apiRequestClient(page);
+    state(page).response = await client.fetch(request.url, {
       method: request.method,
       headers: requestHeaders,
       data,
@@ -1818,9 +1826,8 @@ Given("the mixed day for the day order API", async ({ page, scenario }) => {
 });
 async function putDayOrder(page: Page, items: DayItem[], key?: string) {
   const current = dayOrderState(page);
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  current.response = await page.request.put(`/api/v1/days/${current.dayId}/order`, {
+  const client = await apiRequestClient(page);
+  current.response = await client.put(`/api/v1/days/${current.dayId}/order`, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: { items },
   });
@@ -1912,9 +1919,8 @@ function eventCreateState(page: Page): EventCreateState {
   return current;
 }
 async function postDayEvent(page: Page, body: unknown, options: { key?: string; dayId?: string } = {}) {
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  const response = await page.request.post(`/api/v1/days/${options.dayId ?? dayOrderState(page).dayId}/events`, {
+  const client = await apiRequestClient(page);
+  const response = await client.post(`/api/v1/days/${options.dayId ?? dayOrderState(page).dayId}/events`, {
     headers: options.key ? { ...headers(page), "idempotency-key": options.key } : headers(page),
     data: body,
   });
@@ -2141,9 +2147,8 @@ function deleteBody(current: EventDeleteState, kind: DeleteKind) {
   return kind === "keep" ? { tripId: current.tripId, keepDocuments: true } : { tripId: current.tripId };
 }
 async function sendEventDelete(page: Page, eventId: string, body: unknown, key?: string) {
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  const response = await page.request.delete(`/api/v1/events/${eventId}`, {
+  const client = await apiRequestClient(page);
+  const response = await client.delete(`/api/v1/events/${eventId}`, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
   });
@@ -2317,9 +2322,8 @@ async function sendNote(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  const response = await page.request[method](url, {
+  const client = await apiRequestClient(page);
+  const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
   });
@@ -2600,13 +2604,7 @@ async function sendTripNote(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  let client = page.request;
-  if (state(page).role === "anonymous") {
-    client =
-      anonymousTripNoteRequests.get(page) ??
-      (await request.newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } }));
-    anonymousTripNoteRequests.set(page, client);
-  }
+  const client = await apiRequestClient(page);
   const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
@@ -2931,9 +2929,8 @@ async function sendDay(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  // A page request in flight when the Given cleared the cookies can set them again before this send; clear at the send.
-  if (state(page).role === "anonymous") await page.context().clearCookies();
-  const response = await page.request[method](url, {
+  const client = await apiRequestClient(page);
+  const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
   });

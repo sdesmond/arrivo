@@ -116,3 +116,16 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
   summary: Uploaded cover files whose follow-up PUT fails or is abandoned are never cleaned up.
   evidence: Upload stays a server action until entry 6; selection/removal now queue deletions for replaced own covers, uploads do not.
+
+- source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
+  summary: Let cover photos load when destination lookup exhausts its Mapbox budget.
+  evidence: Pre-existing picker awaits destination lookup before Unsplash; old action and new service both throw Mapbox budget errors outside lookup catch.
+- source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
+  summary: Verify whether malformed Mapbox geometry or Unsplash response fields require runtime validation.
+  evidence: Unverified medium impact; old action and extracted service both trust provider interfaces. Capture a malformed provider response to settle reachability before adding guards.
+- source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
+  summary: Escape special characters in offline Unsplash SVG fixture text.
+  evidence: Existing stub interpolates destination query into SVG text; XML-sensitive characters can create invalid fixture images.
+- source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
+  summary: Add hostile-page browser evidence for cross-origin search-budget rejection.
+  evidence: Current API cases supply headers directly; guard and service tests separately prove budget order, while picker covers real browser success.

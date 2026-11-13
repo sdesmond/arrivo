@@ -1174,13 +1174,21 @@ Then("one expanded checklist sits in the timeline and the order persists after r
   expect(after.map((id) => id.split("-")[0])).toEqual(["note", "event", "checklist"]);
 });
 
-Then("after reload the timeline reads {string}", async ({ page }, expected: string) => {
-  await page.reload();
-  await openFirstDay(page);
+async function expectTimelineOrder(page: Page, expected: string): Promise<void> {
   await expect(async () => {
     const kinds = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id.split("-")[0]));
     expect(kinds.join(", ")).toBe(expected);
   }).toPass({ timeout: 10_000 });
+}
+
+Then("after reload the timeline reads {string}", async ({ page }, expected: string) => {
+  await page.reload();
+  await openFirstDay(page);
+  await expectTimelineOrder(page, expected);
+});
+
+Then("the timeline reads {string}", async ({ page }, expected: string) => {
+  await expectTimelineOrder(page, expected);
 });
 
 Then("the checklist should not be visible on the timeline", async ({ page }) => {
@@ -1758,8 +1766,6 @@ Then("overlapping checklist item writes settle in intent order despite slow requ
     }
     await route.continue();
   });
-  const alphaCheck = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${alphaId}` });
-  const bravoDelete = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklist-items/${bravoId}` });
   try {
     // Alpha: a held check, then a queued edit. The UI shows both at once.
     await checklistItemRow(page, names.alpha).getByRole("button", { name: "Check item", exact: true }).click();
@@ -1786,10 +1792,19 @@ Then("overlapping checklist item writes settle in intent order despite slow requ
     await page.getByLabel("Checklist item content").fill("Charlie edited");
     await page.keyboard.press("Enter");
     await charlieEdit;
+    const bravoDelete = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/checklist-items/${bravoId}` });
     releaseBravo();
     await bravoDelete;
+    const alphaCheck = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${alphaId}` });
+    const alphaEdit = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === `/api/v1/checklist-items/${alphaId}` &&
+        response.request().postDataJSON().content === "Alpha edited"
+    );
     releaseAlpha();
     await alphaCheck;
+    expect((await alphaEdit).ok()).toBe(true);
     await expect.poll(() => log.filter((entry) => entry.includes(" alpha")).length).toBe(2);
   } finally {
     releaseAlpha();

@@ -7,7 +7,8 @@ import { createRandomId } from "@/lib/utils";
 import type { CoverImageSearchResult, CoverImageSelection } from "@/data/types";
 import type { LocationSuggestion } from "@/app/(app)/trips/actions";
 import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
-import { resolveDestinationCenter, searchCoverImages } from "@/app/(app)/trips/cover-image-search-actions";
+import { api } from "@/lib/api/client";
+import { resolveDestinationCenter, searchCoverImages } from "@/lib/api/contract/cover-images";
 
 const PHOTO_PAGE_SIZE = 19;
 
@@ -74,13 +75,14 @@ export function CoverImagePickerSearchTab({
 
     async function load() {
       try {
-        const nextCenter = initialCenter ?? (await resolveDestinationCenter(query));
+        const nextCenter =
+          initialCenter ?? (await api(resolveDestinationCenter, { params: {}, body: { name: query } })).center;
         if (!isCurrent) return;
         setResolvedCenter(nextCenter ?? undefined);
 
-        const results = await searchCoverImages(query, {
-          page: 1,
-          perPage: PHOTO_PAGE_SIZE,
+        const { images: results } = await api(searchCoverImages, {
+          params: {},
+          body: { query, page: 1, perPage: PHOTO_PAGE_SIZE },
         });
         if (!isCurrent) return;
         setImages(results);

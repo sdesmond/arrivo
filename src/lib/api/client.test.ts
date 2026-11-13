@@ -264,3 +264,30 @@ it("gives an upload the longer timeout and honours a per-request one", async () 
   await vi.advanceTimersByTimeAsync(5000);
   await json;
 });
+
+it("encodes GET fields without body or content type", async () => {
+  const { searchCoverImages } = await import("./contract/cover-images");
+  const fetch = vi.fn().mockResolvedValue(Response.json({ images: [] }));
+  vi.stubGlobal("fetch", fetch);
+  await api(searchCoverImages, { params: {}, body: { query: "Paris & Rome", page: 2, perPage: undefined } });
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/cover-images?query=Paris+%26+Rome&page=2",
+    expect.objectContaining({ method: "GET", headers: { "X-Arrivo-Client": "web" } })
+  );
+  expect(fetch.mock.calls[0][1]).not.toHaveProperty("body");
+});
+
+it("keeps timeout and error mapping on GET", async () => {
+  const { searchCoverImages } = await import("./contract/cover-images");
+  const input = { params: {}, body: { query: "Paris" } };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(Response.json({ error: { code: "forbidden", message: "Denied" } }, { status: 403 }))
+  );
+  await expect(api(searchCoverImages, input)).rejects.toMatchObject({ status: 403, code: "forbidden" });
+  vi.useFakeTimers();
+  vi.stubGlobal("fetch", hangingFetch());
+  const pending = expect(api(searchCoverImages, { ...input, timeoutMs: 10 })).rejects.toMatchObject(timeoutFailure);
+  await vi.advanceTimersByTimeAsync(10);
+  await pending;
+});

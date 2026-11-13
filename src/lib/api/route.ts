@@ -3,7 +3,7 @@ import type { z } from "zod";
 import type { Actor, IdempotentRequest } from "@/data/types";
 import { MULTIPART_OVERHEAD_BYTES, type Endpoint } from "./endpoint";
 import { requireApiUser } from "./auth";
-import { assertWebMutation } from "./csrf";
+import { assertWebMutation, assertWebRead } from "./csrf";
 import { ApiError, errorResponse } from "./errors";
 import { concretePath, parseIdempotencyKey } from "./idempotency";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
@@ -58,15 +58,23 @@ export function apiRoute<Result, Params extends z.ZodType, Body extends z.ZodTyp
   return async (request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> => {
     try {
       const actor = await requireApiUser();
-      assertWebMutation(request);
+      if (endpoint.method === "GET") assertWebRead(request);
+      else assertWebMutation(request);
       assertWithinRateLimit("api", actor.userId);
       const header = request.headers.get("idempotency-key");
-      if (header !== null && !options.idempotent)
+      if (header !== null && (endpoint.method === "GET" || !options.idempotent))
         throw new ApiError(400, "bad_request", "Idempotency-Key is not supported for this endpoint.");
-      const params = endpoint.params.parse(await context.params);
+      const params = endpoint.params.parse((await context.params) ?? {});
       let file: File | undefined;
       let raw: unknown;
-      if (endpoint.multipart) {
+      if (endpoint.method === "GET") {
+        const fields: Record<string, string> = Object.create(null);
+        for (const [name, value] of new URL(request.url).searchParams) {
+          if (Object.hasOwn(fields, name)) throw new ApiError(400, "bad_request", "Repeated query field.");
+          fields[name] = value;
+        }
+        raw = fields;
+      } else if (endpoint.multipart) {
         ({ fields: raw, file } = await readMultipart(request, endpoint.multipart.maxFileBytes));
       } else {
         try {

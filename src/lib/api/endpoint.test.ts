@@ -32,3 +32,13 @@ it("preserves typed contract metadata", () => {
   expect(endpoint.method).toBe("PATCH");
   expect(endpoint.params.parse({ id: "item" })).toEqual({ id: "item" });
 });
+
+it("declares GET queries through body", () => {
+  const endpoint = defineEndpoint<string>()({
+    method: "GET",
+    path: "/search",
+    params: z.object({}),
+    body: z.object({ query: z.string() }),
+  });
+  expect(endpoint.body.parse({ query: "Paris" })).toEqual({ query: "Paris" });
+});

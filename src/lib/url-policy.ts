@@ -59,7 +59,7 @@ function isMapTileCover(value: string): boolean {
 const E2E_STUB_COVER_PREFIX = "data:image/svg+xml;charset=utf-8,";
 const MAX_E2E_STUB_COVER_LENGTH = 4096;
 
-// The offline Unsplash stub (cover-image-search-actions.ts) returns inline SVG covers. Real search results are
+// The offline Unsplash stub (cover-search.ts) returns inline SVG covers. Real search results are
 // https, so this is accepted only under the E2E server's flag.
 function isE2EStubCover(value: string): boolean {
   return (

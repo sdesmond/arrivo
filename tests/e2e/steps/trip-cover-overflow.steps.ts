@@ -24,7 +24,9 @@ async function applyFirstStubCoverPhoto(page: Page): Promise<void> {
   await pickerDialog.getByRole("tab", { name: "Search" }).click();
   await searchInput.fill("Paris");
   await expect(page.getByText("Paris, France")).toBeVisible({ timeout: 10_000 });
+  const searched = waitForApiResponse(page, { method: "GET", path: "/api/v1/cover-images" });
   await page.getByText("Paris, France").click();
+  await searched;
   await expect(stubPhotoButton).toBeVisible({ timeout: 15_000 });
   const saved = waitForApiResponse(page, { method: "PUT", path: "/api/v1" + new URL(page.url()).pathname + "/cover" });
   await stubPhotoButton.click();
