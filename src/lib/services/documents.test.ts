@@ -103,7 +103,9 @@ vi.mock("./trip-write", () => ({
   },
 }));
 
-vi.mock("@/lib/file-cleanup", () => ({
+// `discardStoredFile` stays real: it removes through the mocked storage adapter above.
+vi.mock("@/lib/file-cleanup", async (original) => ({
+  ...(await original<typeof import("@/lib/file-cleanup")>()),
   queueFileDeletions: mocks.queueFileDeletions,
   removeQueuedFiles: mocks.removeQueuedFiles,
 }));
