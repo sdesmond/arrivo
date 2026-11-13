@@ -312,7 +312,6 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/cover-upload-actions.ts",
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
     "src/app/(app)/trips/[tripId]/reservations/actions.ts",
-    "src/app/(app)/trips/[tripId]/reservations/reservation-document-actions.ts",
     "src/app/(app)/trips/packing-actions.ts",
     "src/components/arrivo/app-activity.tsx",
     "src/components/arrivo/app-activity-viewer.tsx",
@@ -549,6 +548,7 @@ export const FEATURE_MAP = [
     ...STORAGE,
   ]),
   entry("event-docs", [
+    "src/components/arrivo/document-delete-dialog.tsx",
     "src/app/api/v1/documents/**",
     "tests/e2e/document-fixture.ts",
     "src/components/arrivo/add-doc-dialog.tsx",
@@ -674,6 +674,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/actions.ts",
   ]),
   entry("reservations", [
+    "src/components/arrivo/document-delete-dialog.tsx",
     "src/app/api/v1/documents/**",
     "tests/e2e/document-fixture.ts",
     "src/lib/services/documents.ts",

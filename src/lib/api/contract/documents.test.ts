@@ -48,9 +48,30 @@ it.each([
 it("validates strict document names and delete trip authorization", () => {
   expect(updateDocument.body.parse({})).toEqual({});
   expect(updateDocument.body.parse({ name: "pass" })).toEqual({ name: "pass" });
-  for (const body of [{ name: " " }, { name: "x".repeat(201) }, { eventId: uuid }, { reservationId: uuid }])
+  for (const body of [{ name: " " }, { name: "x".repeat(201) }])
     expect(updateDocument.body.safeParse(body).success).toBe(false);
   expect(deleteDocument.body.parse({ tripId })).toEqual({ tripId });
   expect(deleteDocument.body.safeParse({}).success).toBe(false);
   expect(deleteDocument.status).toBe(204);
+});
+
+it.each(["eventId", "reservationId"])("accepts one nullable UUID scope: %s", (field) => {
+  expect(updateDocument.body.parse({ [field]: uuid.toUpperCase(), name: "Pass" })).toEqual({
+    [field]: uuid,
+    name: "Pass",
+  });
+  expect(updateDocument.body.parse({ [field]: null })).toEqual({ [field]: null });
+  for (const value of ["linked-event", "linked-reservation", "bad", ""]) {
+    expect(updateDocument.body.safeParse({ [field]: value }).success).toBe(false);
+  }
+});
+
+it.each([
+  { eventId: uuid, reservationId: uuid },
+  { eventId: null, reservationId: null },
+  { eventId: uuid, reservationId: null },
+  { eventId: null, reservationId: uuid },
+  { tripId },
+])("rejects ambiguous scopes and unknown fields", (body) => {
+  expect(updateDocument.body.safeParse(body).success).toBe(false);
 });

@@ -103,7 +103,7 @@ import {
   uploadTripDocument,
   uploadEventDocument,
   uploadReservationDocument,
-  renameDocument,
+  updateDocument,
   removeDocument,
 } from "./documents";
 import { documents } from "@/db/schema";
@@ -392,8 +392,10 @@ it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tri
   "renames all scopes with legacy ancestry and publishes one effect",
   async (scope) => {
     mocks.committedRows = mocks.selectRows = [stored(scope)];
-    await expect(renameDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
-    expect(mocks.updated).toEqual([{ name: "New" }]);
+    await expect(updateDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
+    expect(mocks.updated).toEqual([
+      { name: "New", tripId, eventId: scope.eventId ?? null, reservationId: scope.reservationId ?? null },
+    ]);
     expect(mocks.requireTripRole).toHaveBeenCalledTimes(2);
     expect(mocks.publishTripEvent).toHaveBeenCalledTimes(1);
   }
@@ -401,10 +403,10 @@ it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tri
 it("leaves empty patches untouched and rejects invalid names in every scope", async () => {
   for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
     mocks.committedRows = mocks.selectRows = [stored(scope)];
-    await renameDocument(actor, documentId, {});
-    await renameDocument(actor, documentId, { name: "pass.pdf" });
+    await updateDocument(actor, documentId, {});
+    await updateDocument(actor, documentId, { name: "pass.pdf" });
     for (const name of [" ", "x".repeat(201)])
-      await expect(renameDocument(actor, documentId, { name })).rejects.toThrow();
+      await expect(updateDocument(actor, documentId, { name })).rejects.toThrow();
   }
   expect(mocks.updated).toEqual([]);
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
@@ -434,11 +436,18 @@ it("allows authorized repeat deletes and conceals foreign trips", async () => {
   mocks.selectRows = [stored({ tripId: otherTripId })];
   await expect(removeDocument(actor, documentId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
 });
-it("rechecks roles under lock and hides unknown documents", async () => {
-  await expect(renameDocument(actor, documentId, {})).rejects.toBeInstanceOf(TripNotFoundError);
-  mocks.committedRows = mocks.selectRows = [stored()];
+it.each([
+  { name: "new" },
+  { eventId: targetId },
+  { reservationId: targetId },
+  { eventId: null },
+  { reservationId: null },
+])("rechecks roles under lock and hides unknown documents", async (patch) => {
+  await expect(updateDocument(actor, documentId, {})).rejects.toBeInstanceOf(TripNotFoundError);
+  mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId, reservationId: targetId })];
   mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
-  await expect(renameDocument(actor, documentId, { name: "new" })).rejects.toBeInstanceOf(TripForbiddenError);
+  await expect(updateDocument(actor, documentId, patch)).rejects.toBeInstanceOf(TripForbiddenError);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
   expect(mocks.updated).toEqual([]);
 });
 
@@ -458,7 +467,7 @@ it("rejects changed document ancestry under lock before renaming", async () => {
   mocks.committedRows = [stored()];
   for (const current of [[], [stored({ tripId: otherTripId })]]) {
     mocks.selectRows = current;
-    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+    await expect(updateDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
   }
   expect(mocks.updated).toEqual([]);
 });
@@ -466,7 +475,7 @@ it("conceals orphaned legacy rows without a resolvable trip", async () => {
   for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
     mocks.committedRows = [stored({ tripId: null, ...scope })];
     mocks.targetRows = [];
-    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+    await expect(updateDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
   }
   expect(mocks.updated).toEqual([]);
 });
@@ -481,4 +490,118 @@ it("removes a document without a file without queueing a URL", async () => {
   mocks.selectRows = [stored({ url: null })];
   await removeDocument(actor, documentId, { tripId });
   expect(mocks.queueFileDeletions).toHaveBeenCalledWith(expect.anything(), []);
+});
+
+it.each(["eventId", "reservationId"] as const)(
+  "attaches atomically to %s and emits each trip effect once",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId, reservationId: targetId })];
+    const result = await updateDocument(actor, documentId, { [field]: targetId, name: "Attached" });
+    expect(result).toMatchObject({ name: "Attached", scope: field === "eventId" ? "event" : "reservation" });
+    expect(mocks.updated).toEqual([
+      {
+        name: "Attached",
+        tripId,
+        eventId: field === "eventId" ? targetId : null,
+        reservationId: field === "reservationId" ? targetId : null,
+      },
+    ]);
+    expect(mocks.recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user", tripId);
+    expect(mocks.revalidatePath).toHaveBeenCalledExactlyOnceWith("/trips/" + tripId);
+    expect(mocks.publishTripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId,
+    });
+  }
+);
+it.each([
+  { field: "eventId", links: { eventId: targetId } },
+  { field: "eventId", links: { reservationId: targetId } },
+  { field: "eventId", links: { eventId: targetId, reservationId: targetId } },
+  { field: "reservationId", links: { eventId: targetId } },
+  { field: "reservationId", links: { reservationId: targetId } },
+  { field: "reservationId", links: { eventId: targetId, reservationId: targetId } },
+])("promotes legacy $links through $field and preserves ancestry", async ({ field, links }) => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, ...links })];
+  await expect(updateDocument(actor, documentId, { [field]: null })).resolves.toMatchObject({ scope: "trip" });
+  expect(mocks.updated).toEqual([{ name: "pass.pdf", tripId, eventId: null, reservationId: null }]);
+  expect(mocks.recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user", tripId);
+  expect(mocks.revalidatePath).toHaveBeenCalledExactlyOnceWith("/trips/" + tripId);
+  expect(mocks.publishTripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+    type: LiveSyncEventType.ItineraryChanged,
+    tripId,
+  });
+});
+it.each(["eventId", "reservationId"] as const)(
+  "returns normalized repeated %s attachments without effects",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored({ [field]: targetId })];
+    await updateDocument(actor, documentId, { [field]: targetId });
+    expect(mocks.updated).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  }
+);
+it("preserves reservation precedence on effective legacy dual-link rename, while unchanged patches remain no-ops", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, eventId: targetId, reservationId: targetId })];
+  await updateDocument(actor, documentId, {});
+  await updateDocument(actor, documentId, { name: "pass.pdf" });
+  expect(mocks.updated).toEqual([]);
+  await expect(updateDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ scope: "reservation" });
+  expect(mocks.updated).toEqual([{ name: "New", tripId, eventId: null, reservationId: targetId }]);
+});
+it.each(["eventId", "reservationId"] as const)("rejects missing or foreign %s under lock", async (field) => {
+  mocks.committedRows = mocks.selectRows = [stored()];
+  for (const rows of [[], [{ tripId: otherTripId }]]) {
+    mocks.transactionTargetRows = rows;
+    await expect(updateDocument(actor, documentId, { [field]: targetId, name: "New" })).rejects.toBeInstanceOf(
+      TripNotFoundError
+    );
+  }
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it.each([new TripForbiddenError("editor"), new TripNotFoundError()])(
+  "rejects unauthorized scope changes before write",
+  async (error) => {
+    mocks.committedRows = mocks.selectRows = [stored()];
+    mocks.requireTripRole.mockRejectedValueOnce(error);
+    await expect(updateDocument(actor, documentId, { eventId: targetId })).rejects.toBe(error);
+    expect(mocks.updated).toEqual([]);
+  }
+);
+it.each([{ eventId: targetId, reservationId: null }, { eventId: "linked-event" }, { reservationId: "bad" }])(
+  "validates scope patches in service",
+  async (body) => {
+    await expect(updateDocument(actor, documentId, body)).rejects.toThrow();
+    expect(mocks.requireTripRole).not.toHaveBeenCalled();
+  }
+);
+
+it.each(["eventId", "reservationId"] as const)("rejects invalid name plus valid %s atomically", async (field) => {
+  mocks.committedRows = mocks.selectRows = [stored()];
+  await expect(updateDocument(actor, documentId, { name: " ", [field]: targetId })).rejects.toThrow();
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it.each(["eventId", "reservationId"] as const)(
+  "leaves repeated %s promotion of a trip document untouched",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored()];
+    await expect(updateDocument(actor, documentId, { [field]: null })).resolves.toMatchObject({
+      id: documentId,
+      scope: "trip",
+    });
+    await updateDocument(actor, documentId, { [field]: null });
+    expect(mocks.updated).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  }
+);
+it("moves a normalized event document to reservation and clears old event column", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId })];
+  await expect(updateDocument(actor, documentId, { reservationId: targetId })).resolves.toMatchObject({
+    id: documentId,
+    scope: "reservation",
+  });
+  expect(mocks.updated).toEqual([{ name: "pass.pdf", tripId, eventId: null, reservationId: targetId }]);
+  expect(mocks.afterTripWrite).toHaveBeenCalledExactlyOnceWith(actor, tripId);
 });

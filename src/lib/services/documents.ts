@@ -180,7 +180,7 @@ async function documentTripId(executor: ReadExecutor, row: typeof documents.$inf
     (row.reservationId ? await readTargetTripId(executor, { reservationId: row.reservationId }) : undefined)
   );
 }
-export async function renameDocument(
+export async function updateDocument(
   actor: Actor,
   documentId: string,
   input: unknown,
@@ -198,12 +198,35 @@ export async function renameDocument(
       await requireTripRole(tripId, actor.userId, "editor", transaction);
       const current = await readDocument(transaction, documentId);
       if (!current || (await documentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
+      const target = patch.eventId
+        ? { eventId: patch.eventId }
+        : patch.reservationId
+          ? { reservationId: patch.reservationId }
+          : undefined;
+      if (target && (await readTargetTripId(transaction, target)) !== tripId) throw new TripNotFoundError();
     },
     mutate: async () => {
       const current = await readDocument(transaction, documentId);
       if (!current) throw new TripNotFoundError();
-      if (patch.name === undefined || patch.name === current.name) return dbDocToType(current);
-      const [updated] = await transaction.update(documents).set(patch).where(eq(documents.id, documentId)).returning();
+      const changesScope = "eventId" in patch || "reservationId" in patch;
+      const name = patch.name ?? current.name;
+      // No effective rename leaves legacy rows untouched. Effective writes normalize once, using mapper precedence.
+      if (!changesScope && name === current.name) return dbDocToType(current);
+      const reservationId = changesScope ? (patch.reservationId ?? null) : current.reservationId;
+      const eventId = changesScope ? (patch.eventId ?? null) : reservationId ? null : current.eventId;
+      if (
+        name === current.name &&
+        current.tripId === tripId &&
+        current.eventId === eventId &&
+        current.reservationId === reservationId
+      ) {
+        return dbDocToType(current);
+      }
+      const [updated] = await transaction
+        .update(documents)
+        .set({ name, tripId, eventId, reservationId })
+        .where(eq(documents.id, documentId))
+        .returning();
       if (!updated) throw new TripNotFoundError();
       markChanged();
       return dbDocToType(updated);

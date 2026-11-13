@@ -1,21 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { ArrowUpToLine, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import { promoteReservationDocToTrip } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc, cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { DocumentDeleteDialog } from "./document-delete-dialog";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
@@ -41,7 +32,7 @@ const compactBtn: React.CSSProperties = {
 };
 
 export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
-  const [promotePending, startTransition] = useTransition();
+  const [promotePending, setPromotePending] = useState(false);
   const rename = useApiMutation(updateDocument),
     remove = useApiMutation(deleteDocument);
   const isPending = promotePending || remove.isPending;
@@ -55,6 +46,7 @@ export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
   const savedNameRef = useRef(doc.name);
   const [viewerOpen, setViewerOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement | null>(null);
 
   function handleSave() {
     if (cancelRef.current) {
@@ -89,19 +81,23 @@ export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
       setIsEditing(false);
     }
   }
-
   function handlePromote() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
-    startTransition(async () => {
-      try {
-        await promoteReservationDocToTrip(doc.id);
-      } catch {
-        inFlightRef.current = false;
+    setPromotePending(true);
+    const finishPromotion = () => {
+      inFlightRef.current = false;
+      setPromotePending(false);
+    };
+    void rename.mutate(
+      { params: { documentId: doc.id }, body: { reservationId: null } },
+      {
+        key: doc.id,
+        onAuthLost: finishPromotion,
+        onSettled: finishPromotion,
       }
-    });
+    );
   }
-
   function handleConfirm() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -219,6 +215,7 @@ export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
       </button>
 
       <button
+        ref={deleteButtonRef}
         onClick={() => setConfirmOpen(true)}
         disabled={isPending}
         title={`Delete ${doc.name}`}
@@ -228,33 +225,15 @@ export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
         <Trash2 size={13} strokeWidth={1.5} />
       </button>
 
-      <Dialog open={confirmOpen} onOpenChange={handleOpenChange}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{`Delete ${doc.name}?`}</DialogTitle>
-            <DialogDescription>This cannot be undone.</DialogDescription>
-          </DialogHeader>
-          {error && (
-            <p
-              role="alert"
-              style={{
-                fontSize: "calc(12px * var(--font-scale))",
-                color: "var(--destructive)",
-              }}
-            >
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={isPending}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirm} disabled={isPending}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DocumentDeleteDialog
+        name={doc.name}
+        open={confirmOpen}
+        isPending={isPending}
+        error={error}
+        onOpenChange={handleOpenChange}
+        onConfirm={handleConfirm}
+        finalFocusRef={deleteButtonRef}
+      />
 
       <DocViewer doc={doc} open={viewerOpen} onClose={() => setViewerOpen(false)} finalFocusRef={viewButtonRef} />
     </div>

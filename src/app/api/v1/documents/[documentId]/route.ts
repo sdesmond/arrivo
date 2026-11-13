@@ -1,9 +1,9 @@
 import { apiRoute } from "@/lib/api/route";
-import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
-import { renameDocument, removeDocument } from "@/lib/services/documents";
+import { updateDocument as updateContract, deleteDocument } from "@/lib/api/contract/documents";
+import { updateDocument, removeDocument } from "@/lib/services/documents";
 export const PATCH = apiRoute(
-  updateDocument,
-  ({ actor, params, body, replay }) => renameDocument(actor, params.documentId, body, replay),
+  updateContract,
+  ({ actor, params, body, replay }) => updateDocument(actor, params.documentId, body, replay),
   { idempotent: {} }
 );
 export const DELETE = apiRoute(

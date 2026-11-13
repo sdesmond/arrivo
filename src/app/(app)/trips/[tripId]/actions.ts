@@ -3,8 +3,8 @@
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { events, documents, trips } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { trips } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getContributorsAndInvitations } from "@/lib/queries";
@@ -65,12 +65,6 @@ function publishItineraryChanged(tripId: string): void {
   publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
 }
 
-async function getEventTripId(eventId: string): Promise<string> {
-  const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, eventId));
-  if (!event) throw new Error("Event not found");
-  return event.tripId;
-}
-
 export async function setTripCoverWithAttribution(
   tripId: string,
   coverImageUrl: string,
@@ -114,35 +108,6 @@ export async function removeTripCover(tripId: string): Promise<void> {
       .where(eq(trips.id, tripId));
   });
 
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function attachTripDocToEvent(docId: string, eventId: string): Promise<void> {
-  const user = await requireUser();
-  const tripId = await getEventTripId(eventId);
-  await assertTripAccess(tripId, user.id!, "editor");
-  // Scope the doc to the event's trip: an editor on one trip must not re-point another trip's document.
-  const attached = await db
-    .update(documents)
-    .set({ eventId })
-    .where(and(eq(documents.id, docId), eq(documents.tripId, tripId)))
-    .returning({ id: documents.id });
-  if (attached.length === 0) throw new Error("Document not found.");
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function promoteEventDocToTrip(docId: string): Promise<void> {
-  const user = await requireUser();
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId));
-  if (!doc) return;
-  const tripId = doc.tripId ?? (doc.eventId ? await getEventTripId(doc.eventId) : null);
-  if (!tripId) return;
-  await assertTripAccess(tripId, user.id!, "editor");
-  await db.update(documents).set({ eventId: null }).where(eq(documents.id, docId));
   recordTripUpdated(user.id!, tripId);
   publishItineraryChanged(tripId);
   revalidatePath(`/trips/${tripId}`);
