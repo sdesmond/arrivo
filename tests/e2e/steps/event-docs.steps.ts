@@ -80,8 +80,12 @@ Then("the pick list panel shows {string}", async ({ page }, docName: string) => 
   await expect(page.getByRole("button", { name: docName })).toBeVisible({ timeout: 5_000 });
 });
 
-When("I select {string} from the pick list", async ({ page }, docName: string) => {
+When("I select {string} from the pick list", async ({ page, scenario }, docName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, docName);
+  if (!document) throw new Error("Scenario document missing");
+  const attached = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await page.getByRole("button", { name: docName }).click();
+  await attached;
 });
 
 Then("the AddDocDialog is closed", async ({ page }) => {
@@ -188,8 +192,31 @@ Then("the event doc {string} is visible", async ({ page }, docName: string) => {
   await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
 });
 
-When("I promote the event doc {string} to trip level", async ({ page }, docName: string) => {
+When("I view attached document {string} on event {string}", async ({ page }, docName: string, eventName: string) => {
+  await page.getByRole("button", { name: "Itinerary", exact: true }).click();
+  if (!(await page.getByText(eventName, { exact: true }).isVisible())) {
+    await page
+      .getByRole("button", { name: dayButtonNamePattern(E2E_TRIP_START_DATE) })
+      .first()
+      .click();
+  }
+  if (!(await page.getByRole("button", { name: `Move ${docName} to trip` }).isVisible())) {
+    await page
+      .locator("div")
+      .filter({ hasText: new RegExp(`^${escapeRegex(eventName)}`) })
+      .getByTitle("Show attached documents")
+      .first()
+      .click();
+  }
+  await expect(page.getByRole("button", { name: `Move ${docName} to trip` })).toBeVisible();
+});
+
+When("I promote the event doc {string} to trip level", async ({ page, scenario }, docName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, docName);
+  if (!document) throw new Error("Scenario document missing");
+  const promoted = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+  await promoted;
 });
 
 Then("the event doc {string} is no longer visible in the event", async ({ page }, docName: string) => {

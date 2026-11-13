@@ -4,7 +4,7 @@ const { update, remove, apiRoute } = vi.hoisted(() => ({
   remove: vi.fn(),
   apiRoute: vi.fn((...args: [unknown, (input: unknown) => unknown, unknown?]) => args[1]),
 }));
-vi.mock("@/lib/services/documents", () => ({ renameDocument: update, removeDocument: remove }));
+vi.mock("@/lib/services/documents", () => ({ updateDocument: update, removeDocument: remove }));
 vi.mock("@/lib/api/route", () => ({ apiRoute }));
 import { PATCH, DELETE } from "./route";
 import { updateDocument as renameDocument, deleteDocument as removeDocument } from "@/lib/api/contract/documents";
@@ -49,4 +49,16 @@ it("forwards DELETE with actor, event, body and replay", async () => {
   remove.mockResolvedValue(null);
   await expect(deleteHandler(input)).resolves.toBeNull();
   expect(remove).toHaveBeenCalledWith(input.actor, "document", input.body, replay);
+});
+
+it("forwards combined name and absolute scope changes with replay metadata", async () => {
+  const replay = { key: "scope-retry", method: "PATCH", path: "/api/v1/documents/document" };
+  const input = {
+    actor: { userId: "user" },
+    params: { documentId: "document" },
+    body: { name: "Pass", reservationId: null },
+    replay,
+  };
+  await handler(input);
+  expect(update).toHaveBeenLastCalledWith(input.actor, "document", input.body, replay);
 });

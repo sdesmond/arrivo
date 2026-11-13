@@ -26,6 +26,18 @@ Feature: Event Document Integration
     And I select "E2E Pick Doc" from the pick list
     Then the AddDocDialog is closed
 
+  Scenario: Attach and promote a trip document with persistence after each change
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I click the Attach button on "E2E Event"
+    And I select "E2E Pick Doc" from the pick list
+    Then after reload event "E2E Event" shows uploaded document "E2E Pick Doc"
+    And the Documents tab does not show "E2E Pick Doc"
+    When I view attached document "E2E Pick Doc" on event "E2E Event"
+    And I promote the event doc "E2E Pick Doc" to trip level
+    And I reload the page
+    Then the Documents tab shows "E2E Pick Doc"
+
   # Story 3.2: Delete event with attached documents
 
   # Event doc management: view, rename, promote

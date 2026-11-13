@@ -1,21 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { ArrowUpToLine, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import { promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc, cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { DocumentDeleteDialog } from "./document-delete-dialog";
 import { useCanEditTrip } from "./trip-edit-access";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
@@ -54,7 +45,7 @@ const nameStyle: React.CSSProperties = {
 
 export function EventDocRow({ doc, tripId }: EventDocRowProps) {
   const canEdit = useCanEditTrip();
-  const [promotePending, startTransition] = useTransition();
+  const [promotePending, setPromotePending] = useState(false);
   const rename = useApiMutation(updateDocument),
     remove = useApiMutation(deleteDocument);
   const isPending = promotePending || remove.isPending;
@@ -68,6 +59,7 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
   const savedNameRef = useRef(doc.name);
   const [viewerOpen, setViewerOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement | null>(null);
 
   function handleSave() {
     if (cancelRef.current) {
@@ -102,19 +94,23 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       setIsEditing(false);
     }
   }
-
   function handlePromote() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
-    startTransition(async () => {
-      try {
-        await promoteEventDocToTrip(doc.id);
-      } catch {
-        inFlightRef.current = false;
+    setPromotePending(true);
+    const finishPromotion = () => {
+      inFlightRef.current = false;
+      setPromotePending(false);
+    };
+    void rename.mutate(
+      { params: { documentId: doc.id }, body: { eventId: null } },
+      {
+        key: doc.id,
+        onAuthLost: finishPromotion,
+        onSettled: finishPromotion,
       }
-    });
+    );
   }
-
   function handleConfirm() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -148,7 +144,6 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       style={{ background: "var(--surface)" }}
     >
       <DocKindBadge kind={doc.kind} />
-
       {isEditing ? (
         <input
           aria-label="Document name"
@@ -194,7 +189,6 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       ) : (
         <span style={nameStyle}>{displayName}</span>
       )}
-
       <button
         ref={viewButtonRef}
         onClick={() => setViewerOpen(true)}
@@ -204,7 +198,6 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       >
         <Eye size={13} strokeWidth={1.5} />
       </button>
-
       <button
         title={`Share ${doc.name}`}
         aria-label={`Share ${doc.name}`}
@@ -215,7 +208,6 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       >
         <Share2 size={13} strokeWidth={1.5} />
       </button>
-
       {canEdit && (
         <button
           title={`Move ${doc.name} to trip`}
@@ -229,6 +221,7 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
       )}
       {canEdit && (
         <button
+          ref={deleteButtonRef}
           onClick={() => setConfirmOpen(true)}
           disabled={isPending}
           title={`Delete ${doc.name}`}
@@ -239,33 +232,15 @@ export function EventDocRow({ doc, tripId }: EventDocRowProps) {
         </button>
       )}
 
-      <Dialog open={confirmOpen} onOpenChange={handleOpenChange}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{`Delete ${doc.name}?`}</DialogTitle>
-            <DialogDescription>This cannot be undone.</DialogDescription>
-          </DialogHeader>
-          {error && (
-            <p
-              role="alert"
-              style={{
-                fontSize: "calc(12px * var(--font-scale))",
-                color: "var(--destructive)",
-              }}
-            >
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={isPending}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirm} disabled={isPending}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DocumentDeleteDialog
+        name={doc.name}
+        open={confirmOpen}
+        isPending={isPending}
+        error={error}
+        onOpenChange={handleOpenChange}
+        onConfirm={handleConfirm}
+        finalFocusRef={deleteButtonRef}
+      />
 
       <DocViewer doc={doc} open={viewerOpen} onClose={() => setViewerOpen(false)} finalFocusRef={viewButtonRef} />
     </div>

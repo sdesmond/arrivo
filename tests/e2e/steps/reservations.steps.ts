@@ -1,11 +1,46 @@
 import { findScenarioDocument } from "../document-fixture";
-import { expect, type Page } from "@playwright/test";
+import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { reservations } from "../../../src/db/schema";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { collaborators, documents, pendingFileDeletions, reservations } from "../../../src/db/schema";
+import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
 import { withE2EDb } from "../e2e-db";
+import { holdScenarioTripLock, type HeldTripLock } from "../document-scope-concurrency";
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
-import { Given, When, Then } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
+import { After, Given, When, Then } from "../fixtures";
+
+const RESERVATION_PDF = Buffer.from("%PDF-1.4 PDF content %%EOF");
+const RACE_TIMEOUT_MS = 30_000;
+
+/** The two writers of a race: both start while the scenario holds the trip lock, in the order the scenario chooses. */
+interface DocumentScopeRace {
+  lock: HeldTripLock;
+  promotion?: Promise<APIResponse>;
+  deletion?: Promise<Error | undefined>;
+  promotionResponse?: APIResponse;
+  deletionError?: Error;
+}
+const documentScopeRaces = new WeakMap<Page, DocumentScopeRace>();
+const recordedFileUrls = new WeakMap<Page, string>();
+
+After(async ({ page }) => {
+  const race = documentScopeRaces.get(page);
+  if (!race) return;
+  documentScopeRaces.delete(page);
+  // Free the lock first so a writer a failed scenario left queued can finish, then wait for both to settle.
+  await race.lock.release();
+  await Promise.allSettled([race.promotion, race.deletion]);
+});
+
+async function scenarioDocument(tripId: string, name: string) {
+  const row = await findScenarioDocument(tripId, name);
+  if (!row) throw new Error(`Scenario document "${name}" missing`);
+  const [document] = await withE2EDb((database) => database.select().from(documents).where(eq(documents.id, row.id)));
+  return document;
+}
 
 function formatTimeForDisplay(time: string): string {
   const [hourString, minute] = time.split(":");
@@ -327,16 +362,6 @@ When("I attach a file to the reservation {string}", async ({ page, scenario }, r
   await expect(page.getByRole("dialog")).not.toBeVisible();
 });
 
-Then(
-  "the document {string} appears on the reservation {string}",
-  async ({ page }, docName: string, reservationName: string) => {
-    await expect(page.getByRole("dialog")).not.toBeVisible();
-    await expect(page.getByRole("button", { name: reservationName, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /^docs?$/i }).click();
-    await expect(page.getByText(docName)).toBeVisible({ timeout: 10_000 });
-  }
-);
-
 Given(
   "the trip has a Lodging reservation and a trip-level document {string}",
   async ({ page, scenario }, docName: string) => {
@@ -388,9 +413,15 @@ Then("the reservation doc {string} is visible", async ({ page }, docName: string
   await expect(page.getByText(docName, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
 });
 
-When("I promote the reservation doc {string} to trip level", async ({ page }, docName: string) => {
-  await page.getByRole("button", { name: /^docs?$/i }).click();
+When("I promote the reservation doc {string} to trip level", async ({ page, scenario }, docName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, docName);
+  if (!document) throw new Error("Scenario document missing");
+  if (!(await page.getByRole("button", { name: `Move ${docName} to trip` }).isVisible())) {
+    await page.getByRole("button", { name: /^docs?$/i }).click();
+  }
+  const promoted = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await page.getByRole("button", { name: `Move ${docName} to trip` }).click();
+  await promoted;
 });
 
 Then("the reservation doc {string} is no longer visible on the reservation", async ({ page }, docName: string) => {
@@ -409,4 +440,131 @@ Then("after reload the reservation shows uploaded document {string}", async ({ p
 
 When("I expand reservation documents", async ({ page }) => {
   await page.getByRole("button", { name: /^docs?$/i }).click();
+});
+
+When("I return to reservation documents", async ({ page }) => {
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
+  const section = page.getByRole("button", { name: /^Lodging, / });
+  await expect(section).toBeVisible();
+  if ((await section.getAttribute("aria-expanded")) === "false") await section.click();
+});
+
+When("I confirm the deletion and wait for it to save", async ({ page, scenario }) => {
+  const saved = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  const button = page.getByRole("button", { name: "Delete", exact: true });
+  await button.focus();
+  await button.press("Enter");
+  await saved;
+});
+
+Then("the trip document {string} downloads its original bytes", async ({ page, scenario }, name: string) => {
+  const document = await scenarioDocument(scenario.currentTrip!.id, name);
+  expect(document.reservationId).toBeNull();
+  const response = await page.request.get(document.url!);
+  expect(response.status()).toBe(200);
+  expect(Buffer.from(await response.body())).toEqual(RESERVATION_PDF);
+});
+
+Then("a stranger cannot download the trip document {string}", async ({ page, scenario }, name: string) => {
+  const document = await scenarioDocument(scenario.currentTrip!.id, name);
+  await withE2EDb((database) =>
+    database
+      .delete(collaborators)
+      .where(
+        and(eq(collaborators.tripId, scenario.currentTrip!.id), eq(collaborators.userId, scenario.currentUser!.id))
+      )
+  );
+  const response = await page.request.get(document.url!);
+  expect(response.status()).toBe(404);
+});
+
+When("I hold the trip lock for a document promotion and a reservation deletion", async ({ page, scenario }) => {
+  documentScopeRaces.set(page, { lock: await holdScenarioTripLock(scenario.currentTrip!.id) });
+});
+
+function race(page: Page): DocumentScopeRace {
+  const current = documentScopeRaces.get(page);
+  if (!current) throw new Error("The trip lock is not held for this scenario.");
+  return current;
+}
+
+When("I start promoting the reservation doc {string} over the API", async ({ page, scenario }, name: string) => {
+  const document = await scenarioDocument(scenario.currentTrip!.id, name);
+  const promotion = page.request.patch(`/api/v1/documents/${document.id}`, {
+    headers: {
+      "x-arrivo-client": "web",
+      origin: new URL(page.url()).origin,
+      "content-type": "application/json",
+    },
+    data: { reservationId: null },
+    timeout: RACE_TIMEOUT_MS,
+  });
+  // A scenario that fails before awaiting the request must not leave an unhandled rejection behind.
+  promotion.catch(() => undefined);
+  race(page).promotion = promotion;
+});
+
+When("I start deleting the reservation {string} and leave it waiting", async ({ page, scenario }, provider: string) => {
+  await page.getByRole("button", { name: `Delete ${provider}` }).click();
+  const saved = waitForServerActionResponse(page, {
+    pathIncludes: `/trips/${scenario.currentTrip!.id}`,
+    timeoutMs: RACE_TIMEOUT_MS,
+  });
+  const button = page.getByRole("button", { name: "Delete", exact: true });
+  await button.focus();
+  // Settle into a value so a scenario that fails before awaiting it cannot leave an unhandled rejection.
+  race(page).deletion = saved.then(
+    () => undefined,
+    (error: Error) => error
+  );
+  await button.press("Enter");
+});
+
+Then("the trip lock has {int} blocked writer(s)", async ({ page }, count: number) => {
+  await race(page).lock.waitForBlockedWriters(count);
+});
+
+When("I release the trip lock and let both writers finish", async ({ page }) => {
+  const current = race(page);
+  await current.lock.release();
+  current.promotionResponse = await current.promotion!;
+  current.deletionError = await current.deletion!;
+});
+
+Then("the promotion answered {int} and the reservation deletion saved", async ({ page }, status: number) => {
+  const current = race(page);
+  expect(current.promotionResponse!.status()).toBe(status);
+  expect(current.deletionError).toBeUndefined();
+});
+
+When("I note the stored file of the reservation doc {string}", async ({ page, scenario }, name: string) => {
+  recordedFileUrls.set(page, (await scenarioDocument(scenario.currentTrip!.id, name)).url!);
+});
+
+Then("the reservation document {string} and its noted file are gone", async ({ page, scenario }, name: string) => {
+  const url = recordedFileUrls.get(page);
+  if (!url) throw new Error("The stored file was not noted.");
+  expect(await findScenarioDocument(scenario.currentTrip!.id, name)).toBeUndefined();
+  await expect
+    .poll(async () => {
+      try {
+        await readFile(join(resolve(E2E_STORAGE_DIRECTORY), url.replace(/^\/api\/storage\//, "")));
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(false);
+  // The file was removed, so its queued name was cleared and nothing can serve it.
+  await expect
+    .poll(async () =>
+      withE2EDb((database) =>
+        database
+          .select({ id: pendingFileDeletions.id })
+          .from(pendingFileDeletions)
+          .where(eq(pendingFileDeletions.url, url))
+      ).then((rows) => rows.length)
+    )
+    .toBe(0);
+  expect((await page.request.get(url)).status()).toBe(404);
 });

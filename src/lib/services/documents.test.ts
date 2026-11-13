@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   recordTripUpdated: vi.fn(),
@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   selectRows: [] as Record<string, unknown>[],
   targetRows: [] as Record<string, unknown>[],
   transactionTargetRows: undefined as Record<string, unknown>[] | undefined,
+  eventRows: undefined as Record<string, unknown>[] | undefined,
+  reservationRows: undefined as Record<string, unknown>[] | undefined,
+  transactionEventRows: undefined as Record<string, unknown>[] | undefined,
+  transactionReservationRows: undefined as Record<string, unknown>[] | undefined,
   committedRows: [] as Record<string, unknown>[],
   inserted: [] as Record<string, unknown>[],
   queueFileDeletions: vi.fn(),
@@ -25,7 +29,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/db", () => ({
   db: {
     select: () => ({
-      from: (table: unknown) => ({ where: async () => (table === documents ? mocks.committedRows : mocks.targetRows) }),
+      from: (table: unknown) => ({
+        where: async () =>
+          table === documents
+            ? mocks.committedRows
+            : ((table === events ? mocks.eventRows : mocks.reservationRows) ?? mocks.targetRows),
+      }),
     }),
   },
 }));
@@ -51,8 +60,12 @@ vi.mock("./trip-write", () => ({
     const transaction = {
       select: () => ({
         from: (table: unknown) => ({
-          where: async () =>
-            table === documents ? mocks.selectRows : (mocks.transactionTargetRows ?? mocks.targetRows),
+          where: async () => {
+            if (table === documents) return mocks.selectRows;
+            const specific = table === events ? mocks.transactionEventRows : mocks.transactionReservationRows;
+            const outside = table === events ? mocks.eventRows : mocks.reservationRows;
+            return specific ?? mocks.transactionTargetRows ?? outside ?? mocks.targetRows;
+          },
         }),
       }),
       update: () => ({
@@ -103,10 +116,10 @@ import {
   uploadTripDocument,
   uploadEventDocument,
   uploadReservationDocument,
-  renameDocument,
+  updateDocument,
   removeDocument,
 } from "./documents";
-import { documents } from "@/db/schema";
+import { documents, events } from "@/db/schema";
 import { TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { ConflictError } from "./conflict-error";
 import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
@@ -138,6 +151,8 @@ beforeEach(() => {
   mocks.selectRows = [];
   mocks.targetRows = [{ tripId }];
   mocks.transactionTargetRows = undefined;
+  mocks.eventRows = mocks.reservationRows = undefined;
+  mocks.transactionEventRows = mocks.transactionReservationRows = undefined;
   mocks.committedRows = [];
   mocks.inserted = [];
   mocks.insertError = undefined;
@@ -392,8 +407,10 @@ it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tri
   "renames all scopes with legacy ancestry and publishes one effect",
   async (scope) => {
     mocks.committedRows = mocks.selectRows = [stored(scope)];
-    await expect(renameDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
-    expect(mocks.updated).toEqual([{ name: "New" }]);
+    await expect(updateDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
+    expect(mocks.updated).toEqual([
+      { name: "New", tripId, eventId: scope.eventId ?? null, reservationId: scope.reservationId ?? null },
+    ]);
     expect(mocks.requireTripRole).toHaveBeenCalledTimes(2);
     expect(mocks.publishTripEvent).toHaveBeenCalledTimes(1);
   }
@@ -401,10 +418,10 @@ it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tri
 it("leaves empty patches untouched and rejects invalid names in every scope", async () => {
   for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
     mocks.committedRows = mocks.selectRows = [stored(scope)];
-    await renameDocument(actor, documentId, {});
-    await renameDocument(actor, documentId, { name: "pass.pdf" });
+    await updateDocument(actor, documentId, {});
+    await updateDocument(actor, documentId, { name: "pass.pdf" });
     for (const name of [" ", "x".repeat(201)])
-      await expect(renameDocument(actor, documentId, { name })).rejects.toThrow();
+      await expect(updateDocument(actor, documentId, { name })).rejects.toThrow();
   }
   expect(mocks.updated).toEqual([]);
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
@@ -434,11 +451,18 @@ it("allows authorized repeat deletes and conceals foreign trips", async () => {
   mocks.selectRows = [stored({ tripId: otherTripId })];
   await expect(removeDocument(actor, documentId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
 });
-it("rechecks roles under lock and hides unknown documents", async () => {
-  await expect(renameDocument(actor, documentId, {})).rejects.toBeInstanceOf(TripNotFoundError);
-  mocks.committedRows = mocks.selectRows = [stored()];
+it.each([
+  { name: "new" },
+  { eventId: targetId },
+  { reservationId: targetId },
+  { eventId: null },
+  { reservationId: null },
+])("rechecks roles under lock and hides unknown documents", async (patch) => {
+  await expect(updateDocument(actor, documentId, {})).rejects.toBeInstanceOf(TripNotFoundError);
+  mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId, reservationId: targetId })];
   mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
-  await expect(renameDocument(actor, documentId, { name: "new" })).rejects.toBeInstanceOf(TripForbiddenError);
+  await expect(updateDocument(actor, documentId, patch)).rejects.toBeInstanceOf(TripForbiddenError);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
   expect(mocks.updated).toEqual([]);
 });
 
@@ -458,7 +482,7 @@ it("rejects changed document ancestry under lock before renaming", async () => {
   mocks.committedRows = [stored()];
   for (const current of [[], [stored({ tripId: otherTripId })]]) {
     mocks.selectRows = current;
-    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+    await expect(updateDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
   }
   expect(mocks.updated).toEqual([]);
 });
@@ -466,7 +490,7 @@ it("conceals orphaned legacy rows without a resolvable trip", async () => {
   for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
     mocks.committedRows = [stored({ tripId: null, ...scope })];
     mocks.targetRows = [];
-    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+    await expect(updateDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
   }
   expect(mocks.updated).toEqual([]);
 });
@@ -481,4 +505,186 @@ it("removes a document without a file without queueing a URL", async () => {
   mocks.selectRows = [stored({ url: null })];
   await removeDocument(actor, documentId, { tripId });
   expect(mocks.queueFileDeletions).toHaveBeenCalledWith(expect.anything(), []);
+});
+
+it.each(["eventId", "reservationId"] as const)(
+  "attaches atomically to %s and emits each trip effect once",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId, reservationId: targetId })];
+    const result = await updateDocument(actor, documentId, { [field]: targetId, name: "Attached" });
+    expect(result).toMatchObject({ name: "Attached", scope: field === "eventId" ? "event" : "reservation" });
+    expect(mocks.updated).toEqual([
+      {
+        name: "Attached",
+        tripId,
+        eventId: field === "eventId" ? targetId : null,
+        reservationId: field === "reservationId" ? targetId : null,
+      },
+    ]);
+    expect(mocks.recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user", tripId);
+    expect(mocks.revalidatePath).toHaveBeenCalledExactlyOnceWith("/trips/" + tripId);
+    expect(mocks.publishTripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+      type: LiveSyncEventType.ItineraryChanged,
+      tripId,
+    });
+  }
+);
+it.each([
+  { field: "eventId", links: { eventId: targetId } },
+  { field: "eventId", links: { reservationId: targetId } },
+  { field: "eventId", links: { eventId: targetId, reservationId: targetId } },
+  { field: "reservationId", links: { eventId: targetId } },
+  { field: "reservationId", links: { reservationId: targetId } },
+  { field: "reservationId", links: { eventId: targetId, reservationId: targetId } },
+])("promotes legacy $links through $field and preserves ancestry", async ({ field, links }) => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, ...links })];
+  await expect(updateDocument(actor, documentId, { [field]: null })).resolves.toMatchObject({ scope: "trip" });
+  expect(mocks.updated).toEqual([{ name: "pass.pdf", tripId, eventId: null, reservationId: null }]);
+  expect(mocks.recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user", tripId);
+  expect(mocks.revalidatePath).toHaveBeenCalledExactlyOnceWith("/trips/" + tripId);
+  expect(mocks.publishTripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+    type: LiveSyncEventType.ItineraryChanged,
+    tripId,
+  });
+});
+it.each(["eventId", "reservationId"] as const)(
+  "returns normalized repeated %s attachments without effects",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored({ [field]: targetId })];
+    await updateDocument(actor, documentId, { [field]: targetId });
+    expect(mocks.updated).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  }
+);
+it("preserves reservation precedence on effective legacy dual-link rename, while unchanged patches remain no-ops", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, eventId: targetId, reservationId: targetId })];
+  await updateDocument(actor, documentId, {});
+  await updateDocument(actor, documentId, { name: "pass.pdf" });
+  expect(mocks.updated).toEqual([]);
+  await expect(updateDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ scope: "reservation" });
+  expect(mocks.updated).toEqual([{ name: "New", tripId, eventId: null, reservationId: targetId }]);
+});
+it.each(["eventId", "reservationId"] as const)("rejects missing or foreign %s under lock", async (field) => {
+  mocks.committedRows = mocks.selectRows = [stored()];
+  for (const rows of [[], [{ tripId: otherTripId }]]) {
+    mocks.transactionTargetRows = rows;
+    await expect(updateDocument(actor, documentId, { [field]: targetId, name: "New" })).rejects.toBeInstanceOf(
+      TripNotFoundError
+    );
+  }
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it.each([new TripForbiddenError("editor"), new TripNotFoundError()])(
+  "rejects unauthorized scope changes before write",
+  async (error) => {
+    mocks.committedRows = mocks.selectRows = [stored()];
+    mocks.requireTripRole.mockRejectedValueOnce(error);
+    await expect(updateDocument(actor, documentId, { eventId: targetId })).rejects.toBe(error);
+    expect(mocks.updated).toEqual([]);
+  }
+);
+it.each([{ eventId: targetId, reservationId: null }, { eventId: "linked-event" }, { reservationId: "bad" }])(
+  "validates scope patches in service",
+  async (body) => {
+    await expect(updateDocument(actor, documentId, body)).rejects.toThrow();
+    expect(mocks.requireTripRole).not.toHaveBeenCalled();
+  }
+);
+
+it.each(["eventId", "reservationId"] as const)("rejects invalid name plus valid %s atomically", async (field) => {
+  mocks.committedRows = mocks.selectRows = [stored()];
+  await expect(updateDocument(actor, documentId, { name: " ", [field]: targetId })).rejects.toThrow();
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it.each(["eventId", "reservationId"] as const)(
+  "leaves repeated %s promotion of a trip document untouched",
+  async (field) => {
+    mocks.committedRows = mocks.selectRows = [stored()];
+    await expect(updateDocument(actor, documentId, { [field]: null })).resolves.toMatchObject({
+      id: documentId,
+      scope: "trip",
+    });
+    await updateDocument(actor, documentId, { [field]: null });
+    expect(mocks.updated).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  }
+);
+it("moves a normalized event document to reservation and clears old event column", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ eventId: targetId })];
+  await expect(updateDocument(actor, documentId, { reservationId: targetId })).resolves.toMatchObject({
+    id: documentId,
+    scope: "reservation",
+  });
+  expect(mocks.updated).toEqual([{ name: "pass.pdf", tripId, eventId: null, reservationId: targetId }]);
+  expect(mocks.afterTripWrite).toHaveBeenCalledExactlyOnceWith(actor, tripId);
+});
+
+const inconsistent: [string, Record<string, unknown>, { events?: string; reservations?: string }][] = [
+  ["a trip document claiming an event of another trip", { tripId, eventId: targetId }, { events: otherTripId }],
+  [
+    "a trip document claiming a reservation of another trip",
+    { tripId, reservationId: targetId },
+    { reservations: otherTripId },
+  ],
+  [
+    "an event and a reservation in different trips",
+    { tripId: null, eventId: targetId, reservationId: targetId },
+    { reservations: otherTripId },
+  ],
+  [
+    "an explicit trip that matches neither parent",
+    { tripId: otherTripId, eventId: targetId, reservationId: targetId },
+    {},
+  ],
+  ["a missing event", { tripId: null, eventId: targetId }, { events: "" }],
+  ["a missing reservation", { tripId, reservationId: targetId }, { reservations: "" }],
+];
+function seedInconsistent(row: Record<string, unknown>, parents: { events?: string; reservations?: string }) {
+  mocks.committedRows = mocks.selectRows = [stored(row)];
+  const rowsFor = (parent: string | undefined) =>
+    parent === undefined ? [{ tripId }] : parent ? [{ tripId: parent }] : [];
+  mocks.eventRows = rowsFor(parents.events);
+  mocks.reservationRows = rowsFor(parents.reservations);
+}
+describe.each(inconsistent)("inconsistent ancestry: %s", (_label, row, parents) => {
+  it.each([
+    ["renames", { name: "New" }],
+    ["sends an empty patch", {}],
+    ["repeats the stored name", { name: "pass.pdf" }],
+    ["attaches to an event", { eventId: targetId }],
+    ["attaches to a reservation", { reservationId: targetId }],
+    ["promotes from an event", { eventId: null }],
+    ["promotes from a reservation", { reservationId: null }],
+  ])("conceals the document when the editor %s", async (_action, patch) => {
+    seedInconsistent(row, parents);
+    // The editor owns every trip involved, so only the ancestry check can refuse.
+    await expect(updateDocument(actor, documentId, patch)).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(mocks.updated).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
+
+  it.each([tripId, otherTripId])("conceals the document on delete through trip %s", async (bodyTripId) => {
+    seedInconsistent(row, parents);
+    await expect(removeDocument(actor, documentId, { tripId: bodyTripId })).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(mocks.queueFileDeletions).not.toHaveBeenCalled();
+    expect(mocks.removeQueuedFiles).not.toHaveBeenCalled();
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
+});
+it("rejects ancestry that turns inconsistent under the trip lock before writing", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, eventId: targetId })];
+  mocks.transactionEventRows = [{ tripId: otherTripId }];
+  await expect(updateDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+  await expect(removeDocument(actor, documentId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.queueFileDeletions).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("still renames, repeats and deletes a consistent dual legacy link through its one trip", async () => {
+  mocks.committedRows = mocks.selectRows = [stored({ tripId: null, eventId: targetId, reservationId: targetId })];
+  await expect(updateDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
+  await expect(removeDocument(actor, documentId, { tripId })).resolves.toBeNull();
+  expect(mocks.queueFileDeletions).toHaveBeenCalledTimes(1);
 });

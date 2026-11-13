@@ -95,3 +95,17 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-rename-and-remove-documents-through-the-api-plan.md`
   summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
   evidence: `uploadDocument` inserts when no row exists for `draft.id` and `removeDocument` leaves no tombstone; severity unverified (medium if real). Check how events handle create-after-delete and decide whether documents need a tombstone or the retry window already covers it.
+
+- source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
+  summary: Validate retained ancestry for legacy documents whose event and reservation belong to different trips.
+  evidence: Pre-existing documentTripId uses event-first fallback while mapper uses reservation precedence; a corrupt mixed-trip dual-linked row can authorize through the wrong retained scope. Medium; distinct-trip ancestry regression should settle handling.
+  completed: 2026-11-12 on `story/3-4-attach-and-promote-documents-through-the-api` via `plan-3-4-document-scope-integrity.md`; one shared ancestry resolver (`src/lib/document-ancestry.ts`) now backs rename, attach, promote and delete, and mixed or missing ancestry is a 404. Evidence: `document-ancestry.test.ts`, `documents.test.ts` and the API scenarios "Mixed-trip document ancestry is concealed..." and "...blocks attaching and promoting".
+
+- source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
+  summary: Coordinate reservation deletion with document scope writes to avoid deleting a promoted document's file.
+  evidence: Pre-existing deleteReservation reads attached document URLs and deletes storage without trip lock; old and new promotion can interleave after URL selection but before reservation removal. High; deletion must recheck ownership under shared lock/transaction and use queued file cleanup.
+  completed: 2026-11-12 on `story/3-4-attach-and-promote-documents-through-the-api` via `plan-3-4-document-scope-integrity.md`; `deleteReservation` locks the trip, rechecks the role and reservation, queues attached files in its transaction and cleans up only after the commit; the storage route serves a promoted document after its reservation is gone. Evidence: `reservations/actions.test.ts`, `trip-resolution.test.ts` and both reservations race scenarios (promotion first, deletion first).
+
+- source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
+  summary: Harden the `event-document` branch of `resolveOwningTripId` with the same single-row and ancestry validation the reservation branch now has.
+  evidence: Pre-existing; `src/lib/storage/trip-resolution.ts` still takes the first `documents` row for the URL and trusts its `tripId` alone, so a corrupt or duplicated row names its trip unvalidated after the event is gone. Medium; a mixed-ancestry retained event-document row asserting the wrong trip should settle handling.

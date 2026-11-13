@@ -55,8 +55,6 @@ const {
   const mockSaveContributorChanges = vi.fn();
   const schemaTokens: Record<string, unknown> = {
     days: {},
-    documents: {},
-    events: {},
     itineraryChecklists: {},
     itineraryNotes: {},
     packingItems: {},
@@ -161,10 +159,8 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import {
-  attachTripDocToEvent,
   dismissShareInvitation,
   getShareDialogData,
-  promoteEventDocToTrip,
   removeTripCover,
   setTripCoverWithAttribution,
   uploadCoverImage,
@@ -174,14 +170,6 @@ import {
 } from "./actions";
 import { trips } from "@/db/schema";
 import { LiveSyncEventType, type ContributorChange } from "@/data/types";
-
-function createSimpleSelect(rows: unknown[]) {
-  return {
-    from: vi.fn(() => ({
-      where: vi.fn(async () => rows),
-    })),
-  };
-}
 
 beforeEach(() => {
   mockGetStorageAdapter.mockReturnValue({ put: mockAdapterPut, del: mockAdapterDel });
@@ -551,76 +539,5 @@ describe("removeTripCover", () => {
     expect(mockDbUpdate).not.toHaveBeenCalled();
     expect(mockRevalidatePath).not.toHaveBeenCalled();
     expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-});
-
-describe("attachTripDocToEvent scoping", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-  });
-
-  it("rejects a document that is not in the event's trip", async () => {
-    const whereSpy = vi.fn(() => ({ returning: vi.fn(async () => []) }));
-    mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: whereSpy })) });
-
-    await expect(attachTripDocToEvent("other-trip-doc", "event-1")).rejects.toThrow("Document not found.");
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-    expect(mockPublishTripEvent).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("publishItineraryChanged regression coverage", () => {
-  // These actions each end by publishing ItineraryChanged for their trip. Rather than a bespoke
-  // describe block per action duplicating the same assert-and-mock boilerplate, this table drives
-  // one generic test body per action-under-test; see epic-4-retro-2026-09-08.md item 19.
-  interface PublishCase {
-    name: string;
-    tripId: string;
-    run: () => Promise<unknown>;
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-  });
-
-  const cases: PublishCase[] = [
-    {
-      name: "attachTripDocToEvent",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-        mockDbUpdate.mockReturnValue({
-          set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn(async () => [{ id: "doc-1" }]) })) })),
-        });
-        return attachTripDocToEvent("doc-1", "event-1");
-      },
-    },
-    {
-      name: "promoteEventDocToTrip",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ id: "doc-1", tripId: "trip-1", eventId: "event-1" }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return promoteEventDocToTrip("doc-1");
-      },
-    },
-  ];
-
-  it.each(cases)("publishes ItineraryChanged for $name", async ({ tripId, run }) => {
-    await run();
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", tripId);
-    expect(mockPublishTripEvent).toHaveBeenCalledWith(tripId, {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId,
-    });
   });
 });

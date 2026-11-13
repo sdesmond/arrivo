@@ -1,16 +1,15 @@
 "use client";
 
-import { useRef, useState, useEffect, useTransition } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import type { Document } from "@/data/types";
 import { DocKindBadge } from "./doc-kind-badge";
-import { attachTripDocToReservation } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOOSER_LABEL } from "@/lib/upload-policy";
 
-import { uploadReservationDocument } from "@/lib/api/contract/documents";
+import { updateDocument, uploadReservationDocument } from "@/lib/api/contract/documents";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
 
@@ -34,10 +33,11 @@ export function AddReservationDocDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [isPicking, startTransition] = useTransition();
+  const pick = useApiMutation(updateDocument);
+  const pickingRef = useRef(false);
   const { mutate, isPending } = useApiMutation(uploadReservationDocument);
   const attempt = useRef<{ file: File; targetId: string; id: string }>(undefined);
-  const isUploading = isPicking || isPending;
+  const isUploading = pick.isPending || isPending;
 
   const defaultMode = (): DialogMode => ((tripDocs?.length ?? 0) > 0 ? "pick" : "upload");
   const [mode, setMode] = useState<DialogMode>(defaultMode);
@@ -59,14 +59,19 @@ export function AddReservationDocDialog({
   }
 
   function handlePickDoc(docId: string) {
-    startTransition(async () => {
-      try {
-        await attachTripDocToReservation(docId, reservationId);
-        handleClose(false);
-      } catch {
-        toast.error("Failed to attach document. Please try again.");
+    if (pickingRef.current || isUploading) return;
+    pickingRef.current = true;
+    void pick.mutate(
+      { params: { documentId: docId }, body: { reservationId } },
+      {
+        key: docId,
+        onSuccess: () => handleClose(false),
+        onAuthLost: () => handleClose(false),
+        onSettled: () => {
+          pickingRef.current = false;
+        },
       }
-    });
+    );
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -114,6 +119,7 @@ export function AddReservationDocDialog({
                     key={doc.id}
                     ref={idx === 0 ? firstItemRef : undefined}
                     onClick={() => handlePickDoc(doc.id)}
+                    disabled={isUploading}
                     style={{
                       display: "flex",
                       alignItems: "center",

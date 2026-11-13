@@ -1555,12 +1555,12 @@ Feature: Absolute checklist checked-state API
     Then the document API returns 422 with code "validation_failed"
     And the document mutation persisted name "original.pdf"
     Examples:
-      | scope       | case        |
-      | trip        | blank       |
-      | event       | long        |
-      | reservation | blank       |
-      | reservation | long        |
-      | trip        | scope-field |
+      | scope       | case          |
+      | trip        | blank         |
+      | event       | long          |
+      | reservation | blank         |
+      | reservation | long          |
+      | trip        | unknown-field |
 
   Scenario Outline: Document mutations enforce access and same site protections
     Given a scenario-owned "reservation" document ready for mutation
@@ -1593,3 +1593,130 @@ Feature: Absolute checklist checked-state API
     Then the document API returns 500 with code "server_error"
     And the document mutation persisted name "original.pdf"
     And the rolled-back document has no queued file deletion
+
+  Scenario Outline: Document scope attach retries and promotion persist
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "<scope>" case "normal"
+    Then the document API returns 200
+    And the document has persisted "<scope>" scope
+    When I set the document scope to "<scope>" case "normal"
+    Then the last two document mutation responses match
+    And the document has persisted "<scope>" scope
+    When I set the document scope to "<scope>" case "promote"
+    Then the document API returns 200
+    And the document has persisted "trip" scope
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario: Moving a reservation document to an event clears reservation scope
+    Given a scenario-owned "reservation" document ready for mutation
+    When I set the document scope to "event" case "normal"
+    Then the document API returns 200
+    And the document has persisted "event" scope
+
+  Scenario Outline: Keyed document scope replay preserves later promotion
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "<scope>" case "keyed"
+    Then the document API returns 200
+    And the document has persisted "<scope>" scope
+    When I set the document scope to "<scope>" case "promote"
+    Then the document API returns 200
+    And the document has persisted "trip" scope
+    When I set the document scope to "<scope>" case "keyed"
+    Then the document API returns 200
+    And the document has persisted "trip" scope
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Document scope validation and trip isolation preserve original scope
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "<scope>" case "<case>"
+    Then the document API returns <status> with code "<code>"
+    And the document has persisted "trip" scope
+    Examples:
+      | scope       | case      | status | code              |
+      | event       | missing   | 404    | not_found         |
+      | reservation | missing   | 404    | not_found         |
+      | event       | foreign   | 404    | not_found         |
+      | reservation | foreign   | 404    | not_found         |
+      | event       | both      | 422    | validation_failed |
+      | reservation | both-null | 422    | validation_failed |
+      | event       | linked    | 422    | validation_failed |
+      | reservation | linked    | 422    | validation_failed |
+      | event       | malformed | 422    | validation_failed |
+      | reservation | malformed | 422    | validation_failed |
+
+  Scenario Outline: Document scope changes require editor and same-site client
+    Given a scenario-owned "trip" document ready for mutation
+    And my checklist API role is "<role>"
+    When I set the document scope to "<scope>" case "<case>"
+    Then the document API returns <status> with code "<code>"
+    And the document has persisted "trip" scope
+    Examples:
+      | scope       | role     | case             | status | code      |
+      | event       | viewer   | normal           | 403    | forbidden |
+      | reservation | viewer   | normal           | 403    | forbidden |
+      | event       | stranger | normal           | 404    | not_found |
+      | reservation | stranger | normal           | 404    | not_found |
+      | event       | editor   | cross-origin     | 403    | forbidden |
+      | reservation | editor   | cross-origin     | 403    | forbidden |
+      | event       | editor   | no-client-header | 403    | forbidden |
+      | reservation | editor   | no-client-header | 403    | forbidden |
+
+  Scenario Outline: Mixed-trip document ancestry is concealed from rename, empty patch and delete
+    Given a scenario-owned "trip" document ready for mutation
+    And the scenario document claims "<claim>" of another trip I also edit
+    When I submit document mutation "<method>" case "<case>"
+    Then the document API returns 404 with code "not_found"
+    And the corrupted document row and file are unchanged
+    Examples:
+      | claim        | method | case             |
+      | reservation  | PATCH  | normal           |
+      | reservation  | PATCH  | empty            |
+      | reservation  | DELETE | normal           |
+      | reservation  | DELETE | owned-other-trip |
+      | event        | PATCH  | normal           |
+      | event        | DELETE | owned-other-trip |
+      | legacy mixed | PATCH  | normal           |
+      | legacy mixed | PATCH  | empty            |
+      | legacy mixed | DELETE | normal           |
+      | legacy mixed | DELETE | owned-other-trip |
+
+  Scenario Outline: Mixed-trip document ancestry blocks attaching and promoting
+    Given a scenario-owned "trip" document ready for mutation
+    And the scenario document claims "<claim>" of another trip I also edit
+    When I set the document scope to "<scope>" case "<case>"
+    Then the document API returns 404 with code "not_found"
+    And the corrupted document row and file are unchanged
+    Examples:
+      | claim        | scope       | case    |
+      | reservation  | event       | normal  |
+      | event        | reservation | normal  |
+      | legacy mixed | reservation | normal  |
+      | legacy mixed | event       | normal  |
+      | legacy mixed | event       | promote |
+      | event        | reservation | promote |
+
+  Scenario: A keyed document rename is not replayed once the document ancestry is inconsistent
+    Given a scenario-owned "trip" document ready for mutation
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 200
+    Given the scenario document claims "reservation" of another trip I also edit
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 404 with code "not_found"
+    And the last document API response does not contain "Renamed.pdf"
+    And the corrupted document row and file are unchanged
+
+  Scenario: A keyed document scope change is not replayed once the document ancestry is inconsistent
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "event" case "keyed"
+    Then the document API returns 200
+    Given the scenario document claims "reservation" of another trip I also edit
+    When I set the document scope to "event" case "keyed"
+    Then the document API returns 404 with code "not_found"
+    And the last document API response does not contain "original.pdf"
+    And the corrupted document row and file are unchanged

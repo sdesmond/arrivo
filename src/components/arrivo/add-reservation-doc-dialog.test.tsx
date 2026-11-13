@@ -24,10 +24,6 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/reservation-document-actions", () => ({
-  attachTripDocToReservation: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("@/lib/api/client", async (original) => ({
@@ -35,10 +31,9 @@ vi.mock("@/lib/api/client", async (original) => ({
   api: vi.fn().mockResolvedValue({ id: "doc" }),
 }));
 import { api, ApiClientError } from "@/lib/api/client";
-import { uploadReservationDocument } from "@/lib/api/contract/documents";
+import { updateDocument, uploadReservationDocument } from "@/lib/api/contract/documents";
 
 import { AddReservationDocDialog } from "./add-reservation-doc-dialog";
-import { attachTripDocToReservation } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 
 const makeDoc = (overrides: Record<string, unknown> = {}) => ({
   id: "doc-1",
@@ -59,7 +54,7 @@ describe("pick mode", () => {
     expect(screen.getByText("Itinerary.pdf")).toBeInTheDocument();
   });
 
-  it("clicking a doc in pick list calls attachTripDocToReservation and closes", async () => {
+  it("clicking a doc in pick list calls document attachment PATCH and closes", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
@@ -72,14 +67,17 @@ describe("pick mode", () => {
     );
     await user.click(screen.getByText("Itinerary.pdf"));
     await waitFor(() => {
-      expect(attachTripDocToReservation).toHaveBeenCalledWith("doc-1", "res-1");
+      expect(api).toHaveBeenCalledWith(updateDocument, {
+        params: { documentId: "doc-1" },
+        body: { reservationId: "res-1" },
+      });
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 
   it("attach failure shows a toast and keeps the dialog open", async () => {
     const { toast } = await import("sonner");
-    vi.mocked(attachTripDocToReservation).mockRejectedValueOnce(new Error("Reservation not found"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Reservation not found"));
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
@@ -94,7 +92,7 @@ describe("pick mode", () => {
     await user.click(screen.getByText("Itinerary.pdf"));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Failed to attach document. Please try again.");
+      expect(toast.error).toHaveBeenCalledWith("Could not save changes. Try again.");
     });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
@@ -236,5 +234,34 @@ it.each(["unauthenticated", "mfa_enrollment_required"])("closes upload dialog on
     target: { files: [new File(["pdf"], "pass.pdf", { type: "application/pdf" })] },
   });
   fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+  await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+});
+
+it("blocks repeated picks while pending and allows retry after error", async () => {
+  let fail!: (error: Error) => void;
+  vi.mocked(api).mockReturnValueOnce(
+    new Promise((_resolve, reject) => {
+      fail = reject;
+    })
+  );
+  const onOpenChange = vi.fn();
+  render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />);
+  const pick = screen.getByRole("button", { name: /Itinerary.pdf/ });
+  fireEvent.click(pick);
+  fireEvent.click(pick);
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(pick).toBeDisabled();
+  fail(new Error("offline"));
+  await waitFor(() => expect(pick).toBeEnabled());
+  expect(onOpenChange).not.toHaveBeenCalled();
+  fireEvent.click(pick);
+  await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  expect(api).toHaveBeenCalledTimes(2);
+});
+it.each(["unauthenticated", "mfa_enrollment_required"])("closes picker on auth loss: %s", async (code) => {
+  vi.mocked(api).mockRejectedValueOnce(new ApiClientError(401, code, "Sign in"));
+  const onOpenChange = vi.fn();
+  render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />);
+  fireEvent.click(screen.getByRole("button", { name: /Itinerary.pdf/ }));
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
 });

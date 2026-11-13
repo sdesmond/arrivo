@@ -16,10 +16,6 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Document } from "@/data/types";
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/reservation-document-actions", () => ({
-  promoteReservationDocToTrip: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipTrigger: ({ render }: { render?: React.ReactElement }) => render ?? null,
@@ -70,7 +66,6 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 import { ReservationDocRow } from "./reservation-doc-row";
-import { promoteReservationDocToTrip } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
@@ -152,16 +147,16 @@ describe("ReservationDocRow", () => {
     expect(shareDoc).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/doc.pdf" }));
   });
 
-  it("clicking the promote button calls promoteReservationDocToTrip with doc id", async () => {
+  it("clicking the promote button calls document promotion PATCH with doc id", async () => {
     const user = userEvent.setup();
     render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-42" })} />);
     await user.click(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" }));
-    expect(promoteReservationDocToTrip).toHaveBeenCalledWith("doc-42");
+    expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-42" }, body: { reservationId: null } });
   });
 
-  it("double-click on promote button does not call promoteReservationDocToTrip twice", async () => {
+  it("double-click on promote button does not call document promotion PATCH twice", async () => {
     let resolveCall: (() => void) | undefined;
-    vi.mocked(promoteReservationDocToTrip).mockImplementationOnce(
+    vi.mocked(renameDocument).mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           resolveCall = () => resolve();
@@ -172,18 +167,18 @@ describe("ReservationDocRow", () => {
     const promoteBtn = screen.getByRole("button", { name: "Move Confirmation.pdf to trip" });
     await user.click(promoteBtn);
     await user.click(promoteBtn);
-    expect(promoteReservationDocToTrip).toHaveBeenCalledTimes(1);
+    expect(renameDocument).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolveCall?.();
     });
   });
 
-  it("silently recovers when promoteReservationDocToTrip rejects", async () => {
-    vi.mocked(promoteReservationDocToTrip).mockRejectedValueOnce(new Error("network error"));
+  it("silently recovers when document promotion PATCH rejects", async () => {
+    vi.mocked(renameDocument).mockRejectedValueOnce(new Error("network error"));
     const user = userEvent.setup();
     render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ id: "doc-err" })} />);
     await user.click(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" }));
-    expect(promoteReservationDocToTrip).toHaveBeenCalledWith("doc-err");
+    expect(renameDocument).toHaveBeenCalledWith({ params: { documentId: "doc-err" }, body: { reservationId: null } });
     expect(screen.getByRole("button", { name: "Move Confirmation.pdf to trip" })).toBeInTheDocument();
   });
 
@@ -321,5 +316,59 @@ describe("ReservationDocRow rename failure and retry", () => {
     expect(screen.getByRole("button", { name: "A" })).toHaveStyle({ minWidth: "44px", minHeight: "44px" });
     await user.click(screen.getByRole("button", { name: "A" }));
     expect(screen.getByRole("textbox", { name: "Document name" })).toHaveStyle({ minHeight: "44px" });
+  });
+});
+
+it("retries failed promotion through PATCH", async () => {
+  mutationMocks.rename.mockClear();
+  mutationMocks.rename.mockRejectedValueOnce(new Error("offline"));
+  const user = userEvent.setup();
+  render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
+  const promote = screen.getByRole("button", { name: /Move .* to trip/ });
+  await user.click(promote);
+  await waitFor(() => expect(promote).toBeEnabled());
+  await user.click(promote);
+  await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+});
+it("stops promotion retries after auth loss", async () => {
+  mutationMocks.rename.mockClear();
+  mutationMocks.remove.mockClear();
+  const { ApiClientError } = await import("@/lib/api/client");
+  mutationMocks.rename.mockRejectedValueOnce(new ApiClientError(401, "unauthenticated", "Sign in"));
+  const user = userEvent.setup();
+  render(<ReservationDocRow tripId="trip-1" doc={makeDoc()} />);
+  const promote = screen.getByRole("button", { name: /Move .* to trip/ });
+  await user.click(promote);
+  await waitFor(() => expect(promote).toBeEnabled());
+  await user.click(promote);
+  expect(mutationMocks.rename).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(promote).toBeEnabled());
+  expect(screen.getByRole("button", { name: /Delete .*pdf/ })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: /Delete .*pdf/ }));
+  await user.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(mutationMocks.remove).toHaveBeenCalledTimes(1));
+});
+
+it("queues promotion behind an in-flight rename for the same document", async () => {
+  mutationMocks.rename.mockClear();
+  let finish!: () => void;
+  mutationMocks.rename.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+  );
+  const user = userEvent.setup();
+  render(<ReservationDocRow tripId="trip-1" doc={makeDoc({ name: "Old" })} />);
+  await user.click(screen.getByRole("button", { name: "Old" }));
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "New{Enter}");
+  await user.click(screen.getByRole("button", { name: "Move Old to trip" }));
+  expect(mutationMocks.rename).toHaveBeenCalledTimes(1);
+  await act(async () => finish());
+  await waitFor(() => expect(mutationMocks.rename).toHaveBeenCalledTimes(2));
+  expect(mutationMocks.rename.mock.calls[1][0]).toEqual({
+    params: { documentId: "doc-1" },
+    body: { reservationId: null },
   });
 });

@@ -41,7 +41,15 @@ export const updateDocument = defineEndpoint<Document>()({
   method: "PATCH",
   path: "/api/v1/documents/:documentId",
   params: z.object({ documentId: uuidLower }),
-  body: z.strictObject({ name: documentNameSchema.optional() }),
+  body: z
+    .strictObject({
+      name: documentNameSchema.optional(),
+      eventId: uuidLower.nullable().optional(),
+      reservationId: uuidLower.nullable().optional(),
+    })
+    .refine((patch) => !("eventId" in patch && "reservationId" in patch), {
+      message: "Specify only one document scope.",
+    }),
 });
 export const deleteDocument = defineEndpoint<null>()({
   method: "DELETE",
