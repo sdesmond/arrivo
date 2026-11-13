@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, events, reservations } from "@/db/schema";
+import { resolveDocumentTripId } from "@/lib/document-ancestry";
 import { parseUploadStorageName } from "@/lib/upload-policy";
 import { StorageOwnerNotFoundError } from "./storage-adapter";
 
@@ -33,8 +34,16 @@ export async function resolveOwningTripId(key: string): Promise<string> {
         .select({ tripId: reservations.tripId })
         .from(reservations)
         .where(eq(reservations.id, ownerId));
-      if (!reservation) throw new StorageOwnerNotFoundError("Reservation not found.");
-      return reservation.tripId;
+      if (reservation) return reservation.tripId;
+      // A promoted document keeps the file after its reservation is deleted. Only a single row holding this exact
+      // URL, whose remaining links agree on one trip, may name the trip; the caller still checks membership.
+      const survivors = await db
+        .select()
+        .from(documents)
+        .where(eq(documents.url, `${STORAGE_PROXY_PREFIX}${key}`));
+      const survivingTripId = survivors.length === 1 ? await resolveDocumentTripId(db, survivors[0]) : undefined;
+      if (!survivingTripId) throw new StorageOwnerNotFoundError("Reservation not found.");
+      return survivingTripId;
     }
   }
 }

@@ -1,9 +1,10 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { documents, events, reservations } from "@/db/schema";
+import { documents } from "@/db/schema";
 import type { Actor, Document, IdempotentRequest } from "@/data/types";
 import { dbDocToType } from "@/lib/db-mappers";
+import { readEventTripId, readReservationTripId, resolveDocumentTripId } from "@/lib/document-ancestry";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import {
   assertUploadContentMatchesType,
@@ -131,15 +132,9 @@ async function readTargetTripId(
   executor: ReadExecutor,
   target: { eventId?: string; reservationId?: string }
 ): Promise<string | undefined> {
-  if (target.eventId) {
-    const [row] = await executor.select({ tripId: events.tripId }).from(events).where(eq(events.id, target.eventId));
-    return row?.tripId;
-  }
-  const [row] = await executor
-    .select({ tripId: reservations.tripId })
-    .from(reservations)
-    .where(eq(reservations.id, target.reservationId!));
-  return row?.tripId;
+  return target.eventId
+    ? readEventTripId(executor, target.eventId)
+    : readReservationTripId(executor, target.reservationId!);
 }
 
 export async function uploadTripDocument(actor: Actor, tripId: string, input: unknown, file: File): Promise<Document> {
@@ -173,13 +168,6 @@ export async function uploadReservationDocument(
   return uploadDocument(actor, tripId, input, file, { reservationId });
 }
 
-async function documentTripId(executor: ReadExecutor, row: typeof documents.$inferSelect): Promise<string | undefined> {
-  return (
-    row.tripId ??
-    (row.eventId ? await readTargetTripId(executor, { eventId: row.eventId }) : undefined) ??
-    (row.reservationId ? await readTargetTripId(executor, { reservationId: row.reservationId }) : undefined)
-  );
-}
 export async function updateDocument(
   actor: Actor,
   documentId: string,
@@ -189,7 +177,7 @@ export async function updateDocument(
   documentId = updateContract.params.parse({ documentId }).documentId;
   const patch = updateContract.body.parse(input);
   const row = await readDocument(db, documentId);
-  const tripId = row && (await documentTripId(db, row));
+  const tripId = row && (await resolveDocumentTripId(db, row));
   if (!tripId) throw new TripNotFoundError();
   await requireTripRole(tripId, actor.userId, "editor");
   return runTripWrite<Document>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
@@ -197,7 +185,7 @@ export async function updateDocument(
       await lockTrip(transaction, tripId);
       await requireTripRole(tripId, actor.userId, "editor", transaction);
       const current = await readDocument(transaction, documentId);
-      if (!current || (await documentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
+      if (!current || (await resolveDocumentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
       const target = patch.eventId
         ? { eventId: patch.eventId }
         : patch.reservationId
@@ -249,7 +237,7 @@ export async function removeDocument(
       await lockTrip(transaction, tripId);
       await requireTripRole(tripId, actor.userId, "editor", transaction);
       const current = await readDocument(transaction, documentId);
-      if (current && (await documentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
+      if (current && (await resolveDocumentTripId(transaction, current)) !== tripId) throw new TripNotFoundError();
     },
     mutate: async () => {
       queued = [];
