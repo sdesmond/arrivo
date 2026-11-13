@@ -7,6 +7,7 @@ import { After, Before, Given, Then, When } from "../fixtures";
 import { withE2EDb } from "../e2e-db";
 import { onboardingClientHeaders, openCredentialLink, recipientContext } from "../onboarding-browser";
 import type { ScenarioFixtureContext } from "../scenario-fixture";
+import { waitForApiResponse } from "../api-response";
 import { waitForServerActionResponse } from "../server-action";
 
 const PASSWORD = "recipient-password-1";
@@ -177,7 +178,11 @@ Given("authorized protected resources and a captured mutation exist", async ({ p
   const trip = await scenario.ensureCurrentTrip();
   await scenario.gotoCurrentTrip(page);
   await page.getByRole("button", { name: "Documents", exact: true }).click();
-  const uploaded = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}`, timeoutMs: 15_000 });
+  const uploaded = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${trip.id}/documents`,
+    timeoutMs: 15_000,
+  });
   await page.locator("#doc-upload").setInputFiles({
     name: "protected.pdf",
     mimeType: "application/pdf",
@@ -208,16 +213,16 @@ Given("authorized protected resources and a captured mutation exist", async ({ p
   await page.getByText("protected.pdf", { exact: true }).click();
   const input = page.getByRole("textbox");
   await input.fill("renamed-protected.pdf");
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}` });
+  // Document rename is an API PATCH, not a server action. Arm before the gesture, await before reading the row.
+  const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await input.press("Enter");
-  const request = (await response)!.request();
+  const request = (await response).request();
   const headers = request.headers();
-  expect(Boolean(headers["next-action"])).toBe(true);
   scenario.setValue<CapturedMutation>("onboardingMutation", {
     path: new URL(request.url()).pathname,
     headers: {
-      "next-action": headers["next-action"],
       "content-type": headers["content-type"],
+      "x-arrivo-client": headers["x-arrivo-client"],
       origin: new URL(page.url()).origin,
     },
     body: request.postDataBuffer()!,
@@ -239,7 +244,7 @@ function refusesData(response: APIResponse): void {
 }
 
 Then(
-  "setup-only requests refuse app routes, the captured action, stored file and both feeds",
+  "setup-only requests refuse app routes, the captured mutation, stored file and both feeds",
   async ({ page, scenario }) => {
     const cookies = await page.context().cookies();
     const setupCookie = cookies.find((cookie) => cookie.name === "arrivo_account_setup");
@@ -265,14 +270,18 @@ Then(
       expect((await response.text()).includes("Protected onboarding content")).toBe(false);
     }
     const mutation = scenario.getValue<CapturedMutation>("onboardingMutation")!;
-    const response = await page.request.post(mutation.path, {
+    const response = await page.request.patch(mutation.path, {
       headers: { ...mutation.headers, ...setupContext },
       data: mutation.body,
       maxRedirects: 0,
     });
-    expect(response.status() >= 300 && response.status() < 400).toBe(true);
-    const destination = response.headers().location ?? response.headers()["x-action-redirect"]?.split(";")[0];
-    expect(Boolean(destination) && new URL(destination!, "http://localhost").pathname === "/sign-in").toBe(true);
+    // A setup-only context carries no session, so the API refuses it as unauthenticated (or redirects to sign-in).
+    const refusedAsUnauthenticated = response.status() === 401;
+    const redirectedToSignIn =
+      response.status() >= 300 &&
+      response.status() < 400 &&
+      new URL(response.headers().location ?? "", "http://localhost").pathname === "/sign-in";
+    expect(refusedAsUnauthenticated || redirectedToSignIn, `captured PATCH answered ${response.status()}`).toBe(true);
     const [document] = await withE2EDb((database) =>
       database.select().from(documents).where(eq(documents.id, mutation.documentId))
     );
