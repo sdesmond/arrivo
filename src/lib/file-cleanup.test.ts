@@ -20,7 +20,7 @@ vi.mock("drizzle-orm", async (importOriginal) => ({
 }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ del: mocks.storageDelete }) }));
 
-import { drainPendingFileDeletions, queueFileDeletions, removeQueuedFiles } from "./file-cleanup";
+import { discardStoredFile, drainPendingFileDeletions, queueFileDeletions, removeQueuedFiles } from "./file-cleanup";
 
 let deletedWhere: unknown[];
 let order: string[];
@@ -157,6 +157,24 @@ describe("removeQueuedFiles", () => {
   it("does nothing for an empty list", async () => {
     await removeQueuedFiles([]);
     expect(mocks.storageDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("discardStoredFile", () => {
+  it("removes the stored file", async () => {
+    await expect(discardStoredFile("/api/storage/new.png")).resolves.toBeUndefined();
+    expect(mocks.storageDelete).toHaveBeenCalledWith("/api/storage/new.png");
+  });
+
+  it("logs only the error name and never throws when the removal fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.storageDelete.mockRejectedValueOnce(new TypeError("secret path /api/storage/new.png"));
+    await expect(discardStoredFile("/api/storage/new.png")).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledWith("[file-cleanup] Could not remove an unused upload:", "TypeError");
+    mocks.storageDelete.mockRejectedValueOnce("not an error");
+    await discardStoredFile("/api/storage/new.png");
+    expect(error).toHaveBeenLastCalledWith("[file-cleanup] Could not remove an unused upload:", "unknown");
+    error.mockRestore();
   });
 });
 

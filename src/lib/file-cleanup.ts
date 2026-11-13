@@ -57,6 +57,15 @@ export async function removeQueuedFiles(queued: QueuedFileDeletion[]): Promise<v
   }
 }
 
+/** Removes a stored file the write did not keep. The original failure matters more than a failed cleanup. */
+export async function discardStoredFile(url: string): Promise<void> {
+  try {
+    await getStorageAdapter().del(url);
+  } catch (error) {
+    console.error("[file-cleanup] Could not remove an unused upload:", error instanceof Error ? error.name : "unknown");
+  }
+}
+
 /** Retries the oldest queued deletions, which only exist after a crash or a storage failure. Never throws. */
 export async function drainPendingFileDeletions(): Promise<void> {
   try {

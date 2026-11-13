@@ -6,8 +6,8 @@ vi.mock("@/lib/use-is-mobile", () => ({
   useIsMobile: () => false,
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  uploadCoverImage: vi.fn(),
+vi.mock("@/lib/api/use-api-mutation", () => ({
+  useApiMutation: () => ({ mutate: vi.fn(), isPending: false, fields: {} }),
 }));
 
 vi.mock("./cover-image-picker-search-tab", () => ({

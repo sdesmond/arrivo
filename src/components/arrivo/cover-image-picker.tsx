@@ -73,7 +73,7 @@ export function CoverImagePicker({
             />
           </TabsContent>
           <TabsContent value="upload" className="min-h-0 flex-1 overflow-y-auto">
-            <CoverImagePickerUpload tripId={tripId} onImageSelected={() => onClose()} onClose={onClose} />
+            <CoverImagePickerUpload tripId={tripId} onClose={onClose} />
           </TabsContent>
           <TabsContent value="url" className="min-h-0 flex-1 overflow-y-auto">
             <CoverImagePickerUrl onImageSelected={handleSelect} onClose={onClose} />

@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { setTripCover, deleteTripCover } from "./covers";
-import { deriveGraphicCover } from "@/lib/utils";
+import { setTripCover, deleteTripCover, uploadTripCoverImage } from "./covers";
+import { deriveGraphicCover, MAX_COVER_IMAGE_UPLOAD_BYTES } from "@/lib/utils";
 const tripId = "223e4567-e89b-12d3-a456-426614174000";
 it("defines strict 204 cover writes and normalized trip IDs", () => {
   for (const endpoint of [setTripCover, deleteTripCover]) {
@@ -10,6 +10,16 @@ it("defines strict 204 cover writes and normalized trip IDs", () => {
     expect(endpoint.body.safeParse({ extra: true }).success).toBe(false);
   }
   expect(deleteTripCover.body.parse({})).toEqual({});
+});
+it("defines a multipart 204 cover upload capped at the 12 MB cover policy", () => {
+  expect(uploadTripCoverImage.method).toBe("POST");
+  expect(uploadTripCoverImage.path).toBe("/api/v1/trips/:tripId/cover/image");
+  expect(uploadTripCoverImage.status).toBe(204);
+  expect(uploadTripCoverImage.multipart).toEqual({ maxFileBytes: MAX_COVER_IMAGE_UPLOAD_BYTES });
+  expect(MAX_COVER_IMAGE_UPLOAD_BYTES).toBe(12 * 1024 * 1024);
+  expect(uploadTripCoverImage.params.parse({ tripId: tripId.toUpperCase() })).toEqual({ tripId });
+  expect(uploadTripCoverImage.body.parse({})).toEqual({});
+  expect(uploadTripCoverImage.body.safeParse({ extra: true }).success).toBe(false);
 });
 it.each([
   "https://images.unsplash.com/photo-1",

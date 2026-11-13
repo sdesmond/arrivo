@@ -11,7 +11,6 @@ import {
   rescindInvitation,
   saveContributorChanges as saveContributorChangesAction,
 } from "../actions";
-import { uploadCoverImage as uploadCoverImageAction } from "./cover-upload-actions";
 import type { ContributorChange } from "@/data/types";
 
 export async function getShareDialogData(tripId: string) {
@@ -50,8 +49,4 @@ export async function saveContributorChanges(tripId: string, changes: Contributo
     revalidatePath(`/trips/${tripId}`);
   }
   return result;
-}
-
-export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {
-  return uploadCoverImageAction(tripId, formData);
 }

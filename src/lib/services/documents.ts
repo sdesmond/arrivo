@@ -22,21 +22,12 @@ import {
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
-import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
+import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { ConflictError } from "./conflict-error";
 
 async function readDocument(executor: ReadExecutor, documentId: string) {
   const [row] = await executor.select().from(documents).where(eq(documents.id, documentId));
   return row;
-}
-
-/** Removes a stored file the write did not keep. The original failure matters more than a failed cleanup. */
-async function discardStoredFile(url: string): Promise<void> {
-  try {
-    await getStorageAdapter().del(url);
-  } catch (error) {
-    console.error("[documents] Could not remove an unused upload:", error instanceof Error ? error.name : "unknown");
-  }
 }
 
 /**
