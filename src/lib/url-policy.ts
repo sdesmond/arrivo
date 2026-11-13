@@ -82,22 +82,3 @@ export function isValidCoverImageUrl(value: string, tripId?: string): boolean {
 export function assertValidCoverImageUrl(value: string, tripId?: string): void {
   if (!isValidCoverImageUrl(value, tripId)) throw new Error("Invalid cover image URL.");
 }
-
-export interface DocumentUrlOwner {
-  tripId: string;
-  eventId?: string;
-}
-
-/** A document link is an http(s) URL or a document this trip (or the given event) already uploaded. */
-export function isValidDocumentUrl(value: string, owner: DocumentUrlOwner): boolean {
-  if (isHttpUrl(value)) return true;
-  const stored = parseOwnStorageUrl(value);
-  if (!stored) return false;
-  if (stored.scope === "trip-document") return stored.ownerId === owner.tripId;
-  if (stored.scope === "event-document") return owner.eventId !== undefined && stored.ownerId === owner.eventId;
-  return false;
-}
-
-export function assertValidPhotographerUrl(value: string): void {
-  if (!isHttpUrl(value)) throw new Error("Invalid photographer URL.");
-}

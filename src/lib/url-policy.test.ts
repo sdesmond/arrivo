@@ -2,10 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_URL_LENGTH,
   assertValidCoverImageUrl,
-  assertValidPhotographerUrl,
   isHttpUrl,
   isValidCoverImageUrl,
-  isValidDocumentUrl,
   parseOwnStorageUrl,
 } from "./url-policy";
 
@@ -159,37 +157,5 @@ describe("assertValidCoverImageUrl", () => {
   it("throws a readable error for invalid values and passes valid ones", () => {
     expect(() => assertValidCoverImageUrl("javascript:alert(1)", TRIP_ID)).toThrow("Invalid cover image URL.");
     expect(() => assertValidCoverImageUrl("https://images.unsplash.com/photo-1", TRIP_ID)).not.toThrow();
-  });
-});
-
-describe("isValidDocumentUrl", () => {
-  it("accepts http(s) links", () => {
-    expect(isValidDocumentUrl("https://example.com/doc.pdf", { tripId: TRIP_ID })).toBe(true);
-  });
-
-  it("accepts stored documents owned by the given trip or event", () => {
-    expect(isValidDocumentUrl(`/api/storage/trip-documents/${TRIP_ID}/a.pdf`, { tripId: TRIP_ID })).toBe(true);
-    expect(
-      isValidDocumentUrl("/api/storage/event-documents/event-1/a.pdf", { tripId: TRIP_ID, eventId: "event-1" })
-    ).toBe(true);
-  });
-
-  it("rejects another owner's stored file, covers, avatars and unsafe schemes", () => {
-    expect(isValidDocumentUrl(`/api/storage/trip-documents/${OTHER_TRIP_ID}/a.pdf`, { tripId: TRIP_ID })).toBe(false);
-    expect(
-      isValidDocumentUrl("/api/storage/event-documents/event-2/a.pdf", { tripId: TRIP_ID, eventId: "event-1" })
-    ).toBe(false);
-    expect(isValidDocumentUrl(`/api/storage/trip-covers/${TRIP_ID}/a.jpg`, { tripId: TRIP_ID })).toBe(false);
-    expect(isValidDocumentUrl(`/api/storage/user-avatars/${TRIP_ID}/a.webp`, { tripId: TRIP_ID })).toBe(false);
-    expect(isValidDocumentUrl("/api/storage/../x", { tripId: TRIP_ID })).toBe(false);
-    expect(isValidDocumentUrl("javascript:alert(1)", { tripId: TRIP_ID })).toBe(false);
-  });
-});
-
-describe("assertValidPhotographerUrl", () => {
-  it("allows http(s) and rejects everything else", () => {
-    expect(() => assertValidPhotographerUrl("https://unsplash.com/@someone")).not.toThrow();
-    expect(() => assertValidPhotographerUrl("javascript:alert(1)")).toThrow("Invalid photographer URL.");
-    expect(() => assertValidPhotographerUrl("//evil.example")).toThrow("Invalid photographer URL.");
   });
 });
