@@ -146,6 +146,13 @@ describe("E2E stub cover images", () => {
     expect(isValidCoverImageUrl("data:image/png;base64,AAAA")).toBe(false);
     expect(isValidCoverImageUrl(`${stubCover}${"a".repeat(4096)}`)).toBe(false);
   });
+
+  it("accepts a stub at the size limit and rejects one byte more", () => {
+    vi.stubEnv("E2E_MODE", "true");
+    const limitCover = stubCover.padEnd(4096, "a");
+    expect(isValidCoverImageUrl(limitCover)).toBe(true);
+    expect(isValidCoverImageUrl(`${limitCover}a`)).toBe(false);
+  });
 });
 
 describe("assertValidCoverImageUrl", () => {
