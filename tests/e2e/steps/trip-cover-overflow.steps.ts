@@ -105,11 +105,17 @@ When("I upload a new cover image from the picker", async ({ page }) => {
   const pickerDialog = page.getByRole("dialog");
   await expect(pickerDialog).toBeVisible();
   await pickerDialog.getByRole("tab", { name: "Upload" }).click();
+  // Arm before the gesture: the reload that follows must not abort the in-flight upload.
+  const uploaded = waitForApiResponse(page, {
+    method: "POST",
+    path: "/api/v1" + new URL(page.url()).pathname + "/cover/image",
+  });
   await pickerDialog.locator("#cover-upload-input").setInputFiles({
     name: "e2e-cover.png",
     mimeType: "image/png",
     buffer: COVER_UPLOAD_PNG,
   });
+  await uploaded;
   await expect(pickerDialog).not.toBeVisible({ timeout: 10000 });
 });
 

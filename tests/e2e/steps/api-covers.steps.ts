@@ -1,7 +1,7 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { trips, collaborators, pendingFileDeletions } from "../../../src/db/schema";
 import { deriveGraphicCover } from "../../../src/lib/utils";
@@ -16,6 +16,12 @@ interface CoverState {
   response?: APIResponse;
 }
 const states = new WeakMap<Page, CoverState>();
+const MEBIBYTE = 1024 * 1024;
+const PNG_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
+  "base64"
+);
+const GIF_BYTES = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
 const selection = {
   coverImageUrl: "https://images.unsplash.com/cover-api",
   coverPhotographer: "API Photographer",
@@ -38,6 +44,31 @@ async function send(page: Page, method: "PUT" | "DELETE", data: unknown, extra: 
   });
   current.response = response;
   return response;
+}
+function coverPart(name: string, buffer: Buffer, mimeType: string) {
+  return { name, mimeType, buffer };
+}
+async function upload(
+  page: Page,
+  multipart: Record<string, string | ReturnType<typeof coverPart>>,
+  extra: Record<string, string> = {}
+) {
+  const current = state(page);
+  // No content-type: Playwright sets the multipart boundary itself.
+  const response = await page.request.post(`/api/v1/trips/${current.tripId}/cover/image`, {
+    headers: { ...headers(page), ...extra },
+    multipart,
+    timeout: 60_000,
+  });
+  current.response = response;
+  return response;
+}
+async function storedCoverFiles(page: Page): Promise<string[]> {
+  try {
+    return await readdir(join(resolve(E2E_STORAGE_DIRECTORY), "trip-covers", state(page).tripId));
+  } catch {
+    return [];
+  }
 }
 async function cover(page: Page) {
   const [row] = await withE2EDb((database) =>
@@ -161,6 +192,12 @@ Then("the replaced stored cover file is removed after commit", async ({ page }) 
   expect(queued).toHaveLength(0);
 });
 When("I force the cover cleanup transaction to roll back", async ({ page }) => {
+  await withCleanupRollback(page, () => send(page, "DELETE", {}));
+});
+When("I force the cover cleanup transaction to roll back during an upload", async ({ page }) => {
+  await withCleanupRollback(page, () => upload(page, { file: coverPart("rollback.png", PNG_BYTES, "image/png") }));
+});
+async function withCleanupRollback(page: Page, action: () => Promise<unknown>) {
   const current = state(page);
   const identifier = "cover_rollback_" + randomUUID().replaceAll("-", "");
   await withE2EDb(async (database) => {
@@ -171,13 +208,13 @@ When("I force the cover cleanup transaction to roll back", async ({ page }) => {
       await database.execute(
         sql`CREATE TRIGGER ${sql.identifier(identifier)} BEFORE INSERT ON pending_file_deletions FOR EACH ROW WHEN (NEW.url = ${sql.raw("'" + current.original + "'")}) EXECUTE FUNCTION ${sql.identifier(identifier)}()`
       );
-      await send(page, "DELETE", {});
+      await action();
     } finally {
       await database.execute(sql`DROP TRIGGER IF EXISTS ${sql.identifier(identifier)} ON pending_file_deletions`);
       await database.execute(sql`DROP FUNCTION ${sql.identifier(identifier)}()`);
     }
   });
-});
+}
 Then("the rolled-back cover file and row remain", async ({ page }) => {
   expect(state(page).response!.status()).toBe(500);
   expect((await cover(page)).coverImageUrl).toBe(state(page).original);
@@ -191,8 +228,69 @@ Then("the rolled-back cover file and row remain", async ({ page }) => {
     )
   ).toHaveLength(0);
 });
+When("I upload a {string} cover through the API", async ({ page }, kind: string) => {
+  const parts: Record<string, ReturnType<typeof coverPart>> = {
+    PNG: coverPart("cover.png", PNG_BYTES, "image/png"),
+    GIF: coverPart("cover.gif", GIF_BYTES, "image/gif"),
+  };
+  if (!parts[kind]) throw new Error(`Unknown cover upload kind ${kind}`);
+  expect((await upload(page, { file: parts[kind] })).status()).toBe(204);
+});
+When("I submit cover upload API case {string}", async ({ page }, testCase: string) => {
+  const valid = coverPart("cover.png", PNG_BYTES, "image/png");
+  const filler = (bytes: number) => Buffer.concat([PNG_BYTES, Buffer.alloc(bytes - PNG_BYTES.length)]);
+  const cases: Record<string, () => Promise<APIResponse>> = {
+    valid: () => upload(page, { file: valid }),
+    // Just over the cover limit: the route reads the body and the service rejects it.
+    "oversize-file": () => upload(page, { file: coverPart("big.png", filler(12 * MEBIBYTE + 1), "image/png") }),
+    // Far over: the route refuses from Content-Length before reading the body.
+    "oversize-body": () => upload(page, { file: coverPart("huge.png", filler(14 * MEBIBYTE), "image/png") }),
+    "disallowed-type": () => upload(page, { file: coverPart("c.svg", Buffer.from("<svg/>"), "image/svg+xml") }),
+    "mismatched-type": () =>
+      upload(page, { file: coverPart("fake.png", Buffer.from("<html><script>1</script></html>"), "image/png") }),
+    "missing-file": () => upload(page, { note: "no file" }),
+    "unknown-field": () => upload(page, { note: "x", file: valid }),
+    keyed: () => upload(page, { file: valid }, { "idempotency-key": "cover-upload-key" }),
+    "no-client-header": async () => {
+      const current = state(page);
+      current.response = await page.request.post(`/api/v1/trips/${current.tripId}/cover/image`, {
+        headers: { origin: new URL(page.url()).origin },
+        multipart: { file: valid },
+      });
+      return current.response;
+    },
+    "cross-origin": () =>
+      upload(page, { file: valid }, { origin: "https://evil.example", "sec-fetch-site": "cross-site" }),
+  };
+  const send = cases[testCase];
+  if (!send) throw new Error(`Unknown cover upload case ${testCase}`);
+  await send();
+});
+Then("the API cover is a stored upload without attribution", async ({ page }) => {
+  const row = await cover(page);
+  const prefix = `/api/storage/trip-covers/${state(page).tripId}/`;
+  expect(row.coverImageUrl!.startsWith(prefix)).toBe(true);
+  expect(row.coverImageUrl).toMatch(/\.(png|gif)$/);
+  expect(row).toMatchObject({ coverPhotographer: null, coverPhotographerUrl: null });
+  const stored = await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.coverImageUrl!.slice("/api/storage/".length)));
+  expect(stored.length).toBeGreaterThan(0);
+});
+Then("the cover upload stored no new file", async ({ page }) => {
+  expect(await storedCoverFiles(page)).toHaveLength(state(page).file ? 1 : 0);
+});
+Then("the cover upload API returns {int} with code {string}", async ({ page }, status: number, code: string) => {
+  const response = state(page).response!;
+  expect(response.status()).toBe(status);
+  expect((await response.json()).error.code).toBe(code);
+});
+Then("the rolled-back cover upload left no new file", async ({ page }) => {
+  expect(state(page).response!.status()).toBe(500);
+  expect(await storedCoverFiles(page)).toEqual(["map.png"]);
+});
 After(async ({ page }) => {
   const current = states.get(page);
-  if (current?.file) await rm(current.file, { force: true });
+  if (current) {
+    await rm(join(resolve(E2E_STORAGE_DIRECTORY), "trip-covers", current.tripId), { recursive: true, force: true });
+  }
   states.delete(page);
 });
