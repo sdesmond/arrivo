@@ -1,20 +1,11 @@
 "use server";
 
-import { recordTripUpdated } from "@/lib/trip-activity";
-import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
-import { db } from "@/db";
-import { trips } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { requireUser } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 
 import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
-import { deriveGraphicCover } from "@/lib/utils";
-import { assertValidCoverImageUrl, assertValidPhotographerUrl } from "@/lib/url-policy";
 
-import { lockTripForUpdate } from "@/lib/server-action-locks";
-import { publishTripEvent } from "@/lib/trip-events";
-import { LiveSyncEventType } from "@/data/types";
 import {
   dismissInvitation,
   rescindInvitation,
@@ -59,58 +50,6 @@ export async function saveContributorChanges(tripId: string, changes: Contributo
     revalidatePath(`/trips/${tripId}`);
   }
   return result;
-}
-
-function publishItineraryChanged(tripId: string): void {
-  publishTripEvent(tripId, { type: LiveSyncEventType.ItineraryChanged, tripId });
-}
-
-export async function setTripCoverWithAttribution(
-  tripId: string,
-  coverImageUrl: string,
-  coverPhotographer?: string | null,
-  coverPhotographerUrl?: string | null
-): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  assertValidCoverImageUrl(coverImageUrl, tripId);
-  if (coverPhotographerUrl) assertValidPhotographerUrl(coverPhotographerUrl);
-  await db
-    .update(trips)
-    .set({
-      coverImageUrl,
-      coverPhotographer: coverPhotographer ?? null,
-      coverPhotographerUrl: coverPhotographerUrl ?? null,
-    })
-    .where(eq(trips.id, tripId));
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
-
-export async function removeTripCover(tripId: string): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-
-    const [trip] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId)).limit(1);
-    if (!trip) throw new Error("Trip not found");
-
-    await transaction
-      .update(trips)
-      .set({
-        coverImageUrl: deriveGraphicCover(trip.name),
-        coverPhotographer: null,
-        coverPhotographerUrl: null,
-      })
-      .where(eq(trips.id, tripId));
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  publishItineraryChanged(tripId);
-  revalidatePath(`/trips/${tripId}`);
 }
 
 export async function uploadCoverImage(tripId: string, formData: FormData): Promise<string> {

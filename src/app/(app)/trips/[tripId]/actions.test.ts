@@ -161,15 +161,13 @@ vi.mock("drizzle-orm", () => ({
 import {
   dismissShareInvitation,
   getShareDialogData,
-  removeTripCover,
-  setTripCoverWithAttribution,
   uploadCoverImage,
   rescindShareInvitation,
   resendShareInvitation,
   saveContributorChanges,
 } from "./actions";
 import { trips } from "@/db/schema";
-import { LiveSyncEventType, type ContributorChange } from "@/data/types";
+import { type ContributorChange } from "@/data/types";
 
 beforeEach(() => {
   mockGetStorageAdapter.mockReturnValue({ put: mockAdapterPut, del: mockAdapterDel });
@@ -386,158 +384,5 @@ describe("uploadCoverImage", () => {
     await expect(uploadCoverImage("trip-1", formData)).resolves.toBe("https://blob.vercel.dev/cover.png");
 
     expect(mockAdapterDel).toHaveBeenCalledWith("https://images.example.com/old-cover.png");
-  });
-});
-
-describe("setTripCoverWithAttribution", () => {
-  const mockWhere = vi.fn();
-  const mockSet = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockWhere.mockResolvedValue(undefined);
-    mockSet.mockReturnValue({ where: mockWhere });
-    mockDbUpdate.mockReturnValue({
-      set: mockSet,
-    });
-  });
-
-  it("persists cover url and attribution fields", async () => {
-    await setTripCoverWithAttribution(
-      "trip-1",
-      "https://images.example.com/cover.jpg",
-      "Jane Lens",
-      "https://unsplash.com/@janelens"
-    );
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(mockDbUpdate).toHaveBeenCalledWith(trips);
-    expect(mockSet).toHaveBeenCalledWith({
-      coverImageUrl: "https://images.example.com/cover.jpg",
-      coverPhotographer: "Jane Lens",
-      coverPhotographerUrl: "https://unsplash.com/@janelens",
-    });
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when access is denied", async () => {
-    mockAssertTripAccess.mockRejectedValueOnce(new Error("denied"));
-
-    await expect(setTripCoverWithAttribution("trip-1", "graphic:x")).rejects.toThrow("denied");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("clears attribution when photographer fields are null", async () => {
-    await setTripCoverWithAttribution("trip-1", "graphic:var(--color-indigo-400)/dots/plane", null, null);
-
-    expect(mockSet).toHaveBeenCalledWith({
-      coverImageUrl: "graphic:var(--color-indigo-400)/dots/plane",
-      coverPhotographer: null,
-      coverPhotographerUrl: null,
-    });
-  });
-
-  it("accepts a cover uploaded for the same trip", async () => {
-    await setTripCoverWithAttribution("trip-1", "/api/storage/trip-covers/trip-1/abc.jpg");
-
-    expect(mockSet).toHaveBeenCalledWith(
-      expect.objectContaining({ coverImageUrl: "/api/storage/trip-covers/trip-1/abc.jpg" })
-    );
-  });
-
-  it.each([
-    "javascript:alert(1)",
-    "JavaScript:alert(1)",
-    "//evil.example/pixel.png",
-    "/api/storage/../../etc/passwd",
-    "/api/storage/trip-covers/other-trip/abc.jpg",
-    "/api/storage/trip-documents/trip-1/passport.pdf",
-  ])("rejects cover URL %j without writing", async (coverImageUrl) => {
-    await expect(setTripCoverWithAttribution("trip-1", coverImageUrl)).rejects.toThrow("Invalid cover image URL.");
-
-    expect(mockDbUpdate).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it.each(["javascript:alert(1)", "//evil.example", "data:text/html,x"])(
-    "rejects photographer URL %j without writing",
-    async (photographerUrl) => {
-      await expect(
-        setTripCoverWithAttribution("trip-1", "https://images.example.com/cover.jpg", "Jane", photographerUrl)
-      ).rejects.toThrow("Invalid photographer URL.");
-
-      expect(mockDbUpdate).not.toHaveBeenCalled();
-    }
-  );
-});
-
-describe("removeTripCover", () => {
-  const mockWhere = vi.fn();
-  const mockSet = vi.fn();
-  let transactionExecute: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    transactionExecute = vi.fn().mockResolvedValue([{ id: "trip-1" }]);
-    mockDbSelect.mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => [{ name: "Summer Trip" }]),
-        })),
-      })),
-    });
-    mockWhere.mockResolvedValue(undefined);
-    mockSet.mockReturnValue({ where: mockWhere });
-    mockDbUpdate.mockReturnValue({
-      set: mockSet,
-    });
-    mockDbTransaction.mockImplementation(async (callback: (tx: unknown) => Promise<void>) =>
-      callback({ execute: transactionExecute, select: mockDbSelect, update: mockDbUpdate })
-    );
-  });
-
-  it("replaces the cover with a derived graphic and clears attribution", async () => {
-    await removeTripCover("trip-1");
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(transactionExecute).toHaveBeenCalledOnce();
-    expect(mockDeriveGraphicCover).toHaveBeenCalledWith("Summer Trip");
-    expect(mockSet).toHaveBeenCalledWith({
-      coverImageUrl: "graphic:Summer Trip",
-      coverPhotographer: null,
-      coverPhotographerUrl: null,
-    });
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("throws when the trip no longer exists", async () => {
-    mockDbSelect.mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => []),
-        })),
-      })),
-    });
-
-    await expect(removeTripCover("trip-1")).rejects.toThrow("Trip not found");
-
-    expect(mockDbUpdate).not.toHaveBeenCalled();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });
