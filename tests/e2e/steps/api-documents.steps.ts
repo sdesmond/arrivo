@@ -1,9 +1,9 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { documents, collaborators, events, reservations } from "../../../src/db/schema";
+import { documents, collaborators, events, reservations, pendingFileDeletions } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { Given, When, Then, After } from "../fixtures";
@@ -19,9 +19,44 @@ interface DocumentApiState {
   id: string;
   responses: APIResponse[];
   hiddenName?: string;
+  uploadedUrl?: string;
   requestedTargets?: { scope: "event" | "reservation"; id: string }[];
 }
 const documentApiStates = new WeakMap<Page, DocumentApiState>();
+
+When("I force the scenario document delete transaction to roll back", async ({ page }) => {
+  const current = documentApi(page);
+  const identifier = "document_rollback_" + randomUUID().replaceAll("-", "");
+  await withE2EDb(async (database) => {
+    await database.execute(
+      sql`CREATE FUNCTION ${sql.identifier(identifier)}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'scenario document rollback'; END; $$`
+    );
+    try {
+      // Only this scenario's fresh document can hit the trigger; parallel scenarios keep working.
+      await database.execute(
+        sql`CREATE TRIGGER ${sql.identifier(identifier)} BEFORE DELETE ON documents FOR EACH ROW WHEN (OLD.id = ${sql.raw("'" + current.id + "'::uuid")}) EXECUTE FUNCTION ${sql.identifier(identifier)}()`
+      );
+      current.responses.push(
+        await page.request.delete("/api/v1/documents/" + current.id, {
+          headers: uploadHeaders(page),
+          data: { tripId: current.tripId },
+        })
+      );
+    } finally {
+      await database.execute(sql`DROP TRIGGER IF EXISTS ${sql.identifier(identifier)} ON documents`);
+      await database.execute(sql`DROP FUNCTION ${sql.identifier(identifier)}()`);
+    }
+  });
+});
+
+Then("the rolled-back document has no queued file deletion", async ({ page }) => {
+  const current = documentApi(page);
+  expect(
+    await withE2EDb((database) =>
+      database.select().from(pendingFileDeletions).where(eq(pendingFileDeletions.url, current.uploadedUrl!))
+    )
+  ).toHaveLength(0);
+});
 const PDF_BYTES = Buffer.from("%PDF-1.4 e2e document upload");
 const MEBIBYTE = 1024 * 1024;
 
@@ -340,4 +375,89 @@ When("I reuse the document id on a different {string}", async ({ page }, change:
     {},
     { scope, id: targetId }
   );
+});
+
+Given("a scenario-owned {string} document ready for mutation", async ({ page, scenario }, scope: string) => {
+  if (!["trip", "event", "reservation"].includes(scope)) throw new Error("Unknown document scope");
+  const { trip } = await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: { events: [{ ...E2E_EVENT, dayNumber: 1 }], reservations: [E2E_RESERVATION] },
+      setCurrent: true,
+    },
+  });
+  const targetId =
+    scope === "trip"
+      ? undefined
+      : await withE2EDb(async (database) => {
+          const [row] = await database
+            .select({ id: scope === "event" ? events.id : reservations.id })
+            .from(scope === "event" ? events : reservations)
+            .where(eq(scope === "event" ? events.tripId : reservations.tripId, trip!.id));
+          return row.id;
+        });
+  const current: DocumentApiState = {
+    tripId: trip!.id,
+    id: randomUUID(),
+    responses: [],
+    ...(scope === "trip" ? {} : { scope: scope as "event" | "reservation", targetId }),
+  };
+  documentApiStates.set(page, current);
+  await scenario.gotoCurrentTrip(page);
+  const response = await postDocument(page, current.tripId, { id: current.id, file: pdfPart("original.pdf") });
+  expect(response.status()).toBe(200);
+  current.uploadedUrl = (await response.json()).url;
+});
+When("I submit document mutation {string} case {string}", async ({ page }, method: string, testCase: string) => {
+  const current = documentApi(page);
+  let documentId = current.id;
+  let body: Record<string, unknown> = method === "PATCH" ? { name: "Renamed.pdf" } : { tripId: current.tripId };
+  let headers: Record<string, string> = { ...uploadHeaders(page), "content-type": "application/json" };
+  if (testCase === "keyed") headers["idempotency-key"] = method + "-" + current.id;
+  else if (testCase === "blank") body = { name: " " };
+  else if (testCase === "long") body = { name: "x".repeat(201) };
+  else if (testCase === "empty") body = {};
+  else if (testCase === "scope-field") body = { eventId: randomUUID() };
+  else if (testCase === "unknown") documentId = randomUUID();
+  else if (testCase === "foreign-trip") body = { tripId: randomUUID() };
+  else if (testCase === "no-client-header")
+    headers = { origin: new URL(page.url()).origin, "content-type": "application/json" };
+  else if (testCase === "cross-origin")
+    headers = { ...headers, origin: "https://evil.example", "sec-fetch-site": "cross-site" };
+  else if (testCase !== "normal") throw new Error("Unknown document mutation case");
+  current.responses.push(await page.request.fetch("/api/v1/documents/" + documentId, { method, headers, data: body }));
+});
+When("the document name is changed behind the API to {string}", async ({ page }, name: string) => {
+  const current = documentApi(page);
+  await withE2EDb((database) => database.update(documents).set({ name }).where(eq(documents.id, current.id)));
+});
+Then("the document mutation persisted name {string}", async ({ page }, name: string) => {
+  const current = documentApi(page);
+  const [row] = await withE2EDb((database) => database.select().from(documents).where(eq(documents.id, current.id)));
+  expect(row.name).toBe(name);
+  expect(
+    await readFile(join(resolve(E2E_STORAGE_DIRECTORY), current.uploadedUrl!.replace(/^\/api\/storage\//, "")))
+  ).toEqual(PDF_BYTES);
+});
+Then("the document mutation removed its row and file", async ({ page }) => {
+  const current = documentApi(page);
+  expect(
+    await withE2EDb((database) => database.select().from(documents).where(eq(documents.id, current.id)))
+  ).toHaveLength(0);
+  await expect
+    .poll(async () => {
+      try {
+        await readFile(join(resolve(E2E_STORAGE_DIRECTORY), current.uploadedUrl!.replace(/^\/api\/storage\//, "")));
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(false);
+});
+Then("the last two document mutation responses match", async ({ page }) => {
+  const responses = documentApi(page).responses.slice(-2);
+  expect(responses[0].status()).toBe(responses[1].status());
+  if (responses[0].status() === 204) expect(await responses[1].text()).toBe("");
+  else expect(await responses[0].json()).toEqual(await responses[1].json());
 });

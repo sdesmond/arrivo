@@ -1,3 +1,4 @@
+import { findScenarioDocument } from "../document-fixture";
 import { expect, type Page } from "@playwright/test";
 import { documents } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
@@ -87,9 +88,13 @@ Then("I see the upload error {string}", async ({ page }, message: string) => {
   await expect(page.getByText(message)).toBeVisible({ timeout: 10_000 });
 });
 
-When("I delete the document {string}", async ({ page }, docName: string) => {
+When("I delete the document {string}", async ({ page, scenario }, docName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, docName);
+  if (!document) throw new Error("Scenario document missing");
   await page.getByRole("button", { name: `Delete ${docName}` }).click();
+  const removed = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/documents/${document.id}` });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await removed;
 });
 
 Then("the document {string} is no longer visible", async ({ page }, docName: string) => {
@@ -124,11 +129,15 @@ Given("the document {string} is in the Documents tab", async ({ page }, docName:
   await expect(page.getByText(docName)).toBeVisible({ timeout: 5_000 });
 });
 
-When("I rename the document {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+When("I rename the document {string} to {string}", async ({ page, scenario }, oldName: string, newName: string) => {
+  const document = await findScenarioDocument(scenario.currentTrip!.id, oldName);
+  if (!document) throw new Error("Scenario document missing");
   await page.getByText(oldName).click();
   const input = page.getByRole("textbox");
   await input.fill(newName);
+  const renamed = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/documents/${document.id}` });
   await input.press("Enter");
+  await renamed;
 });
 
 When("I click the View button for {string}", async ({ page }, docName: string) => {
@@ -160,4 +169,10 @@ Then("the share button for {string} is visible in the viewer", async ({ page }, 
 
 When("I click the share button for {string}", async ({ page }, docName: string) => {
   await page.getByRole("button", { name: `Share ${docName}` }).click();
+});
+
+Then("after reload the document {string} remains deleted", async ({ page }, name: string) => {
+  await page.reload();
+  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Delete " + name })).not.toBeVisible();
 });

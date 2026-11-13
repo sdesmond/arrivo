@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Document } from "@/data/types";
+import { documentNameSchema } from "@/lib/validation-schemas";
 import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 import { defineEndpoint } from "../endpoint";
 
@@ -34,4 +35,18 @@ export const uploadReservationDocument = defineEndpoint<Document>()({
   params: z.object({ reservationId: uuidLower }),
   body: z.strictObject({ id: uuidLower.optional() }),
   multipart: { maxFileBytes: MAX_UPLOAD_BYTES },
+});
+
+export const updateDocument = defineEndpoint<Document>()({
+  method: "PATCH",
+  path: "/api/v1/documents/:documentId",
+  params: z.object({ documentId: uuidLower }),
+  body: z.strictObject({ name: documentNameSchema.optional() }),
+});
+export const deleteDocument = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/documents/:documentId",
+  status: 204,
+  params: z.object({ documentId: uuidLower }),
+  body: z.strictObject({ tripId: uuidLower }),
 });

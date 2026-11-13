@@ -338,7 +338,11 @@ export function PlaceRow({
               />
 
               {showDocs && hasDocs && (
-                <DocsBlock docs={place.docs!} onAdd={canEdit ? () => setShowAddDocDialog(true) : undefined} />
+                <DocsBlock
+                  tripId={place.tripId!}
+                  docs={place.docs!}
+                  onAdd={canEdit ? () => setShowAddDocDialog(true) : undefined}
+                />
               )}
             </>
           )}

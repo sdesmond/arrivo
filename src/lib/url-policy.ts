@@ -78,10 +78,6 @@ export function isValidDocumentUrl(value: string, owner: DocumentUrlOwner): bool
   return false;
 }
 
-export function assertValidDocumentUrl(value: string, owner: DocumentUrlOwner): void {
-  if (!isValidDocumentUrl(value, owner)) throw new Error("Invalid document URL.");
-}
-
 export function assertValidPhotographerUrl(value: string): void {
   if (!isHttpUrl(value)) throw new Error("Invalid photographer URL.");
 }

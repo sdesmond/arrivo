@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { Trash2, Eye, Share2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import { removeDocument, renameDocument } from "@/app/(app)/trips/[tripId]/actions";
+
 import { shareDoc } from "@/lib/utils";
 import {
   Dialog,
@@ -16,14 +16,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface DocRowProps {
   doc: Document;
+  tripId: string;
 }
 
-export function DocRow({ doc }: DocRowProps) {
-  const [isPending, startTransition] = useTransition();
+export function DocRow({ doc, tripId }: DocRowProps) {
+  const rename = useApiMutation(updateDocument),
+    remove = useApiMutation(deleteDocument);
+  const isPending = remove.isPending;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
@@ -31,6 +36,7 @@ export function DocRow({ doc }: DocRowProps) {
   const [editName, setEditName] = useState("");
   const [displayName, setDisplayName] = useState(doc.name);
   const cancelRef = useRef(false);
+  const savedNameRef = useRef(doc.name);
   const [viewerOpen, setViewerOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -42,7 +48,17 @@ export function DocRow({ doc }: DocRowProps) {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== displayName) {
       setDisplayName(trimmed);
-      void renameDocument(doc.id, trimmed);
+      void rename.mutate(
+        { params: { documentId: doc.id }, body: { name: trimmed } },
+        {
+          key: doc.id,
+          onSuccess: () => {
+            savedNameRef.current = trimmed;
+          },
+          onError: () => setDisplayName((current) => (current === trimmed ? savedNameRef.current : current)),
+          onAuthLost: () => setDisplayName(savedNameRef.current),
+        }
+      );
     }
     setIsEditing(false);
   }
@@ -62,14 +78,18 @@ export function DocRow({ doc }: DocRowProps) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setError(null);
-    startTransition(async () => {
-      try {
-        await removeDocument(doc.id);
-      } catch {
-        inFlightRef.current = false;
-        setError("Couldn't delete. Try again.");
+    void remove.mutate(
+      { params: { documentId: doc.id }, body: { tripId } },
+      {
+        key: doc.id,
+        onSuccess: () => setConfirmOpen(false),
+        onError: () => setError("Couldn't delete. Try again."),
+        onAuthLost: () => setConfirmOpen(false),
+        onSettled: () => {
+          inFlightRef.current = false;
+        },
       }
-    });
+    );
   }
 
   function handleOpenChange(isOpen: boolean) {
@@ -92,6 +112,7 @@ export function DocRow({ doc }: DocRowProps) {
       <DocKindBadge kind={doc.kind} />
       {isEditing ? (
         <input
+          aria-label="Document name"
           autoFocus
           value={editName}
           maxLength={FIELD_LIMITS.documentName}
@@ -99,6 +120,8 @@ export function DocRow({ doc }: DocRowProps) {
           onBlur={handleSave}
           onKeyDown={handleRenameKeyDown}
           style={{
+            minHeight: 44,
+            minWidth: 44,
             flex: 1,
             fontFamily: "var(--font-body, ui-sans-serif)",
             fontSize: "calc(14px * var(--font-scale))",
@@ -111,8 +134,9 @@ export function DocRow({ doc }: DocRowProps) {
           }}
         />
       ) : (
-        <span
-          className="flex-1 truncate"
+        <button
+          type="button"
+          className="flex-1 truncate text-left"
           onClick={() => {
             setEditName(displayName);
             setIsEditing(true);
@@ -122,10 +146,15 @@ export function DocRow({ doc }: DocRowProps) {
             fontSize: "calc(14px * var(--font-scale))",
             color: "var(--fg)",
             cursor: "text",
+            minHeight: 44,
+            minWidth: 44,
+            background: "transparent",
+            border: "none",
+            padding: 0,
           }}
         >
           {displayName}
-        </span>
+        </button>
       )}
       <button
         ref={viewButtonRef}

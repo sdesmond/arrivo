@@ -5,11 +5,7 @@ import { ArrowUpToLine, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import {
-  removeReservationDocument,
-  renameReservationDocument,
-  promoteReservationDocToTrip,
-} from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
+import { promoteReservationDocToTrip } from "@/app/(app)/trips/[tripId]/reservations/reservation-document-actions";
 import { shareDoc, cn } from "@/lib/utils";
 import {
   Dialog,
@@ -20,18 +16,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationDocRowProps {
   doc: Document;
+  tripId: string;
 }
 
 const compactBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: 28,
-  minHeight: 28,
+  minWidth: 44,
+  minHeight: 44,
   padding: 4,
   background: "transparent",
   border: "none",
@@ -41,8 +40,11 @@ const compactBtn: React.CSSProperties = {
   flexShrink: 0,
 };
 
-export function ReservationDocRow({ doc }: ReservationDocRowProps) {
-  const [isPending, startTransition] = useTransition();
+export function ReservationDocRow({ doc, tripId }: ReservationDocRowProps) {
+  const [promotePending, startTransition] = useTransition();
+  const rename = useApiMutation(updateDocument),
+    remove = useApiMutation(deleteDocument);
+  const isPending = promotePending || remove.isPending;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
@@ -50,6 +52,7 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
   const [editName, setEditName] = useState("");
   const [displayName, setDisplayName] = useState(doc.name);
   const cancelRef = useRef(false);
+  const savedNameRef = useRef(doc.name);
   const [viewerOpen, setViewerOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -61,7 +64,17 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== displayName) {
       setDisplayName(trimmed);
-      void renameReservationDocument(doc.id, trimmed);
+      void rename.mutate(
+        { params: { documentId: doc.id }, body: { name: trimmed } },
+        {
+          key: doc.id,
+          onSuccess: () => {
+            savedNameRef.current = trimmed;
+          },
+          onError: () => setDisplayName((current) => (current === trimmed ? savedNameRef.current : current)),
+          onAuthLost: () => setDisplayName(savedNameRef.current),
+        }
+      );
     }
     setIsEditing(false);
   }
@@ -93,14 +106,18 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setError(null);
-    startTransition(async () => {
-      try {
-        await removeReservationDocument(doc.id);
-      } catch {
-        inFlightRef.current = false;
-        setError("Couldn't delete. Try again.");
+    void remove.mutate(
+      { params: { documentId: doc.id }, body: { tripId } },
+      {
+        key: doc.id,
+        onSuccess: () => setConfirmOpen(false),
+        onError: () => setError("Couldn't delete. Try again."),
+        onAuthLost: () => setConfirmOpen(false),
+        onSettled: () => {
+          inFlightRef.current = false;
+        },
       }
-    });
+    );
   }
 
   function handleOpenChange(isOpen: boolean) {
@@ -121,6 +138,7 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
 
       {isEditing ? (
         <input
+          aria-label="Document name"
           autoFocus
           value={editName}
           maxLength={FIELD_LIMITS.documentName}
@@ -128,6 +146,8 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
           onBlur={handleSave}
           onKeyDown={handleRenameKeyDown}
           style={{
+            minHeight: 44,
+            minWidth: 44,
             flex: 1,
             fontSize: "calc(12px * var(--font-scale))",
             color: "var(--fg)",
@@ -150,9 +170,10 @@ export function ReservationDocRow({ doc }: ReservationDocRowProps) {
             background: "none",
             border: "none",
             padding: 0,
+            minHeight: 44,
             textAlign: "left",
             flex: 1,
-            minWidth: 0,
+            minWidth: 44,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",

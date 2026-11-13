@@ -1368,16 +1368,6 @@ export interface InvitableUsersResult {
   hasOtherUsers: boolean;
 }
 
-export interface AddDocumentInput {
-  tripId?: string;
-  eventId?: string;
-  reservationId?: string;
-  name: string;
-  kind: string;
-  size?: string;
-  url?: string;
-}
-
 /** A trip's complete note order as stored: every note id, first to last. */
 export interface TripNoteOrder {
   tripId: string;

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_URL_LENGTH,
   assertValidCoverImageUrl,
-  assertValidDocumentUrl,
   assertValidPhotographerUrl,
   isHttpUrl,
   isValidCoverImageUrl,
@@ -156,13 +155,6 @@ describe("isValidDocumentUrl", () => {
     expect(isValidDocumentUrl(`/api/storage/user-avatars/${TRIP_ID}/a.webp`, { tripId: TRIP_ID })).toBe(false);
     expect(isValidDocumentUrl("/api/storage/../x", { tripId: TRIP_ID })).toBe(false);
     expect(isValidDocumentUrl("javascript:alert(1)", { tripId: TRIP_ID })).toBe(false);
-  });
-});
-
-describe("assertValidDocumentUrl", () => {
-  it("throws for invalid values and passes valid ones", () => {
-    expect(() => assertValidDocumentUrl("javascript:alert(1)", { tripId: TRIP_ID })).toThrow("Invalid document URL.");
-    expect(() => assertValidDocumentUrl("https://example.com/a.pdf", { tripId: TRIP_ID })).not.toThrow();
   });
 });
 

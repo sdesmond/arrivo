@@ -553,7 +553,9 @@ export function ReservationRow({
           setNotes(next || undefined);
         }}
       />
-      {showDocs && hasDocs && <ReservationDocsBlock docs={docs} onAdd={() => setShowAddDocDialog(true)} />}
+      {showDocs && hasDocs && (
+        <ReservationDocsBlock tripId={reservation.tripId} docs={docs} onAdd={() => setShowAddDocDialog(true)} />
+      )}
       <AddReservationDocDialog
         reservationId={reservation.id}
         providerName={provider}

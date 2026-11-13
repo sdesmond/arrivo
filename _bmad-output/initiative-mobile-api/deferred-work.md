@@ -91,3 +91,7 @@
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Coordinate reservation deletion and document upload to avoid orphaned storage.
   evidence: Existing deleteReservation enumerates attached files before deleting reservation without shared trip lock; a concurrent upload may insert after enumeration and cascade-delete its row without file cleanup.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-rename-and-remove-documents-through-the-api-plan.md`
+  summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
+  evidence: `uploadDocument` inserts when no row exists for `draft.id` and `removeDocument` leaves no tombstone; severity unverified (medium if real). Check how events handle create-after-delete and decide whether documents need a tombstone or the retry window already covers it.

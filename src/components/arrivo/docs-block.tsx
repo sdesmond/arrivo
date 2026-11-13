@@ -6,11 +6,12 @@ import { EventDocRow } from "./event-doc-row";
 
 export interface DocsBlockProps {
   docs: Document[];
+  tripId: string;
   /** Omitted for a read-only viewer, which hides Add doc. */
   onAdd?: () => void;
 }
 
-export function DocsBlock({ docs, onAdd }: DocsBlockProps) {
+export function DocsBlock({ docs, onAdd, tripId }: DocsBlockProps) {
   return (
     <div className="mt-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
       <div
@@ -28,7 +29,7 @@ export function DocsBlock({ docs, onAdd }: DocsBlockProps) {
       </div>
       <div className="flex flex-col gap-1.5">
         {docs.map((doc) => (
-          <EventDocRow key={doc.id} doc={doc} />
+          <EventDocRow key={doc.id} doc={doc} tripId={tripId} />
         ))}
         {onAdd && (
           <button

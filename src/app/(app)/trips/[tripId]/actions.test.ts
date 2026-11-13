@@ -5,7 +5,7 @@ const { recordTripUpdated } = vi.hoisted(() => ({ recordTripUpdated: vi.fn() }))
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
 const { assertUploadContentMatchesType } = vi.hoisted(() => ({
-  assertUploadContentMatchesType: vi.fn(async (_file: File) => undefined),
+  assertUploadContentMatchesType: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/upload-policy", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/upload-policy")>()),
@@ -161,14 +161,11 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import {
-  addDocument,
   attachTripDocToEvent,
   dismissShareInvitation,
   getShareDialogData,
   promoteEventDocToTrip,
-  removeDocument,
   removeTripCover,
-  renameDocument,
   setTripCoverWithAttribution,
   uploadCoverImage,
   rescindShareInvitation,
@@ -290,24 +287,6 @@ describe("share invitation actions", () => {
     });
 
     expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("input validation", () => {
-  const over = (limit: number) => "x".repeat(limit + 1);
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-  });
-
-  it("rejects oversize document names and kinds", async () => {
-    await expect(addDocument({ tripId: "trip-1", name: over(200), kind: "pdf" })).rejects.toThrow("Document name");
-    await expect(addDocument({ tripId: "trip-1", name: "a", kind: "" })).rejects.toThrow("Kind is required.");
-    await expect(renameDocument("doc-1", over(200))).rejects.toThrow("Document name must be 200 characters");
-    expect(mockDbSelect).not.toHaveBeenCalled();
   });
 });
 
@@ -512,65 +491,6 @@ describe("setTripCoverWithAttribution", () => {
   );
 });
 
-describe("addDocument validation", () => {
-  const values = vi.fn(async () => undefined);
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-    mockDbInsert.mockReturnValue({ values });
-    mockDbSelect.mockReturnValue(createSimpleSelect([{ tripId: "trip-1" }]));
-  });
-
-  it("stores an http(s) link", async () => {
-    await addDocument({ tripId: "trip-1", name: "Menu", kind: "other", url: "https://example.com/menu.pdf" });
-
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/menu.pdf" }));
-  });
-
-  it("stores a file already uploaded for the trip", async () => {
-    await addDocument({
-      tripId: "trip-1",
-      name: "Ticket",
-      kind: "other",
-      url: "/api/storage/trip-documents/trip-1/abc.pdf",
-    });
-
-    expect(values).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    "javascript:alert(1)",
-    "/api/storage/../../etc/passwd",
-    "/api/storage/trip-documents/other-trip/abc.pdf",
-    "/api/storage/trip-covers/trip-1/abc.jpg",
-    "//evil.example/x.pdf",
-  ])("rejects url %j without inserting", async (url) => {
-    await expect(addDocument({ tripId: "trip-1", name: "Bad", kind: "other", url })).rejects.toThrow(
-      "Invalid document URL."
-    );
-
-    expect(values).not.toHaveBeenCalled();
-  });
-
-  it("checks access against the event's trip and refuses a mismatched tripId", async () => {
-    await expect(
-      addDocument({ tripId: "my-trip", eventId: "event-1", name: "Doc", kind: "other", url: "https://example.com/a" })
-    ).rejects.toThrow("Event does not belong to this trip.");
-
-    expect(mockAssertTripAccess).not.toHaveBeenCalled();
-    expect(values).not.toHaveBeenCalled();
-  });
-
-  it("derives the trip from the event when only eventId is sent", async () => {
-    await addDocument({ eventId: "event-1", name: "Doc", kind: "other", url: "https://example.com/a" });
-
-    expect(mockAssertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
-    expect(values).toHaveBeenCalledOnce();
-  });
-});
-
 describe("removeTripCover", () => {
   const mockWhere = vi.fn();
   const mockSet = vi.fn();
@@ -634,46 +554,6 @@ describe("removeTripCover", () => {
   });
 });
 
-describe("removeDocument", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireUser.mockResolvedValue({ id: "user-1" });
-    mockAssertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("still deletes the document row when the adapter del rejects", async () => {
-    const deleteWhere = vi.fn().mockResolvedValue(undefined);
-    mockDbDelete.mockReturnValue({ where: deleteWhere });
-    mockAdapterDel.mockRejectedValueOnce(new Error("storage unavailable"));
-    mockDbSelect.mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(async () => [
-          { id: "doc-1", tripId: "trip-1", eventId: null, url: "/api/storage/trip-documents/trip-1/doc.pdf" },
-        ]),
-      })),
-    });
-
-    await expect(removeDocument("doc-1")).resolves.toBeUndefined();
-
-    expect(mockAdapterDel).toHaveBeenCalledWith("/api/storage/trip-documents/trip-1/doc.pdf");
-    expect(deleteWhere).toHaveBeenCalled();
-    expect(mockPublishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.ItineraryChanged,
-      tripId: "trip-1",
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when the document is already gone", async () => {
-    mockDbSelect.mockReturnValue({ from: vi.fn(() => ({ where: vi.fn(async () => []) })) });
-
-    await expect(removeDocument("doc-1")).resolves.toBeUndefined();
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-});
-
 describe("attachTripDocToEvent scoping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -712,23 +592,6 @@ describe("publishItineraryChanged regression coverage", () => {
   });
 
   const cases: PublishCase[] = [
-    {
-      name: "addDocument",
-      tripId: "trip-1",
-      run: () => {
-        mockDbInsert.mockReturnValue({ values: vi.fn(async () => undefined) });
-        return addDocument({ tripId: "trip-1", name: "Passport.pdf", kind: "other", url: "https://x/doc.pdf" });
-      },
-    },
-    {
-      name: "renameDocument",
-      tripId: "trip-1",
-      run: () => {
-        mockDbSelect.mockReturnValue(createSimpleSelect([{ id: "doc-1", tripId: "trip-1", eventId: null }]));
-        mockDbUpdate.mockReturnValue({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) });
-        return renameDocument("doc-1", "Passport-scan.pdf");
-      },
-    },
     {
       name: "attachTripDocToEvent",
       tripId: "trip-1",

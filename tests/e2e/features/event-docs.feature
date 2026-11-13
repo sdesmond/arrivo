@@ -45,6 +45,7 @@ Feature: Event Document Integration
     When I expand the docs for event "E2E Event Manage"
     And I rename the event doc "E2E Manage Doc" to "E2E Renamed Doc"
     Then the event doc "E2E Renamed Doc" is visible
+    And after reload event "E2E Event Manage" shows uploaded document "E2E Renamed Doc"
 
   Scenario: Promote an event-attached document to trip level
     Given I am on the Itinerary tab
@@ -95,3 +96,11 @@ Feature: Event Document Integration
     And I click "Upload new instead"
     And I upload "event-upload.pdf" to event "E2E Event"
     Then after reload event "E2E Event" shows uploaded document "event-upload.pdf"
+
+  Scenario: Delete an event document and retain deletion after reload
+    Given I am on the Itinerary tab
+    And I expand Day 1
+    When I expand the docs for event "E2E Event Manage"
+    And I delete the document "E2E Manage Doc"
+    And I reload the page
+    Then the stored document "E2E Manage Doc" is deleted

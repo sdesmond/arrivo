@@ -5,7 +5,7 @@ import { ArrowUpToLine, Eye, Share2, Trash2 } from "lucide-react";
 import { DocViewer } from "./doc-viewer";
 import { DocKindBadge } from "./doc-kind-badge";
 import type { Document } from "@/data/types";
-import { removeDocument, renameDocument, promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
+import { promoteEventDocToTrip } from "@/app/(app)/trips/[tripId]/actions";
 import { shareDoc, cn } from "@/lib/utils";
 import {
   Dialog,
@@ -17,18 +17,21 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useCanEditTrip } from "./trip-edit-access";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { updateDocument, deleteDocument } from "@/lib/api/contract/documents";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface EventDocRowProps {
   doc: Document;
+  tripId: string;
 }
 
 const compactBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: 28,
-  minHeight: 28,
+  minWidth: 44,
+  minHeight: 44,
   padding: 4,
   background: "transparent",
   border: "none",
@@ -40,7 +43,7 @@ const compactBtn: React.CSSProperties = {
 
 const nameStyle: React.CSSProperties = {
   flex: 1,
-  minWidth: 0,
+  minWidth: 44,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -49,9 +52,12 @@ const nameStyle: React.CSSProperties = {
   fontFamily: "var(--font-body, ui-sans-serif)",
 };
 
-export function EventDocRow({ doc }: EventDocRowProps) {
+export function EventDocRow({ doc, tripId }: EventDocRowProps) {
   const canEdit = useCanEditTrip();
-  const [isPending, startTransition] = useTransition();
+  const [promotePending, startTransition] = useTransition();
+  const rename = useApiMutation(updateDocument),
+    remove = useApiMutation(deleteDocument);
+  const isPending = promotePending || remove.isPending;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
@@ -59,6 +65,7 @@ export function EventDocRow({ doc }: EventDocRowProps) {
   const [editName, setEditName] = useState("");
   const [displayName, setDisplayName] = useState(doc.name);
   const cancelRef = useRef(false);
+  const savedNameRef = useRef(doc.name);
   const [viewerOpen, setViewerOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -70,7 +77,17 @@ export function EventDocRow({ doc }: EventDocRowProps) {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== displayName) {
       setDisplayName(trimmed);
-      void renameDocument(doc.id, trimmed);
+      void rename.mutate(
+        { params: { documentId: doc.id }, body: { name: trimmed } },
+        {
+          key: doc.id,
+          onSuccess: () => {
+            savedNameRef.current = trimmed;
+          },
+          onError: () => setDisplayName((current) => (current === trimmed ? savedNameRef.current : current)),
+          onAuthLost: () => setDisplayName(savedNameRef.current),
+        }
+      );
     }
     setIsEditing(false);
   }
@@ -102,14 +119,18 @@ export function EventDocRow({ doc }: EventDocRowProps) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setError(null);
-    startTransition(async () => {
-      try {
-        await removeDocument(doc.id);
-      } catch {
-        inFlightRef.current = false;
-        setError("Couldn't delete. Try again.");
+    void remove.mutate(
+      { params: { documentId: doc.id }, body: { tripId } },
+      {
+        key: doc.id,
+        onSuccess: () => setConfirmOpen(false),
+        onError: () => setError("Couldn't delete. Try again."),
+        onAuthLost: () => setConfirmOpen(false),
+        onSettled: () => {
+          inFlightRef.current = false;
+        },
       }
-    });
+    );
   }
 
   function handleOpenChange(isOpen: boolean) {
@@ -130,6 +151,7 @@ export function EventDocRow({ doc }: EventDocRowProps) {
 
       {isEditing ? (
         <input
+          aria-label="Document name"
           autoFocus
           value={editName}
           maxLength={FIELD_LIMITS.documentName}
@@ -137,6 +159,8 @@ export function EventDocRow({ doc }: EventDocRowProps) {
           onBlur={handleSave}
           onKeyDown={handleRenameKeyDown}
           style={{
+            minHeight: 44,
+            minWidth: 44,
             flex: 1,
             fontSize: "calc(12px * var(--font-scale))",
             color: "var(--fg)",
@@ -155,7 +179,15 @@ export function EventDocRow({ doc }: EventDocRowProps) {
             setEditName(displayName);
             setIsEditing(true);
           }}
-          style={{ ...nameStyle, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "text" }}
+          style={{
+            ...nameStyle,
+            background: "none",
+            border: "none",
+            padding: 0,
+            minHeight: 44,
+            textAlign: "left",
+            cursor: "text",
+          }}
         >
           {displayName}
         </button>

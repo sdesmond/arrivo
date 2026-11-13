@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
   transactionTargetRows: undefined as Record<string, unknown>[] | undefined,
   committedRows: [] as Record<string, unknown>[],
   inserted: [] as Record<string, unknown>[],
+  queueFileDeletions: vi.fn(),
+  removeQueuedFiles: vi.fn(),
+  updated: [] as Record<string, unknown>[],
+  deleteError: undefined as Error | undefined,
   insertError: undefined as Error | undefined,
 }));
 vi.mock("@/db", () => ({
@@ -51,6 +55,21 @@ vi.mock("./trip-write", () => ({
             table === documents ? mocks.selectRows : (mocks.transactionTargetRows ?? mocks.targetRows),
         }),
       }),
+      update: () => ({
+        set: (patch: Record<string, unknown>) => ({
+          where: () => ({
+            returning: async () => {
+              mocks.updated.push(patch);
+              return [{ ...mocks.selectRows[0], ...patch }];
+            },
+          }),
+        }),
+      }),
+      delete: () => ({
+        where: async () => {
+          if (mocks.deleteError) throw mocks.deleteError;
+        },
+      }),
       insert: () => ({
         values: (values: Record<string, unknown>) => ({
           returning: async () => {
@@ -71,12 +90,22 @@ vi.mock("./trip-write", () => ({
   },
 }));
 
+vi.mock("@/lib/file-cleanup", () => ({
+  queueFileDeletions: mocks.queueFileDeletions,
+  removeQueuedFiles: mocks.removeQueuedFiles,
+}));
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated: mocks.recordTripUpdated }));
 vi.mock("@/lib/trip-events", () => ({ publishTripEvent: mocks.publishTripEvent }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 import { afterTripWrite } from "./trip-write-effects";
 import { LiveSyncEventType } from "@/data/types";
-import { uploadTripDocument, uploadEventDocument, uploadReservationDocument } from "./documents";
+import {
+  uploadTripDocument,
+  uploadEventDocument,
+  uploadReservationDocument,
+  renameDocument,
+  removeDocument,
+} from "./documents";
 import { documents } from "@/db/schema";
 import { TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { ConflictError } from "./conflict-error";
@@ -103,6 +132,9 @@ const stored = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.updated = [];
+  mocks.deleteError = undefined;
+  mocks.queueFileDeletions.mockResolvedValue([{ id: "queued", url: "/api/storage/earlier.pdf" }]);
   mocks.selectRows = [];
   mocks.targetRows = [{ tripId }];
   mocks.transactionTargetRows = undefined;
@@ -355,3 +387,98 @@ it.each([uploadEventDocument, uploadReservationDocument])(
     expect(mocks.inserted).toEqual([]);
   }
 );
+
+it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tripId: null }])(
+  "renames all scopes with legacy ancestry and publishes one effect",
+  async (scope) => {
+    mocks.committedRows = mocks.selectRows = [stored(scope)];
+    await expect(renameDocument(actor, documentId, { name: "New" })).resolves.toMatchObject({ name: "New" });
+    expect(mocks.updated).toEqual([{ name: "New" }]);
+    expect(mocks.requireTripRole).toHaveBeenCalledTimes(2);
+    expect(mocks.publishTripEvent).toHaveBeenCalledTimes(1);
+  }
+);
+it("leaves empty patches untouched and rejects invalid names in every scope", async () => {
+  for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
+    mocks.committedRows = mocks.selectRows = [stored(scope)];
+    await renameDocument(actor, documentId, {});
+    await renameDocument(actor, documentId, { name: "pass.pdf" });
+    for (const name of [" ", "x".repeat(201)])
+      await expect(renameDocument(actor, documentId, { name })).rejects.toThrow();
+  }
+  expect(mocks.updated).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("queues file removal before commit effects and removes files afterwards", async () => {
+  mocks.selectRows = [stored({ reservationId: targetId, tripId: null })];
+  await removeDocument(actor, documentId, { tripId });
+  expect(mocks.queueFileDeletions).toHaveBeenCalledWith(expect.anything(), ["/api/storage/earlier.pdf"]);
+  expect(mocks.removeQueuedFiles).toHaveBeenCalledTimes(1);
+  expect(mocks.queueFileDeletions.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.afterTripWrite.mock.invocationCallOrder[0]
+  );
+  expect(mocks.afterTripWrite.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.removeQueuedFiles.mock.invocationCallOrder[0]
+  );
+});
+it("keeps files when delete rolls back", async () => {
+  mocks.selectRows = [stored()];
+  mocks.deleteError = new Error("rollback");
+  await expect(removeDocument(actor, documentId, { tripId })).rejects.toThrow("rollback");
+  expect(mocks.removeQueuedFiles).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("allows authorized repeat deletes and conceals foreign trips", async () => {
+  await expect(removeDocument(actor, documentId, { tripId })).resolves.toBeNull();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  mocks.selectRows = [stored({ tripId: otherTripId })];
+  await expect(removeDocument(actor, documentId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
+});
+it("rechecks roles under lock and hides unknown documents", async () => {
+  await expect(renameDocument(actor, documentId, {})).rejects.toBeInstanceOf(TripNotFoundError);
+  mocks.committedRows = mocks.selectRows = [stored()];
+  mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
+  await expect(renameDocument(actor, documentId, { name: "new" })).rejects.toBeInstanceOf(TripForbiddenError);
+  expect(mocks.updated).toEqual([]);
+});
+
+it.each([{}, { eventId: targetId, tripId: null }, { reservationId: targetId, tripId: null }])(
+  "deletes every document scope through the trip write effects",
+  async (scope) => {
+    mocks.selectRows = [stored(scope)];
+    await removeDocument(actor, documentId, { tripId });
+    expect(mocks.requireTripRole).toHaveBeenNthCalledWith(1, tripId, "user", "editor");
+    expect(mocks.requireTripRole).toHaveBeenNthCalledWith(2, tripId, "user", "editor", expect.anything());
+    expect(mocks.recordTripUpdated).toHaveBeenCalledTimes(1);
+    expect(mocks.publishTripEvent).toHaveBeenCalledTimes(1);
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(1);
+  }
+);
+it("rejects changed document ancestry under lock before renaming", async () => {
+  mocks.committedRows = [stored()];
+  for (const current of [[], [stored({ tripId: otherTripId })]]) {
+    mocks.selectRows = current;
+    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+  }
+  expect(mocks.updated).toEqual([]);
+});
+it("conceals orphaned legacy rows without a resolvable trip", async () => {
+  for (const scope of [{}, { eventId: targetId }, { reservationId: targetId }]) {
+    mocks.committedRows = [stored({ tripId: null, ...scope })];
+    mocks.targetRows = [];
+    await expect(renameDocument(actor, documentId, { name: "New" })).rejects.toBeInstanceOf(TripNotFoundError);
+  }
+  expect(mocks.updated).toEqual([]);
+});
+it("reauthorizes delete under lock before queueing any file", async () => {
+  mocks.selectRows = [stored()];
+  mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
+  await expect(removeDocument(actor, documentId, { tripId })).rejects.toBeInstanceOf(TripForbiddenError);
+  expect(mocks.queueFileDeletions).not.toHaveBeenCalled();
+  expect(mocks.removeQueuedFiles).not.toHaveBeenCalled();
+});
+it("removes a document without a file without queueing a URL", async () => {
+  mocks.selectRows = [stored({ url: null })];
+  await removeDocument(actor, documentId, { tripId });
+  expect(mocks.queueFileDeletions).toHaveBeenCalledWith(expect.anything(), []);
+});

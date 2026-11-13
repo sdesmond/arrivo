@@ -89,6 +89,7 @@ Feature: Reservations
     And the "Lodging" reservation section is expanded
     When I rename the reservation doc "test-doc.pdf" to "Renamed Confirmation.pdf"
     Then the reservation doc "Renamed Confirmation.pdf" is visible
+    And after reload the reservation shows uploaded document "Renamed Confirmation.pdf"
 
   Scenario: Promote a reservation document to trip level
     Given the trip has a Lodging reservation with an attached document
@@ -110,3 +111,11 @@ Feature: Reservations
     And I save the trip date change
     Then I see the "No reservations yet" empty state
     And the Add Reservation button is visible
+
+  Scenario: Delete a reservation document and retain deletion after reload
+    Given the trip has a Lodging reservation with an attached document
+    And the "Lodging" reservation section is expanded
+    When I expand reservation documents
+    And I delete the document "test-doc.pdf"
+    And I reload the page
+    Then the stored document "test-doc.pdf" is deleted
