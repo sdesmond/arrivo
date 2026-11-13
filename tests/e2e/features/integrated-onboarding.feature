@@ -22,7 +22,7 @@ Feature: Integrated administrator-issued onboarding
     And authorized protected resources and a captured mutation exist
     And a pending account with a fresh setup link
     When I open the setup link
-    Then setup-only requests refuse app routes, the captured action, stored file and both feeds
+    Then setup-only requests refuse app routes, the captured mutation, stored file and both feeds
 
   Scenario: A held setup context stops working after expiry
     Given the app is already set up
