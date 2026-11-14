@@ -129,3 +129,7 @@
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Add hostile-page browser evidence for cross-origin search-budget rejection.
   evidence: Current API cases supply headers directly; guard and service tests separately prove budget order, while picker covers real browser success.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-verify-documents-and-covers-end-to-end-plan.md`
+  summary: Route the remaining anonymous API steps in `tests/e2e/steps/api.steps.ts` (event patch, lifecycle create, `audience` meta, other raw `page.request.*`) through the shared cookie-free client and retire the duplicate `anonymousApiRequests` helper.
+  evidence: Story 3.10 found that `clearCookies()` leaves an open page free to set its session cookie again, returning 200 instead of 401; only the checklist write and the document and cover steps were moved, so the same flake can recur in the untouched anonymous examples.

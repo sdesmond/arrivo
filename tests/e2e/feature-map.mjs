@@ -108,6 +108,7 @@ export const FEATURE_MAP = [
     // The delete scenario fetches a kept document through the storage route after its event is gone.
     ...STORAGE,
     "tests/e2e/api-response.ts",
+    "tests/e2e/anonymous-api.ts",
   ]),
   entry("mfa-policy", [
     ...CREDENTIALS,

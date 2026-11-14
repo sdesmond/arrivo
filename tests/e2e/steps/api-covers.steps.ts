@@ -1,12 +1,13 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { trips, collaborators, pendingFileDeletions } from "../../../src/db/schema";
+import { trips, collaborators, pendingFileDeletions, idempotencyKeys } from "../../../src/db/schema";
 import { deriveGraphicCover } from "../../../src/lib/utils";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { withE2EDb } from "../e2e-db";
+import { apiClient, disposeAnonymousApiClient, markAnonymousApiRole } from "../anonymous-api";
 import { Given, When, Then, After } from "../fixtures";
 interface CoverState {
   tripId: string;
@@ -37,7 +38,9 @@ function headers(page: Page) {
 }
 async function send(page: Page, method: "PUT" | "DELETE", data: unknown, extra: Record<string, string> = {}) {
   const current = state(page);
-  const response = await page.request.fetch(`/api/v1/trips/${current.tripId}/cover`, {
+  const response = await (
+    await apiClient(page)
+  ).fetch(`/api/v1/trips/${current.tripId}/cover`, {
     method,
     headers: { ...headers(page), ...extra },
     data,
@@ -55,7 +58,9 @@ async function upload(
 ) {
   const current = state(page);
   // No content-type: Playwright sets the multipart boundary itself.
-  const response = await page.request.post(`/api/v1/trips/${current.tripId}/cover/image`, {
+  const response = await (
+    await apiClient(page)
+  ).post(`/api/v1/trips/${current.tripId}/cover/image`, {
     headers: { ...headers(page), ...extra },
     multipart,
     timeout: 60_000,
@@ -98,8 +103,10 @@ Given("a scenario-owned trip for the cover API", async ({ page, scenario }) => {
 });
 Given("my cover API role is {string}", async ({ page, scenario }, role: string) => {
   const current = state(page);
+  if (role === "anonymous") await markAnonymousApiRole(page);
   await withE2EDb(async (database) => {
     const match = and(eq(collaborators.tripId, current.tripId), eq(collaborators.userId, scenario.currentUser!.id));
+    if (role === "anonymous") return;
     if (role === "stranger") await database.delete(collaborators).where(match);
     else await database.update(collaborators).set({ role }).where(match);
   });
@@ -128,10 +135,11 @@ When("I submit cover API case {string}", async ({ page }, testCase: string) => {
     "foreign-storage": { coverImageUrl: `/api/storage/trip-covers/${randomUUID()}/cover.png` },
     "unknown-field": { ...selection, extra: true },
     "delete-field": { extra: true },
+    remove: {},
   };
   await send(
     page,
-    testCase === "delete-field" ? "DELETE" : "PUT",
+    testCase === "delete-field" || testCase === "remove" ? "DELETE" : "PUT",
     bodies[testCase] ?? selection,
     testCase === "cross-site" ? { origin: "https://other.example", "sec-fetch-site": "cross-site" } : {}
   );
@@ -243,6 +251,8 @@ When("I submit cover upload API case {string}", async ({ page }, testCase: strin
     valid: () => upload(page, { file: valid }),
     // Just over the cover limit: the route reads the body and the service rejects it.
     "oversize-file": () => upload(page, { file: coverPart("big.png", filler(12 * MEBIBYTE + 1), "image/png") }),
+    // Exactly the cover limit: stored once.
+    "exact-limit": () => upload(page, { file: coverPart("exact.png", filler(12 * MEBIBYTE), "image/png") }),
     // Far over: the route refuses from Content-Length before reading the body.
     "oversize-body": () => upload(page, { file: coverPart("huge.png", filler(14 * MEBIBYTE), "image/png") }),
     "disallowed-type": () => upload(page, { file: coverPart("c.svg", Buffer.from("<svg/>"), "image/svg+xml") }),
@@ -253,7 +263,9 @@ When("I submit cover upload API case {string}", async ({ page }, testCase: strin
     keyed: () => upload(page, { file: valid }, { "idempotency-key": "cover-upload-key" }),
     "no-client-header": async () => {
       const current = state(page);
-      current.response = await page.request.post(`/api/v1/trips/${current.tripId}/cover/image`, {
+      current.response = await (
+        await apiClient(page)
+      ).post(`/api/v1/trips/${current.tripId}/cover/image`, {
         headers: { origin: new URL(page.url()).origin },
         multipart: { file: valid },
       });
@@ -275,6 +287,17 @@ Then("the API cover is a stored upload without attribution", async ({ page }) =>
   const stored = await readFile(join(resolve(E2E_STORAGE_DIRECTORY), row.coverImageUrl!.slice("/api/storage/".length)));
   expect(stored.length).toBeGreaterThan(0);
 });
+Then("the cover upload stored exactly one 12 MiB file", async ({ page }) => {
+  expect(state(page).response!.status()).toBe(204);
+  const files = await storedCoverFiles(page);
+  expect(files).toHaveLength(1);
+  const row = await cover(page);
+  expect(row.coverImageUrl).toBe(`/api/storage/trip-covers/${state(page).tripId}/${files[0]}`);
+  expect(row).toMatchObject({ coverPhotographer: null, coverPhotographerUrl: null });
+  expect((await stat(join(resolve(E2E_STORAGE_DIRECTORY), "trip-covers", state(page).tripId, files[0]))).size).toBe(
+    12 * MEBIBYTE
+  );
+});
 Then("the cover upload stored no new file", async ({ page }) => {
   expect(await storedCoverFiles(page)).toHaveLength(state(page).file ? 1 : 0);
 });
@@ -287,7 +310,72 @@ Then("the rolled-back cover upload left no new file", async ({ page }) => {
   expect(state(page).response!.status()).toBe(500);
   expect(await storedCoverFiles(page)).toEqual(["map.png"]);
 });
+async function coverReplaySnapshot(page: Page, actorId: string, key: string) {
+  const current = state(page);
+  return withE2EDb(async (database) => ({
+    replayRecords: await database
+      .select()
+      .from(idempotencyKeys)
+      .where(and(eq(idempotencyKeys.userId, actorId), eq(idempotencyKeys.key, `api:v1:${key}`))),
+    trip: await database.select().from(trips).where(eq(trips.id, current.tripId)),
+    files: await storedCoverFiles(page),
+    queuedDeletions: await database
+      .select()
+      .from(pendingFileDeletions)
+      .where(eq(pendingFileDeletions.url, current.original)),
+  }));
+}
+const coverReplays = new WeakMap<
+  Page,
+  {
+    actorId: string;
+    key: string;
+    method: "PUT" | "DELETE";
+    data: unknown;
+    snapshot: Awaited<ReturnType<typeof coverReplaySnapshot>>;
+    response?: APIResponse;
+  }
+>();
+When("I commit the keyed cover operation {string}", async ({ page, scenario }, operation: string) => {
+  if (operation !== "select" && operation !== "remove") throw new Error(`Unknown keyed cover operation ${operation}`);
+  const actorId = scenario.currentUser!.id;
+  const key = `cover-replay-${randomUUID()}`;
+  const method = operation === "select" ? "PUT" : "DELETE";
+  const data = operation === "select" ? selection : {};
+  const before = await coverReplaySnapshot(page, actorId, key);
+  expect(before.replayRecords).toHaveLength(0);
+  const response = await send(page, method, data, { "idempotency-key": key });
+  expect(response.status()).toBe(204);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  // The replaced stored cover is queued for removal; wait until the queue has drained.
+  await expect.poll(async () => (await coverReplaySnapshot(page, actorId, key)).queuedDeletions.length).toBe(0);
+  const snapshot = await coverReplaySnapshot(page, actorId, key);
+  expect(snapshot.replayRecords).toHaveLength(1);
+  expect(snapshot.files).toEqual([]);
+  expect(snapshot).not.toEqual(before);
+  coverReplays.set(page, { actorId, key, method, data, snapshot });
+});
+When("I replay the exact committed cover request", async ({ page }) => {
+  const replay = coverReplays.get(page)!;
+  replay.response = await send(page, replay.method, replay.data, { "idempotency-key": replay.key });
+});
+Then(
+  "the cover replay returns {int} with code {string} and preserves the committed snapshot",
+  async ({ page }, status: number, code: string) => {
+    const replay = coverReplays.get(page)!;
+    expect(replay.response!.status()).toBe(status);
+    expect(replay.response!.headers()["cache-control"]).toBe("no-store");
+    expect(await replay.response!.json()).toEqual({
+      error:
+        code === "forbidden"
+          ? { code, message: "You do not have permission for this action.", requiredRole: "editor" }
+          : { code, message: "Resource not found." },
+    });
+    expect(await coverReplaySnapshot(page, replay.actorId, replay.key)).toEqual(replay.snapshot);
+  }
+);
 After(async ({ page }) => {
+  await disposeAnonymousApiClient(page);
   const current = states.get(page);
   if (current) {
     await rm(join(resolve(E2E_STORAGE_DIRECTORY), "trip-covers", current.tripId), { recursive: true, force: true });
