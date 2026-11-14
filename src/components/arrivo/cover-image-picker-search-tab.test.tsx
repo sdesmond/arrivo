@@ -195,6 +195,20 @@ describe("CoverImagePickerSearchTab", () => {
     expect(screen.queryByTitle("Map view")).not.toBeInTheDocument();
   });
 
+  it("still loads photos, without a map tile, when destination lookup fails", async () => {
+    mockResolveDestinationCenter.mockRejectedValue(new Error("Mapbox search budget exhausted"));
+    mockSearchCoverImages.mockResolvedValue([makeImage("img-1")]);
+
+    render(<CoverImagePickerSearchTab {...defaultProps} destinationName="Paris" />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /Alt img-1/ }).length).toBeGreaterThan(0);
+    });
+    expect(mockSearchCoverImages).toHaveBeenCalledWith("Paris", expect.any(Object));
+    expect(screen.queryByTitle("Map view")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("map tile button URL includes the provided coordinates", async () => {
     const center: [number, number] = [2.347, 48.859];
     const onImageSelected = vi.fn();

@@ -51,6 +51,23 @@ it("keeps attribution optional but checks any supplied photographer URL", () => 
     }).success
   ).toBe(false);
 });
+it("bounds the photographer name and rejects an empty one", () => {
+  const coverImageUrl = "https://example.com/image";
+  expect(setTripCover.body.parse({ coverImageUrl, coverPhotographer: "A".repeat(200) }).coverPhotographer).toBe(
+    "A".repeat(200)
+  );
+  expect(setTripCover.body.safeParse({ coverImageUrl, coverPhotographer: "A".repeat(201) }).success).toBe(false);
+  expect(setTripCover.body.safeParse({ coverImageUrl, coverPhotographer: "" }).success).toBe(false);
+  expect(setTripCover.body.safeParse({ coverImageUrl, coverPhotographer: "   " }).success).toBe(false);
+});
+
+it("trims the photographer name", () => {
+  expect(
+    setTripCover.body.parse({ coverImageUrl: "https://example.com/image", coverPhotographer: "  Ada  " })
+      .coverPhotographer
+  ).toBe("Ada");
+});
+
 it("preserves offline search stubs only in E2E mode", () => {
   vi.stubEnv("E2E_MODE", "true");
   expect(setTripCover.body.safeParse({ coverImageUrl: "data:image/svg+xml;charset=utf-8,<svg/>" }).success).toBe(true);

@@ -75,8 +75,15 @@ export function CoverImagePickerSearchTab({
 
     async function load() {
       try {
-        const nextCenter =
-          initialCenter ?? (await api(resolveDestinationCenter, { params: {}, body: { name: query } })).center;
+        let nextCenter: [number, number] | null | undefined = initialCenter;
+        if (!nextCenter) {
+          try {
+            nextCenter = (await api(resolveDestinationCenter, { params: {}, body: { name: query } })).center;
+          } catch {
+            // The map tile is optional: a spent Mapbox budget or a failed lookup must not block the photos.
+            nextCenter = null;
+          }
+        }
         if (!isCurrent) return;
         setResolvedCenter(nextCenter ?? undefined);
 

@@ -3,6 +3,9 @@ import { isHttpUrl, isValidCoverImageUrl, parseOwnStorageUrl } from "@/lib/url-p
 import { MAX_COVER_IMAGE_UPLOAD_BYTES } from "@/lib/utils";
 import { defineEndpoint } from "../endpoint";
 const params = z.object({ tripId: z.uuid().toLowerCase() });
+
+/** Longest photographer name the cover PUT stores; Unsplash names are far shorter. */
+export const MAX_COVER_PHOTOGRAPHER_LENGTH = 200;
 export const setTripCover = defineEndpoint<null>()({
   method: "PUT",
   path: "/api/v1/trips/:tripId/cover",
@@ -13,7 +16,7 @@ export const setTripCover = defineEndpoint<null>()({
       const stored = parseOwnStorageUrl(value);
       return isValidCoverImageUrl(value, stored?.ownerId);
     }, "Invalid cover image URL."),
-    coverPhotographer: z.string().nullable().optional(),
+    coverPhotographer: z.string().trim().min(1).max(MAX_COVER_PHOTOGRAPHER_LENGTH).nullable().optional(),
     coverPhotographerUrl: z.string().refine(isHttpUrl, "Invalid photographer URL.").nullable().optional(),
   }),
 });
