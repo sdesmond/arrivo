@@ -1,3 +1,4 @@
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; every request in `api.steps.ts` goes through `apiClient()` from `anonymous-api.ts`, the duplicate `anonymousApiRequests` helper is gone and the metadata step marks the page anonymous. Evidence: `@feat:api` and `@feat:event-docs` 499 passed.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-make-api-replay-atomic-and-authorization-aware-plan.md`
   summary: Add a retention sweep for expired `idempotency_keys` rows.
   evidence: API replay rows (`api:v1:` namespace) are replaced on reuse but never purged, and legacy packing rows share the same unbounded growth; expiry only gates replay.
@@ -112,6 +113,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
   summary: Harden the `event-document` branch of `resolveOwningTripId` with the same single-row and ancestry validation the reservation branch now has.
   evidence: Pre-existing; `src/lib/storage/trip-resolution.ts` still takes the first `documents` row for the URL and trusts its `tripId` alone, so a corrupt or duplicated row names its trip unvalidated after the event is gone. Medium; a mixed-ancestry retained event-document row asserting the wrong trip should settle handling.
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; the `event-document` branch now needs exactly one row for the URL and validates its links with `resolveDocumentTripId`, as the reservation branch does. Tests: `trip-resolution.test.ts` ("an event document whose event is gone").
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
   summary: Bound and normalize `coverPhotographer` (max length, reject empty string) in the cover PUT contract.

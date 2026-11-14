@@ -1,4 +1,4 @@
-import { expect, request, type APIRequestContext, type APIResponse, type Page } from "@playwright/test";
+import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
@@ -26,22 +26,12 @@ import { withE2EDb } from "../e2e-db";
 import { E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
-import { markAnonymousApiRole } from "../anonymous-api";
+import { apiClient, disposeAnonymousApiClient, markAnonymousApiRole } from "../anonymous-api";
 import { Given, When, Then, After } from "../fixtures";
 const rememberedCookies = new WeakMap<Page, Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>>>();
-const anonymousApiRequests = new WeakMap<Page, APIRequestContext>();
 After(async ({ page }) => {
-  await anonymousApiRequests.get(page)?.dispose();
-  anonymousApiRequests.delete(page);
+  await disposeAnonymousApiClient(page);
 });
-async function apiRequestClient(page: Page): Promise<APIRequestContext> {
-  if (state(page).role !== "anonymous") return page.request;
-  const client =
-    anonymousApiRequests.get(page) ??
-    (await request.newContext({ baseURL: new URL(page.url()).origin, storageState: { cookies: [], origins: [] } }));
-  anonymousApiRequests.set(page, client);
-  return client;
-}
 Given("I remember the signed-in browser cookies", async ({ page }) => {
   const cookies = await page.context().cookies();
   expect(cookies.some((cookie) => cookie.name.includes("session-token"))).toBe(true);
@@ -153,7 +143,9 @@ Given("my checklist API role is {string}", async ({ page, scenario }, role: stri
 });
 When("I set the checklist API checked state to {string} twice", async ({ page }, value: string) => {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await page.request.patch(itemUrl(state(page).itemId), {
+    const response = await (
+      await apiClient(page)
+    ).patch(itemUrl(state(page).itemId), {
       headers: headers(page),
       data: { isChecked: value === "true" },
     });
@@ -191,7 +183,7 @@ When("I attempt a checklist API write", async ({ page }) => {
   if (revokedCookie) requestHeaders.cookie = revokedCookie;
   // An anonymous role must not reuse the page's cookie jar: the open page can refresh its session after the clear.
   state(page).response = await (
-    await apiRequestClient(page)
+    await apiClient(page)
   ).patch(itemUrl(state(page).itemId), {
     headers: requestHeaders,
     data: { isChecked: true },
@@ -210,7 +202,9 @@ When("I submit checklist API case {string}", async ({ page }, testCase: string) 
   if (testCase === "wrong-type") requestHeaders["content-type"] = "text/plain";
   if (testCase === "cross-origin") requestHeaders.origin = "https://other.test";
   const extraHeaders: Record<string, string> = testCase === "same-site" ? { "sec-fetch-site": "same-site" } : {};
-  state(page).response = await page.request.patch(itemUrl(itemId), {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(itemUrl(itemId), {
     headers: { ...requestHeaders, ...extraHeaders },
     data,
   });
@@ -263,7 +257,9 @@ async function sendKeyed(
   key = state(page).key,
   itemId = state(page).itemId
 ): Promise<KeyedResult> {
-  const response = await page.request.patch(itemUrl(itemId), {
+  const response = await (
+    await apiClient(page)
+  ).patch(itemUrl(itemId), {
     headers: { ...headers(page), "idempotency-key": key },
     data: { isChecked },
   });
@@ -397,7 +393,9 @@ When("I retry the keyed checklist API write of {string}", async ({ page }, value
   state(page).responses = [await sendKeyed(page, value === "true")];
 });
 When("I send an unkeyed checklist API write of {string}", async ({ page }, value: string) => {
-  const response = await page.request.patch(itemUrl(state(page).itemId), {
+  const response = await (
+    await apiClient(page)
+  ).patch(itemUrl(state(page).itemId), {
     headers: headers(page),
     data: { isChecked: value === "true" },
   });
@@ -446,7 +444,9 @@ When("the keyed checklist API record has expired", async ({ page, scenario }) =>
   expect(rows).toHaveLength(1);
 });
 When("I send a checklist API write with an {word} idempotency key", async ({ page }, kind: string) => {
-  state(page).response = await page.request.patch(itemUrl(state(page).itemId), {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(itemUrl(state(page).itemId), {
     headers: { ...headers(page), "idempotency-key": kind === "empty" ? "" : "k".repeat(256) },
     data: { isChecked: true },
   });
@@ -524,10 +524,10 @@ Then(
 );
 
 Given("I am {string} for the API metadata", async ({ page }, audience: string) => {
-  if (audience === "anonymous") await page.context().clearCookies();
+  if (audience === "anonymous") await markAnonymousApiRole(page);
 });
 When("I request the API metadata", async ({ page }) => {
-  state(page).response = await page.request.get("/api/v1/meta");
+  state(page).response = await (await apiClient(page)).get("/api/v1/meta");
 });
 Then("the API metadata is exactly the public version and capabilities", async ({ page }) => {
   const response = state(page).response!;
@@ -563,7 +563,9 @@ async function expandLifecycleDay(page: Page) {
 }
 async function sendLifecycleCreate(page: Page, tripId: string, keyed: boolean) {
   const { tripId: requestTrip, ...body } = await lifecycleInput(page, tripId);
-  const response = await page.request.post(`/api/v1/trips/${requestTrip}/checklists`, {
+  const response = await (
+    await apiClient(page)
+  ).post(`/api/v1/trips/${requestTrip}/checklists`, {
     headers: { ...headers(page), ...(keyed ? { "idempotency-key": state(page).key } : {}) },
     data: body,
   });
@@ -625,7 +627,9 @@ Then("lifecycle creation persists once with mixed timeline ordering after reload
 });
 When("I create another checklist at the lifecycle position", async ({ page }) => {
   const { tripId, dayId, position } = state(page).lifecycle!;
-  const response = await page.request.post(`/api/v1/trips/${tripId}/checklists`, {
+  const response = await (
+    await apiClient(page)
+  ).post(`/api/v1/trips/${tripId}/checklists`, {
     headers: headers(page),
     data: { dayId, position, id: randomUUID(), title: "Shifting insert" },
   });
@@ -657,8 +661,8 @@ Then("the day holds the original and the shifting checklist once after reload", 
 When("I reuse the lifecycle checklist UUID with different content", async ({ page }) => {
   const { tripId, ...body } = state(page).lifecycle!;
   const responses = await Promise.all(
-    ["Collision one", "Collision two"].map((title) =>
-      page.request.post(`/api/v1/trips/${tripId}/checklists`, {
+    ["Collision one", "Collision two"].map(async (title) =>
+      (await apiClient(page)).post(`/api/v1/trips/${tripId}/checklists`, {
         headers: headers(page),
         data: { ...body, title },
       })
@@ -681,7 +685,9 @@ When("I rename, omit and clear the lifecycle checklist title", async ({ page }) 
     [{}, "Renamed lifecycle"],
     [{ title: null }, undefined],
   ] as const) {
-    const response = await page.request.patch(`/api/v1/checklists/${input.id}`, { headers: headers(page), data: body });
+    const response = await (
+      await apiClient(page)
+    ).patch(`/api/v1/checklists/${input.id}`, { headers: headers(page), data: body });
     expect(response.status()).toBe(200);
     expect((await response.json()).title).toBe(title);
   }
@@ -700,7 +706,9 @@ Then("the lifecycle checklist title is cleared after reload", async ({ page }) =
 When("I delete the lifecycle checklist twice", async ({ page }) => {
   const input = state(page).lifecycle!;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await page.request.delete(`/api/v1/checklists/${input.id}`, {
+    const response = await (
+      await apiClient(page)
+    ).delete(`/api/v1/checklists/${input.id}`, {
       headers: { ...headers(page), "idempotency-key": state(page).key },
       data: { tripId: input.tripId },
     });
@@ -708,7 +716,9 @@ When("I delete the lifecycle checklist twice", async ({ page }) => {
     expect(await response.text()).toBe("");
     expect(response.headers()["cache-control"]).toBe("no-store");
   }
-  const response = await page.request.delete(`/api/v1/checklists/${input.id}`, {
+  const response = await (
+    await apiClient(page)
+  ).delete(`/api/v1/checklists/${input.id}`, {
     headers: headers(page),
     data: { tripId: input.tripId },
   });
@@ -817,8 +827,11 @@ When(
       before.push(await timelineSnapshot(day.id));
     }
     const responses = await Promise.all(
-      requests.map((request) =>
-        page.request.post(`/api/v1/trips/${request.tripId}/checklists`, { headers: headers(page), data: request.body })
+      requests.map(async (request) =>
+        (await apiClient(page)).post(`/api/v1/trips/${request.tripId}/checklists`, {
+          headers: headers(page),
+          data: request.body,
+        })
       )
     );
     const statuses = responses.map((response) => response.status());
@@ -905,8 +918,8 @@ async function expandPackingChecklist(page: Page) {
 When("I create a checklist item with a client UUID concurrently", async ({ page, scenario }) => {
   const item = await ensureItemApi(page, scenario.currentTrip!.id);
   const responses = await Promise.all(
-    [item.id, item.id.toUpperCase(), item.id].map((id) =>
-      page.request.post(itemsUrl(item.checklistId), {
+    [item.id, item.id.toUpperCase(), item.id].map(async (id) =>
+      (await apiClient(page)).post(itemsUrl(item.checklistId), {
         headers: headers(page),
         data: { id, content: ` ${item.content} ` },
       })
@@ -944,8 +957,11 @@ Then("the checklist item persists once after the original item after reload", as
 When("I reuse the checklist item UUID with different content", async ({ page }) => {
   const item = itemApi(page);
   const responses = await Promise.all(
-    ["Collision one", "Collision two"].map((content) =>
-      page.request.post(itemsUrl(item.checklistId), { headers: headers(page), data: { id: item.id, content } })
+    ["Collision one", "Collision two"].map(async (content) =>
+      (await apiClient(page)).post(itemsUrl(item.checklistId), {
+        headers: headers(page),
+        data: { id: item.id, content },
+      })
     )
   );
   for (const response of responses) expect(response.status()).toBe(409);
@@ -985,13 +1001,16 @@ When(
       trips.push({ tripId: trip.id, dayId: row.dayId, checklistId: row.checklistId });
       before.push(await timelineSnapshot(row.dayId));
     }
-    const sendItem = (target: (typeof trips)[number], id: string) =>
-      page.request.post(itemsUrl(target.checklistId), { headers: headers(page), data: { id, content: "Race item" } });
+    const sendItem = async (target: (typeof trips)[number], id: string) =>
+      (await apiClient(page)).post(itemsUrl(target.checklistId), {
+        headers: headers(page),
+        data: { id, content: "Race item" },
+      });
     const responses = await Promise.all([
       sendItem(trips[0], sharedId),
       resource === "item"
         ? sendItem(trips[1], sharedId.toUpperCase())
-        : page.request.post(`/api/v1/trips/${trips[1].tripId}/checklists`, {
+        : (await apiClient(page)).post(`/api/v1/trips/${trips[1].tripId}/checklists`, {
             headers: headers(page),
             data: {
               dayId: trips[1].dayId,
@@ -1027,7 +1046,7 @@ When("I patch the checklist item content, checked state and an empty body", asyn
   const item = await ensureItemApi(page, scenario.currentTrip!.id);
   const url = itemUrl(state(page).itemId);
   const patch = async (data: unknown, status: number) => {
-    const response = await page.request.patch(url, { headers: headers(page), data });
+    const response = await (await apiClient(page)).patch(url, { headers: headers(page), data });
     expect(response.status()).toBe(status);
     return response;
   };
@@ -1048,7 +1067,9 @@ When("I patch the checklist item content, checked state and an empty body", asyn
   expect(rows).toMatchObject([{ content: "Renamed passport", isChecked: true }]);
 });
 When("I resend the same checklist item content and checked state", async ({ page }) => {
-  const response = await page.request.patch(itemUrl(state(page).itemId), {
+  const response = await (
+    await apiClient(page)
+  ).patch(itemUrl(state(page).itemId), {
     headers: headers(page),
     data: { content: "Renamed passport", isChecked: true },
   });
@@ -1066,7 +1087,9 @@ When("I delete the checklist item with the wrong trip and then twice", async ({ 
   const itemId = state(page).itemId;
   await ensureItemApi(page, scenario.currentTrip!.id);
   const { trip: otherTrip } = await scenario.materialize({ trip: { mother: "threeDayTrip", setCurrent: false } });
-  const wrongTrip = await page.request.delete(itemUrl(itemId), {
+  const wrongTrip = await (
+    await apiClient(page)
+  ).delete(itemUrl(itemId), {
     headers: headers(page),
     data: { tripId: otherTrip!.id },
   });
@@ -1074,7 +1097,9 @@ When("I delete the checklist item with the wrong trip and then twice", async ({ 
   expect((await wrongTrip.json()).error.code).toBe("not_found");
   expect(await storedItems(itemApi(page).checklistId)).toHaveLength(1);
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await page.request.delete(itemUrl(itemId), {
+    const response = await (
+      await apiClient(page)
+    ).delete(itemUrl(itemId), {
       headers: { ...headers(page), "idempotency-key": state(page).key },
       data: { tripId: scenario.currentTrip!.id },
     });
@@ -1082,7 +1107,9 @@ When("I delete the checklist item with the wrong trip and then twice", async ({ 
     expect(await response.text()).toBe("");
     expect(response.headers()["cache-control"]).toBe("no-store");
   }
-  const unkeyed = await page.request.delete(itemUrl(itemId), {
+  const unkeyed = await (
+    await apiClient(page)
+  ).delete(itemUrl(itemId), {
     headers: headers(page),
     data: { tripId: scenario.currentTrip!.id },
   });
@@ -1097,7 +1124,7 @@ When("I attempt the checklist item API operation {string}", async ({ page, scena
   const item = await ensureItemApi(page, scenario.currentTrip!.id);
   item.countBefore = (await storedItems(item.checklistId)).length;
   const requestHeaders = headers(page);
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   state(page).response =
     operation === "create"
       ? await client.post(itemsUrl(item.checklistId), {
@@ -1127,7 +1154,9 @@ When("I send {int} keyed checklist item creations one after another", async ({ p
   const item = await ensureItemApi(page, scenario.currentTrip!.id);
   const bodies: unknown[] = [];
   for (let attempt = 0; attempt < count; attempt += 1) {
-    const response = await page.request.post(itemsUrl(item.checklistId), {
+    const response = await (
+      await apiClient(page)
+    ).post(itemsUrl(item.checklistId), {
       headers: { ...headers(page), "idempotency-key": state(page).key },
       data: { id: item.id, content: item.content },
     });
@@ -1145,7 +1174,9 @@ Then("exactly one checklist item was created for that key", async ({ page }) => 
 When("I reuse the item creation key with different content", async ({ page }) => {
   const item = itemApi(page);
   item.countBefore = (await storedItems(item.checklistId)).length;
-  state(page).response = await page.request.post(itemsUrl(item.checklistId), {
+  state(page).response = await (
+    await apiClient(page)
+  ).post(itemsUrl(item.checklistId), {
     headers: { ...headers(page), "idempotency-key": state(page).key },
     data: { content: "A different item" },
   });
@@ -1160,7 +1191,9 @@ Then("the checklist item API returns 409 with code {string} and no new item", as
 When("I retry the keyed checklist item creation", async ({ page }) => {
   const item = itemApi(page);
   item.countBefore = (await storedItems(item.checklistId)).length;
-  state(page).response = await page.request.post(itemsUrl(item.checklistId), {
+  state(page).response = await (
+    await apiClient(page)
+  ).post(itemsUrl(item.checklistId), {
     headers: { ...headers(page), "idempotency-key": state(page).key },
     data: { id: item.id, content: item.content },
   });
@@ -1244,8 +1277,8 @@ async function sourceItemsInOrder(checklistId: string): Promise<{ content: strin
       .orderBy(checklistItems.createdAt)
   );
 }
-function postSourceCreate(page: Page, input: SourceApiState, key?: string) {
-  return page.request.post(`/api/v1/trips/${input.tripId}/checklists`, {
+async function postSourceCreate(page: Page, input: SourceApiState, key?: string) {
+  return (await apiClient(page)).post(`/api/v1/trips/${input.tripId}/checklists`, {
     headers: { ...headers(page), ...(key ? { "idempotency-key": key } : {}) },
     data: { dayId: input.dayId, position: input.position, id: input.checklistId, source: input.source },
   });
@@ -1323,7 +1356,9 @@ Then(
 );
 When("I append an item to the source checklist through the API", async ({ page }) => {
   const input = sourceApi(page);
-  const response = await page.request.post(`/api/v1/checklists/${input.checklistId}/items`, {
+  const response = await (
+    await apiClient(page)
+  ).post(`/api/v1/checklists/${input.checklistId}/items`, {
     headers: headers(page),
     data: { content: "Late addition" },
   });
@@ -1523,7 +1558,7 @@ When(
     if (testCase === "no-header") requestHeaders["x-arrivo-client"] = "";
     if (testCase === "wrong-type") requestHeaders["content-type"] = "text/plain";
     if (testCase === "cross-origin") requestHeaders.origin = "https://other.test";
-    const client = await apiRequestClient(page);
+    const client = await apiClient(page);
     state(page).response = await client.fetch(request.url, {
       method: request.method,
       headers: requestHeaders,
@@ -1602,8 +1637,8 @@ When(
     const { checklistId } = await ensureItemApi(page, tripId);
     const dayId = await dayOneId(tripId);
     const plan = keyConflictPlan(page, tripId, dayId, checklistId, operation);
-    const send = (data: unknown) =>
-      page.request.fetch(plan.url, {
+    const send = async (data: unknown) =>
+      (await apiClient(page)).fetch(plan.url, {
         method: plan.method,
         headers: { ...headers(page), "idempotency-key": state(page).key },
         data,
@@ -1690,7 +1725,9 @@ function eventUrl(eventId: string) {
 }
 When("I patch the {string} event through the event API with:", async ({ page }, kind: string, body: string) => {
   const current = eventState(page);
-  current.response = await page.request.patch(eventUrl(current.ids[eventKind(kind)]), {
+  current.response = await (
+    await apiClient(page)
+  ).patch(eventUrl(current.ids[eventKind(kind)]), {
     headers: headers(page),
     data: JSON.parse(body),
   });
@@ -1707,7 +1744,9 @@ When("I submit event API case {string}", async ({ page }, testCase: string) => {
   let eventId = current.ids.scheduled;
   if (testCase === "linked-id") eventId = `linked-${randomUUID()}`;
   if (testCase === "malformed-id") eventId = "not-a-uuid";
-  current.response = await page.request.patch(eventUrl(eventId), {
+  current.response = await (
+    await apiClient(page)
+  ).patch(eventUrl(eventId), {
     headers: headers(page),
     data: bodies[testCase] ?? { name: "Valid name" },
   });
@@ -1752,7 +1791,9 @@ When("I send the keyed {string} event edit {string} twice", async ({ page }, kin
   const current = eventState(page);
   current.keyedBodies = [];
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await page.request.patch(eventUrl(current.ids[eventKind(kind)]), {
+    const response = await (
+      await apiClient(page)
+    ).patch(eventUrl(current.ids[eventKind(kind)]), {
       headers: { ...headers(page), "idempotency-key": current.key },
       data: { name },
     });
@@ -1767,7 +1808,9 @@ Then("both keyed event edits return identical JSON naming {string}", async ({ pa
 });
 When("I reuse the event edit key with the name {string}", async ({ page }, name: string) => {
   const current = eventState(page);
-  current.response = await page.request.patch(eventUrl(current.ids.scheduled), {
+  current.response = await (
+    await apiClient(page)
+  ).patch(eventUrl(current.ids.scheduled), {
     headers: { ...headers(page), "idempotency-key": current.key },
     data: { name },
   });
@@ -1830,7 +1873,7 @@ Given("the mixed day for the day order API", async ({ page, scenario }) => {
 });
 async function putDayOrder(page: Page, items: DayItem[], key?: string) {
   const current = dayOrderState(page);
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   current.response = await client.put(`/api/v1/days/${current.dayId}/order`, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: { items },
@@ -1923,7 +1966,7 @@ function eventCreateState(page: Page): EventCreateState {
   return current;
 }
 async function postDayEvent(page: Page, body: unknown, options: { key?: string; dayId?: string } = {}) {
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   const response = await client.post(`/api/v1/days/${options.dayId ?? dayOrderState(page).dayId}/events`, {
     headers: options.key ? { ...headers(page), "idempotency-key": options.key } : headers(page),
     data: body,
@@ -2151,7 +2194,7 @@ function deleteBody(current: EventDeleteState, kind: DeleteKind) {
   return kind === "keep" ? { tripId: current.tripId, keepDocuments: true } : { tripId: current.tripId };
 }
 async function sendEventDelete(page: Page, eventId: string, body: unknown, key?: string) {
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   const response = await client.delete(`/api/v1/events/${eventId}`, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
@@ -2225,7 +2268,7 @@ Then(
     expect(document).toMatchObject({ eventId: null, tripId: current.tripId });
     expect(await fileExists(join(resolve(E2E_STORAGE_DIRECTORY), fixture.file!))).toBe(true);
     // The event is gone, but its kept document must still open for the trip's members.
-    const file = await page.request.get(`/api/storage/${fixture.file}`);
+    const file = await (await apiClient(page)).get(`/api/storage/${fixture.file}`);
     expect(file.status()).toBe(200);
     expect(await file.text()).toBe("keep");
   }
@@ -2326,7 +2369,7 @@ async function sendNote(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
@@ -2608,7 +2651,7 @@ async function sendTripNote(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
@@ -2933,7 +2976,7 @@ async function sendDay(
   body: unknown,
   key?: string
 ): Promise<APIResponse> {
-  const client = await apiRequestClient(page);
+  const client = await apiClient(page);
   const response = await client[method](url, {
     headers: key ? { ...headers(page), "idempotency-key": key } : headers(page),
     data: body,
@@ -3265,7 +3308,7 @@ async function itineraryReplaySnapshot(tripId: string, actorId: string, key: str
   });
 }
 async function sendItineraryReplay(page: Page, request: ItineraryReplayRequest) {
-  return page.request[request.method](request.path, {
+  return (await apiClient(page))[request.method](request.path, {
     headers: { ...headers(page), "idempotency-key": state(page).key },
     data: request.body,
   });
