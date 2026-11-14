@@ -1371,6 +1371,16 @@ Feature: Absolute checklist checked-state API
     And the trip stores 1 trip document
     And the trip holds 1 uploaded file
 
+  Scenario: A retry sent after the document was deleted creates it again under the same id
+    Given my checklist API role is "editor"
+    When I upload "retry.pdf" as a PDF with the scenario document id through the document API
+    And I delete the document with the scenario document id through the document API
+    Then the document API returns 204
+    When I upload "retry.pdf" as a PDF with the scenario document id through the document API
+    Then the document API returns 200
+    And the trip stores 1 trip document
+    And the trip holds 1 uploaded file
+
   Scenario: Reusing a document id for a different file conflicts and stores nothing more
     Given my checklist API role is "editor"
     When I upload "first.pdf" as a PDF with the scenario document id through the document API
