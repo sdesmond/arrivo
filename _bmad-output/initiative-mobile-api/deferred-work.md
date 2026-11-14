@@ -139,3 +139,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-verify-documents-and-covers-end-to-end-plan.md`
   summary: Route the remaining anonymous API steps in `tests/e2e/steps/api.steps.ts` (event patch, lifecycle create, `audience` meta, other raw `page.request.*`) through the shared cookie-free client and retire the duplicate `anonymousApiRequests` helper.
   evidence: Story 3.10 found that `clearCookies()` leaves an open page free to set its session cookie again, returning 200 instead of 401; only the checklist write and the document and cover steps were moved, so the same flake can recur in the untouched anonymous examples.
+
+- source_plan: none
+  summary: Intermittent failure of `trip-notes` "Leaving the Notes tab while a note is open still saves the edit" at the step `I expand the note titled "Packing"`.
+  evidence: 2026-11-14 on `chore/epic-3-deferred-cleanup` the scenario failed in the affected run and again in an isolated re-run (`expect(locator).toBeVisible()` timed out at 5000 ms for the expanded Packing note), then passed in two later isolated runs, one on the branch and one on base `b25eef8a`. The branch touches neither notes nor the timeline. No cause established; two `documents` viewer scenarios also failed once under full-affected load and passed alone.
