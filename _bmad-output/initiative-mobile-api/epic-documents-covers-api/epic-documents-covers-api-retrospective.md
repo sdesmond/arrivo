@@ -100,7 +100,7 @@ All proposed; none applied.
 
 ## Decision records
 
-Proposed, none written (awaiting approval; interactive run, user not yet asked):
+Both approved by the user on 2026-11-14 and written to `docs/decisions/adr-documents-have-one-scope.md` and `docs/decisions/adr-file-deletions-survive-transaction-commit.md`. Each cites the plan and commit below and states where the sources record no alternative:
 
 - **`docs/decisions/adr-documents-have-one-scope.md`** — a document is linked to a trip, an event or a reservation, never two; attaching one clears the other, setting both is 422. Hard to reverse (v1 contract), surprising, a real trade-off against the web app's earlier dual links. Source: epic Notes decision 2026-11-12; plans 3.3/3.4 (`story-rename-and-remove-documents-through-the-api-plan.md`, `story-attach-and-promote-documents-through-the-api-plan.md`); no ADR in `docs/decisions/` records it.
 - **`docs/decisions/adr-file-deletions-survive-transaction-commit.md`** — carried from the epic 2 retro, still unwritten. Epic 3 now depends on it for document removal, cover select/remove and cover replacement (`file-cleanup.ts`, `covers.ts:22–31`). Sources: epic 2 plan 2.5, commit `3b2f9f4d`, plans 3.3/3.5/3.6/3.8.
@@ -120,6 +120,5 @@ Open items: F-2, F-3, F-5 and the carried deferrals above. None is a blocking fi
 
 ## Open questions
 
-- Approve the two ADR proposals (and write them)?
 - Is the full-suite `npm run test:e2e` before `feature/api-v1` → `main` still planned (prior A-6, no evidence)?
 - Should the delete-then-retry upload case (F-5) be reproduced before `epic-sharing-api` starts, since sharing edits the same `actions.ts` and `api.feature`?
