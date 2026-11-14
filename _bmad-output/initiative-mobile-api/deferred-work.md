@@ -95,6 +95,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-rename-and-remove-documents-through-the-api-plan.md`
   summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
   evidence: `uploadDocument` inserts when no row exists for `draft.id` and `removeDocument` leaves no tombstone; severity unverified (medium if real). Check how events handle create-after-delete and decide whether documents need a tombstone or the retry window already covers it.
+  completed: 2026-11-14 on `fix/document-retry-after-delete`; reproduced on the production stack (upload with an id, delete, retry: 200, one row, one file; nothing orphaned) and accepted rather than fixed. Events create the same way, a tombstone would need schema work epic 3 excluded and would have to cover every client-UUID create, and the reappeared document is visible and deletable. Recorded in `adr-client-uuids-are-locked-before-the-trip-lock.md` ("Document ids"); pinned by the `api.feature` scenario "A retry sent after the document was deleted creates it again under the same id" and a `documents.test.ts` case.
 
 - source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
   summary: Validate retained ancestry for legacy documents whose event and reservation belong to different trips.
