@@ -1394,9 +1394,10 @@ Feature: Absolute checklist checked-state API
     And the trip stores 0 trip documents
     And the trip holds 0 uploaded files
     Examples:
-      | role     | status | code      |
-      | viewer   | 403    | forbidden |
-      | stranger | 404    | not_found |
+      | role      | status | code            |
+      | viewer    | 403    | forbidden       |
+      | stranger  | 404    | not_found       |
+      | anonymous | 401    | unauthenticated |
 
   Scenario Outline: Bad document uploads never store anything
     Given my checklist API role is "editor"
@@ -1438,11 +1439,13 @@ Feature: Absolute checklist checked-state API
     Then the document API returns <status> with code "<code>"
     And the scoped document API stores 0 documents and 0 files
     Examples:
-      | scope       | role     | status | code      |
-      | event       | viewer   | 403    | forbidden |
-      | event       | stranger | 404    | not_found |
-      | reservation | viewer   | 403    | forbidden |
-      | reservation | stranger | 404    | not_found |
+      | scope       | role      | status | code            |
+      | event       | viewer    | 403    | forbidden       |
+      | event       | stranger  | 404    | not_found       |
+      | reservation | viewer    | 403    | forbidden       |
+      | reservation | stranger  | 404    | not_found       |
+      | event       | anonymous | 401    | unauthenticated |
+      | reservation | anonymous | 401    | unauthenticated |
 
   Scenario Outline: Scoped upload policy and cross-site failures leave no files or rows
     Given a scenario-owned "<scope>" document API target
@@ -1569,17 +1572,19 @@ Feature: Absolute checklist checked-state API
     Then the document API returns <status> with code "<code>"
     And the document mutation persisted name "original.pdf"
     Examples:
-      | method | role     | case             | status | code      |
-      | PATCH  | viewer   | normal           | 403    | forbidden |
-      | DELETE | viewer   | normal           | 403    | forbidden |
-      | PATCH  | stranger | normal           | 404    | not_found |
-      | DELETE | stranger | normal           | 404    | not_found |
-      | PATCH  | editor   | no-client-header | 403    | forbidden |
-      | DELETE | editor   | no-client-header | 403    | forbidden |
-      | PATCH  | editor   | cross-origin     | 403    | forbidden |
-      | DELETE | editor   | cross-origin     | 403    | forbidden |
-      | PATCH  | editor   | unknown          | 404    | not_found |
-      | DELETE | editor   | foreign-trip     | 404    | not_found |
+      | method | role      | case             | status | code            |
+      | PATCH  | viewer    | normal           | 403    | forbidden       |
+      | DELETE | viewer    | normal           | 403    | forbidden       |
+      | PATCH  | stranger  | normal           | 404    | not_found       |
+      | DELETE | stranger  | normal           | 404    | not_found       |
+      | PATCH  | anonymous | normal           | 401    | unauthenticated |
+      | DELETE | anonymous | normal           | 401    | unauthenticated |
+      | PATCH  | editor    | no-client-header | 403    | forbidden       |
+      | DELETE | editor    | no-client-header | 403    | forbidden       |
+      | PATCH  | editor    | cross-origin     | 403    | forbidden       |
+      | DELETE | editor    | cross-origin     | 403    | forbidden       |
+      | PATCH  | editor    | unknown          | 404    | not_found       |
+      | DELETE | editor    | foreign-trip     | 404    | not_found       |
 
   Scenario: An empty document patch leaves its stored name intact
     Given a scenario-owned "trip" document ready for mutation
@@ -1657,15 +1662,17 @@ Feature: Absolute checklist checked-state API
     Then the document API returns <status> with code "<code>"
     And the document has persisted "trip" scope
     Examples:
-      | scope       | role     | case             | status | code      |
-      | event       | viewer   | normal           | 403    | forbidden |
-      | reservation | viewer   | normal           | 403    | forbidden |
-      | event       | stranger | normal           | 404    | not_found |
-      | reservation | stranger | normal           | 404    | not_found |
-      | event       | editor   | cross-origin     | 403    | forbidden |
-      | reservation | editor   | cross-origin     | 403    | forbidden |
-      | event       | editor   | no-client-header | 403    | forbidden |
-      | reservation | editor   | no-client-header | 403    | forbidden |
+      | scope       | role      | case             | status | code            |
+      | event       | viewer    | normal           | 403    | forbidden       |
+      | reservation | viewer    | normal           | 403    | forbidden       |
+      | event       | stranger  | normal           | 404    | not_found       |
+      | reservation | stranger  | normal           | 404    | not_found       |
+      | event       | anonymous | normal           | 401    | unauthenticated |
+      | reservation | anonymous | normal           | 401    | unauthenticated |
+      | event       | editor    | cross-origin     | 403    | forbidden       |
+      | reservation | editor    | cross-origin     | 403    | forbidden       |
+      | event       | editor    | no-client-header | 403    | forbidden       |
+      | reservation | editor    | no-client-header | 403    | forbidden       |
 
   Scenario Outline: Mixed-trip document ancestry is concealed from rename, empty patch and delete
     Given a scenario-owned "trip" document ready for mutation
@@ -1720,6 +1727,57 @@ Feature: Absolute checklist checked-state API
     Then the document API returns 404 with code "not_found"
     And the last document API response does not contain "original.pdf"
     And the corrupted document row and file are unchanged
+
+  Scenario: A trip document exactly at the 25 MiB limit is stored once
+    Given my checklist API role is "editor"
+    When I submit document upload case "exact-limit"
+    Then the document API returns 200
+    And the exact-limit document is stored once in its scope
+    And the trip holds 1 uploaded file
+
+  Scenario Outline: A scoped document exactly at the 25 MiB limit is stored once
+    Given a scenario-owned "<scope>" document API target
+    And my checklist API role is "editor"
+    When I submit document upload case "exact-limit"
+    Then the document API returns 200
+    And the exact-limit document is stored once in its scope
+    Examples:
+      | scope       |
+      | event       |
+      | reservation |
+
+  Scenario Outline: Cached document replay denies access lost after a successful write
+    Given a scenario-owned "trip" document ready for mutation
+    And my checklist API role is "editor"
+    When I commit the keyed document operation "<operation>"
+    And my checklist API role is "<role>"
+    And I replay the exact committed document request
+    Then the document replay returns <status> with code "<code>" and preserves the committed snapshot
+    Examples:
+      | operation | role     | status | code      |
+      | rename    | viewer   | 403    | forbidden |
+      | rename    | stranger | 404    | not_found |
+      | scope     | viewer   | 403    | forbidden |
+      | scope     | stranger | 404    | not_found |
+      | delete    | viewer   | 403    | forbidden |
+      | delete    | stranger | 404    | not_found |
+
+  Scenario: A changed document rename with the same key conflicts and keeps the first name
+    Given a scenario-owned "trip" document ready for mutation
+    When I submit document mutation "PATCH" case "keyed"
+    Then the document API returns 200
+    When I submit document mutation "PATCH" case "keyed-changed"
+    Then the document API returns 409 with code "conflict"
+    And the document mutation persisted name "Renamed.pdf"
+
+  Scenario: A changed document scope with the same key conflicts and keeps the first scope
+    Given a scenario-owned "trip" document ready for mutation
+    When I set the document scope to "event" case "keyed"
+    Then the document API returns 200
+    And the document has persisted "event" scope
+    When I set the document scope to "reservation" case "keyed-changed"
+    Then the document API returns 409 with code "conflict"
+    And the document has persisted "event" scope
 
   Scenario: Editor selects and removes a cover through the API
     Given a scenario-owned trip for the cover API
@@ -1820,6 +1878,45 @@ Feature: Absolute checklist checked-state API
     Then the cover API returns 500 without changing the cover
     And the rolled-back cover upload left no new file
     And the rolled-back cover file and row remain
+
+  Scenario Outline: Anonymous cover writes return 401 and change nothing
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    And my cover API role is "anonymous"
+    When I submit cover API case "<case>"
+    Then the cover API returns 401 without changing the cover
+    And the cover upload API returns 401 with code "unauthenticated"
+    Examples:
+      | case   |
+      | valid  |
+      | remove |
+
+  Scenario: Anonymous cover upload returns 401 and stores nothing
+    Given a scenario-owned trip for the cover API
+    And my cover API role is "anonymous"
+    When I submit cover upload API case "valid"
+    Then the cover API returns 401 without changing the cover
+    And the cover upload API returns 401 with code "unauthenticated"
+    And the cover upload stored no new file
+
+  Scenario: A cover exactly at the 12 MiB limit is stored once
+    Given a scenario-owned trip for the cover API
+    When I submit cover upload API case "exact-limit"
+    Then the cover upload stored exactly one 12 MiB file
+
+  Scenario Outline: Cached cover replay denies access lost after a successful write
+    Given a scenario-owned trip for the cover API
+    And a stored map cover owned by the cover API trip
+    When I commit the keyed cover operation "<operation>"
+    And my cover API role is "<role>"
+    And I replay the exact committed cover request
+    Then the cover replay returns <status> with code "<code>" and preserves the committed snapshot
+    Examples:
+      | operation | role     | status | code      |
+      | select    | viewer   | 403    | forbidden |
+      | select    | stranger | 404    | not_found |
+      | remove    | viewer   | 403    | forbidden |
+      | remove    | stranger | 404    | not_found |
 
   @cover-search
   Scenario Outline: Cover search GET validates access and queries

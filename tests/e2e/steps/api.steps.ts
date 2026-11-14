@@ -26,6 +26,7 @@ import { withE2EDb } from "../e2e-db";
 import { E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
+import { markAnonymousApiRole } from "../anonymous-api";
 import { Given, When, Then, After } from "../fixtures";
 const rememberedCookies = new WeakMap<Page, Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>>>();
 const anonymousApiRequests = new WeakMap<Page, APIRequestContext>();
@@ -139,7 +140,7 @@ Given("a scenario-owned checklist API item", async ({ page, scenario }) => {
 Given("my checklist API role is {string}", async ({ page, scenario }, role: string) => {
   state(page).role = role;
   if (role === "anonymous") {
-    await page.context().clearCookies();
+    await markAnonymousApiRole(page);
     return;
   }
   const tripId = scenario.currentTrip!.id;
@@ -188,7 +189,10 @@ When("I attempt a checklist API write", async ({ page }) => {
   const requestHeaders: Record<string, string> = headers(page);
   const revokedCookie = state(page).revokedCookie;
   if (revokedCookie) requestHeaders.cookie = revokedCookie;
-  state(page).response = await page.request.patch(itemUrl(state(page).itemId), {
+  // An anonymous role must not reuse the page's cookie jar: the open page can refresh its session after the clear.
+  state(page).response = await (
+    await apiRequestClient(page)
+  ).patch(itemUrl(state(page).itemId), {
     headers: requestHeaders,
     data: { isChecked: true },
   });

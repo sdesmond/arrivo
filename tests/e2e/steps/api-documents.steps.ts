@@ -1,10 +1,18 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { readFile, readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { documents, collaborators, events, reservations, pendingFileDeletions } from "../../../src/db/schema";
+import {
+  documents,
+  collaborators,
+  events,
+  reservations,
+  pendingFileDeletions,
+  idempotencyKeys,
+} from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
+import { apiClient, disposeAnonymousApiClient } from "../anonymous-api";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { Given, When, Then, After } from "../fixtures";
 
@@ -42,7 +50,9 @@ When("I force the scenario document delete transaction to roll back", async ({ p
         sql`CREATE TRIGGER ${sql.identifier(identifier)} BEFORE DELETE ON documents FOR EACH ROW WHEN (OLD.id = ${sql.raw("'" + current.id + "'::uuid")}) EXECUTE FUNCTION ${sql.identifier(identifier)}()`
       );
       current.responses.push(
-        await page.request.delete("/api/v1/documents/" + current.id, {
+        await (
+          await apiClient(page)
+        ).delete("/api/v1/documents/" + current.id, {
           headers: uploadHeaders(page),
           data: { tripId: current.tripId },
         })
@@ -101,7 +111,9 @@ async function postDocument(
   const current = documentApi(page, scenarioTripId);
   if (target) (current.requestedTargets ??= []).push(target);
   const path = target ? `/api/v1/${target.scope}s/${target.id}/documents` : uploadPath(current);
-  const response = await page.request.post(path, {
+  const response = await (
+    await apiClient(page)
+  ).post(path, {
     headers: uploadHeaders(page, headers),
     multipart,
     timeout: 60_000,
@@ -138,6 +150,7 @@ After(async ({ page }) => {
   const current = documentApiStates.get(page);
   if (!current) return;
   documentApiStates.delete(page);
+  await disposeAnonymousApiClient(page);
   for (const target of scopedTargets(current)) await rm(targetDirectory(target), { recursive: true, force: true });
   await rm(join(resolve(E2E_STORAGE_DIRECTORY), "trip-documents", current.tripId), { recursive: true, force: true });
 });
@@ -176,6 +189,8 @@ When("I submit document upload case {string}", async ({ page, scenario }, testCa
     },
     // Just over the document limit: the route reads the body and the service rejects it.
     "oversize-file": () => postDocument(page, tripId, { file: pdfPart("big.pdf", filler(25 * MEBIBYTE + 1)) }),
+    // Exactly the document limit: stored once.
+    "exact-limit": () => postDocument(page, tripId, { file: pdfPart("exact.pdf", filler(25 * MEBIBYTE)) }),
     // Far over: the route refuses from Content-Length before reading the body.
     "oversize-body": () => postDocument(page, tripId, { file: pdfPart("huge.pdf", filler(27 * MEBIBYTE)) }),
     "disallowed-type": () =>
@@ -188,7 +203,9 @@ When("I submit document upload case {string}", async ({ page, scenario }, testCa
     keyed: () => postDocument(page, tripId, { file: pdfPart("a.pdf") }, { "idempotency-key": "document-upload-key" }),
     "no-client-header": async () => {
       const current = documentApi(page, tripId);
-      const response = await page.request.post(uploadPath(current), {
+      const response = await (
+        await apiClient(page)
+      ).post(uploadPath(current), {
         headers: { origin: new URL(page.url()).origin },
         multipart: { file: pdfPart("a.pdf") },
       });
@@ -419,7 +436,10 @@ When("I submit document mutation {string} case {string}", async ({ page }, metho
   let body: Record<string, unknown> = method === "PATCH" ? { name: "Renamed.pdf" } : { tripId: current.tripId };
   let headers: Record<string, string> = { ...uploadHeaders(page), "content-type": "application/json" };
   if (testCase === "keyed") headers["idempotency-key"] = method + "-" + current.id;
-  else if (testCase === "blank") body = { name: " " };
+  else if (testCase === "keyed-changed") {
+    headers["idempotency-key"] = method + "-" + current.id;
+    body = { name: "Different.pdf" };
+  } else if (testCase === "blank") body = { name: " " };
   else if (testCase === "long") body = { name: "x".repeat(201) };
   else if (testCase === "empty") body = {};
   else if (testCase === "unknown-field") body = { scope: "event" };
@@ -431,7 +451,9 @@ When("I submit document mutation {string} case {string}", async ({ page }, metho
   else if (testCase === "cross-origin")
     headers = { ...headers, origin: "https://evil.example", "sec-fetch-site": "cross-site" };
   else if (testCase !== "normal") throw new Error("Unknown document mutation case");
-  current.responses.push(await page.request.fetch("/api/v1/documents/" + documentId, { method, headers, data: body }));
+  current.responses.push(
+    await (await apiClient(page)).fetch("/api/v1/documents/" + documentId, { method, headers, data: body })
+  );
 });
 When("the document name is changed behind the API to {string}", async ({ page }, name: string) => {
   const current = documentApi(page);
@@ -498,6 +520,8 @@ When(
     let body: Record<string, unknown> = { [scope + "Id"]: targetId };
     let headers: Record<string, string> = { ...uploadHeaders(page), "content-type": "application/json" };
     if (testCase === "keyed") headers["idempotency-key"] = `scope-${current.id}-${scope}`;
+    // Same key as the keyed "event" attach, different body.
+    else if (testCase === "keyed-changed") headers["idempotency-key"] = `scope-${current.id}-event`;
     else if (testCase === "promote") body = { [scope + "Id"]: null };
     else if (testCase === "missing") body = { [scope + "Id"]: randomUUID() };
     else if (testCase === "both") body = { eventId: targetId, reservationId: null };
@@ -508,8 +532,8 @@ When(
       headers = { ...headers, origin: "https://evil.example", "sec-fetch-site": "cross-site" };
     else if (testCase === "no-client-header")
       headers = { origin: new URL(page.url()).origin, "content-type": "application/json" };
-    else if (testCase !== "normal" && testCase !== "foreign") throw new Error("Unknown scope mutation case");
-    const response = await page.request.patch(`/api/v1/documents/${current.id}`, { headers, data: body });
+    else if (!["normal", "foreign", "keyed-changed"].includes(testCase)) throw new Error("Unknown scope mutation case");
+    const response = await (await apiClient(page)).patch(`/api/v1/documents/${current.id}`, { headers, data: body });
     current.responses.push(response);
     if (response.ok() && ["normal", "keyed", "promote"].includes(testCase)) {
       expect(await response.json()).toMatchObject({ id: current.id, scope: testCase === "promote" ? "trip" : scope });
@@ -604,3 +628,115 @@ Then("the corrupted document row and file are unchanged", async ({ page }) => {
 Then("the last document API response does not contain {string}", async ({ page }, text: string) => {
   expect(await lastResponse(page).text()).not.toContain(text);
 });
+
+Then("the exact-limit document is stored once in its scope", async ({ page }) => {
+  const current = documentApi(page);
+  const rows = await withE2EDb((database) =>
+    database.select().from(documents).where(eq(documents.tripId, current.tripId))
+  );
+  expect(rows).toHaveLength(1);
+  const [row] = rows;
+  expect(row.id).toBe((await lastResponse(page).json()).id);
+  if (current.scope) {
+    expect(row[current.scope === "event" ? "eventId" : "reservationId"]).toBe(current.targetId);
+    expect(await readdir(targetDirectory({ scope: current.scope, id: current.targetId! }))).toHaveLength(1);
+  } else {
+    expect(row.eventId).toBeNull();
+    expect(row.reservationId).toBeNull();
+  }
+  const stored = await stat(join(resolve(E2E_STORAGE_DIRECTORY), row.url!.replace(/^\/api\/storage\//, "")));
+  expect(stored.size).toBe(25 * MEBIBYTE);
+});
+
+interface DocumentReplayRequest {
+  method: "patch" | "delete";
+  path: string;
+  body: Record<string, unknown>;
+}
+async function documentReplaySnapshot(current: DocumentApiState, actorId: string, key: string) {
+  const url = current.uploadedUrl!;
+  return withE2EDb(async (database) => ({
+    replayRecords: await database
+      .select()
+      .from(idempotencyKeys)
+      .where(and(eq(idempotencyKeys.userId, actorId), eq(idempotencyKeys.key, `api:v1:${key}`))),
+    documents: await database
+      .select()
+      .from(documents)
+      .where(eq(documents.tripId, current.tripId))
+      .orderBy(documents.id),
+    queuedDeletions: await database.select().from(pendingFileDeletions).where(eq(pendingFileDeletions.url, url)),
+    fileExists: await stat(join(resolve(E2E_STORAGE_DIRECTORY), url.replace(/^\/api\/storage\//, ""))).then(
+      () => true,
+      () => false
+    ),
+  }));
+}
+const documentReplays = new WeakMap<
+  Page,
+  {
+    actorId: string;
+    key: string;
+    request: DocumentReplayRequest;
+    snapshot: Awaited<ReturnType<typeof documentReplaySnapshot>>;
+    response?: APIResponse;
+  }
+>();
+async function sendDocumentReplay(page: Page, request: DocumentReplayRequest, key: string) {
+  return (await apiClient(page))[request.method](request.path, {
+    headers: { ...uploadHeaders(page), "content-type": "application/json", "idempotency-key": key },
+    data: request.body,
+  });
+}
+When("I commit the keyed document operation {string}", async ({ page, scenario }, operation: string) => {
+  const current = documentApi(page);
+  const actorId = scenario.currentUser!.id;
+  const key = `document-replay-${randomUUID()}`;
+  const path = `/api/v1/documents/${current.id}`;
+  const requests: Record<string, () => Promise<DocumentReplayRequest>> = {
+    rename: async () => ({ method: "patch", path, body: { name: "Replay renamed.pdf" } }),
+    scope: async () => {
+      const [target] = await withE2EDb((database) =>
+        database.select({ id: events.id }).from(events).where(eq(events.tripId, current.tripId))
+      );
+      return { method: "patch", path, body: { eventId: target.id } };
+    },
+    delete: async () => ({ method: "delete", path, body: { tripId: current.tripId } }),
+  };
+  if (!requests[operation]) throw new Error(`Unknown keyed document operation ${operation}`);
+  const request = await requests[operation]();
+  const before = await documentReplaySnapshot(current, actorId, key);
+  expect(before.replayRecords).toHaveLength(0);
+  const response = await sendDocumentReplay(page, request, key);
+  expect(response.status()).toBe(request.method === "delete" ? 204 : 200);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  // A committed delete queues its file for removal; wait until the queue has drained.
+  await expect.poll(async () => (await documentReplaySnapshot(current, actorId, key)).queuedDeletions.length).toBe(0);
+  const snapshot = await documentReplaySnapshot(current, actorId, key);
+  expect(snapshot.replayRecords).toHaveLength(1);
+  expect(snapshot).not.toEqual(before);
+  if (operation === "delete") {
+    expect(snapshot.documents).toHaveLength(0);
+    expect(snapshot.fileExists).toBe(false);
+  }
+  documentReplays.set(page, { actorId, key, request, snapshot });
+});
+When("I replay the exact committed document request", async ({ page }) => {
+  const replay = documentReplays.get(page)!;
+  replay.response = await sendDocumentReplay(page, replay.request, replay.key);
+});
+Then(
+  "the document replay returns {int} with code {string} and preserves the committed snapshot",
+  async ({ page }, status: number, code: string) => {
+    const replay = documentReplays.get(page)!;
+    expect(replay.response!.status()).toBe(status);
+    expect(replay.response!.headers()["cache-control"]).toBe("no-store");
+    expect(await replay.response!.json()).toEqual({
+      error:
+        code === "forbidden"
+          ? { code, message: "You do not have permission for this action.", requiredRole: "editor" }
+          : { code, message: "Resource not found." },
+    });
+    expect(await documentReplaySnapshot(documentApi(page), replay.actorId, replay.key)).toEqual(replay.snapshot);
+  }
+);
