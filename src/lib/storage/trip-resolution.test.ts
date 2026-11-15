@@ -67,6 +67,49 @@ describe("resolveOwningTripId", () => {
     await expect(resolveOwningTripId("event-documents/event-1/uuid.jpg")).rejects.toThrow("Event not found");
   });
 
+  describe("an event document whose event is gone", () => {
+    const key = "event-documents/event-1/uuid.pdf";
+    const url = "/api/storage/event-documents/event-1/uuid.pdf";
+    const survivor = (overrides: Record<string, unknown> = {}) => ({
+      id: "doc-1",
+      tripId: "trip-5",
+      eventId: null,
+      reservationId: null,
+      url,
+      ...overrides,
+    });
+
+    it("serves the kept document, looked up by its exact URL", async () => {
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult([survivor()]));
+
+      await expect(resolveOwningTripId(key)).resolves.toBe("trip-5");
+      expect(db.select).toHaveBeenCalledTimes(2);
+    });
+
+    it("validates a surviving row's remaining links before trusting its trip", async () => {
+      db.select
+        .mockReturnValueOnce(selectResult([]))
+        .mockReturnValueOnce(selectResult([survivor({ reservationId: "res-1" })]))
+        .mockReturnValueOnce(selectResult([{ tripId: "trip-5" }]));
+      await expect(resolveOwningTripId(key)).resolves.toBe("trip-5");
+
+      db.select
+        .mockReturnValueOnce(selectResult([]))
+        .mockReturnValueOnce(selectResult([survivor({ reservationId: "res-1" })]))
+        .mockReturnValueOnce(selectResult([{ tripId: "trip-other" }]));
+      await expect(resolveOwningTripId(key)).rejects.toBeInstanceOf(StorageOwnerNotFoundError);
+    });
+
+    it.each([
+      ["an orphan row", [survivor({ tripId: null })]],
+      ["two rows claiming the file", [survivor(), survivor({ id: "doc-2", tripId: "trip-other" })]],
+    ])("rejects %s", async (_label, rows) => {
+      db.select.mockReturnValueOnce(selectResult([])).mockReturnValueOnce(selectResult(rows));
+
+      await expect(resolveOwningTripId(key)).rejects.toBeInstanceOf(StorageOwnerNotFoundError);
+    });
+  });
+
   it("resolves reservation-document keys by looking up the reservation's tripId", async () => {
     db.select.mockReturnValue({
       from: vi.fn(() => ({

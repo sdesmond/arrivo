@@ -1,3 +1,4 @@
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; every request in `api.steps.ts` goes through `apiClient()` from `anonymous-api.ts`, the duplicate `anonymousApiRequests` helper is gone and the metadata step marks the page anonymous. Evidence: `@feat:api` and `@feat:event-docs` 499 passed.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-make-api-replay-atomic-and-authorization-aware-plan.md`
   summary: Add a retention sweep for expired `idempotency_keys` rows.
   evidence: API replay rows (`api:v1:` namespace) are replaced on reuse but never purged, and legacy packing rows share the same unbounded growth; expiry only gates replay.
@@ -10,6 +11,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-complete-checklist-lifecycle-ui-migration-plan.md`
   summary: Send a stable client UUID (and firstItem id) on checklist create so a retry after a lost response or a double submit cannot duplicate.
   evidence: `handleAddChecklist` sends no `id`, so the backend's id-based replay is unused. The id must survive retries of the same draft, which means a `use-day-draft` change. The retired action had the same gap. The failed-create E2E mocks the 500, so it cannot show a commit-then-fail retry.
+  completed: 2026-11-12 by story 2.3 (draft-stable client IDs for checklist creates); `handleAddChecklist` takes the draft's `clientId` (`use-trip-detail-handlers.ts`). Reconciled 2026-11-14 in the epic 3 retrospective.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-move-checklist-item-lifecycle-to-the-api-plan.md`
   summary: Send a stable client UUID on checklist item create so a retry after a lost response or a double submit cannot duplicate the item.
@@ -26,6 +28,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A second quick event edit sends a stale full snapshot and can revert the first edit's field, because the handler sends all nine fields every time.
   evidence: Raised by blind-hunter and edge-case-hunter. The retired action also sent the full event; a fix is sending only changed fields (diff against the stored event).
+  completed: 2026-11-12 (commit `b408d88e`, plan `plan-preserve-pending-event-edits.md`); `handleEventUpdate` sends `eventPatchBody(intent)`, only the changed fields. Reconciled 2026-11-14 in the epic 3 retrospective.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A failed event PATCH leaves the row showing the unsaved draft: only a toast, no refresh.
@@ -91,6 +94,7 @@
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Coordinate reservation deletion and document upload to avoid orphaned storage.
   evidence: Existing deleteReservation enumerates attached files before deleting reservation without shared trip lock; a concurrent upload may insert after enumeration and cascade-delete its row without file cleanup.
+  completed: 2026-11-12 by story 3.4 (`plan-3-4-document-scope-integrity.md`): `deleteReservation` locks the trip and queues attached files, and `uploadDocument` takes the same trip lock and rechecks the target's trip inside the transaction (`services/documents.ts:72–77`), so an upload either lands before the delete or is refused as not found. Reconciled 2026-11-14 in the epic 3 retrospective.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-rename-and-remove-documents-through-the-api-plan.md`
   summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
@@ -109,17 +113,21 @@
 - source_plan: `_bmad-output/initiative-mobile-api/plan-3-4-document-scope-integrity.md`
   summary: Harden the `event-document` branch of `resolveOwningTripId` with the same single-row and ancestry validation the reservation branch now has.
   evidence: Pre-existing; `src/lib/storage/trip-resolution.ts` still takes the first `documents` row for the URL and trusts its `tripId` alone, so a corrupt or duplicated row names its trip unvalidated after the event is gone. Medium; a mixed-ancestry retained event-document row asserting the wrong trip should settle handling.
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; the `event-document` branch now needs exactly one row for the URL and validates its links with `resolveDocumentTripId`, as the reservation branch does. Tests: `trip-resolution.test.ts` ("an event document whose event is gone").
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
   summary: Bound and normalize `coverPhotographer` (max length, reject empty string) in the cover PUT contract.
   evidence: Columns are unbounded text; direct API callers can persist "" or huge names. The removed server action had the same laxness.
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; the cover PUT trims `coverPhotographer`, rejects an empty name and caps it at `MAX_COVER_PHOTOGRAPHER_LENGTH` (200). Test: `contract/covers.test.ts`.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-select-and-remove-a-cover-through-the-api-plan.md`
   summary: Uploaded cover files whose follow-up PUT fails or is abandoned are never cleaned up.
   evidence: Upload stays a server action until entry 6; selection/removal now queue deletions for replaced own covers, uploads do not.
+  completed: 2026-11-12 by story 3.6: upload is one atomic POST that sets the cover, queues the replaced file and discards its own file when no trip row points at it (`services/covers.ts:110–146`), so there is no separate PUT to fail or abandon. Reconciled 2026-11-14 in the epic 3 retrospective.
 
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Let cover photos load when destination lookup exhausts its Mapbox budget.
   evidence: Pre-existing picker awaits destination lookup before Unsplash; old action and new service both throw Mapbox budget errors outside lookup catch.
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; the picker treats a failed destination lookup as "no map tile" and still loads the photos. The API keeps answering the budget error (429), so callers still see it. Test: `cover-image-picker-search-tab.test.tsx`.
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Verify whether malformed Mapbox geometry or Unsplash response fields require runtime validation.
   evidence: Unverified medium impact; old action and extracted service both trust provider interfaces. Capture a malformed provider response to settle reachability before adding guards.
@@ -133,3 +141,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-verify-documents-and-covers-end-to-end-plan.md`
   summary: Route the remaining anonymous API steps in `tests/e2e/steps/api.steps.ts` (event patch, lifecycle create, `audience` meta, other raw `page.request.*`) through the shared cookie-free client and retire the duplicate `anonymousApiRequests` helper.
   evidence: Story 3.10 found that `clearCookies()` leaves an open page free to set its session cookie again, returning 200 instead of 401; only the checklist write and the document and cover steps were moved, so the same flake can recur in the untouched anonymous examples.
+
+- source_plan: none
+  summary: Intermittent failure of `trip-notes` "Leaving the Notes tab while a note is open still saves the edit" at the step `I expand the note titled "Packing"`.
+  evidence: 2026-11-14 on `chore/epic-3-deferred-cleanup` the scenario failed in the affected run and again in an isolated re-run (`expect(locator).toBeVisible()` timed out at 5000 ms for the expanded Packing note), then passed in two later isolated runs, one on the branch and one on base `b25eef8a`. The branch touches neither notes nor the timeline. No cause established; two `documents` viewer scenarios also failed once under full-affected load and passed alone. Later the same day a second run failed `trip-notes` "A collapsed note still exposes its delete action" (dialog not visible) and `trip-cover-overflow` "User searches cover images through GET, selects a cover and views attribution info" (30 s wait for the cover PUT); both passed when re-run alone. The failing `trip-notes` scenario differs between runs, which points at load-sensitive timing in that feature rather than one broken step.

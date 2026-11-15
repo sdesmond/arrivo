@@ -20,14 +20,16 @@ export async function resolveOwningTripId(key: string): Promise<string> {
     case "event-document": {
       const [event] = await db.select({ tripId: events.tripId }).from(events).where(eq(events.id, ownerId));
       if (event) return event.tripId;
-      // Deleting an event while keeping its documents leaves files under the dead event's key; the document row
-      // still names the trip, so the file stays readable by the trip's members.
-      const [kept] = await db
-        .select({ tripId: documents.tripId })
+      // Deleting an event while keeping its documents leaves files under the dead event's key. Only a single row
+      // holding this exact URL, whose remaining links agree on one trip, may name the trip, so a corrupt or
+      // duplicated row cannot; the caller still checks membership.
+      const survivors = await db
+        .select()
         .from(documents)
         .where(eq(documents.url, `${STORAGE_PROXY_PREFIX}${key}`));
-      if (!kept?.tripId) throw new StorageOwnerNotFoundError("Event not found");
-      return kept.tripId;
+      const survivingTripId = survivors.length === 1 ? await resolveDocumentTripId(db, survivors[0]) : undefined;
+      if (!survivingTripId) throw new StorageOwnerNotFoundError("Event not found");
+      return survivingTripId;
     }
     case "reservation-document": {
       const [reservation] = await db
