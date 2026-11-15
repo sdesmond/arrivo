@@ -165,6 +165,17 @@ When(
     await postDocument(page, scenario.currentTrip!.id, { id, file: pdfPart(name) });
   }
 );
+When("I delete the document with the scenario document id through the document API", async ({ page }) => {
+  const current = documentApi(page);
+  current.responses.push(
+    await (
+      await apiClient(page)
+    ).delete(`/api/v1/documents/${current.id}`, {
+      headers: { ...uploadHeaders(page), "content-type": "application/json" },
+      data: { tripId: current.tripId },
+    })
+  );
+});
 When("I submit document upload case {string}", async ({ page, scenario }, testCase: string) => {
   const tripId = scenario.currentTrip!.id;
   const filler = (bytes: number) => Buffer.concat([PDF_BYTES, Buffer.alloc(bytes - PDF_BYTES.length, 0x20)]);
