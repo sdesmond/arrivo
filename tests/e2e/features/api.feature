@@ -1396,6 +1396,24 @@ Feature: Absolute checklist checked-state API
     And the trip stores 1 trip document
     And the trip holds 1 uploaded file
 
+  Scenario Outline: A <resource> create retried after the delete conflicts instead of bringing it back
+    Given my checklist API role is "editor"
+    When I create a "<resource>" with a client id through the API
+    And I delete that resource through the API
+    And I retry the create with the same client id
+    Then the client-id create returns 409 with code "conflict" and stores nothing
+    When I send the create again with a new client id
+    Then the client-id create returns 200 and stores it once
+
+    Examples:
+      | resource       |
+      | event          |
+      | day note       |
+      | trip note      |
+      | checklist      |
+      | checklist item |
+      | day            |
+
   Scenario: Reusing a document id for a different file conflicts and stores nothing more
     Given my checklist API role is "editor"
     When I upload "first.pdf" as a PDF with the scenario document id through the document API

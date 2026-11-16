@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   lockTripForUpdate: vi.fn(),
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
+  recordDeletion: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
   applyDayOrder: vi.fn(),
   storageDelete: vi.fn(),
   now: new Date("2026-06-01T12:00:00.000Z"),
@@ -36,6 +38,10 @@ vi.mock("./trip-access", async (original) => ({
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
 vi.mock("./timeline-positions", () => ({ applyDayOrder: mocks.applyDayOrder }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ del: mocks.storageDelete }) }));
+vi.mock("./deletion-records", () => ({
+  recordDeletion: mocks.recordDeletion,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 import { ConflictError } from "./conflict-error";
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ValidationFailedError } from "./validation-failed-error";
@@ -780,5 +786,37 @@ describe("deleteDay", () => {
     await expect(deleteDay(actor, id, input)).rejects.toThrow();
     expect(mocks.select).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleted day ids", () => {
+  it("refuses a client id whose day was deleted recently, writing nothing", async () => {
+    dayReads = [[], []];
+    mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This day was deleted."));
+    await expect(addDay(actor, tripId, { id: clientId })).rejects.toBeInstanceOf(ConflictError);
+    expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledExactlyOnceWith(mocks, "day", clientId);
+    expect(insertedDays).toEqual([]);
+    expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  });
+
+  it("checks no deletion record without a client id or for a replay", async () => {
+    await addDay(actor, tripId, {});
+    dayReads = [[dayRow(4, { id: clientId })], [dayRow(4, { id: clientId })]];
+    await addDay(actor, tripId, { id: clientId });
+    expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+  });
+
+  it("records the deletion inside the delete transaction, and none for a day already gone", async () => {
+    mocks.recordDeletion.mockImplementationOnce(async () => {
+      calls.push("record");
+    });
+    await deleteDay(actor, dayId, { tripId });
+    expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(mocks, "day", dayId, "user");
+    expect(calls.indexOf("record")).toBeGreaterThan(calls.indexOf("delete-day"));
+    expect(calls.indexOf("record")).toBeLessThan(calls.indexOf("commit"));
+    mocks.recordDeletion.mockClear();
+    dayRows = [];
+    await deleteDay(actor, dayId, { tripId });
+    expect(mocks.recordDeletion).not.toHaveBeenCalled();
   });
 });

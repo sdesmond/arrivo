@@ -70,6 +70,9 @@ vi.mock("@/db", () => ({
   db,
 }));
 
+const { recordDeletions } = vi.hoisted(() => ({ recordDeletions: vi.fn() }));
+vi.mock("@/lib/services/deletion-records", () => ({ recordDeletions }));
+
 vi.mock("@/lib/trip-events", () => ({
   publishTripEvent,
   publishUserEvent,
@@ -1963,6 +1966,96 @@ describe("updateTripMetadata", () => {
     expect(operations.updates.some((entry) => entry.table === trips)).toBe(false);
     expect(operations.updates.some((entry) => entry.table === expenses)).toBe(false);
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("records the removed events and days so a retried create cannot bring them back", async () => {
+    const { transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      removedEvents: [{ id: "event-1", name: "Dinner", dayId: "day-2", position: 0 }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(
+      updateTripMetadata(
+        "trip-1",
+        { startDate: "2026-08-01", endDate: "2026-08-01" },
+        TripDateConflictResolution.DeleteEvents,
+        {
+          removedDates: ["2026-08-02"],
+          removedDayLabels: undefined,
+          events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-08-02", docCount: 0 }],
+          noteCount: 0,
+          checklistCount: 0,
+          eventDocumentCount: 0,
+        }
+      )
+    ).resolves.toEqual({ status: "saved" });
+
+    expect(recordDeletions).toHaveBeenCalledWith(transaction, "event", ["event-1"], "user-1");
+    expect(recordDeletions).toHaveBeenCalledWith(transaction, "day", ["day-2"], "user-1");
+  });
+
+  it("records the overflow days and their deleted events when dateless days no longer fit", async () => {
+    const { transaction } = createTransactionMock({
+      tripRow: { id: "trip-1", startDate: null, endDate: null },
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: null, label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: null, label: "Day 2" },
+        { id: "day-3", tripId: "trip-1", dayNumber: 3, date: null, label: "Day 3" },
+      ],
+      removedEvents: [{ id: "event-1", name: "Dinner", dayId: "day-3", position: 0 }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await expect(
+      updateTripMetadata("trip-1", { startDate: "2026-08-01", endDate: "2026-08-02" }, "delete-events", {
+        removedDates: [],
+        removedDayLabels: ["Day 3"],
+        events: [{ id: "event-1", name: "Dinner", displacedDate: undefined, docCount: 0 }],
+        noteCount: 0,
+        checklistCount: 0,
+        eventDocumentCount: 0,
+      })
+    ).resolves.toEqual({ status: "saved" });
+
+    expect(recordDeletions).toHaveBeenCalledWith(transaction, "event", ["event-1"], "user-1");
+    expect(recordDeletions).toHaveBeenCalledWith(transaction, "day", ["day-3"], "user-1");
+  });
+
+  it("records only the removed days when the events are kept as unscheduled", async () => {
+    const { transaction } = createTransactionMock({
+      existingDays: [
+        { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
+        { id: "day-2", tripId: "trip-1", dayNumber: 2, date: "2026-08-02", label: "Day 2" },
+      ],
+      removedEvents: [{ id: "event-1", name: "Dinner", dayId: "day-2", position: 0 }],
+    });
+    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
+      callback(transaction)
+    );
+
+    await updateTripMetadata(
+      "trip-1",
+      { startDate: "2026-08-01", endDate: "2026-08-01" },
+      TripDateConflictResolution.KeepAsUnscheduled,
+      {
+        removedDates: ["2026-08-02"],
+        removedDayLabels: undefined,
+        events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-08-02", docCount: 0 }],
+        noteCount: 0,
+        checklistCount: 0,
+        eventDocumentCount: 0,
+      }
+    );
+
+    expect(recordDeletions).toHaveBeenCalledExactlyOnceWith(transaction, "day", ["day-2"], "user-1");
   });
 });
 
