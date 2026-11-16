@@ -1,7 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("resetE2EStorage", async () => {
   const tempRoots = [];
@@ -62,5 +63,66 @@ describe("resetE2EStorage", async () => {
     resetE2EStorage(rootDir);
 
     expect(readFileSync(projectFile, "utf8")).toBe("keep");
+  });
+
+  function recordingRunner(result = { status: 0 }) {
+    const calls = [];
+    const run = (...args) => {
+      calls.push(args);
+      return result;
+    };
+    return { calls, run };
+  }
+
+  it.each([false, true])("marks the recreated root not content indexed on Windows (bootstrap: %s)", (bootstrap) => {
+    const rootDir = createProjectRoot();
+    const { calls, run } = recordingRunner();
+
+    const storageRoot = resetE2EStorage(rootDir, bootstrap, { platform: "win32", run });
+
+    expect(calls).toEqual([["attrib.exe", ["+I", storageRoot], { stdio: "ignore" }]]);
+  });
+
+  it("leaves the root unmarked on platforms without Windows Search", () => {
+    const rootDir = createProjectRoot();
+    const { calls, run } = recordingRunner();
+
+    resetE2EStorage(rootDir, false, { platform: "linux", run });
+
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    ["exits non-zero", { status: 1 }],
+    ["cannot start", { status: null, error: new Error("spawn attrib.exe ENOENT") }],
+  ])("warns and still resets the root when attrib %s", (_case, result) => {
+    const rootDir = createProjectRoot();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const storageRoot = resetE2EStorage(rootDir, false, { platform: "win32", run: recordingRunner(result).run });
+
+      expect(existsSync(storageRoot)).toBe(true);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("not content indexed"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // The fix relies on NTFS handing the mark down to folders and files the dev server creates later.
+  it.runIf(process.platform === "win32")("keeps uploads written later under the root out of the content index", () => {
+    const rootDir = createProjectRoot();
+    const isNotContentIndexed = (path) => {
+      const listing = execFileSync("attrib.exe", [path], { encoding: "utf8" });
+      return /\bI\b/.test(listing.slice(0, listing.toLowerCase().indexOf(path.toLowerCase())));
+    };
+    const storageRoot = resetE2EStorage(rootDir);
+    mkdirSync(join(storageRoot, "event-documents", "event-1"), { recursive: true });
+    const upload = join(storageRoot, "event-documents", "event-1", "upload.pdf");
+    writeFileSync(upload, "%PDF-1.4");
+    const outside = join(rootDir, "outside.pdf");
+    writeFileSync(outside, "%PDF-1.4");
+
+    expect(isNotContentIndexed(upload)).toBe(true);
+    expect(isNotContentIndexed(outside)).toBe(false);
   });
 });

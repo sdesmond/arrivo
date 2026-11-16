@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
@@ -16,9 +17,26 @@ function resolveE2EStorageRoot(rootDir, bootstrap) {
   return storageRoot;
 }
 
-export function resetE2EStorage(rootDir, bootstrap = false) {
+/**
+ * Keeps Windows Search out of E2E uploads. The indexer reads new files under the user profile while holding them open
+ * without delete sharing, so deleting a fresh 25 MiB upload waits until it lets go: 30 to 90 s, longer than a whole
+ * scenario. Folders and files created later under a folder marked "not content indexed" inherit the mark, so marking
+ * the root covers every upload the dev server writes.
+ */
+function excludeFromContentIndexing(directory, platform, run) {
+  if (platform !== "win32") return;
+  const result = run("attrib.exe", ["+I", directory], { stdio: "ignore" });
+  if (result.error || result.status !== 0) {
+    console.warn(
+      `[e2e-storage] Could not mark ${directory} not content indexed; Windows Search may stall deletes of large uploads.`
+    );
+  }
+}
+
+export function resetE2EStorage(rootDir, bootstrap = false, { platform = process.platform, run = spawnSync } = {}) {
   const storageRoot = resolveE2EStorageRoot(rootDir, bootstrap);
   rmSync(storageRoot, { recursive: true, force: true });
   mkdirSync(storageRoot, { recursive: true });
+  excludeFromContentIndexing(storageRoot, platform, run);
   return storageRoot;
 }
