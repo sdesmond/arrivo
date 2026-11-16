@@ -7,6 +7,7 @@ import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
 import { ChecklistItem } from "./checklist-item";
 import { useCanEditTrip } from "./trip-edit-access";
+import { IconSize } from "@/lib/size-tokens";
 
 function makeDragHandle(
   attributes: ReturnType<typeof useSortable>["attributes"],
@@ -16,9 +17,11 @@ function makeDragHandle(
     <span
       {...attributes}
       {...listeners}
-      style={{ cursor: "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+      title="Drag to reorder"
+      className="flex size-11 shrink-0 items-center justify-center"
+      style={{ cursor: "grab", touchAction: "none" }}
     >
-      <GripVertical size={13} strokeWidth={1.5} />
+      <GripVertical size={IconSize.rowAction} strokeWidth={1.5} />
     </span>
   );
 }

@@ -15,34 +15,22 @@ export function PlaceRowTrailingActions({ dragHandle, onDelete }: PlaceRowTraili
   if (!canEdit) return null;
 
   return (
-    <>
-      {/* Drag handle — always visible on mobile, hover-only on desktop */}
-      {dragHandle && (
-        <span
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
-          style={{ color: "var(--fg-4)" }}
-        >
-          {dragHandle}
-        </span>
-      )}
-
-      {/* Trash icon — always visible on mobile, hover-only on desktop */}
+    // One centred group so handle and trash share a midline. The negative margins pull the 44px
+    // targets into the row's padding so they sit level with the title instead of pushing it down.
+    // Always visible on mobile; revealed on hover or keyboard focus on desktop.
+    <div
+      className="flex shrink-0 items-center -mt-2.5 -mr-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
+      style={{ color: "var(--fg-4)" }}
+    >
+      {dragHandle}
       <button
         onClick={onDelete}
-        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center"
-        style={{
-          color: "var(--fg-4)",
-          padding: 4,
-          borderRadius: 4,
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-        }}
+        className="flex size-11 shrink-0 items-center justify-center rounded"
+        style={{ color: "var(--fg-4)", background: "none", border: "none", cursor: "pointer" }}
         title="Delete event"
       >
-        <Trash2 size={IconSize.placeAction} strokeWidth={1.5} />
+        <Trash2 size={IconSize.rowAction} strokeWidth={1.5} />
       </button>
-    </>
+    </div>
   );
 }

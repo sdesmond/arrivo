@@ -44,6 +44,7 @@ vi.mock("./checklist-item", () => ({
 
 import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
 import { TripEditAccessProvider } from "./trip-edit-access";
+import { IconSize } from "@/lib/size-tokens";
 
 beforeEach(() => {
   for (const key of Object.keys(isDraggingById)) delete isDraggingById[key];
@@ -153,5 +154,14 @@ describe("day-card-sortables for a viewer", () => {
     );
     expect(sortableCalls[0].disabled).toBe(false);
     expect(getByTestId("place-row-ev-e")).not.toBeEmptyDOMElement();
+  });
+
+  it("gives the drag handle a centred 44px target with a row-action-sized grip", () => {
+    const { getByTitle } = render(
+      <SortablePlaceRow place={{ id: "ev-h", name: "X", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+    );
+    const handle = getByTitle("Drag to reorder");
+    expect(handle).toHaveClass("size-11", "items-center", "justify-center");
+    expect(handle.querySelector("svg")).toHaveAttribute("width", String(IconSize.rowAction));
   });
 });
