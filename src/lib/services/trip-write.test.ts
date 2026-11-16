@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   lockTripForUpdate: vi.fn(),
   afterTripWrite: vi.fn(),
   withIdempotency: vi.fn(),
+  guardTransactionDeadline: vi.fn(),
 }));
+vi.mock("@/lib/request-deadline", () => ({ guardTransactionDeadline: mocks.guardTransactionDeadline }));
 vi.mock("@/db", () => ({ db: { transaction: mocks.transaction } }));
 vi.mock("@/lib/server-action-locks", () => ({
   lockTripForUpdate: mocks.lockTripForUpdate,
@@ -25,6 +27,26 @@ const transaction = { tag: "transaction" } as unknown as DbTransaction;
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.transaction.mockImplementation((callback: (tx: DbTransaction) => unknown) => callback(transaction));
+  mocks.guardTransactionDeadline.mockImplementation((_tx: DbTransaction, work: () => Promise<unknown>) => work());
+});
+
+it("runs the idempotent write inside the request deadline guard of its own transaction", async () => {
+  const steps = stubIdempotency({ markChanged: true, replayed: false });
+  await runTripWrite(actor, "trip", { payload: {} }, steps);
+  expect(mocks.guardTransactionDeadline).toHaveBeenCalledExactlyOnceWith(transaction, expect.any(Function));
+  expect(mocks.guardTransactionDeadline.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.withIdempotency.mock.invocationCallOrder[0]
+  );
+});
+
+it("runs no effect when the deadline guard rolls the write back", async () => {
+  const steps = stubIdempotency({ markChanged: true, replayed: false });
+  mocks.guardTransactionDeadline.mockImplementationOnce(async (_tx: DbTransaction, work: () => Promise<unknown>) => {
+    await work();
+    throw new Error("deadline");
+  });
+  await expect(runTripWrite(actor, "trip", { payload: {} }, steps)).rejects.toThrow("deadline");
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
 });
 
 it("locks the trip row and maps a missing trip to TripNotFoundError", async () => {

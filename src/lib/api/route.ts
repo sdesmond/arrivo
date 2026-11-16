@@ -7,6 +7,7 @@ import { assertWebMutation, assertWebRead } from "./csrf";
 import { ApiError, errorResponse } from "./errors";
 import { concretePath, parseIdempotencyKey } from "./idempotency";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
+import { REQUEST_DEADLINE_MS, UPLOAD_DEADLINE_MS, runWithRequestDeadline } from "@/lib/request-deadline";
 interface ApiRouteOptions {
   /** Opt in to `Idempotency-Key` replay; a keyed request to any other handler is rejected. */
   idempotent?: { expiryMs?: number };
@@ -55,7 +56,10 @@ export function apiRoute<Result, Params extends z.ZodType, Body extends z.ZodTyp
   }) => Promise<Result>,
   options: ApiRouteOptions = {}
 ) {
-  return async (request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> => {
+  const budgetMs = endpoint.multipart ? UPLOAD_DEADLINE_MS : REQUEST_DEADLINE_MS;
+  return (request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> =>
+    runWithRequestDeadline(budgetMs, () => handle(request, context));
+  async function handle(request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> {
     try {
       const actor = await requireApiUser();
       if (endpoint.method === "GET") assertWebRead(request);
@@ -107,5 +111,5 @@ export function apiRoute<Result, Params extends z.ZodType, Body extends z.ZodTyp
     } catch (error) {
       return errorResponse(error);
     }
-  };
+  }
 }

@@ -5,6 +5,7 @@ import { ConflictError } from "@/lib/services/conflict-error";
 import { ConfirmationRequiredError } from "@/lib/services/confirmation-required-error";
 import { ValidationFailedError } from "@/lib/services/validation-failed-error";
 import { RateLimitError } from "@/lib/rate-limit";
+import { RequestDeadlineError } from "@/lib/services/request-deadline-error";
 import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
 export class ApiError extends Error {
   constructor(
@@ -33,6 +34,7 @@ export function errorResponse(error: unknown): Response {
     failure = new ApiError(422, "validation_failed", error.message, { file: [error.message] });
   else if (error instanceof TripForbiddenError)
     failure = new ApiError(403, "forbidden", error.message, undefined, error.requiredRole);
+  else if (error instanceof RequestDeadlineError) failure = new ApiError(503, "deadline_exceeded", error.message);
   else if (error instanceof RateLimitError) {
     failure = new ApiError(429, "rate_limited", error.message);
     retryAfter = error.retryAfterSeconds;
