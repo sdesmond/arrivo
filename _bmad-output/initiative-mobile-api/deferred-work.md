@@ -1,4 +1,3 @@
-  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; every request in `api.steps.ts` goes through `apiClient()` from `anonymous-api.ts`, the duplicate `anonymousApiRequests` helper is gone and the metadata step marks the page anonymous. Evidence: `@feat:api` and `@feat:event-docs` 499 passed.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-make-api-replay-atomic-and-authorization-aware-plan.md`
   summary: Add a retention sweep for expired `idempotency_keys` rows.
   evidence: API replay rows (`api:v1:` namespace) are replaced on reuse but never purged, and legacy packing rows share the same unbounded growth; expiry only gates replay.
@@ -20,10 +19,12 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-move-packing-source-checklist-insertion-to-the-api-plan.md`
   summary: Double-clicking a packing-source picker row creates two checklists because each call mints a fresh client UUID and nothing guards an in-flight insert.
   evidence: Pre-existing (the retired server action had no in-flight guard); `useApiMutation` exposes `isPending` that a handler guard could use. Low severity.
+  completed: 2026-11-12 by story 2.3 (`6b84e264`); `handleInsertFromPackingSource` returns while an insert is in flight (`insertInFlight`, `use-packing-handlers.ts`). Test: "sends one request when the same insert is selected twice before the first settles". Reconciled 2026-11-15 on `fix/epic-3-small-items`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-retire-checklist-actions-and-complete-api-regression-coverag-plan.md`
   summary: `src/app/(app)/trips/[tripId]/actions.ts` is listed under the `app-activity` FEATURE_MAP entry, which wins over its SHARED_GLOBS entry, so editing it runs only `@feat:app-activity` instead of the full suite.
   evidence: scripts/affected-e2e.mjs checks FEATURE_MAP before SHARED_GLOBS; the module still holds event, day, note and document actions that other features exercise. Pre-existing mapping, not caused by this change.
+  completed: 2026-11-15 as stale on `fix/epic-3-small-items`; the premise no longer holds. The file is 52 lines and holds only the share-dialog actions (`getShareDialogData`, `resend`/`rescind`/`dismissShareInvitation`, `saveContributorChanges`); event, day, note and document writes moved to `/api/v1`. A feature-scoped run is the right scope for it. It is still mapped under ten features, so an edit runs more than it needs; trimming that is an optional follow-up, not a defect.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: A second quick event edit sends a stale full snapshot and can revert the first edit's field, because the handler sends all nine fields every time.
@@ -88,9 +89,11 @@
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Prevent pending document uploads from clearing newer dialog selections or sessions.
   evidence: Both original dialogs leave file/mode controls enabled and unconditionally close after asynchronous completion; changing file or cancel/reopen can lose newer pending selection.
+  completed: 2026-11-15 on `fix/epic-3-small-items`; each open-to-close span of `AddDocDialog` and `AddReservationDocDialog` is a session, and an upload or pick that finishes after Cancel no longer closes or clears the reopened dialog (`closeSession`). Tests: "leaves a reopened dialog open when an upload from a cancelled session finishes" and "... when a pick from a cancelled session finishes" in `add-doc-dialog.test.tsx` and `add-reservation-doc-dialog.test.tsx` (fail without the fix).
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Serialize document picking with an in-flight upload in both attachment dialogs.
   evidence: Existing mode controls and picker buttons remain enabled while upload runs, allowing two competing attachments before either completion closes dialog.
+  completed: 2026-11-15 on `fix/epic-3-small-items`; the picker buttons and Attach were already disabled while a write runs. Now the file chooser, the hidden file input and both mode switches are too, and a file change that slips through is dropped. Tests: "locks the file chooser and mode switch while an upload is in flight" plus the mode-switch assertion in the pick test, in both dialog test files (fail without the fix).
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Coordinate reservation deletion and document upload to avoid orphaned storage.
   evidence: Existing deleteReservation enumerates attached files before deleting reservation without shared trip lock; a concurrent upload may insert after enumeration and cascade-delete its row without file cleanup.
@@ -135,13 +138,16 @@
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Escape special characters in offline Unsplash SVG fixture text.
   evidence: Existing stub interpolates destination query into SVG text; XML-sensitive characters can create invalid fixture images.
+  completed: 2026-11-15 on `fix/epic-3-small-items`; `buildE2EUnsplashStub` escapes `& < > " '` in the query text (`cover-search.ts`). Test: `cover-search.test.ts` "escapes XML-sensitive characters from the query in the stub image" (fails without the fix).
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Add hostile-page browser evidence for cross-origin search-budget rejection.
   evidence: Current API cases supply headers directly; guard and service tests separately prove budget order, while picker covers real browser success.
+  completed: 2026-11-15 on `fix/epic-3-small-items`; `api.feature` "A same-site page on another port cannot search with my session". A real loopback page on another localhost port fires `no-cors` cover and destination searches that carry the session cookie, and each returns 403, not 401. The user's own searches still return 200. Disabling the GET guard turns all three into 200, so the scenario catches the regression. It must be a real server: Chromium blocks loopback requests from a `page.route`-fulfilled page, which would make the check vacuous. Budget order itself stays proven by `route.test.ts` ("rejects ... cross-origin ... reads before search"). E2E cannot exhaust the Unsplash budget because its stub returns before `assertWithinRateLimit`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-documents-covers-api/story-verify-documents-and-covers-end-to-end-plan.md`
   summary: Route the remaining anonymous API steps in `tests/e2e/steps/api.steps.ts` (event patch, lifecycle create, `audience` meta, other raw `page.request.*`) through the shared cookie-free client and retire the duplicate `anonymousApiRequests` helper.
   evidence: Story 3.10 found that `clearCookies()` leaves an open page free to set its session cookie again, returning 200 instead of 401; only the checklist write and the document and cover steps were moved, so the same flake can recur in the untouched anonymous examples.
+  completed: 2026-11-14 on `chore/epic-3-deferred-cleanup`; every request in `api.steps.ts` goes through `apiClient()` from `anonymous-api.ts`, the duplicate `anonymousApiRequests` helper is gone and the metadata step marks the page anonymous. Evidence: `@feat:api` and `@feat:event-docs` 499 passed.
 
 - source_plan: none
   summary: Intermittent failure of `trip-notes` "Leaving the Notes tab while a note is open still saves the edit" at the step `I expand the note titled "Packing"`.
