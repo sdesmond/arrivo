@@ -208,6 +208,18 @@ describe("searchCoverImages", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  it("escapes XML-sensitive characters from the query in the stub image", async () => {
+    vi.stubEnv("E2E_UNSPLASH_STUB", "true");
+    vi.stubEnv("UNSPLASH_ACCESS_KEY", "");
+
+    const results = await searchCoverImages(actor, `Tom & "Jerry" <b>'s`, { page: 1, perPage: 1 });
+
+    const svg = decodeURIComponent((results[0]?.url ?? "").slice("data:image/svg+xml;charset=utf-8,".length));
+    expect(svg).toContain("Tom &amp; &quot;Jerry&quot; &lt;b&gt;&apos;s");
+    expect(svg).not.toContain("<b>");
+    expect(svg).not.toMatch(/&(?!amp;|quot;|lt;|gt;|apos;)/);
+  });
 });
 
 describe("search budgets and caps", () => {
