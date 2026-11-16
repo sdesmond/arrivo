@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -264,4 +264,89 @@ it.each(["unauthenticated", "mfa_enrollment_required"])("closes picker on auth l
   render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />);
   fireEvent.click(screen.getByRole("button", { name: /Itinerary.pdf/ }));
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+});
+
+describe("one write at a time per dialog session", () => {
+  function pendingApiCall() {
+    let finish!: (value: unknown) => void;
+    vi.mocked(api).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    return () =>
+      act(async () => {
+        finish({ id: "doc" });
+      });
+  }
+  function chooseFile(name: string) {
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["pdf"], name, { type: "application/pdf" })] },
+    });
+  }
+
+  it("locks the file chooser and mode switch while an upload is in flight", async () => {
+    const finish = pendingApiCall();
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, "click");
+    const onOpenChange = vi.fn();
+    render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />);
+    fireEvent.click(screen.getByRole("button", { name: /upload new instead/i }));
+    chooseFile("pass.pdf");
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+
+    const chooser = screen.getByRole("button", { name: "pass.pdf" });
+    expect(chooser).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelector('input[type="file"]')).toBeDisabled();
+    expect(screen.getByRole("button", { name: /choose existing instead/i })).toBeDisabled();
+    fireEvent.click(chooser);
+    fireEvent.keyDown(chooser, { key: "Enter" });
+    expect(inputClick).not.toHaveBeenCalled();
+    chooseFile("other.pdf");
+    expect(screen.getByText("pass.pdf")).toBeInTheDocument();
+
+    await finish();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    inputClick.mockRestore();
+  });
+
+  it("leaves a reopened dialog open when an upload from a cancelled session finishes", async () => {
+    const finish = pendingApiCall();
+    const onOpenChange = vi.fn();
+    const view = render(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} />);
+    chooseFile("pass.pdf");
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    view.rerender(<AddReservationDocDialog open={false} reservationId="res-1" onOpenChange={onOpenChange} />);
+    view.rerender(<AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} />);
+
+    await finish();
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    chooseFile("other.pdf");
+    expect(screen.getByText("other.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^attach$/i })).toBeEnabled();
+  });
+
+  it("leaves a reopened dialog open when a pick from a cancelled session finishes", async () => {
+    const finish = pendingApiCall();
+    const onOpenChange = vi.fn();
+    const view = render(
+      <AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Itinerary.pdf/ }));
+    expect(screen.getByRole("button", { name: /upload new instead/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    view.rerender(
+      <AddReservationDocDialog open={false} reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />
+    );
+    view.rerender(
+      <AddReservationDocDialog open reservationId="res-1" onOpenChange={onOpenChange} tripDocs={[makeDoc()]} />
+    );
+
+    await finish();
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Itinerary.pdf/ })).toBeEnabled();
+  });
 });

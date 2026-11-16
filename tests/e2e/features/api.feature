@@ -75,6 +75,17 @@ Feature: Absolute checklist checked-state API
     Then the lifecycle retry returns the original checklist at its shifted position
     And the day holds the original and the shifting checklist once after reload
 
+  Scenario Outline: Lifecycle creation rejects a blank first item and writes nothing
+    Given my checklist API role is "editor"
+    When I create a lifecycle checklist whose first item is "<blank>"
+    Then the lifecycle API returns 422
+    And the lifecycle checklist is absent after reload
+    Examples:
+      | blank           |
+      | empty           |
+      | spaces          |
+      | tab and newline |
+
   Scenario: Lifecycle title partial updates and repeated deletion persist
     Given my checklist API role is "editor"
     When I create a checklist with its first item through the lifecycle API concurrently
@@ -1946,3 +1957,9 @@ Feature: Absolute checklist checked-state API
       | http-referer         | 200    |
       | page-two             | 200    |
       | destination          | 200    |
+
+  @cover-search
+  Scenario: A same-site page on another port cannot search with my session
+    When a page on another localhost port runs cover and destination searches with my session
+    Then the server refused every one of those searches with 403
+    And my own cover and destination searches still return 200

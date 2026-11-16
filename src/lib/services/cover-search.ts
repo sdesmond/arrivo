@@ -41,7 +41,20 @@ function simplifySearchQuery(query: string): string {
   return `${parts[0]}, ${parts[1]}`;
 }
 
+const XML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;",
+};
+
+function escapeXmlText(text: string): string {
+  return text.replace(/[&<>"']/g, (character) => XML_ESCAPES[character] ?? character);
+}
+
 function buildE2EUnsplashStub(query: string, page: number, perPage: number): CoverImageSearchResult[] {
+  const label = escapeXmlText(query);
   const slug = query
     .trim()
     .replace(/\s+/g, " ")
@@ -51,7 +64,7 @@ function buildE2EUnsplashStub(query: string, page: number, perPage: number): Cov
 
   return Array.from({ length: perPage }, (_, index) => {
     const imageNumber = pageStart + index + 1;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#dbeafe"/><text x="60" y="56" font-size="14" text-anchor="middle" fill="#1e3a8a">${query}</text><text x="60" y="78" font-size="12" text-anchor="middle" fill="#1e3a8a">Stub ${imageNumber}</text></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#dbeafe"/><text x="60" y="56" font-size="14" text-anchor="middle" fill="#1e3a8a">${label}</text><text x="60" y="78" font-size="12" text-anchor="middle" fill="#1e3a8a">Stub ${imageNumber}</text></svg>`;
 
     return {
       id: `stub-${slug}-${imageNumber}`,
