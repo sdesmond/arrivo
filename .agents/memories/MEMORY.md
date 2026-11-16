@@ -8,4 +8,5 @@
 - [E2E postcss worker storm](project_e2e_postcss_worker_storm.md) — webServer "Zone Allocation failed"/error 1450 = orphaned .next-e2e postcss.js workers exhausting commit charge; kill them + delete .next-e2e
 - [No direct commits to protected branches](feedback_no_direct_commits_to_protected_branches.md) — Never commit to main/feature/_/feat/_ directly; branch off and PR into them instead
 - [Native arm64 runners when public](project_native_arm64_runners.md) — Deferred: once the repo is public, swap publish-images.yml's QEMU build for per-arch native jobs + manifest merge (full YAML inside)
+- [Windows Search stalls E2E deletes](project_windows_search_stalls_e2e_deletes.md) — Indexer's handle on a fresh large file makes unlink block 30-90 s; .e2e-storage now marked not content indexed (attrib +I)
 - [GitHub CLI needs elevated sandbox access](feedback_gh_needs_elevated_sandbox.md) — Run authenticated gh commands outside the sandbox so Windows keyring credentials are available
