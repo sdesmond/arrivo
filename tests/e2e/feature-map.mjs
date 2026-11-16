@@ -110,6 +110,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/reservations/*/documents/**",
     "src/app/api/v1/meta/**",
     "tests/e2e/steps/api-documents.steps.ts",
+    "tests/e2e/steps/api-deleted-client-ids.steps.ts",
     // The delete scenario fetches a kept document through the storage route after its event is gone.
     ...STORAGE,
     "tests/e2e/api-response.ts",

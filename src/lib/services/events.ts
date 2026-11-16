@@ -9,6 +9,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import { appendPosition, shiftFromPosition } from "./timeline-positions";
 import {
   createEvent as createContract,
@@ -180,6 +181,8 @@ export async function createEvent(
           if (!matchesDraft(existing, dayId, tripId, draft)) idCollision();
           return dbEventToType(existing);
         }
+        // A retry whose first attempt landed and was then deleted must not bring the event back.
+        await refuseRecentlyDeleted(transaction, "event", draft.id);
       }
       const position = await openSlot(transaction, dayId, draft);
       const now = getNow();
@@ -247,6 +250,7 @@ export async function deleteEvent(
         await transaction.delete(documents).where(eq(documents.eventId, eventId));
       }
       await transaction.delete(events).where(eq(events.id, eventId));
+      await recordDeletion(transaction, "event", eventId, actor.userId);
       markChanged();
       return null;
     },

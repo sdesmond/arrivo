@@ -8,6 +8,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import {
   createTripNote as createContract,
   deleteTripNote as deleteContract,
@@ -64,6 +65,8 @@ export async function createTripNote(
           }
           return dbTripNoteToType(existing);
         }
+        // A retry whose first attempt landed and was then deleted must not bring the note back.
+        await refuseRecentlyDeleted(transaction, "trip-note", draft.id);
       }
       await transaction
         .update(notes)
@@ -152,6 +155,7 @@ export async function deleteTripNote(
     mutate: async () => {
       if (await readNote(transaction, noteId)) {
         await transaction.delete(notes).where(eq(notes.id, noteId));
+        await recordDeletion(transaction, "trip-note", noteId, actor.userId);
         markChanged();
       }
       return null;

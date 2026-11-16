@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   lockTripForUpdate: vi.fn(),
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
+  recordDeletion: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
   now: new Date("2026-06-01T12:00:00.000Z"),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
@@ -26,6 +28,10 @@ vi.mock("./trip-access", async (original) => ({
   requireTripRole: mocks.requireTripRole,
 }));
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
+vi.mock("./deletion-records", () => ({
+  recordDeletion: mocks.recordDeletion,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 vi.mock("./timeline-positions", () => ({
   appendPosition: mocks.appendPosition,
   shiftFromPosition: mocks.shiftFromPosition,
@@ -514,4 +520,34 @@ it.each([
   await expect(deleteDayNote(actor, id, body)).rejects.toThrow();
   expect(mocks.select).not.toHaveBeenCalled();
   expect(mocks.transaction).not.toHaveBeenCalled();
+});
+
+it("refuses a client id whose note was deleted recently, writing nothing", async () => {
+  noteReads = [[], []];
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This note was deleted."));
+  await expect(createDayNote(actor, dayId, { id: noteId, content: "Created" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledExactlyOnceWith(mocks, "itinerary-note", noteId);
+  expect(inserted).toEqual([]);
+  expect(mocks.shiftFromPosition).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+it("checks no deletion record without a client id or for a replay", async () => {
+  await createDayNote(actor, dayId, { content: "Created" });
+  noteReads = [[{ note: storedNote, tripId }], [{ note: storedNote, tripId }]];
+  await createDayNote(actor, dayId, { id: noteId, content: "Tickets" });
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+});
+
+it("records the deletion inside the delete transaction, and none for a note already gone", async () => {
+  mocks.recordDeletion.mockImplementationOnce(async () => {
+    calls.push("record");
+  });
+  await deleteDayNote(actor, noteId, { tripId });
+  expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(mocks, "itinerary-note", noteId, "user");
+  expect(calls).toEqual(["trip-lock", "delete-note", "record", "commit"]);
+  mocks.recordDeletion.mockClear();
+  noteRows = [];
+  await deleteDayNote(actor, noteId, { tripId });
+  expect(mocks.recordDeletion).not.toHaveBeenCalled();
 });

@@ -363,6 +363,11 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
       {
         // The server asks for confirmation when the day holds content; the dialog handles that, not a toast.
         expectedCodes: ["confirmation_required"],
+        // A failed add's retained id may name the day just removed, and the server refuses a removed day's id, so the
+        // next add starts with a new one.
+        onSuccess: () => {
+          addDayId.current = undefined;
+        },
         onError: (error) => {
           if (error instanceof ApiClientError && error.code === "confirmation_required") onConfirmationRequired(true);
         },

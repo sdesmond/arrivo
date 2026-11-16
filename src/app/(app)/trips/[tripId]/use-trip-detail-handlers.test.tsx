@@ -1240,6 +1240,54 @@ describe("day handlers", () => {
     expect(ids).toEqual([firstId, secondId]);
   });
 
+  it("drops a failed add's id once a day is removed, so the next add is not refused as a deleted day", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(firstId).mockReturnValueOnce(secondId);
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: secondId });
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, vi.fn());
+    });
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    const addIds = vi
+      .mocked(api)
+      .mock.calls.filter(([endpoint]) => (endpoint as { method: string }).method === "POST")
+      .map(([, input]) => (input as { body: { id: string } }).body.id);
+    expect(addIds).toEqual([firstId, secondId]);
+  });
+
+  it("keeps a failed add's id when the day removal fails", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(firstId).mockReturnValueOnce(secondId);
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."))
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."))
+      .mockResolvedValue({ id: firstId });
+    const { result } = renderHook(() => useTripDetailHandlers(tripDays));
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    await act(async () => {
+      result.current.handleRemoveLastDay(false, vi.fn());
+    });
+    await act(async () => {
+      result.current.handleAddDay();
+    });
+    const addIds = vi
+      .mocked(api)
+      .mock.calls.filter(([endpoint]) => (endpoint as { method: string }).method === "POST")
+      .map(([, input]) => (input as { body: { id: string } }).body.id);
+    expect(addIds).toEqual([firstId, firstId]);
+  });
+
   it("reports addingDay while the request is in flight", async () => {
     const { api } = await import("@/lib/api/client");
     let finish: (value: unknown) => void = () => {};

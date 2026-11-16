@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   lockTripForUpdate: vi.fn(),
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
+  recordDeletion: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
 vi.mock("@/lib/server-action-locks", () => ({
@@ -34,6 +36,10 @@ vi.mock("./trip-access", async (original) => ({
   requireTripRole: mocks.requireTripRole,
 }));
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
+vi.mock("./deletion-records", () => ({
+  recordDeletion: mocks.recordDeletion,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 import { ConflictError } from "./conflict-error";
 import {
   createChecklist,
@@ -1401,6 +1407,69 @@ describe("checklist lifecycle", () => {
       mocks.select.mockClear();
       await expect(deleteChecklistItem(actor, itemRowId, { tripId: "bad" })).rejects.toThrow();
       expect(mocks.select).not.toHaveBeenCalled();
+    });
+
+    it("refuses a client id whose item was deleted recently, writing nothing", async () => {
+      itemGone = true;
+      mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This item was deleted."));
+      await expect(createChecklistItem(actor, checklistId, { id: itemRowId, content: "Socks" })).rejects.toBeInstanceOf(
+        ConflictError
+      );
+      expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledExactlyOnceWith(mocks, "checklist-item", itemRowId);
+      expect(inserted).toEqual([]);
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    it("checks no item deletion record without a client id or for a replay", async () => {
+      await createChecklistItem(actor, checklistId, { content: "Socks" });
+      items = [storedItem];
+      await createChecklistItem(actor, checklistId, { id: itemRowId, content: "Shoes" });
+      expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+    });
+    it("records an item deletion inside the delete transaction, and none for an item already gone", async () => {
+      await deleteChecklistItem(actor, itemRowId, { tripId });
+      expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(mocks, "checklist-item", itemRowId, "user");
+      expect(mocks.recordDeletion.mock.invocationCallOrder[0]).toBeGreaterThan(
+        mocks.delete.mock.invocationCallOrder[0]
+      );
+      expect(mocks.recordDeletion.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.afterTripWrite.mock.invocationCallOrder[0]
+      );
+      mocks.recordDeletion.mockClear();
+      itemGone = true;
+      await deleteChecklistItem(actor, itemRowId, { tripId });
+      expect(mocks.recordDeletion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleted checklist ids", () => {
+    it("refuses a client id whose checklist was deleted recently, writing nothing", async () => {
+      mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This checklist was deleted."));
+      await expect(createChecklist(actor, tripId, input)).rejects.toBeInstanceOf(ConflictError);
+      expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledExactlyOnceWith(mocks, "checklist", checklistId);
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+    });
+    it("checks no checklist deletion record without a client id or for a replay", async () => {
+      await createChecklist(actor, tripId, { dayId, position: 0 });
+      existing = [checklistRow];
+      items = [firstItem];
+      await createChecklist(actor, tripId, input);
+      expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+    });
+    it("records a checklist deletion inside the delete transaction, and none for one already gone", async () => {
+      existing = [checklistRow];
+      await deleteChecklist(actor, checklistId, { tripId });
+      expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(mocks, "checklist", checklistId, "user");
+      expect(mocks.recordDeletion.mock.invocationCallOrder[0]).toBeGreaterThan(
+        mocks.delete.mock.invocationCallOrder[0]
+      );
+      expect(mocks.recordDeletion.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.afterTripWrite.mock.invocationCallOrder[0]
+      );
+      mocks.recordDeletion.mockClear();
+      existing = [];
+      await deleteChecklist(actor, checklistId, { tripId });
+      expect(mocks.recordDeletion).not.toHaveBeenCalled();
     });
   });
 });

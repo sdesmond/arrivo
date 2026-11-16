@@ -9,7 +9,14 @@ vi.mock("@/lib/mock-date", () => ({ getNow: () => now }));
 import { idempotencyKeys } from "@/db/schema";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 import type { DbTransaction } from "@/lib/server-action-locks";
-import { DELETION_RECORD_NAMESPACE, recordDeletion, wasRecentlyDeleted } from "./deletion-records";
+import { ConflictError } from "./conflict-error";
+import {
+  DELETION_RECORD_NAMESPACE,
+  recordDeletion,
+  recordDeletions,
+  refuseRecentlyDeleted,
+  wasRecentlyDeleted,
+} from "./deletion-records";
 
 const documentId = "123E4567-E89B-12D3-A456-426614174000";
 const recordKey = `${DELETION_RECORD_NAMESPACE}document:${documentId.toLowerCase()}`;
@@ -62,11 +69,62 @@ it("records a deletion under its own namespace in idempotency_keys, refreshing a
   const { transaction, calls } = fakeTransaction();
   await recordDeletion(transaction, "document", documentId, "user-1");
   expect(calls.table).toBe(idempotencyKeys);
-  expect(calls.values).toEqual({ key: recordKey, userId: "user-1", result: {}, createdAt: now });
+  expect(calls.values).toEqual([{ key: recordKey, userId: "user-1", result: {}, createdAt: now }]);
   expect(calls.upsert).toEqual({
     target: [idempotencyKeys.key, idempotencyKeys.userId],
     set: { createdAt: now },
   });
+});
+
+it("records several deletions of one resource in a single insert", async () => {
+  const { transaction, calls } = fakeTransaction();
+  await recordDeletions(transaction, "event", [documentId, "223e4567-e89b-12d3-a456-426614174000"], "user-1");
+  expect(calls.values).toEqual([
+    {
+      key: `${DELETION_RECORD_NAMESPACE}event:${documentId.toLowerCase()}`,
+      userId: "user-1",
+      result: {},
+      createdAt: now,
+    },
+    {
+      key: `${DELETION_RECORD_NAMESPACE}event:223e4567-e89b-12d3-a456-426614174000`,
+      userId: "user-1",
+      result: {},
+      createdAt: now,
+    },
+  ]);
+  expect(calls.upsert).toEqual({
+    target: [idempotencyKeys.key, idempotencyKeys.userId],
+    set: { createdAt: now },
+  });
+});
+
+it("writes nothing for an empty list", async () => {
+  const { transaction, calls } = fakeTransaction();
+  await recordDeletions(transaction, "day", [], "user-1");
+  expect(calls.table).toBeUndefined();
+});
+
+it.each([
+  ["document", "This document was deleted. Upload the file again to add it as a new document."],
+  ["event", "This event was deleted. Save again to add it as a new event."],
+  ["day", "This day was deleted. Add a day again to create a new one."],
+  ["checklist", "This checklist was deleted. Save again to add it as a new checklist."],
+  ["checklist-item", "This item was deleted. Add it again to create a new item."],
+  ["itinerary-note", "This note was deleted. Save again to add it as a new note."],
+  ["trip-note", "This note was deleted. Save again to add it as a new note."],
+] as const)("refuses a recently deleted %s id as a conflict", async (resource, message) => {
+  const { transaction, calls } = fakeTransaction([{ key: "any" }]);
+  const refusal = refuseRecentlyDeleted(transaction, resource, documentId);
+  await expect(refusal).rejects.toBeInstanceOf(ConflictError);
+  await expect(refuseRecentlyDeleted(transaction, resource, documentId)).rejects.toThrow(message);
+  const query = new PgDialect().sqlToQuery(calls.where!);
+  expect(query.params[0]).toBe(`${DELETION_RECORD_NAMESPACE}${resource}:${documentId.toLowerCase()}`);
+});
+
+it("lets an id with no recent deletion through", async () => {
+  const { transaction } = fakeTransaction([]);
+  await expect(refuseRecentlyDeleted(transaction, "event", documentId)).resolves.toBeUndefined();
 });
 
 it("keeps deletion records apart from API replay keys", () => {
