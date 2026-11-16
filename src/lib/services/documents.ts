@@ -22,6 +22,7 @@ import {
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
+import { recordDeletion, wasRecentlyDeleted } from "./deletion-records";
 import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { ConflictError } from "./conflict-error";
 
@@ -34,7 +35,8 @@ async function readDocument(executor: ReadExecutor, documentId: string) {
  * Stores one file in its trip, event or reservation scope. The policy checks (type, size, content) and the role check run before
  * anything is stored; a failed insert, a replay or a conflict removes the file just stored. A client `id` makes a retry
  * of the same file safe: the same id with the same trip, scope, name, type and size returns the stored row with no
- * write or effect (its `url` differs, since every attempt stores a fresh file), and any other use of that id is a 409.
+ * write or effect (its `url` differs, since every attempt stores a fresh file), and any other use of that id is a 409,
+ * as is reusing the id of a document deleted within the retention window.
  * An id held by a trip the actor cannot see is not found, so a stranger never reads that row.
  */
 async function uploadDocument(
@@ -98,6 +100,10 @@ async function uploadDocument(
                 throw new ConflictError("This ID was already used for a different document.");
               }
               return dbDocToType(existing);
+            }
+            // A retry whose first attempt landed and was then deleted must not bring the document back.
+            if (await wasRecentlyDeleted(transaction, "document", draft.id)) {
+              throw new ConflictError("This document was deleted. Upload the file again to add it as a new document.");
             }
           }
           const [created] = await transaction
@@ -236,6 +242,7 @@ export async function removeDocument(
       if (!current) return null;
       queued = await queueFileDeletions(transaction, current.url ? [current.url] : []);
       await transaction.delete(documents).where(eq(documents.id, documentId));
+      await recordDeletion(transaction, "document", documentId, actor.userId);
       markChanged();
       return null;
     },

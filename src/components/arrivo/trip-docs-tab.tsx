@@ -7,6 +7,7 @@ import type { Document } from "@/data/types";
 import { DocRow } from "./doc-row";
 import { uploadTripDocument } from "@/lib/api/contract/documents";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { ApiClientError } from "@/lib/api/client";
 import { cn, createRandomId } from "@/lib/utils";
 import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
 import { buttonVariants } from "@/components/ui/button";
@@ -44,6 +45,10 @@ export function TripDocsTab({ tripId, docs }: TripDocsTabProps) {
       {
         onSuccess: () => {
           attempt.current = undefined;
+        },
+        // The server refuses a conflicting id for good (reused or deleted), so the next try needs a new one.
+        onError: (error) => {
+          if (error instanceof ApiClientError && error.code === "conflict") attempt.current = undefined;
         },
       }
     );

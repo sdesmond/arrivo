@@ -11,6 +11,7 @@ import { assertValidDocumentUpload, DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_CHOO
 
 import { updateDocument, uploadReservationDocument } from "@/lib/api/contract/documents";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { ApiClientError } from "@/lib/api/client";
 import { createRandomId } from "@/lib/utils";
 
 type DialogMode = "pick" | "upload";
@@ -108,7 +109,14 @@ export function AddReservationDocDialog({
     const started = session.current;
     void mutate(
       { params: { reservationId }, body: { id: attempt.current.id }, file: pendingFile },
-      { onSuccess: () => closeSession(started), onAuthLost: () => handleClose(false) }
+      {
+        onSuccess: () => closeSession(started),
+        onAuthLost: () => handleClose(false),
+        // The server refuses a conflicting id for good (reused or deleted), so the next try needs a new one.
+        onError: (error) => {
+          if (error instanceof ApiClientError && error.code === "conflict") attempt.current = undefined;
+        },
+      }
     );
   }
 

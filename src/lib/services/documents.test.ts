@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   lockTrip: vi.fn(),
   lockClientIds: vi.fn(),
+  recordDeletion: vi.fn(),
+  wasRecentlyDeleted: vi.fn(),
   afterTripWrite: vi.fn(),
   selectRows: [] as Record<string, unknown>[],
   targetRows: [] as Record<string, unknown>[],
@@ -40,6 +42,10 @@ vi.mock("@/db", () => ({
 }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ put: mocks.put, del: mocks.del }) }));
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
+vi.mock("./deletion-records", () => ({
+  recordDeletion: mocks.recordDeletion,
+  wasRecentlyDeleted: mocks.wasRecentlyDeleted,
+}));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
   requireTripRole: mocks.requireTripRole,
@@ -160,6 +166,8 @@ beforeEach(() => {
   mocks.insertError = undefined;
   mocks.afterTripWrite.mockImplementation(afterTripWrite);
   mocks.requireTripRole.mockResolvedValue("editor");
+  mocks.wasRecentlyDeleted.mockResolvedValue(false);
+  mocks.recordDeletion.mockResolvedValue(undefined);
   mocks.put.mockImplementation(async (key: string) => `/api/storage/${key}`);
   mocks.del.mockResolvedValue(undefined);
 });
@@ -335,17 +343,37 @@ it.each([
     await expect(upload(actor, targetId, { id: documentId }, pdf())).rejects.toBeInstanceOf(ConflictError);
   }
 });
-// A deleted document leaves no tombstone, so a client id carries no memory of the delete: events create the same way.
-// A retry of an attempt whose response was lost, sent after the document was deleted, stores a new row under that id.
-it("creates again when a retried upload's id belongs to a document deleted in between", async () => {
+// A retry of an attempt whose response was lost, sent after the document was deleted, must not bring it back.
+it("conflicts when a retried upload's id belongs to a recently deleted document, keeping no file", async () => {
+  mocks.wasRecentlyDeleted.mockResolvedValue(true);
+  await expect(uploadTripDocument(actor, tripId, { id: documentId }, pdf())).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.wasRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "document", documentId);
+  expect(mocks.inserted).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  expect(mocks.del).toHaveBeenCalledTimes(1);
+});
+it("creates under the id once no deletion record is left", async () => {
+  const created = await uploadTripDocument(actor, tripId, { id: documentId }, pdf());
+  expect(created.id).toBe(documentId);
+  expect(mocks.inserted).toEqual([expect.objectContaining({ id: documentId, tripId })]);
+});
+it("checks no deletion record for an upload without a client id or for a same-id replay", async () => {
+  await uploadTripDocument(actor, tripId, {}, pdf());
+  mocks.selectRows = [stored()];
   await uploadTripDocument(actor, tripId, { id: documentId }, pdf());
-  expect(mocks.inserted).toHaveLength(1);
+  expect(mocks.wasRecentlyDeleted).not.toHaveBeenCalled();
+});
+it("records the deletion inside the delete transaction, and none for a repeat delete", async () => {
+  mocks.selectRows = [stored()];
+  await removeDocument(actor, documentId, { tripId });
+  expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(expect.anything(), "document", documentId, "user");
+  expect(mocks.recordDeletion.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.afterTripWrite.mock.invocationCallOrder[0]
+  );
+  mocks.recordDeletion.mockClear();
   mocks.selectRows = [];
-  const retried = await uploadTripDocument(actor, tripId, { id: documentId }, pdf());
-  expect(retried.id).toBe(documentId);
-  expect(mocks.inserted).toHaveLength(2);
-  expect(mocks.inserted[1]).toMatchObject({ id: documentId, tripId });
-  expect(mocks.del).not.toHaveBeenCalled();
+  await removeDocument(actor, documentId, { tripId });
+  expect(mocks.recordDeletion).not.toHaveBeenCalled();
 });
 it.each([uploadEventDocument, uploadReservationDocument])(
   "rechecks target existence and ownership after storage under lock",
