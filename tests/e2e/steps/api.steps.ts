@@ -671,6 +671,18 @@ When("I reuse the lifecycle checklist UUID with different content", async ({ pag
   for (const response of responses) expect(response.status()).toBe(409);
   state(page).response = responses[0];
 });
+const BLANK_FIRST_ITEMS: Record<string, string> = { empty: "", spaces: "   ", "tab and newline": "\t\n" };
+When("I create a lifecycle checklist whose first item is {string}", async ({ page, scenario }, kind: string) => {
+  const content = BLANK_FIRST_ITEMS[kind];
+  expect(content, `unknown blank first item "${kind}"`).toBeDefined();
+  const { tripId, firstItem, ...body } = await lifecycleInput(page, scenario.currentTrip!.id);
+  state(page).response = await (
+    await apiClient(page)
+  ).post(`/api/v1/trips/${tripId}/checklists`, {
+    headers: headers(page),
+    data: { ...body, firstItem: { id: firstItem.id, content } },
+  });
+});
 Then("the lifecycle API returns {int}", async ({ page }, status: number) => {
   const response = state(page).response!;
   expect(response.status()).toBe(status);
