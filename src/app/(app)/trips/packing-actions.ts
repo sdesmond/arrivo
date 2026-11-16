@@ -17,8 +17,10 @@ import type {
 } from "@/data/types";
 import { RemovePackingSectionMode } from "@/data/types";
 import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
+import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 
-const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
+// The sweep deletes keys older than the retention, so the replay window must not outlast it.
+const IDEMPOTENCY_WINDOW_MS = IDEMPOTENCY_RETENTION_MS;
 const TEMPLATE_NAME_MAX = FIELD_LIMITS.templateName;
 
 type LabelValidationExecutor = Pick<typeof db, "select">;

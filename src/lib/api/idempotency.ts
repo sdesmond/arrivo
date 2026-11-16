@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { idempotencyKeys } from "@/db/schema";
 import type { Actor, IdempotentRequest } from "@/data/types";
+import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 import { getNow } from "@/lib/mock-date";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { isUuid } from "@/lib/validation-limits";
@@ -11,7 +12,7 @@ import { ApiError } from "./errors";
 
 /** Prefix that keeps API replay rows apart from the raw keys `packing-actions.ts` stores in the same table. */
 export const API_IDEMPOTENCY_NAMESPACE = "api:v1:";
-export const DEFAULT_IDEMPOTENCY_EXPIRY_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_IDEMPOTENCY_EXPIRY_MS = IDEMPOTENCY_RETENTION_MS;
 const IDEMPOTENCY_KEY_MAX = 255;
 // Below the 4 s activity-batch bound: a retry queued behind its own in-flight twin gives up with a retryable 409.
 const IDEMPOTENCY_LOCK_TIMEOUT_MS = 3_000;
@@ -130,6 +131,11 @@ export async function withIdempotency<Result>(
   }
   const expiryMs = request.expiryMs ?? DEFAULT_IDEMPOTENCY_EXPIRY_MS;
   if (!Number.isFinite(expiryMs) || expiryMs <= 0) throw new RangeError("Idempotency expiry must be positive.");
+  if (expiryMs > IDEMPOTENCY_RETENTION_MS) {
+    throw new RangeError(
+      "Idempotency expiry must be at most 24 hours: the idempotency_keys sweep deletes rows older than that."
+    );
+  }
   const storageKey = `${API_IDEMPOTENCY_NAMESPACE}${request.key}`;
   const fingerprint = fingerprintRequest(request.method, request.path, payload);
 
