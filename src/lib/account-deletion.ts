@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import type { db } from "@/db";
-import { collaborators, documents, invitations, trips, users } from "@/db/schema";
+import { collaborators, documents, idempotencyKeys, invitations, trips, users } from "@/db/schema";
 import {
   AccountDeletionFailure,
   AdminDeletionFailure,
@@ -221,6 +221,9 @@ async function removeAccount(transaction: DbTransaction, removal: AccountRemoval
     .delete(collaborators)
     .where(eq(collaborators.userId, account.id))
     .returning({ tripId: collaborators.tripId });
+  // Replay and deletion records hold the account's request results; `user_id` has no foreign key, so they go here
+  // rather than waiting for the 24-hour sweep.
+  await transaction.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, account.id));
   await transaction.delete(users).where(eq(users.id, account.id));
 
   return {

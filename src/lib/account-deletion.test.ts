@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
-import { collaborators, documents, invitations, trips, users } from "@/db/schema";
+import { collaborators, documents, idempotencyKeys, invitations, trips, users } from "@/db/schema";
 import {
   AccountDeletionFailure,
   AdminDeletionFailure,
@@ -67,6 +67,7 @@ interface Write {
   op: "update" | "delete";
   table: unknown;
   set?: unknown;
+  condition?: SQL;
 }
 
 const tableNames = new Map<unknown, string>([
@@ -75,6 +76,7 @@ const tableNames = new Map<unknown, string>([
   [collaborators, "collaborators"],
   [invitations, "invitations"],
   [documents, "documents"],
+  [idempotencyKeys, "idempotency_keys"],
 ]);
 
 // Records lock queries and writes in one ordered log so tests can assert order and that refusals wrote nothing.
@@ -147,7 +149,9 @@ function createDatabase(fixture: Fixture = {}) {
     update: (table: unknown) => ({
       set: (set: unknown) => ({ where: () => recordWrite({ op: "update", table, set }) }),
     }),
-    delete: (table: unknown) => ({ where: () => recordWrite({ op: "delete", table }) }),
+    delete: (table: unknown) => ({
+      where: (condition: SQL) => recordWrite({ op: "delete", table, condition }),
+    }),
   };
 
   let transactions = 0;
@@ -312,7 +316,7 @@ describe("deleteOwnAccount — shared trip handoff", () => {
         account: { id: ME, username: "me" },
       },
     });
-    expect(writes).toContainEqual({ op: "delete", table: trips });
+    expect(writes).toContainEqual(expect.objectContaining({ op: "delete", table: trips }));
   });
 
   it("hands a shared trip to the chosen collaborator as manager and creator", async () => {
@@ -407,12 +411,23 @@ describe("deleteOwnAccount — shared trip handoff", () => {
     expect(events.indexOf("update:invitations")).toBeLessThan(events.indexOf("update:trips"));
   });
 
+  it("removes the user's replay and deletion records with the account, so none outlive it", async () => {
+    const { database, writes } = createDatabase();
+
+    await deleteOwnAccount(database, ME, [], 0);
+
+    const removal = writes.find((write) => write.op === "delete" && write.table === idempotencyKeys);
+    const query = dialect.sqlToQuery(removal!.condition!);
+    expect(query.sql).toBe('"idempotency_keys"."user_id" = $1');
+    expect(query.params).toEqual([ME]);
+  });
+
   it("removes the user's collaborator rows and then the user last", async () => {
     const { database, events } = createDatabase();
 
     await deleteOwnAccount(database, ME, [], 0);
 
-    expect(events.slice(-2)).toEqual(["delete:collaborators", "delete:users"]);
+    expect(events.slice(-3)).toEqual(["delete:collaborators", "delete:idempotency_keys", "delete:users"]);
   });
 
   it.each([
@@ -763,7 +778,7 @@ describe("deleteAccountAsAdmin", () => {
     ]);
     expect(writes).toContainEqual({ op: "update", table: trips, set: { ownerId: ADA_ID } });
     expect(events.indexOf("update:invitations")).toBeLessThan(events.indexOf("update:trips"));
-    expect(events.slice(-2)).toEqual(["delete:collaborators", "delete:users"]);
+    expect(events.slice(-3)).toEqual(["delete:collaborators", "delete:idempotency_keys", "delete:users"]);
   });
 
   it("deletes a trip whose other members cannot take over and reports its files and members", async () => {
