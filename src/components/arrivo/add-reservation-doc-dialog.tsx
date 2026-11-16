@@ -38,6 +38,8 @@ export function AddReservationDocDialog({
   const { mutate, isPending } = useApiMutation(uploadReservationDocument);
   const attempt = useRef<{ file: File; targetId: string; id: string }>(undefined);
   const isUploading = pick.isPending || isPending;
+  // Each open-to-close span is one session; a write only closes the session it started in.
+  const session = useRef(0);
 
   const defaultMode = (): DialogMode => ((tripDocs?.length ?? 0) > 0 ? "pick" : "upload");
   const [mode, setMode] = useState<DialogMode>(defaultMode);
@@ -51,6 +53,7 @@ export function AddReservationDocDialog({
 
   function handleClose(open: boolean) {
     if (!open) {
+      session.current += 1;
       setMode(defaultMode());
       setPendingFile(null);
       attempt.current = undefined;
@@ -58,14 +61,20 @@ export function AddReservationDocDialog({
     onOpenChange(open);
   }
 
+  /** A write that finishes after the user cancelled leaves the reopened dialog and its selection alone. */
+  function closeSession(started: number) {
+    if (session.current === started) handleClose(false);
+  }
+
   function handlePickDoc(docId: string) {
     if (pickingRef.current || isUploading) return;
     pickingRef.current = true;
+    const started = session.current;
     void pick.mutate(
       { params: { documentId: docId }, body: { reservationId } },
       {
         key: docId,
-        onSuccess: () => handleClose(false),
+        onSuccess: () => closeSession(started),
         onAuthLost: () => handleClose(false),
         onSettled: () => {
           pickingRef.current = false;
@@ -77,6 +86,10 @@ export function AddReservationDocDialog({
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (isUploading) {
+      event.target.value = "";
+      return;
+    }
     try {
       assertValidDocumentUpload(file);
     } catch (error) {
@@ -92,9 +105,10 @@ export function AddReservationDocDialog({
     if (attempt.current?.file !== pendingFile || attempt.current?.targetId !== reservationId) {
       attempt.current = { file: pendingFile, targetId: reservationId, id: createRandomId() };
     }
+    const started = session.current;
     void mutate(
       { params: { reservationId }, body: { id: attempt.current.id }, file: pendingFile },
-      { onSuccess: () => handleClose(false), onAuthLost: () => handleClose(false) }
+      { onSuccess: () => closeSession(started), onAuthLost: () => handleClose(false) }
     );
   }
 
@@ -141,6 +155,7 @@ export function AddReservationDocDialog({
               </div>
               <button
                 onClick={() => setMode("upload")}
+                disabled={isUploading}
                 style={{
                   background: "none",
                   border: "none",
@@ -175,20 +190,25 @@ export function AddReservationDocDialog({
                   border: 0,
                 }}
                 onChange={handleFileChange}
+                disabled={isUploading}
               />
               <div
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!isUploading) fileInputRef.current?.click();
+                }}
                 role="button"
                 tabIndex={0}
+                aria-disabled={isUploading}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") fileInputRef.current?.click();
+                  if (!isUploading && (event.key === "Enter" || event.key === " ")) fileInputRef.current?.click();
                 }}
                 style={{
                   border: "1.5px dashed var(--line-strong)",
                   borderRadius: 6,
                   padding: "12px 16px",
                   minHeight: 44,
-                  cursor: "pointer",
+                  cursor: isUploading ? "not-allowed" : "pointer",
+                  opacity: isUploading ? 0.6 : 1,
                   color: pendingFile ? "var(--fg)" : "var(--fg-4)",
                   fontSize: "calc(13px * var(--font-scale))",
                   textAlign: "center",
@@ -199,6 +219,7 @@ export function AddReservationDocDialog({
               {(tripDocs?.length ?? 0) > 0 && (
                 <button
                   onClick={() => setMode("pick")}
+                  disabled={isUploading}
                   style={{
                     background: "none",
                     border: "none",
