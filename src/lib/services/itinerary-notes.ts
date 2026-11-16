@@ -8,6 +8,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import { appendPosition, shiftFromPosition } from "./timeline-positions";
 import {
   createDayNote as createContract,
@@ -68,6 +69,8 @@ export async function createDayNote(
           }
           return dbNoteToType(existing.note);
         }
+        // A retry whose first attempt landed and was then deleted must not bring the note back.
+        await refuseRecentlyDeleted(transaction, "itinerary-note", draft.id);
       }
       let position: number;
       if (draft.insertAtPosition !== undefined) {
@@ -151,6 +154,7 @@ export async function deleteDayNote(
     mutate: async () => {
       if (await readNote(transaction, noteId)) {
         await transaction.delete(itineraryNotes).where(eq(itineraryNotes.id, noteId));
+        await recordDeletion(transaction, "itinerary-note", noteId, actor.userId);
         markChanged();
       }
       return null;

@@ -16,6 +16,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ValidationFailedError } from "./validation-failed-error";
 import { applyDayOrder } from "./timeline-positions";
@@ -151,6 +152,8 @@ export async function addDay(
             if (existing.tripId !== tripId) throw new ConflictError("This ID was already used for a different day.");
             return dbDayToType(existing);
           }
+          // A retry whose first attempt landed and was then removed must not bring the day back.
+          await refuseRecentlyDeleted(transaction, "day", draft.id);
         }
         const [trip] = await transaction.select({ startDate: trips.startDate }).from(trips).where(eq(trips.id, tripId));
         if (!trip) throw new TripNotFoundError();
@@ -251,6 +254,7 @@ export async function deleteDay(
           );
         }
         await transaction.delete(days).where(eq(days.id, dayId));
+        await recordDeletion(transaction, "day", dayId, actor.userId);
         const precedingDate = tripDays.at(-2)?.date;
         if (precedingDate) {
           await transaction

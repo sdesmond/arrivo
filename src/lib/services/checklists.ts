@@ -17,6 +17,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import { shiftFromPosition } from "./timeline-positions";
 import {
   createChecklist as createContract,
@@ -168,6 +169,8 @@ export async function createChecklist(
               collision();
             return current;
           }
+          // A retry whose first attempt landed and was then deleted must not bring the checklist back.
+          await refuseRecentlyDeleted(transaction, "checklist", body.id);
         }
         if (body.firstItem?.id) {
           const existingTripId = await readItemTripId(transaction, body.firstItem.id);
@@ -277,6 +280,7 @@ export async function deleteChecklist(
       const current = await readChecklist(transaction, checklistId);
       if (current) {
         await transaction.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
+        await recordDeletion(transaction, "checklist", checklistId, actor.userId);
         markChanged();
       }
       return null;
@@ -320,6 +324,8 @@ export async function createChecklistItem(
           if (existing.checklistId !== checklistId || existing.content !== body.content) collision();
           return dbChecklistItemToType(existing);
         }
+        // A retry whose first attempt landed and was then deleted must not bring the item back.
+        await refuseRecentlyDeleted(transaction, "checklist-item", body.id);
       }
       // The DB clock is read after the trip lock, so creation order follows lock order.
       const [created] = await transaction
@@ -395,6 +401,7 @@ export async function deleteChecklistItem(
     mutate: async () => {
       if (await readItemTripId(transaction, itemId)) {
         await transaction.delete(checklistItems).where(eq(checklistItems.id, itemId));
+        await recordDeletion(transaction, "checklist-item", itemId, actor.userId);
         markChanged();
       }
       return null;

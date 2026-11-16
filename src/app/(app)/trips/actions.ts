@@ -68,6 +68,7 @@ import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribe
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "@/lib/services/cover-search";
+import { recordDeletions } from "@/lib/services/deletion-records";
 import {
   addPackingItem as addPackingItemAction,
   pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
@@ -516,6 +517,12 @@ export async function updateTripMetadata(
             overflowContent.events.map((event) => event.id)
           )
         );
+        await recordDeletions(
+          transaction,
+          "event",
+          overflowContent.events.map((event) => event.id),
+          user.id!
+        );
       }
 
       if (overflowDays.length > 0) {
@@ -524,6 +531,12 @@ export async function updateTripMetadata(
             days.id,
             overflowDays.map((day) => day.id)
           )
+        );
+        await recordDeletions(
+          transaction,
+          "day",
+          overflowDays.map((day) => day.id),
+          user.id!
         );
       }
 
@@ -609,6 +622,12 @@ export async function updateTripMetadata(
           removedContent.events.map((event) => event.id)
         )
       );
+      await recordDeletions(
+        transaction,
+        "event",
+        removedContent.events.map((event) => event.id),
+        user.id!
+      );
     }
 
     if (resolution === TripDateConflictResolution.DeleteEvents && removedContent.reservationIds.length > 0) {
@@ -624,6 +643,12 @@ export async function updateTripMetadata(
           days.id,
           removedDays.map((day) => day.id)
         )
+      );
+      await recordDeletions(
+        transaction,
+        "day",
+        removedDays.map((day) => day.id),
+        user.id!
       );
     }
 
