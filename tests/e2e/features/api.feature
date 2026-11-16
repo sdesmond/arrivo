@@ -1957,3 +1957,9 @@ Feature: Absolute checklist checked-state API
       | http-referer         | 200    |
       | page-two             | 200    |
       | destination          | 200    |
+
+  @cover-search
+  Scenario: A same-site page on another port cannot search with my session
+    When a page on another localhost port runs cover and destination searches with my session
+    Then the server refused every one of those searches with 403
+    And my own cover and destination searches still return 200
