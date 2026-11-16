@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DayItinerary } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
 import { useChecklistHandlers } from "./use-checklist-handlers";
 const { mutate, create, title, remove, createItem, removeItem } = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -446,6 +447,74 @@ it("adds an item through the create API, queued per checklist", () => {
   ]);
   expect(createItem.mock.calls[0][0].body.id).not.toBe(createItem.mock.calls[1][0].body.id);
   expect(createItem.mock.calls.every(([, options]) => options.key === "list")).toBe(true);
+});
+
+function sentItemId(call: number): string {
+  return createItem.mock.calls[call][0].body.id;
+}
+function settleItemCreate(call: number, outcome: { error: unknown } | "success"): void {
+  const options = createItem.mock.calls[call][1];
+  act(() => {
+    if (outcome === "success") options.onSuccess?.({ id: sentItemId(call) });
+    else options.onError?.(outcome.error);
+  });
+}
+
+it("resends a failed item create with the same ID, so a create that landed is replayed, not duplicated", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(0, { error: new ApiClientError(0, "timeout", "Request timed out.") });
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  expect(sentItemId(1)).toBe(sentItemId(0));
+});
+
+it("keeps a retry ID per checklist and text", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(0, { error: new Error("offline") });
+  act(() => {
+    result.current.handleAddChecklistItem("list", "Adapter");
+    result.current.handleAddChecklistItem("other", "Charger");
+  });
+  expect(sentItemId(1)).not.toBe(sentItemId(0));
+  expect(sentItemId(2)).not.toBe(sentItemId(0));
+});
+
+it("uses a new ID for the same text once the earlier create succeeded, so a deliberate repeat adds another item", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(0, { error: new Error("offline") });
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(1, "success");
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  expect(sentItemId(1)).toBe(sentItemId(0));
+  expect(sentItemId(2)).not.toBe(sentItemId(0));
+});
+
+it("drops a retry ID after a conflict, because that ID can never succeed again", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(0, { error: new Error("offline") });
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(1, { error: new ApiClientError(409, "conflict", "This ID was already used.") });
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  expect(sentItemId(2)).not.toBe(sentItemId(0));
+});
+
+it("keeps a newer attempt's retry ID when an older attempt with the same text settles later", () => {
+  const { result } = renderHook(() => useChecklistHandlers(days, lifecycle));
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  settleItemCreate(0, { error: new Error("offline") });
+  act(() => {
+    result.current.handleAddChecklistItem("list", "Charger");
+  });
+  // A deliberate second "Charger" sent while the retry is in flight has its own ID.
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  expect(sentItemId(2)).not.toBe(sentItemId(1));
+  settleItemCreate(2, { error: new Error("offline") });
+  settleItemCreate(1, "success");
+  act(() => result.current.handleAddChecklistItem("list", "Charger"));
+  expect(sentItemId(3)).toBe(sentItemId(2));
 });
 
 it("sends a content edit as a partial PATCH on the item queue and shows it immediately", () => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChecklistItem, DayItinerary } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
 import {
@@ -72,6 +73,8 @@ export function useChecklistHandlers(
   // Separate mutation hooks keep separate queues, so each writer records its newest promise for cross-hook ordering.
   const itemWrites = useRef(new Map<string, Promise<void>>());
   const itemCreates = useRef(new Map<string, Promise<void>>());
+  // The ID of the latest failed item create per checklist and text, reused when that text is sent again.
+  const retryItemIds = useRef(new Map<string, string>());
   const titleWrites = useRef(new Map<string, Promise<void>>());
   const [titleOverrides, setTitleOverrides] = useState(new Map<string, string | undefined>());
   const titleIntents = useRef(new Map<string, number>());
@@ -177,13 +180,26 @@ export function useChecklistHandlers(
   }
 
   function handleAddChecklistItem(checklistId: string, content: string): void {
+    // A create that failed may still have landed (a lost response), so sending the same text to the same checklist
+    // again reuses its ID and replays instead of adding a duplicate. The ID is claimed while in flight, so a deliberate
+    // second item with the same text gets its own.
+    const retryKey = `${checklistId}\n${content}`;
+    const id = retryItemIds.current.get(retryKey) ?? createRandomId();
+    retryItemIds.current.delete(retryKey);
     // Queued per checklist so rapid adds reach the server, and appear, in the order they were typed.
     trackWrite(
       itemCreates.current,
       checklistId,
       createItemMutation.mutate(
-        { params: { checklistId }, body: { id: createRandomId(), content } },
-        { key: checklistId }
+        { params: { checklistId }, body: { id, content } },
+        {
+          key: checklistId,
+          onError: (error) => {
+            // A 409 means the ID already names other content, so it can never succeed again.
+            if (error instanceof ApiClientError && error.code === "conflict") return;
+            retryItemIds.current.set(retryKey, id);
+          },
+        }
       )
     );
   }

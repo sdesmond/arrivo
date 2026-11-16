@@ -455,6 +455,77 @@ describe("useDayDraft", () => {
     expect(onAddChecklist.mock.calls[1][3]).not.toBe(onAddChecklist.mock.calls[0][3]);
   });
 
+  describe("a commit that settles after its draft was replaced", () => {
+    function deferred() {
+      let resolve: () => void = () => {};
+      let reject: (error: unknown) => void = () => {};
+      const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+      });
+      return { promise, resolve, reject };
+    }
+
+    it("does not clear the newer draft when the old item lands", async () => {
+      const oldCommit = deferred();
+      const onAddChecklist = vi.fn().mockReturnValueOnce(oldCommit.promise).mockResolvedValue(undefined);
+      const { result, rerender } = renderHook((options: UseDayDraftOptions) => useDayDraft(options), {
+        initialProps: buildOptions({ propTimelineItemIds: ["a"], onAddChecklist }),
+      });
+
+      act(() => result.current.activateDraft(ItineraryItemType.Checklist, 1, "bottom"));
+      let pending: Promise<void> = Promise.resolve();
+      act(() => {
+        pending = result.current.commitDraft("old");
+      });
+      const oldId = onAddChecklist.mock.calls[0][3];
+      act(() => result.current.cancelDraft());
+      act(() => result.current.activateDraft(ItineraryItemType.Note, 1, "bottom"));
+
+      await act(async () => {
+        oldCommit.resolve();
+        await pending;
+      });
+      rerender(buildOptions({ propTimelineItemIds: ["a", oldId], onAddChecklist }));
+
+      expect(result.current.draft).toEqual({ kind: ItineraryItemType.Note, insertAtPosition: 1, gapKey: "bottom" });
+    });
+
+    it("leaves the newer draft's ID and in-flight guard alone when the old commit rejects", async () => {
+      const oldCommit = deferred();
+      const newCommit = deferred();
+      const onAddNote = vi.fn().mockReturnValueOnce(oldCommit.promise).mockReturnValueOnce(newCommit.promise);
+      const { result } = renderHook(() => useDayDraft(buildOptions({ onAddNote })));
+
+      act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+      let oldPending: Promise<void> = Promise.resolve();
+      act(() => {
+        oldPending = result.current.commitDraft("old");
+      });
+      act(() => result.current.cancelDraft());
+      act(() => result.current.activateDraft(ItineraryItemType.Note, 0, "bottom"));
+      act(() => {
+        void result.current.commitDraft("new");
+      });
+      const newId = onAddNote.mock.calls[1][3];
+
+      await act(async () => {
+        oldCommit.reject(new ApiClientError(409, "conflict", "This ID was already used."));
+        await oldPending;
+      });
+      await act(async () => result.current.commitDraft("new"));
+
+      // The newer draft's commit is still in flight, so the repeat is not sent, and its ID was not replaced.
+      expect(onAddNote).toHaveBeenCalledTimes(2);
+      newCommit.reject(new Error("offline"));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => result.current.commitDraft("new"));
+      expect(onAddNote.mock.calls[2][3]).toBe(newId);
+    });
+  });
+
   it("makeGapProps reflects active gap state and wires selection/dismiss/packing callbacks", () => {
     const onOpenPackingListPicker = vi.fn();
     const { result } = renderHook(() => useDayDraft(buildOptions({ onOpenPackingListPicker })));
