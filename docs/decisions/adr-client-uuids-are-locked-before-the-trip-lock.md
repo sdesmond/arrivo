@@ -10,6 +10,8 @@ Date: 2026-11-10. Status: accepted.
 
 A create that reuses a client UUID is a replay, not a collision, when the stored row has the same trip, parent (for a checklist, the day) and content: title, item text, count, order and checked state. `position` is the one field excluded, because other inserts on the day shift it; a retry after such a shift returns the stored row at its current position with no shift, write or effects. Any other difference stays a 409 (`conflict`), since a changed field is user intent that a replay must not answer over. The UI sends one UUID per draft and reuses it on every retry (`use-day-draft`), which is why this rule is needed. The replay answers with the stored row, so its `position` can differ from the original response; the rule holds for source-based creates (packing list or template) as well. Checklist creates (`createChecklist`) implement it now; the later creates that gain client UUIDs (entries 5-8: event, note, day-note, trip-note) adopt the same rule. Source: plan `story-send-draft-stable-client-ids-for-checklist-creates-plan.md` (story 2.3).
 
+Checklist items have no draft: the input clears on Enter. Since 2026-11-16 a failed item create keeps its UUID per checklist and text, and sending the same text to that checklist again reuses it (`handleAddChecklistItem`), matching the server's rule (same checklist and content replays). A success or a 409 forgets the UUID. A commit that settles after its draft was cancelled or replaced no longer touches the newer draft (`use-day-draft`).
+
 ## Document ids
 
 Date: 2026-11-12. Status: accepted.
