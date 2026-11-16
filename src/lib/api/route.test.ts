@@ -16,6 +16,7 @@ import nextConfig from "../../../next.config";
 import { MAX_UPLOAD_BYTES } from "@/lib/utils";
 import { ApiError } from "./errors";
 import { RateLimitError } from "@/lib/rate-limit";
+import { REQUEST_DEADLINE_MS, UPLOAD_DEADLINE_MS, remainingRequestMs } from "@/lib/request-deadline";
 const endpoint = defineEndpoint<{ done: boolean }>()({
   method: "PATCH",
   path: "/api/v1/items/:id",
@@ -193,6 +194,24 @@ function multipartRequest(
     body: form,
   });
 }
+it.each([
+  ["a JSON write", () => route(request(), context), handler, REQUEST_DEADLINE_MS],
+  ["an upload", () => uploadRoute(multipartRequest(), context), uploadHandler, UPLOAD_DEADLINE_MS],
+] as const)("gives %s a server deadline counted from arrival", async (_name, call, target, budget) => {
+  const clock = vi.spyOn(performance, "now").mockReturnValue(5_000);
+  let remaining: number | undefined;
+  (target as typeof handler).mockImplementationOnce(async () => {
+    remaining = remainingRequestMs();
+    return { done: true };
+  });
+  try {
+    expect((await call()).status).toBe(200);
+  } finally {
+    clock.mockRestore();
+  }
+  expect(remaining).toBe(budget);
+  expect(remainingRequestMs()).toBeUndefined();
+});
 it("parses one file part and named fields for a multipart endpoint", async () => {
   const response = await uploadRoute(
     multipartRequest((form) => {

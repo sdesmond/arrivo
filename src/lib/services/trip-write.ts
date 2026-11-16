@@ -7,6 +7,7 @@ import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@
 import { TripNotFoundError } from "./trip-access";
 import { afterTripWrite } from "./trip-write-effects";
 import { withIdempotency } from "@/lib/api/idempotency";
+import { guardTransactionDeadline } from "@/lib/request-deadline";
 
 /** Anything that can run a read: the client or a transaction. */
 export type ReadExecutor = Pick<DbTransaction, "select">;
@@ -42,12 +43,14 @@ export async function runTripWrite<Result>(
 ): Promise<Result> {
   let changed = false;
   const { value, replayed } = await db.transaction((transaction) =>
-    withIdempotency<Result>(
-      transaction,
-      { actor, request: input.replay, payload: input.payload },
-      steps(transaction, () => {
-        changed = true;
-      })
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<Result>(
+        transaction,
+        { actor, request: input.replay, payload: input.payload },
+        steps(transaction, () => {
+          changed = true;
+        })
+      )
     )
   );
   if (changed && !replayed) {

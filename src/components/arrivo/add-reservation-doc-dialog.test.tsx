@@ -208,6 +208,17 @@ describe("API retry lifecycle", () => {
     expect(vi.mocked(api).mock.calls[3][1].body).not.toEqual(vi.mocked(api).mock.calls[2][1].body);
     vi.mocked(api).mockResolvedValue({ id: "doc" });
   });
+  it("sends a new client id after a conflict, since the server refuses that id for good", async () => {
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(409, "conflict", "This document was deleted."));
+    render(<AddReservationDocDialog open reservationId="target-1" onOpenChange={vi.fn()} />);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [new File(["pdf"], "pass.pdf", { type: "application/pdf" })] } });
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^attach$/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: /^attach$/i }));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api).mock.calls[1][1].body).not.toEqual(vi.mocked(api).mock.calls[0][1].body);
+  });
   it("disables repeat submission while upload is pending", async () => {
     let finish!: (value: unknown) => void;
     vi.mocked(api).mockReturnValueOnce(

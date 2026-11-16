@@ -5,6 +5,8 @@ import { TripDocsTab } from "./trip-docs-tab";
 import type { Document } from "@/data/types";
 import { uploadTripDocument } from "@/lib/api/contract/documents";
 import { DOCUMENT_UPLOAD_HINT } from "@/lib/upload-policy";
+import { formatFileSize } from "@/lib/utils";
+import { ApiClientError } from "@/lib/api/client";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
@@ -126,10 +128,33 @@ describe("TripDocsTab", () => {
     expect(mutate.mock.calls[2][0].body.id).not.toBe(first);
   });
 
+  it("uses a new document id for the same file after a conflict, but keeps it after any other failure", () => {
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const file = () => new File(["pdf content"], "test.pdf", { type: "application/pdf", lastModified: 1 });
+    selectFile(file());
+    mutate.mock.calls[0][1].onError(new ApiClientError(503, "server_error", "Try again."));
+    selectFile(file());
+    expect(mutate.mock.calls[1][0].body.id).toBe(mutate.mock.calls[0][0].body.id);
+    mutate.mock.calls[1][1].onError(new ApiClientError(409, "conflict", "This document was deleted."));
+    selectFile(file());
+    expect(mutate.mock.calls[2][0].body.id).not.toBe(mutate.mock.calls[1][0].body.id);
+  });
+
   it("uses a new document id for a different file", () => {
     render(<TripDocsTab tripId="trip-1" docs={[]} />);
     selectFile(new File(["a"], "a.pdf", { type: "application/pdf" }));
     selectFile(new File(["bb"], "b.pdf", { type: "application/pdf" }));
+    expect(mutate.mock.calls[1][0].body.id).not.toBe(mutate.mock.calls[0][0].body.id);
+  });
+
+  it("uses a new document id for a same-named file whose size differs only in bytes", () => {
+    // The server compares the rounded display size, so a different file in the same bucket must never share an id.
+    render(<TripDocsTab tripId="trip-1" docs={[]} />);
+    const sized = (bytes: number) =>
+      new File(["x".repeat(bytes)], "scan.pdf", { type: "application/pdf", lastModified: 1 });
+    expect(formatFileSize(2000)).toBe(formatFileSize(2010));
+    selectFile(sized(2000));
+    selectFile(sized(2010));
     expect(mutate.mock.calls[1][0].body.id).not.toBe(mutate.mock.calls[0][0].body.id);
   });
 

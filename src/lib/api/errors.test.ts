@@ -5,6 +5,7 @@ import { ConflictError } from "@/lib/services/conflict-error";
 import { ConfirmationRequiredError } from "@/lib/services/confirmation-required-error";
 import { ValidationFailedError } from "@/lib/services/validation-failed-error";
 import { RateLimitError } from "@/lib/rate-limit";
+import { RequestDeadlineError } from "@/lib/services/request-deadline-error";
 import { UploadInvalidError, UploadTooLargeError } from "@/lib/upload-policy";
 import { z } from "zod";
 it("reports an invalid upload against the file field", async () => {
@@ -21,6 +22,7 @@ it.each([
   [new UploadTooLargeError("File is too large. Max 25.0 MB."), 413, "payload_too_large"],
   [new UploadInvalidError("Unsupported file type."), 422, "validation_failed"],
   [new RateLimitError(12), 429, "rate_limited"],
+  [new RequestDeadlineError(), 503, "deadline_exceeded"],
   [new ApiError(401, "unauthenticated", "Sign in."), 401, "unauthenticated"],
   [new ApiError(403, "mfa_enrollment_required", "Enroll MFA."), 403, "mfa_enrollment_required"],
   [new ApiError(400, "bad_request", "Invalid JSON."), 400, "bad_request"],

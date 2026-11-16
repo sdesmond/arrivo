@@ -134,6 +134,61 @@ describe("searchCoverImages", () => {
     await expect(searchCoverImages(actor, "Tokyo")).rejects.toThrow("Unsplash search request failed");
   });
 
+  describe("untrusted Unsplash results", () => {
+    const valid = {
+      id: "ok",
+      urls: { regular: "https://images.unsplash.com/ok" },
+      user: { name: "Ana", links: { html: "https://unsplash.com/@ana" } },
+      alt_description: null,
+      description: null,
+    };
+    const withUser = (user: unknown) => ({ ...valid, id: "bad", user });
+    const respond = (body: unknown) => mockFetch.mockResolvedValue({ ok: true, json: async () => body });
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each([
+      ["no id", { ...valid, id: "" }],
+      ["a non-http image URL", { ...valid, id: "bad", urls: { regular: "javascript:alert(1)" } }],
+      ["no image URL", { ...valid, id: "bad", urls: {} }],
+      ["a non-http profile URL", withUser({ name: "Ana", links: { html: "javascript:alert(1)" } })],
+      ["a blank photographer", withUser({ name: "  ", links: { html: "https://unsplash.com/@ana" } })],
+      ["an oversized photographer", withUser({ name: "a".repeat(201), links: { html: "https://unsplash.com/@a" } })],
+      ["no user", { ...valid, id: "bad", user: null }],
+      ["a numeric description", { ...valid, id: "bad", alt_description: 7 }],
+      ["a non-object", "nope"],
+    ])("drops a result with %s and keeps the rest", async (_name, malformed) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      respond({ results: [malformed, valid] });
+      const results = await searchCoverImages(actor, "Tokyo");
+      expect(results.map((result) => result.id)).toEqual(["ok"]);
+      expect(warn).toHaveBeenCalledExactlyOnceWith("[cover-search] dropped 1 malformed Unsplash result(s)");
+    });
+
+    it("trims the photographer the cover PUT would trim", async () => {
+      respond({ results: [{ ...valid, user: { name: " Ana ", links: { html: "https://unsplash.com/@ana" } } }] });
+      expect((await searchCoverImages(actor, "Tokyo"))[0].photographer).toBe("Ana");
+    });
+
+    it("accepts a result with no description fields", async () => {
+      const bare: Record<string, unknown> = { ...valid };
+      delete bare.alt_description;
+      delete bare.description;
+      respond({ results: [bare] });
+      expect(await searchCoverImages(actor, "Tokyo")).toEqual([expect.objectContaining({ id: "ok", alt: "" })]);
+    });
+
+    it.each([
+      ["no results array", {}],
+      ["a non-array results", { results: "nope" }],
+      ["a null body", null],
+    ])("throws for a response with %s", async (_name, body) => {
+      respond(body);
+      await expect(searchCoverImages(actor, "Tokyo")).rejects.toThrow(
+        "Unsplash search request failed: Unsplash returned an unexpected response"
+      );
+    });
+  });
+
   it("returns empty array when results are empty", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
@@ -315,6 +370,22 @@ describe("destination center", () => {
     expect(await resolveDestinationCenter(actor, "Paris")).toBeNull();
     mockSearchBoxSuggest.mockRejectedValueOnce(new Error("offline"));
     expect(await resolveDestinationCenter(actor, "Paris")).toBeNull();
+  });
+  it.each([
+    ["one coordinate", [2]],
+    ["three coordinates", [2, 48, 10]],
+    ["a string coordinate", ["2", 48]],
+    ["a non-finite coordinate", [Number.NaN, 48]],
+    ["a longitude out of range", [181, 48]],
+    ["a latitude out of range", [2, -91]],
+    ["no coordinates", undefined],
+  ])("returns null for geometry with %s", async (_name, coordinates) => {
+    mockSearchBoxRetrieve.mockResolvedValueOnce({ features: [{ geometry: { coordinates } }] });
+    expect(await resolveDestinationCenter(actor, "Paris")).toBeNull();
+  });
+  it("accepts the coordinate bounds themselves", async () => {
+    mockSearchBoxRetrieve.mockResolvedValueOnce({ features: [{ geometry: { coordinates: [-180, 90] } }] });
+    expect(await resolveDestinationCenter(actor, "Paris")).toEqual([-180, 90]);
   });
 });
 

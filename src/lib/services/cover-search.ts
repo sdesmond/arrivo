@@ -1,7 +1,10 @@
 import "server-only";
 
+import { z } from "zod";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
+import { isHttpUrl } from "@/lib/url-policy";
 import { MAX_COVER_SEARCH_PAGE, MAX_COVER_SEARCH_PAGE_SIZE } from "@/lib/validation-limits";
+import { MAX_COVER_PHOTOGRAPHER_LENGTH } from "@/lib/api/contract/covers";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
 import type { Actor, CoverImageSearchResult } from "@/data/types";
@@ -11,22 +14,20 @@ interface SearchCoverImagesOptions {
   perPage?: number;
 }
 
-interface UnsplashSearchResponse {
-  results: Array<{
-    id: string;
-    urls: {
-      regular: string;
-    };
-    user: {
-      name: string;
-      links: {
-        html: string;
-      };
-    };
-    alt_description: string | null;
-    description: string | null;
-  }>;
-}
+const httpUrl = z.string().refine(isHttpUrl);
+// Provider responses are untrusted. A result is kept only when the cover PUT would accept what it carries.
+const unsplashResult = z.object({
+  id: z.string().min(1),
+  urls: z.object({ regular: httpUrl }),
+  user: z.object({
+    name: z.string().trim().min(1).max(MAX_COVER_PHOTOGRAPHER_LENGTH),
+    links: z.object({ html: httpUrl }),
+  }),
+  alt_description: z.string().nullish(),
+  description: z.string().nullish(),
+});
+const unsplashResponse = z.object({ results: z.array(z.unknown()) });
+const mapboxCoordinates = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 
 const DEFAULT_COVER_IMAGE_PAGE = 1;
 const DEFAULT_COVER_IMAGE_PAGE_SIZE = 19;
@@ -112,10 +113,8 @@ export async function resolveDestinationCenter(
       signal: controller.signal,
     });
 
-    const feature = retrieved.features[0];
-    if (!feature?.geometry) return null;
-
-    return feature.geometry.coordinates as [number, number];
+    const parsed = mapboxCoordinates.safeParse(retrieved.features[0]?.geometry?.coordinates);
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   } finally {
@@ -174,14 +173,24 @@ export async function searchCoverImages(
       throw new Error(`Unsplash search error: ${response.status}`);
     }
 
-    const data = (await response.json()) as UnsplashSearchResponse;
-    return data.results.map((result) => ({
-      id: result.id,
-      url: result.urls.regular,
-      photographer: result.user.name,
-      photographerUrl: result.user.links.html,
-      alt: result.alt_description ?? result.description ?? "",
-    }));
+    const body = unsplashResponse.safeParse(await response.json());
+    if (!body.success) throw new Error("Unsplash returned an unexpected response");
+    const results: CoverImageSearchResult[] = [];
+    for (const candidate of body.data.results) {
+      const parsed = unsplashResult.safeParse(candidate);
+      if (!parsed.success) continue;
+      const result = parsed.data;
+      results.push({
+        id: result.id,
+        url: result.urls.regular,
+        photographer: result.user.name,
+        photographerUrl: result.user.links.html,
+        alt: result.alt_description ?? result.description ?? "",
+      });
+    }
+    const dropped = body.data.results.length - results.length;
+    if (dropped > 0) console.warn(`[cover-search] dropped ${dropped} malformed Unsplash result(s)`);
+    return results;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Unsplash search request failed: ${error.message}`, { cause: error });
