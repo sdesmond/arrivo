@@ -22,6 +22,7 @@ import { ChecklistItem } from "./checklist-item";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import type { Checklist } from "@/data/types";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { IconSize } from "@/lib/size-tokens";
 
 const BASE_CHECKLIST: Checklist = {
   id: "cl-1",
@@ -67,17 +68,17 @@ describe("ChecklistItem — icon", () => {
 });
 
 describe("ChecklistItem — Bug 1: chevron/trash overlap fix", () => {
-  it("header button has pr-9 class in non-draft mode to clear the absolute trash icon", () => {
+  it("header button has pr-12 class in non-draft mode to clear the absolute trash icon", () => {
     const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    const headerBtn = container.querySelector("button.pr-9");
+    const headerBtn = container.querySelector("button.pr-12");
     expect(headerBtn).toBeInTheDocument();
   });
 
-  it("header button does NOT have pr-9 class in draft mode (no trash icon present)", () => {
+  it("header button does NOT have pr-12 class in draft mode (no trash icon present)", () => {
     const { container } = render(
       <ChecklistItem checklist={BASE_CHECKLIST} isDraft onCommitDraft={vi.fn()} onCancelDraft={vi.fn()} />
     );
-    const headerBtn = container.querySelector("button.pr-9");
+    const headerBtn = container.querySelector("button.pr-12");
     expect(headerBtn).not.toBeInTheDocument();
   });
 });
@@ -687,6 +688,24 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
   it("renders dragHandle when provided", () => {
     render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={<span data-testid="drag-handle">grip</span>} />);
     expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  });
+
+  it("centres the drag handle and delete button in one group with 44px targets", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+    const deleteButton = screen.getByTitle("Delete checklist");
+    const group = deleteButton.parentElement as HTMLElement;
+
+    expect(group).toHaveClass("absolute", "flex", "items-center", "sm:focus-within:opacity-100");
+    expect(screen.getByTestId("drag-handle").parentElement).toBe(group);
+    expect(deleteButton).toHaveClass("size-11", "items-center", "justify-center");
+    // Trash2 is mocked in this file, so the size prop lands as a raw attribute
+    expect(screen.getByTestId("trash-icon")).toHaveAttribute("size", String(IconSize.rowAction));
+    expect(document.querySelector("#checklist-cl-1 > button")).toHaveClass("pr-24");
+  });
+
+  it("reserves room for the delete button alone when there is no drag handle", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    expect(document.querySelector("#checklist-cl-1 > button")).toHaveClass("pr-12");
   });
 
   it("does NOT render dragHandle slot when isDraft", () => {

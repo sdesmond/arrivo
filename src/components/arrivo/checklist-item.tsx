@@ -7,6 +7,7 @@ import type { Checklist } from "@/data/types";
 import { ChecklistItemRow } from "./checklist-item-row";
 import { useCanEditTrip } from "./trip-edit-access";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { IconSize } from "@/lib/size-tokens";
 
 export interface ChecklistItemProps {
   checklist: Checklist;
@@ -136,7 +137,7 @@ export function ChecklistItem({
       <button
         className={cn(
           "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
-          !isDraft && canEdit && (dragHandle ? "pr-16" : "pr-9")
+          !isDraft && canEdit && (dragHandle ? "pr-24" : "pr-12")
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
@@ -301,32 +302,22 @@ export function ChecklistItem({
         </div>
       )}
 
-      {/* Drag handle — always visible on mobile, hover-only on desktop */}
-      {canEdit && !isDraft && dragHandle && (
-        <span
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
-          style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
+      {/* Drag handle + delete share one centred group; always visible on mobile, hover/focus on desktop */}
+      {canEdit && !isDraft && (
+        <div
+          className="absolute right-1 top-0 flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
+          style={{ color: "var(--fg-4)" }}
         >
           {dragHandle}
-        </span>
-      )}
-
-      {/* Delete button */}
-      {canEdit && !isDraft && (
-        <button
-          onClick={() => onDelete?.(checklist.id)}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"
-          title="Delete checklist"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--fg-3)",
-            padding: 4,
-          }}
-        >
-          <Trash2 size={13} strokeWidth={1.5} />
-        </button>
+          <button
+            onClick={() => onDelete?.(checklist.id)}
+            className="flex size-11 shrink-0 items-center justify-center rounded"
+            title="Delete checklist"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)" }}
+          >
+            <Trash2 size={IconSize.rowAction} strokeWidth={1.5} />
+          </button>
+        </div>
       )}
     </div>
   );

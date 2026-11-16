@@ -9,8 +9,8 @@ export const IconSize = {
   actionChip: 12,
   /** Day card header stops-count icon — matches --fs-card-sub */
   cardSub: 13,
-  /** Place-row trash/delete icon */
-  placeAction: 15,
+  /** Itinerary-row trailing action icons (drag handle, delete) — kept equal so they share a midline */
+  rowAction: 18,
   /** Sidebar nav item icon */
   navItem: 18,
 } as const;

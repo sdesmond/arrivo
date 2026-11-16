@@ -631,10 +631,10 @@ describe("PlaceRow", () => {
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
-    const trashBtn = screen.getByTitle("Delete event");
-    expect(trashBtn.className).toContain("opacity-100");
-    expect(trashBtn.className).toContain("sm:opacity-0");
-    expect(trashBtn.className).toContain("sm:group-hover:opacity-100");
+    const actionGroup = screen.getByTitle("Delete event").parentElement as HTMLElement;
+    expect(actionGroup.className).toContain("opacity-100");
+    expect(actionGroup.className).toContain("sm:opacity-0");
+    expect(actionGroup.className).toContain("sm:group-hover:opacity-100");
   });
 
   it("drag handle wrapper has mobile-always-visible and desktop-hover-only CSS classes", () => {

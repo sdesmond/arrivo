@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
 import { useCanEditTrip } from "./trip-edit-access";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { IconSize } from "@/lib/size-tokens";
 
 interface NoteItemProps {
   note: ItineraryNote;
@@ -60,7 +61,10 @@ export function NoteItem({
   return (
     <div
       id={displayOnly ? undefined : `note-${note.id}`}
-      className={cn("group flex items-start gap-3 px-3 py-2.5 relative", dragHandle && "pr-16")}
+      className={cn(
+        "group flex items-start gap-3 px-3 py-2.5 relative",
+        canEdit && !isEditing && (dragHandle && !isDraft ? "pr-24" : "pr-12")
+      )}
       style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}
     >
       <span
@@ -125,30 +129,22 @@ export function NoteItem({
         </span>
       )}
 
-      {canEdit && !isEditing && !isDraft && dragHandle && (
-        <span
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute top-2 flex items-center"
-          style={{ right: 32, color: "var(--fg-4)", padding: 4 }}
-        >
-          {dragHandle}
-        </span>
-      )}
-
+      {/* Drag handle + delete share one centred group; always visible on mobile, hover/focus on desktop */}
       {canEdit && !isEditing && (
-        <button
-          onClick={() => onDelete?.(note.id)}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity absolute right-2 top-2"
-          title="Delete note"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--fg-3)",
-            padding: 4,
-          }}
+        <div
+          className="absolute right-1 top-0 flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
+          style={{ color: "var(--fg-4)" }}
         >
-          <Trash2 size={13} strokeWidth={1.5} />
-        </button>
+          {!isDraft && dragHandle}
+          <button
+            onClick={() => onDelete?.(note.id)}
+            className="flex size-11 shrink-0 items-center justify-center rounded"
+            title="Delete note"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-4)" }}
+          >
+            <Trash2 size={IconSize.rowAction} strokeWidth={1.5} />
+          </button>
+        </div>
       )}
     </div>
   );

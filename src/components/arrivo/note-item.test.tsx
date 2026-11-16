@@ -5,6 +5,7 @@ import { NoteItem } from "./note-item";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import type { ItineraryNote } from "@/data/types";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { IconSize } from "@/lib/size-tokens";
 
 const note: ItineraryNote = {
   id: "note-1",
@@ -100,10 +101,10 @@ describe("NoteItem", () => {
 
   it("delete button has mobile-always-visible and desktop-hover-only CSS classes", () => {
     render(<NoteItem note={note} onDelete={vi.fn()} />);
-    const trashBtn = screen.getByTitle("Delete note");
-    expect(trashBtn.className).toContain("opacity-100");
-    expect(trashBtn.className).toContain("sm:opacity-0");
-    expect(trashBtn.className).toContain("sm:group-hover:opacity-100");
+    const actionGroup = screen.getByTitle("Delete note").parentElement as HTMLElement;
+    expect(actionGroup.className).toContain("opacity-100");
+    expect(actionGroup.className).toContain("sm:opacity-0");
+    expect(actionGroup.className).toContain("sm:group-hover:opacity-100");
   });
 
   // ── isDraft mode ──────────────────────────────────────────────────────────
@@ -154,6 +155,23 @@ describe("NoteItem", () => {
   it("renders dragHandle when provided", () => {
     render(<NoteItem note={note} dragHandle={<span data-testid="drag-handle">grip</span>} />);
     expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  });
+
+  it("centres the drag handle and delete button in one group with 44px targets", () => {
+    render(<NoteItem note={note} onDelete={vi.fn()} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+    const deleteButton = screen.getByTitle("Delete note");
+    const group = deleteButton.parentElement as HTMLElement;
+
+    expect(group).toHaveClass("absolute", "flex", "items-center", "sm:focus-within:opacity-100");
+    expect(screen.getByTestId("drag-handle").parentElement).toBe(group);
+    expect(deleteButton).toHaveClass("size-11", "items-center", "justify-center");
+    expect(deleteButton.querySelector("svg")).toHaveAttribute("width", String(IconSize.rowAction));
+    expect(document.getElementById("note-note-1")).toHaveClass("pr-24");
+  });
+
+  it("reserves room for the delete button alone when there is no drag handle", () => {
+    render(<NoteItem note={note} onDelete={vi.fn()} />);
+    expect(document.getElementById("note-note-1")).toHaveClass("pr-12");
   });
 
   it("does NOT render dragHandle slot when isDraft", () => {
