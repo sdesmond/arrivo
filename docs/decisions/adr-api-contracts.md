@@ -16,6 +16,16 @@ A handler opts in with `apiRoute(endpoint, handler, { idempotent: { expiryMs? } 
 - **Outcomes.** Same fingerprint inside the window: the stored JSON, no write, no activity, live-sync or revalidation. Different method, resource or payload inside the window: 409 `conflict`. Past `expiresAt` (the instant itself counts as expired): the request runs again and replaces the record. If the mutation, the record write or the commit fails, nothing persists and a retry can succeed. After-commit effects run only for a new mutation.
 - **Expiry.** `expiryMs` must be positive, finite and at most `IDEMPOTENCY_RETENTION_MS` (24 hours, `src/lib/idempotency-retention.ts`), which is also the default. The maintenance pass deletes rows older than the retention, API and packing alike, so a longer expiry would lose live keys; `withIdempotency` refuses one and `idempotency-expiry-cap.test.ts` fails on any route that sets one. A mobile endpoint that needs a longer window for offline retries must raise the retention first, or move the sweep to a stored `expires_at`.
 
+## Request deadline
+
+Date: 2026-11-16. Status: accepted.
+
+Aborting `fetch` does not stop the server, so a write the client timed out on could commit later and land after the write that followed it. `apiRoute` runs each request under a deadline (`src/lib/request-deadline.ts`) set ahead of the client's timeout: 20 seconds for JSON (`REQUEST_TIMEOUT_MS` 30 s minus a 10 s margin) and 90 seconds for multipart (120 s minus 30 s, since Next can buffer an upload body before the handler starts). `runTripWrite` guards its transaction: it caps each statement, lock waits included, at the time left, and rolls back work that finishes past the deadline. Either way the answer is 503 `deadline_exceeded`, and nothing is committed.
+
+- **Clock.** `performance.now()` from the handler's start, not `getNow()`, so the dev date picker cannot move it. Time spent before the handler (network, queueing) is not counted, which is why the margin exists; it bounds the race rather than closing it.
+- **Scope.** API writes through `runTripWrite`, which is every v1 write today. Server actions run without a deadline.
+- **Later.** Ordering a client's own writes past this needs version checks (`If-Match`) or a per-resource sequence; that is a mobile-phase decision, together with last-write-wins versus conflict detection for collaborators' edits.
+
 ## Multipart uploads
 
 Date: 2026-11-12. Status: accepted.

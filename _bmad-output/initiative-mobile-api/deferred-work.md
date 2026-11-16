@@ -54,6 +54,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
   summary: A write that times out client-side may still commit later and land after the next write on the same key.
   evidence: Aborting `fetch` does not stop the server. Needs server-side ordering or idempotency keys on PATCH; flagged by blind-hunter.
+  completed: 2026-11-16 on `fix/api-write-safety`; `apiRoute` runs each request under a deadline 10 s ahead of the client's timeout (30 s under for uploads), and `runTripWrite` caps each statement at the time left and rolls back work that ends past it (503 `deadline_exceeded`), so an abandoned write cannot commit late (`src/lib/request-deadline.ts`; ADR `adr-api-contracts.md` "Request deadline"). Tests: `request-deadline.test.ts`, `route.test.ts`, `trip-write.test.ts`, `errors.test.ts`, and `request-deadline.feature` (statement cap, lock wait, late finish and transaction-local scope against real PostgreSQL). Not done: time before the handler starts is not counted, so the margin bounds the race rather than closing it; ordering beyond that (version checks) is a mobile-phase decision. No E2E drives an API route past its 20 s deadline.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
   summary: After a timeout the hook shows "Try again" and does not refresh, so the UI can stay stale after a write that committed.
@@ -87,6 +88,7 @@
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Consider exact byte-size replay metadata rather than rounded display size.
   evidence: Shared uploader compares formatted size, so different byte lengths within one rounding bucket can replay; behavior predates story 3.2.
+  completed: 2026-11-16 on `fix/api-write-safety`; no schema change. The server still compares the rounded size, but no web client can reach it with a different file: both attach dialogs mint a new id whenever the chosen `File` changes, and the trip tab keys its id on name, exact byte size and last-modified time. Pinned by `trip-docs-tab.test.tsx` "uses a new document id for a same-named file whose size differs only in bytes" beside the existing dialog cases. Revisit (a `byte_size` column) if a non-web client reuses ids across files.
 - source_plan: `epic-documents-covers-api/story-upload-event-and-reservation-documents-through-the-api-plan.md`
   summary: Prevent pending document uploads from clearing newer dialog selections or sessions.
   evidence: Both original dialogs leave file/mode controls enabled and unconditionally close after asynchronous completion; changing file or cancel/reopen can lose newer pending selection.
@@ -104,6 +106,7 @@
   summary: A retried upload carrying a client document id re-inserts a document the user deleted in between.
   evidence: `uploadDocument` inserts when no row exists for `draft.id` and `removeDocument` leaves no tombstone; severity unverified (medium if real). Check how events handle create-after-delete and decide whether documents need a tombstone or the retry window already covers it.
   completed: 2026-11-14 on `fix/document-retry-after-delete`; reproduced on the production stack (upload with an id, delete, retry: 200, one row, one file; nothing orphaned) and accepted rather than fixed. Events create the same way, a tombstone would need schema work epic 3 excluded and would have to cover every client-UUID create, and the reappeared document is visible and deletable. Recorded in `adr-client-uuids-are-locked-before-the-trip-lock.md` ("Document ids"); pinned by the `api.feature` scenario "A retry sent after the document was deleted creates it again under the same id" and a `documents.test.ts` case.
+  reopened: 2026-11-16 on `fix/api-write-safety` (user's call, for the mobile offline queue); deleting a document writes a `deleted:document:<id>` record in `idempotency_keys`, and an upload reusing that id within 24 hours is a 409 that stores nothing; the web uploaders drop their id on a 409. No migration; the retention sweep removes the records. Documents only; other client-UUID creates still create again. ADR section "Deleted document ids". Tests: `deletion-records.test.ts`, `documents.test.ts`, the three uploader component tests, and the `api.feature` scenario renamed "A retry sent after the document was deleted conflicts instead of bringing it back".
 
 - source_plan: `epic-documents-covers-api/story-attach-and-promote-documents-through-the-api-plan.md`
   summary: Validate retained ancestry for legacy documents whose event and reservation belong to different trips.
@@ -136,6 +139,7 @@
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Verify whether malformed Mapbox geometry or Unsplash response fields require runtime validation.
   evidence: Unverified medium impact; old action and extracted service both trust provider interfaces. Capture a malformed provider response to settle reachability before adding guards.
+  completed: 2026-11-16 on `fix/api-write-safety`, without a captured response (user's call). `cover-search.ts` parses provider data with Zod: an Unsplash result is kept only when the cover PUT would accept it (non-empty id, http(s) image and profile URLs, a trimmed photographer of 1 to 200 characters), the rest are dropped and counted in a `console.warn`, and a body without a `results` array throws; Mapbox coordinates must be two finite numbers within longitude and latitude range, or the lookup resolves null. Tests: `cover-search.test.ts`.
 - source_plan: epic-documents-covers-api/story-search-cover-images-and-destinations-through-get-endpoints-plan.md
   summary: Escape special characters in offline Unsplash SVG fixture text.
   evidence: Existing stub interpolates destination query into SVG text; XML-sensitive characters can create invalid fixture images.
