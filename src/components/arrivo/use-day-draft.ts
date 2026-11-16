@@ -119,6 +119,10 @@ export function useDayDraft({
     commitStartedRef.current = true;
     // Every kind carries the draft's client ID, so a duplicate commit is a replay and the draft may re-arm.
     const baseline = { count: itemCount, signature };
+    // The draft this commit belongs to. If it was cancelled or replaced while the request ran, the outcome is left
+    // alone: arming the baseline or resetting the guard would act on the newer draft.
+    const committingId = draftIdRef.current;
+    const stillCurrent = () => draftIdRef.current === committingId;
     try {
       if (draft.kind === ItineraryItemType.Note) {
         await onAddNote?.(dayNumber, content, draft.insertAtPosition, draftIdRef.current ?? undefined);
@@ -141,9 +145,11 @@ export function useDayDraft({
           await onAddEvent?.(dayNumber, content, undefined, draft.insertAtPosition, clientId);
         }
       }
+      if (!stillCurrent()) return;
       committedRef.current = baseline;
       setCommitVersion((version) => version + 1);
     } catch (error) {
+      if (!stillCurrent()) return;
       // handler already surfaced a toast; keep the draft open so the user can retry
       commitStartedRef.current = false;
       // A 409 means the retained ID already names different content (an earlier attempt landed before the user edited

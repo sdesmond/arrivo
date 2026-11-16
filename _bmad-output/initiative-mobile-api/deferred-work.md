@@ -16,6 +16,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-move-checklist-item-lifecycle-to-the-api-plan.md`
   summary: Send a stable client UUID on checklist item create so a retry after a lost response or a double submit cannot duplicate the item.
   evidence: `handleAddChecklistItem` sends no `id`, so the API's id-based replay is unused from the UI; the retired server action had the same gap. Needs a draft-stable id in the item input flow. Raised by blind-hunter and edge-case-hunter.
+  completed: 2026-11-16 on `fix/draft-retry-ids`. The handler already sent an id, but a new one per call. Now a failed create keeps its id per checklist and text, and sending that text to that checklist again reuses it, so a create whose response was lost replays (the server matches checklist and content) instead of adding a duplicate. The id is claimed while in flight, a success forgets it, and a 409 drops it. A double submit was already impossible: the input clears on Enter. Tests: `use-checklist-handlers.test.tsx` (same-text retry, per-checklist-and-text keys, a repeat after success, conflict, an older attempt settling late). No E2E: reaching it needs a lost response after commit.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-checklist-api-pilot/story-move-packing-source-checklist-insertion-to-the-api-plan.md`
   summary: Double-clicking a packing-source picker row creates two checklists because each call mints a fresh client UUID and nothing guards an in-flight insert.
@@ -69,9 +70,11 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-send-draft-stable-client-ids-for-checklist-creates-plan.md`
   summary: A draft whose commit is still pending when the user cancels and opens another draft arms the new draft's baseline when the old commit resolves.
   evidence: Pre-existing in `use-day-draft` (the old baseline ref did the same); the old commit's growth can clear the new draft. Settle by tying the post-await writes to the draft ID captured at commit start.
+  completed: 2026-11-16 on `fix/draft-retry-ids`; `commitDraft` captures the draft ID at start and ignores its own outcome once that draft was cancelled or replaced, so it neither arms the newer draft's baseline nor resets its in-flight guard or ID. Tests: `use-day-draft.test.ts` "a commit that settles after its draft was replaced" (both fail without the fix).
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-send-draft-stable-client-ids-for-checklist-creates-plan.md`
   summary: Editing the first-item text and committing again after an ambiguous failure reuses the draft ID and gets a 409 until the draft is cancelled.
   evidence: Content drift stays a 409 by the frozen boundary, and the hook keeps the ID after a rejection. A fix would mint a new ID on a conflict, which needs the handler to surface the status.
+  completed: already fixed by `e2e3ff33` ("give an event or checklist draft a new ID after a conflict"); `handleAddChecklist` rethrows the `ApiClientError` and `commitDraft` mints a new ID on `conflict`. Test: `use-day-draft.test.ts` "mints a new checklist ID after a conflict...". Reconciled 2026-11-16 on `fix/draft-retry-ids`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-extract-shared-timeline-positioning-and-reorder-days-through-plan.md`
   summary: Drags still waiting in a keyed `useApiMutation` queue are dropped if the component unmounts before they start, so the last rapid drag can fail to persist after immediate navigation.
