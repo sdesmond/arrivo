@@ -14,6 +14,7 @@ import {
   parseIdempotencyKey,
   withIdempotency,
 } from "./idempotency";
+import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { ConflictError } from "@/lib/services/conflict-error";
 
@@ -233,6 +234,19 @@ it("honors a configured expiry and rejects invalid ones", async () => {
     await expect(run({ request: { expiryMs } })).rejects.toBeInstanceOf(RangeError);
   }
   expect(mutate).toHaveBeenCalledOnce();
+});
+
+it("defaults to the retention window and refuses an expiry the sweep would cut short", async () => {
+  // The sweep deletes rows by age, so a longer expiry would lose live keys and let a late retry write twice.
+  expect(DEFAULT_IDEMPOTENCY_EXPIRY_MS).toBe(IDEMPOTENCY_RETENTION_MS);
+  await expect(run({ request: { expiryMs: IDEMPOTENCY_RETENTION_MS + 1 } })).rejects.toThrow(
+    /at most 24 hours: the idempotency_keys sweep/
+  );
+  expect(mutate).not.toHaveBeenCalled();
+  await run({ request: { expiryMs: IDEMPOTENCY_RETENTION_MS } });
+  expect(upserts[0].values.result).toMatchObject({
+    expiresAt: new Date(mocks.now.getTime() + IDEMPOTENCY_RETENTION_MS).toISOString(),
+  });
 });
 
 it.each([

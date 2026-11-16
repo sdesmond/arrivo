@@ -1,12 +1,14 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
-const { after, drainPendingFileDeletions } = vi.hoisted(() => ({
+const { after, drainPendingFileDeletions, purgeExpiredIdempotencyKeys } = vi.hoisted(() => ({
   after: vi.fn(),
   drainPendingFileDeletions: vi.fn(),
+  purgeExpiredIdempotencyKeys: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after }));
 vi.mock("@/lib/file-cleanup", () => ({ drainPendingFileDeletions }));
+vi.mock("@/lib/idempotency-retention", () => ({ purgeExpiredIdempotencyKeys }));
 vi.mock("@/db", () => ({ db: {} }));
 import {
   ACTIVITY_MAINTENANCE_LOCK,
@@ -58,6 +60,8 @@ describe("activity maintenance", () => {
     await after.mock.calls[0][0]();
     // The same pass retries file deletions left over from a crash or a storage failure.
     expect(drainPendingFileDeletions).toHaveBeenCalledOnce();
+    // And it deletes replay records past their retention.
+    expect(purgeExpiredIdempotencyKeys).toHaveBeenCalledOnce();
     after.mockImplementationOnce(() => {
       throw new Error("private");
     });

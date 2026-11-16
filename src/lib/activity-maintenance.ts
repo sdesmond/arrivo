@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { purgeExpiredIdempotencyKeys } from "@/lib/idempotency-retention";
 
 export type ActivityMaintenanceDatabase = Pick<typeof db, "transaction">;
 // Independent namespace scoped to the active schema; never shares lifecycle or per-partition writer locks.
@@ -63,9 +64,11 @@ function intervalMs(): number {
 export function scheduleActivityMaintenance(nowMs: number = Date.now()): void {
   if (nowMs - lastScheduledAt < intervalMs()) return;
   try {
-    // Housekeeping shares the pass: it also retries stored-file deletions left queued by a crash or storage failure.
+    // Housekeeping shares the pass: it also deletes expired replay records and retries stored-file deletions left
+    // queued by a crash or storage failure.
     after(async () => {
       await cleanupActivity();
+      await purgeExpiredIdempotencyKeys();
       // Loaded here, not at the top: E2E fixtures import this module under plain Node, where `server-only` throws.
       const { drainPendingFileDeletions } = await import("@/lib/file-cleanup");
       await drainPendingFileDeletions();

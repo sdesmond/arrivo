@@ -74,6 +74,8 @@ export const FEATURE_MAP = [
     "src/app/api/v1/documents/**",
     "tests/e2e/document-fixture.ts",
     "src/lib/api/**",
+    // API replay's default and maximum expiry.
+    "src/lib/idempotency-retention.ts",
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/services/trip-write.ts",
@@ -272,6 +274,12 @@ export const FEATURE_MAP = [
     "src/app/(app)/admin/activity/**",
     "tests/e2e/activity-retention-fixture.ts",
     "tests/e2e/activity-integration-fixture.ts",
+  ]),
+  entry("idempotency-retention", [
+    "src/lib/idempotency-retention.ts",
+    // Schedules the sweep on dynamic requests.
+    "src/lib/activity-maintenance.ts",
+    "tests/e2e/idempotency-retention-fixture.ts",
   ]),
   entry("admin-overview", [
     "src/lib/overview-metric.ts",
@@ -635,6 +643,8 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/packing-actions.ts",
     // Packing keeps raw keys in the idempotency_keys table that API replay namespaces its own rows in.
     "src/lib/api/idempotency.ts",
+    // Its save-as-template replay window is the retention.
+    "src/lib/idempotency-retention.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/error-utils.ts",
   ]),
