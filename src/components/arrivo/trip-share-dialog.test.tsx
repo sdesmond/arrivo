@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { Collaborator, Invitation } from "@/data/types";
 import { MockEventSource } from "@/lib/live-sync-test-helpers";
 import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
+import { ApiClientError } from "@/lib/api/client";
 import { isDismissalPress, TripShareDialog } from "./trip-share-dialog";
 
 // The share dialog joins the trip's live channel to refetch on membership changes; jsdom has no
@@ -37,15 +38,19 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
   resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
   dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
-  saveContributorChanges: (...args: unknown[]) => mockSaveContributorChanges(...args),
 }));
 
 vi.mock("@/lib/api/client", async (original) => ({
   ...(await original<typeof import("@/lib/api/client")>()),
   api: (
-    endpoint: { path: string },
-    input: { params: { tripId?: string }; body: { tripId?: string; username?: string; role?: string; id?: string } }
+    endpoint: { method: string; path: string },
+    input: {
+      params: { tripId?: string };
+      body: { tripId?: string; username?: string; role?: string; id?: string; changes?: unknown };
+    }
   ) => {
+    if (endpoint.method === "PATCH" && endpoint.path.endsWith("/collaborators"))
+      return mockSaveContributorChanges(input.params.tripId, input.body.changes);
     if (endpoint.path.endsWith("/collaborators")) return mockGetShareDialogData(input.params.tripId);
     if (endpoint.path.endsWith("/invitable")) return mockListInvitableUsers(input.body.tripId);
     return mockInviteContributor(input.params.tripId, input.body.username, input.body.role, input.body.id);
@@ -650,7 +655,7 @@ describe("TripShareDialog batch staging", () => {
 
   it("keeps staged state, shows the error, and does not close when the batch fails", async () => {
     const { toast } = await import("sonner");
-    mockSaveContributorChanges.mockResolvedValue({ status: "error", message: "Batch rejected" });
+    mockSaveContributorChanges.mockRejectedValue(new ApiClientError(422, "validation_failed", "Batch rejected"));
     const onOpenChange = openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));
@@ -666,11 +671,9 @@ describe("TripShareDialog batch staging", () => {
   });
 
   it("refetches and discards staged changes when the batch is rejected as stale", async () => {
-    mockSaveContributorChanges.mockResolvedValue({
-      status: "error",
-      message: "A contributor's role changed since you started editing.",
-      stale: true,
-    });
+    mockSaveContributorChanges.mockRejectedValue(
+      new ApiClientError(409, "conflict", "A contributor's role changed since you started editing.")
+    );
     openDialog();
 
     fireEvent.click(await screen.findByTitle("Remove Grace Hopper"));

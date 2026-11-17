@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { saveContributorChanges } from "@/app/(app)/trips/[tripId]/actions";
-import { api } from "@/lib/api/client";
-import { getCollaborators } from "@/lib/api/contract/sharing";
+import { api, ApiClientError } from "@/lib/api/client";
+import { getCollaborators, saveContributorChanges } from "@/lib/api/contract/sharing";
 import { useShareInvitationActions } from "@/components/arrivo/use-share-invitation-actions";
 import { useTripShareInviteForm } from "@/components/arrivo/use-trip-share-invite-form";
 import { LiveSyncEventType } from "@/data/types";
@@ -15,6 +14,8 @@ interface UseTripShareDialogControllerOptions {
   tripId: string;
 }
 const RECOVERY_WARNING = "Sharing details may be out of date. Close and reopen to refresh.";
+// Typed refusals shown inline; anything else (server, deadline, network) is a toast.
+const SAVE_ERROR_STATUSES = new Set([403, 404, 409, 422]);
 type ShareDataRefreshReason = "load" | "invite" | "live" | "recovery";
 export function useTripShareDialogController({ onRequestClose, tripId }: UseTripShareDialogControllerOptions) {
   const [data, setData] = useState<ShareDialogData | null>(null);
@@ -146,22 +147,24 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     setSaveError(null);
     let didRecoverData = false;
     try {
-      const result = await saveContributorChanges(tripId, changes);
+      await api(saveContributorChanges, { params: { tripId }, body: { changes } });
       if (!isCurrentRef.current) return;
-      if (result.status === "error") {
-        setSaveError(result.message);
-        if (result.stale) {
-          setStagedChanges({});
-          didRecoverData = await refreshShareData("recovery");
-        }
-        return;
-      }
       // Success closes the dialog, so any membership change missed mid-save is moot.
       missedLiveRefreshRef.current = false;
       setStagedChanges({});
       onRequestClose();
-    } catch {
-      if (isCurrentRef.current) toast.error("Could not save changes.");
+    } catch (error) {
+      if (!isCurrentRef.current) return;
+      if (!(error instanceof ApiClientError) || !SAVE_ERROR_STATUSES.has(error.status)) {
+        toast.error("Could not save changes.");
+        return;
+      }
+      setSaveError(error.message);
+      // Stale rows (409) or lost manager access (403/404): drop staged changes and show current data.
+      if (error.status !== 422) {
+        setStagedChanges({});
+        didRecoverData = await refreshShareData("recovery");
+      }
     } finally {
       isSavingChangesRef.current = false;
       if (isCurrentRef.current) setIsSavingChanges(false);
