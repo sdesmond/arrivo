@@ -5,6 +5,7 @@ import { activityEvents, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 const SIGN_UP_USERNAME_KEY = "signUpUsername";
 // Sign-up requires 8+ characters, longer than the seeded E2E_PASSWORD.
@@ -178,6 +179,6 @@ Then("I see setup error {string}", async ({ page }, error: string) => {
 });
 
 Then("setup remains open after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("heading", { name: "Welcome to Arrivo!" })).toBeVisible();
 });

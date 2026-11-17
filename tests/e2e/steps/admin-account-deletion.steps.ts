@@ -15,6 +15,7 @@ import { waitForServerActionResponse } from "../server-action";
 import { createAdminDeletionFixture, type AdminDeletionFixture } from "../admin-account-deletion-fixture";
 import { createLockGate } from "../role-service-fixture";
 import type { ScenarioFixtureContext, ScenarioTripRecord, ScenarioUserRecord } from "../scenario-fixture";
+import { reloadPage } from "../page-reload";
 
 type Scenario = ScenarioFixtureContext;
 
@@ -217,7 +218,7 @@ Then("the completed account is gone and its trip no longer exists", async ({ sce
 });
 
 Then("I am still signed in on Users", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("list", { name: "App users" })).toBeVisible();
 });
 

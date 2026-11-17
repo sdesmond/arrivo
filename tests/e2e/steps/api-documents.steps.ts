@@ -17,6 +17,7 @@ import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { Given, When, Then, After } from "../fixtures";
 
 import { E2E_EVENT, E2E_RESERVATION } from "../e2e-seed-data";
+import { reloadPage } from "../page-reload";
 
 interface DocumentApiState {
   /** Fixture attachment stays fixed even when a request probes another target. */
@@ -293,7 +294,7 @@ Then("the response does not reveal the hidden document", async ({ page }) => {
   expect(await storedTripDocuments(current.tripId)).toHaveLength(0);
 });
 Then("after reload the Documents tab lists {string}", async ({ page }, name: string) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 });

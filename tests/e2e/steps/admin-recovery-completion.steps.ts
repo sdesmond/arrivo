@@ -17,6 +17,7 @@ import { completePasswordReset } from "../../../src/lib/password-reset";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { withE2EDb } from "../e2e-db";
+import { reloadPage } from "../page-reload";
 
 type Scenario = Pick<ScenarioFixtureContext, "getValue" | "setValue" | "ensureCurrentUser" | "signOut">;
 
@@ -129,7 +130,7 @@ Then("the recovery form shows a new authenticator key", async ({ page, scenario 
 });
 
 Then("reloading shows the same authenticator key", async ({ page, scenario }) => {
-  await page.reload();
+  await reloadPage(page);
   expect(await setupKey(page)).toBe(scenario.getValue<string>("recoverySecret"));
 });
 
@@ -152,7 +153,7 @@ Then("I see ten recovery codes once", async ({ page }) => {
 });
 
 Then("reloading does not show the recovery codes again", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("heading", { name: "Recovery link unavailable" })).toBeVisible();
   await expect(page.getByRole("list", { name: "Recovery codes" })).toHaveCount(0);
 });

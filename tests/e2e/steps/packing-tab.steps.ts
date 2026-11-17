@@ -17,6 +17,7 @@ import {
   E2E_PACKING_STRIKETHROUGH_ITEMS,
 } from "../e2e-seed-data";
 import { Before, Given, Then, When } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
@@ -362,7 +363,7 @@ Then("the packing list should not contain {string}", async ({ page }, name: stri
 });
 
 When("I reload the trip page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await page.waitForURL(/\/trips\/.+/);
   await openPackingTab(page);
 });

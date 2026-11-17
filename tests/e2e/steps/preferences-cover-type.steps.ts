@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { Before, When, Then } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 Before({ tags: "@cover-type-initial-map" }, async ({ scenario }) => {
   await scenario.materialize({
@@ -24,7 +25,7 @@ When("I select the {string} cover type", async ({ page }, label: string) => {
 });
 
 Then("the {string} cover type should be selected after reload", async ({ page }, label: string) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("tab", { name: "Preferences" }).click();
   const toggle = page.getByRole("button", { name: label, exact: true });
   await expect(toggle).toBeAttached({ timeout: 5000 });

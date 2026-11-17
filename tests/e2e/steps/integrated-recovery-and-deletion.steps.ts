@@ -10,6 +10,7 @@ import { After, Given, Then } from "../fixtures";
 import { withE2EDb } from "../e2e-db";
 import { openCredentialLink, recipientContext } from "../onboarding-browser";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
+import { reloadPage } from "../page-reload";
 
 type Scenario = ScenarioFixtureContext;
 
@@ -155,7 +156,7 @@ Then("the admin Activity page exposes no credentials or private trip detail", as
     // Events land just after their responses, so wait for the flow's own rows before scanning.
     const target = seeded(scenario)?.owner ?? appMember(scenario);
     await expect(async () => {
-      await adminPage.reload();
+      await reloadPage(adminPage);
       await expect(adminPage.getByRole("row").filter({ hasText: target.username }).first()).toBeVisible({
         timeout: 2_000,
       });

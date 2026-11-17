@@ -4,6 +4,7 @@ import { checklistItems, itineraryChecklists, packingItems, tripPackingLists, da
 import { waitForApiResponse } from "../api-response";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 async function reloadTrip(page: Page): Promise<void> {
   await page.goto(page.url());
@@ -155,7 +156,7 @@ Then("a checklist titled {string} should appear in day 1", async ({ page }, titl
 });
 
 async function reopenChecklist(page: Page, title: string) {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Itinerary" }).click();
   const dayToggle = page
     .locator("button")

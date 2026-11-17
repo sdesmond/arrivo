@@ -13,6 +13,7 @@ import { EVENT_LABELS } from "../../../src/lib/activity-labels";
 import { withE2EDb } from "../e2e-db";
 import { seedActivityEvents, seedActor } from "../activity-seed";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
 const failureMarker = join(storageRoot, ".storage-probes", "force-failure");
@@ -77,7 +78,7 @@ async function expectExactUploadBytes(page: Page) {
   // Other scenarios may upload concurrently: compare only measurements bracketed by stable totals.
   await expect(async () => {
     const before = await enumerateUploadBytes();
-    await page.reload();
+    await reloadPage(page);
     const value = metricRow(page, "Upload storage").locator("dd > span");
     const display = await value.innerText();
     const exactBytes = await value.getAttribute("title");
@@ -188,7 +189,7 @@ Then("the Overview trip and document totals match the database with checked time
   await expect(async () => {
     const before = await readInstanceTotals();
     const startedAt = Date.now();
-    await page.reload();
+    await reloadPage(page);
     const tripRow = metricRow(page, "Trips");
     const documentRow = metricRow(page, "Documents");
     await expect(tripRow.locator("dd > span")).toHaveText(String(before.trips));
@@ -261,7 +262,7 @@ Then("the Overview lists the five newest seeded admin actions newest first", asy
 Then("the Overview failed sign-in count matches Activity for the last 24 hours", async ({ page }) => {
   // Parallel scenarios record real failures: compare against the same window, bracketed by stable counts.
   await expect(async () => {
-    await page.reload();
+    await reloadPage(page);
     const row = metricRow(page, "Failed sign-ins (24 hours)");
     const checkedAt = await row.locator("time").getAttribute("datetime");
     await expect(row.locator("time")).toHaveText(/^Checked \d{1,2}:\d{2}:\d{2}/);
@@ -296,7 +297,7 @@ When("the Overview storage probe fails", async ({ scenario }) => {
 });
 
 When("I reload the Overview under the storage fault", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
 });
 
 Then("the Overview storage refresh is independent and keyboard accessible", async ({ page }) => {

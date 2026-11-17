@@ -4,6 +4,7 @@ import { waitForApiResponse } from "../api-response";
 import { eq } from "drizzle-orm";
 import { trips } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
+import { reloadPage } from "../page-reload";
 
 const STUB_PHOTOGRAPHER_NAME = "Stub Photographer 1";
 const STUB_PHOTOGRAPHER_URL = "https://unsplash.com/@stub-photographer-1";
@@ -100,7 +101,7 @@ When("I open the cover picker from the cover options menu", async ({ page }) => 
 });
 
 When("I reload the trip detail page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
 });
 
 When("I upload a new cover image from the picker", async ({ page }) => {
@@ -137,7 +138,7 @@ Then("the cover picker defaults to the Custom tab", async ({ page }) => {
 });
 
 Then("the uploaded cover image persists after reloading the page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   const coverImage = page.locator('img[role="presentation"]').first();
   await expect(coverImage).toHaveAttribute("src", /\/api\/storage\/trip-covers\//);
   await expect
@@ -171,7 +172,7 @@ Then("I see no cover image editing controls", async ({ page }) => {
 });
 
 Then("the selected stub cover persists after reload", async ({ page, scenario }) => {
-  await page.reload();
+  await reloadPage(page);
   // TripCover deliberately does not render data URLs; the offline search stub is still persisted with attribution.
   const [trip] = await withE2EDb((database) =>
     database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))

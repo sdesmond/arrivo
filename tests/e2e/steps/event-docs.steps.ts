@@ -17,6 +17,7 @@ import {
   E2E_PICK_DOC,
   E2E_TRIP_START_DATE,
 } from "../e2e-seed-data";
+import { reloadPage } from "../page-reload";
 
 function escapeRegex(source: string): string {
   return source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -241,7 +242,7 @@ When("I upload {string} to event {string}", async ({ page, scenario }, name: str
 Then(
   "after reload event {string} shows uploaded document {string}",
   async ({ page }, eventName: string, name: string) => {
-    await page.reload();
+    await reloadPage(page);
     await page.getByRole("button", { name: "Itinerary", exact: true }).click();
     const eventTitle = page.getByText(eventName, { exact: true });
     if (!(await eventTitle.isVisible()))

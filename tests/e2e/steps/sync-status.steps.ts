@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { After, Then, When } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 const LIVE_SYNC_EVENTS_ROUTE = "**/api/users/me/events";
 
@@ -27,7 +28,7 @@ When("I interrupt the live sync connection", async ({ page }) => {
   await page.route(LIVE_SYNC_EVENTS_ROUTE, async (route) => {
     await route.abort("failed");
   });
-  await page.reload();
+  await reloadPage(page);
 });
 
 When("I restore the live sync connection", async ({ page }) => {
