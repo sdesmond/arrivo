@@ -16,13 +16,14 @@ import {
 } from "../../src/lib/credential-authorizations";
 import { issueAdminRecovery } from "../../src/lib/admin-recovery-issuance";
 import { E2E_STORAGE_DIRECTORY } from "../../scripts/e2e-storage.mjs";
+import { E2E_DIST_DIRECTORY, e2eServerEnv, hasE2EBuild } from "../../scripts/e2e-server.mjs";
 
 // Password-policy scenarios change the singleton `app_state` row, which every other scenario reads. They therefore
 // never touch the shared arrivo_e2e database: each scenario owns a migrated sibling database and its own app process,
-// and tears both down. Slots keep that safe under parallel workers (one slot per worker) and keep the set of Next dist
-// directories fixed, so tsconfig/eslint/prettier/gitignore can name them and Next never rewrites tsconfig.
+// and tears both down. Slots keep that safe under parallel workers (one slot per worker). Each app runs `next start` on
+// the shared E2E production build, so a slot needs only its own port, database and storage.
 
-export const POLICY_APP_SLOTS = 4;
+export const POLICY_APP_SLOTS = 16;
 export const POLICY_APP_BASE_PORT = 3110;
 const MIGRATIONS_DIRECTORY = "drizzle";
 const READY_TIMEOUT_MS = 300_000;
@@ -30,10 +31,6 @@ const DATABASE_INFIX = "_policy_";
 
 export function policyAppPort(slot: number): number {
   return POLICY_APP_BASE_PORT + assertSlot(slot);
-}
-
-export function policyAppDistDirectory(slot: number): string {
-  return `.next-e2e-policy-${assertSlot(slot)}`;
 }
 
 export function policyAppStorageDirectory(slot: number): string {
@@ -187,30 +184,23 @@ async function startApp(slot: number, connectionString: string): Promise<{ baseU
   if (await portInUse(port)) {
     throw new Error(`Port ${port} is already in use; stop the leftover password-policy app server and retry.`);
   }
+  if (!hasE2EBuild(process.cwd())) {
+    throw new Error(`No E2E build in ${E2E_DIST_DIRECTORY}; run the suite through scripts/run-e2e.mjs.`);
+  }
   const baseURL = `http://localhost:${port}`;
-  const distDirectory = policyAppDistDirectory(slot);
   const storageDirectory = policyAppStorageDirectory(slot);
-  removeDirectory(distDirectory);
   removeDirectory(storageDirectory);
   mkdirSync(storageDirectory, { recursive: true });
 
   const nextBinary = join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
-  const child = spawn(process.execPath, [nextBinary, "dev", "-p", String(port)], {
+  const child = spawn(process.execPath, [nextBinary, "start", "-p", String(port)], {
     cwd: process.cwd(),
     detached: process.platform !== "win32",
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
-      DATABASE_URL: connectionString,
-      NEXTAUTH_URL: baseURL,
-      NEXT_DISTDIR: distDirectory,
-      ACTIVITY_MAINTENANCE_INTERVAL_HOURS: "0",
-      E2E_MODE: "true",
-      E2E_MAPBOX_STUB: "true",
-      E2E_UNSPLASH_STUB: "true",
-      STORAGE_PROVIDER: "local",
-      STORAGE_LOCAL_ROOT_DIR: storageDirectory,
+      ...e2eServerEnv({ port, databaseUrl: connectionString, storageRoot: storageDirectory }),
       PORT: String(port),
     },
   });
@@ -227,7 +217,6 @@ async function startApp(slot: number, connectionString: string): Promise<{ baseU
 
   const stop = () => {
     killProcessTree(child);
-    removeDirectory(distDirectory);
     removeDirectory(storageDirectory);
   };
 

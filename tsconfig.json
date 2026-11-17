@@ -32,17 +32,7 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-validate/types/**/*.ts",
-    ".next-validate/dev/types/**/*.ts",
-    ".next-e2e-bootstrap/types/**/*.ts",
-    ".next-e2e-bootstrap/dev/types/**/*.ts",
-    ".next-e2e-policy-0/types/**/*.ts",
-    ".next-e2e-policy-0/dev/types/**/*.ts",
-    ".next-e2e-policy-1/types/**/*.ts",
-    ".next-e2e-policy-1/dev/types/**/*.ts",
-    ".next-e2e-policy-2/types/**/*.ts",
-    ".next-e2e-policy-2/dev/types/**/*.ts",
-    ".next-e2e-policy-3/types/**/*.ts",
-    ".next-e2e-policy-3/dev/types/**/*.ts"
+    ".next-validate/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
