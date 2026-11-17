@@ -188,3 +188,6 @@
 - source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
   summary: Replace caught unique-violation recovery inside invitation transaction with conflict-safe insertion.
   evidence: Pre-existing writer catches PostgreSQL unique violation inside transaction; database marks transaction aborted, so later statements cannot persist a typed replay result. Cooperating writers serialize through existing account and trip locks.
+- source_plan: `epic-sharing-api/story-apply-contributor-changes-through-the-api-plan.md`
+  summary: Move deletion-concurrency contributor-change fixtures from the unused `saveContributorChangesWrite` wrapper onto the service/PATCH path.
+  evidence: Production batches now run lock, locked role recheck and idempotency read/upsert in `services/sharing.ts`; `deletion-concurrency.steps.ts:161-191` still calls the outer writer, so real-lock interleavings with account deletion are verified only for a path production no longer uses (same as 4.1 `inviteContributorWrite`).
