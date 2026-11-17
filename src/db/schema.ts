@@ -571,7 +571,11 @@ export const idempotencyKeys = pgTable(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [primaryKey({ columns: [table.key, table.userId] })]
+  // The retention sweep selects rows by age; without this index each batch scans the whole table.
+  (table) => [
+    primaryKey({ columns: [table.key, table.userId] }),
+    index("idempotency_keys_created_at_idx").on(table.createdAt),
+  ]
 );
 
 // Stored files whose rows were deleted. Queued in the deleting transaction so a crash after the commit cannot lose the

@@ -9,7 +9,8 @@ import type { UserRole } from "../../src/data/types";
 import { cloneUserMother } from "./e2e-seed-data";
 
 // Tables account deletion reads or writes besides users and app_state.
-const TRIP_TABLES = ["trips", "collaborators", "invitations", "documents"];
+// Account deletion also clears idempotency_keys, so the scenario schema needs its own copy.
+const TRIP_TABLES = ["trips", "collaborators", "invitations", "documents", "idempotency_keys"];
 const SCHEMA_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 const BLOCKED_POLL_MS = 25;
 const BLOCKED_TIMEOUT_MS = 15_000;

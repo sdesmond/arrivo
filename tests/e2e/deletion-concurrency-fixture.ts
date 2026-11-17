@@ -11,7 +11,7 @@ import type { LockGate } from "./role-service-fixture";
 
 // Tables the lifecycle service and the membership writers touch. Foreign keys between them are copied from the
 // public schema so cascades, key-share locks and deadlocks behave as they do in production.
-const TABLES = ["users", "app_state", "trips", "collaborators", "invitations", "documents", "days"];
+const TABLES = ["users", "app_state", "trips", "collaborators", "invitations", "documents", "days", "idempotency_keys"];
 const SCHEMA_IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 const BLOCKED_POLL_MS = 25;
 const BLOCKED_TIMEOUT_MS = 15_000;
