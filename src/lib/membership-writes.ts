@@ -6,7 +6,7 @@ import type { ContributorChange, InviteContributorResult } from "@/data/types";
 import { isUniqueViolation } from "@/lib/error-utils";
 import { applyInvitationResend } from "@/lib/invitation-resend";
 import { lockUsersThenTripForUpdate } from "@/lib/account-lifecycle-locks";
-import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
+import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
 
 export type MembershipDatabase = Pick<typeof db, "transaction">;
 
@@ -105,7 +105,7 @@ export async function inviteContributorWrite(
   database: MembershipDatabase,
   input: { tripId: string; inviterId: string; inviteeId: string; role: CollaboratorRole; expiresAt: Date }
 ): Promise<InviteContributorWriteResult> {
-  const { tripId, inviterId, inviteeId, role, expiresAt } = input;
+  const { tripId, inviterId, inviteeId } = input;
   return database.transaction(async (transaction): Promise<InviteContributorWriteResult> => {
     // Inviter and invitee are FK targets of the new invitation, so both stay locked until commit: a deletion
     // of either then fails this write cleanly instead of racing it into a key violation.
@@ -117,54 +117,72 @@ export async function inviteContributorWrite(
       return { status: "gone" };
     }
 
-    const existingCollaborators = await transaction
-      .select({ id: collaborators.id })
+    const [manager] = await transaction
+      .select({ role: collaborators.role })
       .from(collaborators)
-      .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, inviteeId)));
-    if (existingCollaborators.length > 0) {
+      .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, inviterId)));
+    if (manager?.role !== CollaboratorRole.Manager) {
+      throw new ContributorChangeGuardError("You no longer have permission to manage contributors.", { stale: true });
+    }
+    return inviteContributorInTransaction(transaction, input);
+  });
+}
+
+/** Caller holds user-before-trip locks and rechecks manager access before invoking this writer. */
+export async function inviteContributorInTransaction(
+  transaction: DbTransaction,
+  input: { tripId: string; inviterId: string; inviteeId: string; role: CollaboratorRole; expiresAt: Date; id?: string }
+): Promise<InviteContributorResult> {
+  const { tripId, inviterId, inviteeId, role, expiresAt } = input;
+  const existingCollaborators = await transaction
+    .select({ id: collaborators.id })
+    .from(collaborators)
+    .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, inviteeId)));
+  if (existingCollaborators.length > 0) {
+    return {
+      status: "error",
+      message: "This person is already a collaborator on this trip",
+      errorCode: "already-collaborator",
+    };
+  }
+
+  const existingInvitations = await transaction
+    .select({ id: invitations.id, status: invitations.status })
+    .from(invitations)
+    .where(and(eq(invitations.tripId, tripId), eq(invitations.inviteeId, inviteeId)));
+  const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
+  if (pendingInvitation) {
+    const resend = await applyInvitationResend(transaction, pendingInvitation.id, tripId, expiresAt, role);
+    if (resend.status === "error") return { status: "error", message: resend.message, errorCode: "invite-conflict" };
+    return { status: "resent" };
+  }
+
+  const declinedInvitation = existingInvitations.find((invitation) => invitation.status === "declined");
+  if (declinedInvitation) {
+    await transaction.delete(invitations).where(eq(invitations.id, declinedInvitation.id));
+  }
+
+  try {
+    await transaction.insert(invitations).values({
+      ...(input.id ? { id: input.id } : {}),
+      tripId,
+      inviteeId,
+      role,
+      status: "pending",
+      expiresAt,
+      invitedBy: inviterId,
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
       return {
         status: "error",
-        message: "This person is already a collaborator on this trip",
-        errorCode: "already-collaborator",
+        message: "This person was just invited by someone else. Try again.",
+        errorCode: "invite-conflict",
       };
     }
-
-    const existingInvitations = await transaction
-      .select({ id: invitations.id, status: invitations.status })
-      .from(invitations)
-      .where(and(eq(invitations.tripId, tripId), eq(invitations.inviteeId, inviteeId)));
-    const pendingInvitation = existingInvitations.find((invitation) => invitation.status === "pending");
-    if (pendingInvitation) {
-      await applyInvitationResend(transaction, pendingInvitation.id, tripId, expiresAt, role);
-      return { status: "resent" };
-    }
-
-    const declinedInvitation = existingInvitations.find((invitation) => invitation.status === "declined");
-    if (declinedInvitation) {
-      await transaction.delete(invitations).where(eq(invitations.id, declinedInvitation.id));
-    }
-
-    try {
-      await transaction.insert(invitations).values({
-        tripId,
-        inviteeId,
-        role,
-        status: "pending",
-        expiresAt,
-        invitedBy: inviterId,
-      });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        return {
-          status: "error",
-          message: "This person was just invited by someone else. Try again.",
-          errorCode: "invite-conflict",
-        };
-      }
-      throw error;
-    }
-    return { status: "invited" };
-  });
+    throw error;
+  }
+  return { status: "invited" };
 }
 
 export async function acceptInvitationWrite(

@@ -5,6 +5,8 @@ import { After, Given, Then, When } from "../fixtures";
 import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
 import { waitForServerActionResponse } from "../server-action";
+import { waitForApiResponse } from "../api-response";
+import { reloadPage } from "../page-reload";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 
 const PENDING_INVITATION_EXPIRY_LABEL_KEY = "pendingInvitationExpiryLabel";
@@ -138,7 +140,7 @@ When("I open the sharing dialog", async ({ page }) => {
 
 Then("I see the sharing dialog creator row", async ({ page, scenario }) => {
   const user = await scenario.ensureCurrentUser();
-  await expect(page.getByText(user.name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").getByText(user.name, { exact: true })).toBeVisible();
   await expect(page.getByLabel("Trip creator — access can't be changed")).toBeVisible();
 });
 
@@ -210,7 +212,10 @@ When("I invite that user to the trip as an editor", async ({ page, scenario }) =
   await pickInviteUser(page, invitee.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations`,
+  });
   await page.getByTitle("Invite this person to the trip").click();
   await response;
 });
@@ -505,4 +510,20 @@ After(async ({ scenario }) => {
   scenario.clearValue(SECOND_SESSION_CONTEXT_KEY);
   scenario.clearValue(SECOND_SESSION_PAGE_KEY);
   scenario.clearValue(SECOND_SESSION_USER_KEY);
+});
+
+Given("the invitable user is watching their dashboard", async ({ page, scenario }) => {
+  const invitee = scenario.getValue<ScenarioUserRecord>(INVITABLE_USER_KEY)!;
+  await openSecondSession(page, scenario, invitee, "/trips", "/api/users/me/events");
+});
+Then("the invitable user's dashboard shows the new invitation without reloading", async ({ scenario }) => {
+  const { page: inviteePage } = getSecondSession(scenario);
+  await expect(inviteePage.getByTitle(`Accept invitation to ${scenario.currentTrip!.name}`)).toBeVisible({
+    timeout: LIVE_SYNC_ASSERTION_TIMEOUT_MS,
+  });
+});
+When("I reload the sharing trip and reopen sharing", async ({ page }) => {
+  await reloadPage(page);
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
 });

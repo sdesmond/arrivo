@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { inviteContributor, listInvitableUsers } from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { createRandomId } from "@/lib/utils";
+import { createInvitation, listInvitableUsers } from "@/lib/api/contract/sharing";
 import { CollaboratorRole } from "@/data/types";
 import type { InvitableUser, InvitableUsersResult } from "@/data/types";
 
@@ -25,6 +27,8 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
   // Bumped per load so only the newest response is applied when reloads overlap.
   const loadSequenceRef = useRef(0);
   const isCurrentRef = useRef(true);
+  const submittingRef = useRef(false);
+  const intentRef = useRef<{ fingerprint: string; id: string } | null>(null);
   useEffect(() => {
     isCurrentRef.current = true;
     return () => {
@@ -38,7 +42,7 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
     const isNewest = () => isCurrentRef.current && sequence === loadSequenceRef.current;
     let nextOptions: InvitableUsersResult;
     try {
-      nextOptions = await listInvitableUsers(tripId);
+      nextOptions = await api(listInvitableUsers, { params: {}, body: { tripId } });
     } catch {
       if (!isNewest()) return;
       toast.error("Could not load users");
@@ -57,12 +61,20 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
   }
 
   async function handleInvite(): Promise<void> {
-    if (isBlocked() || !selectedUser) return;
+    if (isBlocked() || submittingRef.current || !selectedUser) return;
+    submittingRef.current = true;
+    const fingerprint = JSON.stringify([tripId, selectedUser.username, role]);
+    if (intentRef.current?.fingerprint !== fingerprint) intentRef.current = { fingerprint, id: createRandomId() };
     setInviteLoading(true);
     setInviteError(null);
     try {
-      const result = await inviteContributor(tripId, selectedUser.username, role);
+      const result = await api(createInvitation, {
+        params: { tripId },
+        body: { id: intentRef.current.id, username: selectedUser.username, role },
+      });
+      if (!isCurrentRef.current) return;
       if (result.status === "error") {
+        intentRef.current = null;
         if (result.errorCode === "no-account") {
           setInviteError("No account found for this username.");
           setSelectedUser(null);
@@ -74,14 +86,19 @@ export function useTripShareInviteForm({ tripId, isBlocked, onInvited }: UseTrip
       }
       // A new invitation shows up as a pending row; only a resend leaves nothing visible behind.
       if (result.status === "resent") toast.success("Invitation resent.");
+      intentRef.current = null;
       await onInvited();
+      if (!isCurrentRef.current) return;
       setSelectedUser(null);
       setRole(CollaboratorRole.Viewer);
     } catch (error) {
+      if (!isCurrentRef.current) return;
+      if (error instanceof ApiClientError && error.status >= 400 && error.status < 500) intentRef.current = null;
       console.error("Failed to send trip invitation", error);
       toast.error("Could not send invitation.");
     } finally {
-      setInviteLoading(false);
+      submittingRef.current = false;
+      if (isCurrentRef.current) setInviteLoading(false);
     }
   }
 

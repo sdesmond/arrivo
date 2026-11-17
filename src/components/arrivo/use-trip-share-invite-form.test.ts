@@ -3,13 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CollaboratorRole } from "@/data/types";
 import type { InvitableUser, InvitableUsersResult } from "@/data/types";
 import { useTripShareInviteForm } from "./use-trip-share-invite-form";
+import { ApiClientError } from "@/lib/api/client";
 
 const mockInviteContributor = vi.fn();
 const mockListInvitableUsers = vi.fn();
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  inviteContributor: (...args: unknown[]) => mockInviteContributor(...args),
-  listInvitableUsers: (...args: unknown[]) => mockListInvitableUsers(...args),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: (
+    endpoint: { path: string },
+    input: { params: { tripId?: string }; body: { tripId?: string; username?: string; role?: string; id?: string } }
+  ) => {
+    if (endpoint.path.endsWith("/invitable")) return mockListInvitableUsers(input.body.tripId);
+    return mockInviteContributor(input.params.tripId, input.body.username, input.body.role, input.body.id);
+  },
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -167,6 +174,91 @@ describe("useTripShareInviteForm", () => {
   });
 
   describe("inviting", () => {
+    it("retains UUID when successful response JSON cannot be decoded", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInviteContributor
+        .mockRejectedValueOnce(new ApiClientError(200, "server_error", "Malformed JSON"))
+        .mockResolvedValueOnce({ status: "invited" });
+      const { result } = await setupWithUsers();
+      act(() => result.current.selectUser(alice));
+      await act(async () => result.current.handleInvite());
+      await act(async () => result.current.handleInvite());
+      expect(mockInviteContributor.mock.calls[1][3]).toBe(mockInviteContributor.mock.calls[0][3]);
+      log.mockRestore();
+    });
+    it("submits with fallback UUID when randomUUID is unavailable", async () => {
+      const original = crypto.randomUUID;
+      Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+      try {
+        mockInviteContributor.mockResolvedValue({ status: "invited" });
+        const { result } = await setupWithUsers();
+        act(() => result.current.selectUser(alice));
+        await act(async () => result.current.handleInvite());
+        expect(mockInviteContributor.mock.calls[0][3]).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+        );
+        expect(result.current.inviteLoading).toBe(false);
+      } finally {
+        Object.defineProperty(crypto, "randomUUID", { configurable: true, value: original });
+      }
+    });
+    it("replaces UUID after a definite conflict instead of trapping fresh intent", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInviteContributor.mockRejectedValue(new ApiClientError(409, "conflict", "Retired intent"));
+      const { result } = await setupWithUsers();
+      act(() => result.current.selectUser(alice));
+      await act(async () => result.current.handleInvite());
+      await act(async () => result.current.handleInvite());
+      expect(mockInviteContributor.mock.calls[1][3]).not.toBe(mockInviteContributor.mock.calls[0][3]);
+      log.mockRestore();
+    });
+    it("ignores completed invitation after unmount", async () => {
+      const deferred = createDeferred<{ status: "invited" }>();
+      mockInviteContributor.mockReturnValue(deferred.promise);
+      const { result, unmount, onInvited } = await setupWithUsers();
+      act(() => result.current.selectUser(alice));
+      let pending: Promise<void>;
+      act(() => {
+        pending = result.current.handleInvite();
+      });
+      unmount();
+      await act(async () => {
+        deferred.resolve({ status: "invited" });
+        await pending!;
+      });
+      expect(onInvited).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+    it("keeps UUID on uncertain retry and replaces it after changed intent", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      mockInviteContributor.mockRejectedValue(new Error("network"));
+      const { result } = await setupWithUsers();
+      act(() => result.current.selectUser(alice));
+      await act(async () => result.current.handleInvite());
+      await act(async () => result.current.handleInvite());
+      const firstId = mockInviteContributor.mock.calls[0][3];
+      expect(mockInviteContributor.mock.calls[1][3]).toBe(firstId);
+      act(() => result.current.setRole(CollaboratorRole.Editor));
+      await act(async () => result.current.handleInvite());
+      expect(mockInviteContributor.mock.calls[2][3]).not.toBe(firstId);
+      vi.restoreAllMocks();
+    });
+    it("blocks double submit before state has rendered", async () => {
+      const deferred = createDeferred<{ status: "invited" }>();
+      mockInviteContributor.mockReturnValue(deferred.promise);
+      const { result } = await setupWithUsers();
+      act(() => result.current.selectUser(alice));
+      let pending: Promise<void>;
+      act(() => {
+        pending = result.current.handleInvite();
+        void result.current.handleInvite();
+      });
+      expect(mockInviteContributor).toHaveBeenCalledOnce();
+      await act(async () => {
+        deferred.resolve({ status: "invited" });
+        await pending!;
+      });
+    });
     it("sends the selected username with the chosen role, refreshes and resets without a toast", async () => {
       mockInviteContributor.mockResolvedValue({ status: "invited" });
       const onInvited = vi.fn();
@@ -178,7 +270,12 @@ describe("useTripShareInviteForm", () => {
       });
       await act(async () => result.current.handleInvite());
 
-      expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "alice", CollaboratorRole.Editor);
+      expect(mockInviteContributor).toHaveBeenCalledWith(
+        "trip-1",
+        "alice",
+        CollaboratorRole.Editor,
+        expect.any(String)
+      );
       expect(toast.success).not.toHaveBeenCalled();
       expect(onInvited).toHaveBeenCalledOnce();
       expect(result.current.selectedUser).toBeNull();

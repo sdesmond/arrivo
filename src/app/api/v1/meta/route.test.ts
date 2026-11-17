@@ -9,7 +9,10 @@ it("returns the API metadata as uncached JSON", async () => {
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   expect(response.headers.get("Content-Type")).toContain("application/json");
-  await expect(response.json()).resolves.toEqual({ apiVersion: 1, capabilities: ["idempotency-key"] });
+  await expect(response.json()).resolves.toEqual({
+    apiVersion: 1,
+    capabilities: ["idempotency-key", "sharing-invitations"],
+  });
 });
 
 it("never authenticates the caller", () => {

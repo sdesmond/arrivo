@@ -9,8 +9,7 @@ import {
   resendShareInvitation,
 } from "@/app/(app)/trips/[tripId]/actions";
 import type { InvitationRowAction } from "@/components/arrivo/trip-share-invitation-row";
-import type { ShareDialogData } from "@/components/arrivo/use-trip-share-dialog-controller";
-import type { Invitation } from "@/data/types";
+import type { Invitation, ShareDialogData } from "@/data/types";
 
 interface UseShareInvitationActionsOptions {
   isCurrentRef: RefObject<boolean>;

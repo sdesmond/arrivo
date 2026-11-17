@@ -1985,3 +1985,135 @@ Feature: Absolute checklist checked-state API
     When a page on another localhost port runs cover and destination searches with my session
     Then the server refused every one of those searches with 403
     And my own cover and destination searches still return 200
+
+  @sharing-api
+  Scenario: Sharing API reads, UUID retry and independent-key retry preserve one invitation
+    Given a registered recipient for the sharing API
+    When I read the manager sharing API and picker
+    Then the sharing picker contains the recipient
+    When I create the sharing API invitation with "same" key
+    And I retry the sharing API invitation with "same" key
+    Then the sharing API returns 200 and preserves the invitation
+    When I retry the sharing API invitation with "independent" key
+    Then the sharing API returns 200 and preserves the invitation
+    When I retry the sharing API invitation with "none" key
+    Then the sharing API returns 200 and preserves the invitation
+    When I read the manager sharing API and picker
+    Then the sharing picker excludes the recipient
+
+  @sharing-api
+  Scenario Outline: Retired API invitation intents never revive
+    Given a registered recipient for the sharing API
+    When I create the sharing API invitation with "same" key
+    And the sharing API invitation becomes "<state>"
+    And I retry the sharing API invitation with "same" key
+    Then the sharing API returns 200 and preserves the invitation
+    When I retry the sharing API invitation with "independent" key
+    Then the sharing API returns 409 and preserves the invitation
+    When I retry the sharing API invitation with "none" key
+    Then the sharing API returns 409 and preserves the invitation
+    Examples:
+      | state     |
+      | rescinded |
+      | dismissed |
+      | declined  |
+      | accepted  |
+
+  @sharing-api
+  Scenario Outline: Sharing API cached replay rechecks current manager access
+    Given a registered recipient for the sharing API
+    When I create the sharing API invitation with "same" key
+    And my checklist API role is "<role>"
+    And I retry the sharing API invitation with "same" key
+    Then the sharing API returns <status> and preserves the invitation
+    Examples:
+      | role     | status |
+      | editor   | 403    |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  @sharing-api
+  Scenario Outline: Sharing API rejects changed UUID and keyed intents
+    Given a registered recipient for the sharing API
+    When I create the sharing API invitation with "same" key
+    And I reuse the sharing API intent with changed "<field>" and "<key>" key
+    Then the sharing API returns 409 and preserves the invitation
+    Examples:
+      | field     | key         |
+      | role      | same        |
+      | role      | independent |
+      | recipient | independent |
+      | trip      | independent |
+
+  @sharing-api
+  Scenario Outline: Sharing API validates fields and typed domain rejections
+    Given a registered recipient for the sharing API
+    When I submit invalid sharing API case "<case>"
+    Then the sharing API rejects with <status> and "<code>"
+    Examples:
+      | case     | status | code              |
+      | role     | 422    | validation_failed |
+      | id       | 422    | validation_failed |
+      | username | 422    | validation_failed |
+      | self     | 200    | self-invite       |
+      | missing  | 200    | no-account        |
+
+  @sharing-api
+  Scenario: Pending alias evidence survives replacement of its invitation row
+    Given a registered recipient for the sharing API
+    When I create the sharing API invitation with "same" key
+    And I resend the pending invitation using a fresh API UUID
+    Then the fresh API UUID preserves the existing pending row
+    When the sharing API pending alias is dismissed and replaced
+    And I retry the sharing API invitation with "none" key
+    Then the sharing API returns 409 and preserves the invitation
+
+  @sharing-api @sharing-review
+  Scenario Outline: Sharing GETs disclose nothing below manager access
+    Given a registered recipient for the sharing API
+    And my checklist API role is "<role>"
+    When I request both sharing GET endpoints without manager access
+    Then both sharing GET endpoints return <status> without rows
+    Examples:
+      | role     | status |
+      | editor   | 403    |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  @sharing-api @sharing-review
+  Scenario: Simultaneous independent-key invitation retries persist one intent
+    Given a registered recipient for the sharing API
+    When I simultaneously create the same invitation UUID with independent keys
+    Then one invitation intent and two keyed responses persist
+
+  @sharing-api @sharing-review
+  Scenario Outline: Manager demotion during trip lock contention rejects invitation work
+    Given a registered recipient for the sharing API
+    When manager demotion wins the trip lock before "<operation>" invitation work
+    Then the sharing API returns 403 and preserves the invitation
+    And denied invitation work stored no new replay evidence
+    Examples:
+      | operation |
+      | create    |
+      | replay    |
+
+  @sharing-api @sharing-review
+  Scenario: Deadline rolls back invitation and both replay records after all inserts
+    Given a registered recipient for the sharing API
+    And the sharing header replay insert is delayed after all writes
+    When I create the invitation under the production request deadline
+    Then deadline rollback leaves no invitation or replay evidence
+
+  @sharing-api @sharing-review
+  Scenario Outline: Invitation UUID evidence obeys retention and existing identity
+    Given a registered recipient for the sharing API
+    When I create the sharing API invitation with "same" key
+    And sharing intent evidence is "<evidence>" with original invitation "<original>"
+    And I retry the sharing API invitation with "none" key
+    Then retention retry returns <status> with original invitation "<original>"
+    Examples:
+      | evidence | original | status |
+      | expired  | present  | 409    |
+      | expired  | deleted  | 200    |
+      | swept    | present  | 409    |
+      | swept    | deleted  | 200    |

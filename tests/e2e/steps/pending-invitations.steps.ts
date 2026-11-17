@@ -6,6 +6,7 @@ import { After, Given, When, Then } from "../fixtures";
 import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
 import { waitForServerActionResponse } from "../server-action";
+import { waitForApiResponse } from "../api-response";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -161,7 +162,12 @@ When("I invite the watching user to my trip as an editor", async ({ page, scenar
   await pickInviteUser(page, watchingUser.username);
   await page.getByLabel("Invite role").click();
   await page.getByRole("option", { name: "Editor" }).click();
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations`,
+  });
   await page.getByTitle("Invite this person to the trip").click();
+  await response;
   await expect(page.getByTitle(`Rescind invitation to @${watchingUser.username}`)).toBeVisible();
 });
 

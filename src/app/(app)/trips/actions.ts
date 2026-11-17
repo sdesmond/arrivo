@@ -19,7 +19,6 @@ import {
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
 import type {
   AcceptInvitationResult,
   ContributorChange,
@@ -27,8 +26,6 @@ import type {
   UpdateTripPatch,
   DeclineInvitationResult,
   DismissInvitationResult,
-  InvitableUsersResult,
-  InviteContributorResult,
   LeaveTripResult,
   RescindInvitationResult,
   SaveContributorChangesResult,
@@ -49,19 +46,16 @@ import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { assertValidCoverImageUrl } from "@/lib/url-policy";
-import { getInvitationExpiry, hasNormalizedUsername, publishInvitationChanged } from "@/lib/invitations";
-import { getInvitableUsers } from "@/lib/invitable-users";
+import { publishInvitationChanged } from "@/lib/invitations";
 import {
   acceptInvitationWrite,
   ContributorChangeGuardError,
   createTripWrite,
-  inviteContributorWrite,
   leaveTripWrite,
   NOT_ON_TRIP_MESSAGE,
   saveContributorChangesWrite,
 } from "@/lib/membership-writes";
 import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
-import { normalizeUsername } from "@/lib/username";
 import { createTripSchema, parseInput, updateTripSchema } from "@/lib/validation-schemas";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
@@ -748,63 +742,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-const VALID_COLLABORATOR_ROLES = Object.values(CollaboratorRole);
-
-function isCollaboratorRole(value: string): value is CollaboratorRole {
-  return VALID_COLLABORATOR_ROLES.some((collaboratorRole) => collaboratorRole === value);
-}
-
-/** Registered users the share dialog's picker offers. Manager-only: it exposes the account directory. */
-export async function listInvitableUsers(tripId: string): Promise<InvitableUsersResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-  return getInvitableUsers(tripId, user.id!);
-}
-
-export async function inviteContributor(
-  tripId: string,
-  username: string,
-  role: CollaboratorRole = CollaboratorRole.Viewer
-): Promise<InviteContributorResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-
-  if (!isCollaboratorRole(role)) {
-    return { status: "error", message: "Invalid collaborator role", errorCode: "invalid-role" };
-  }
-
-  const [invitee] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(hasNormalizedUsername(users.username, normalizeUsername(username)));
-  if (!invitee) {
-    return { status: "error", message: "No account found for this username", errorCode: "no-account" };
-  }
-  if (invitee.id === user.id) {
-    return { status: "error", message: "You cannot invite yourself to this trip", errorCode: "self-invite" };
-  }
-
-  const expiresAt = getInvitationExpiry();
-  const result = await inviteContributorWrite(db, {
-    tripId,
-    inviterId: user.id!,
-    inviteeId: invitee.id,
-    role,
-    expiresAt,
-  });
-  if (result.status === "gone") notFound();
-
-  if (result.status === "invited") recordTripInvitation("invitation_created", user.id!, tripId);
-  if (result.status !== "error") {
-    // Invitee's personal channel refreshes their dashboard/badge; the trip channel lets another
-    // manager's open share dialog pick up the new pending row.
-    publishUserEvent(invitee.id, { type: LiveSyncEventType.InvitationChanged, tripId });
-    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-    revalidatePath(`/trips/${tripId}`);
-  }
-  return result;
 }
 
 /**

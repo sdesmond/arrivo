@@ -3,7 +3,6 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 
-import { getContributorsAndInvitations } from "@/lib/queries";
 import { resendInvitation } from "@/lib/invitations";
 
 import {
@@ -12,11 +11,6 @@ import {
   saveContributorChanges as saveContributorChangesAction,
 } from "../actions";
 import type { ContributorChange } from "@/data/types";
-
-export async function getShareDialogData(tripId: string) {
-  const user = await requireUser();
-  return getContributorsAndInvitations(tripId, user.id!);
-}
 
 export async function resendShareInvitation(tripId: string, invitationId: string) {
   const user = await requireUser();
