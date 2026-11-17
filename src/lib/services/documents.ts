@@ -22,7 +22,7 @@ import {
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
-import { recordDeletion, wasRecentlyDeleted } from "./deletion-records";
+import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
 import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { ConflictError } from "./conflict-error";
 
@@ -102,9 +102,7 @@ async function uploadDocument(
               return dbDocToType(existing);
             }
             // A retry whose first attempt landed and was then deleted must not bring the document back.
-            if (await wasRecentlyDeleted(transaction, "document", draft.id)) {
-              throw new ConflictError("This document was deleted. Upload the file again to add it as a new document.");
-            }
+            await refuseRecentlyDeleted(transaction, "document", draft.id);
           }
           const [created] = await transaction
             .insert(documents)

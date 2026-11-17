@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   lockTrip: vi.fn(),
   lockClientIds: vi.fn(),
   recordDeletion: vi.fn(),
-  wasRecentlyDeleted: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
   afterTripWrite: vi.fn(),
   selectRows: [] as Record<string, unknown>[],
   targetRows: [] as Record<string, unknown>[],
@@ -44,7 +44,7 @@ vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ pu
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
 vi.mock("./deletion-records", () => ({
   recordDeletion: mocks.recordDeletion,
-  wasRecentlyDeleted: mocks.wasRecentlyDeleted,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
 }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
@@ -166,7 +166,7 @@ beforeEach(() => {
   mocks.insertError = undefined;
   mocks.afterTripWrite.mockImplementation(afterTripWrite);
   mocks.requireTripRole.mockResolvedValue("editor");
-  mocks.wasRecentlyDeleted.mockResolvedValue(false);
+  mocks.refuseRecentlyDeleted.mockResolvedValue(undefined);
   mocks.recordDeletion.mockResolvedValue(undefined);
   mocks.put.mockImplementation(async (key: string) => `/api/storage/${key}`);
   mocks.del.mockResolvedValue(undefined);
@@ -345,9 +345,9 @@ it.each([
 });
 // A retry of an attempt whose response was lost, sent after the document was deleted, must not bring it back.
 it("conflicts when a retried upload's id belongs to a recently deleted document, keeping no file", async () => {
-  mocks.wasRecentlyDeleted.mockResolvedValue(true);
+  mocks.refuseRecentlyDeleted.mockRejectedValue(new ConflictError("This document was deleted."));
   await expect(uploadTripDocument(actor, tripId, { id: documentId }, pdf())).rejects.toBeInstanceOf(ConflictError);
-  expect(mocks.wasRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "document", documentId);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "document", documentId);
   expect(mocks.inserted).toEqual([]);
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
   expect(mocks.del).toHaveBeenCalledTimes(1);
@@ -361,7 +361,7 @@ it("checks no deletion record for an upload without a client id or for a same-id
   await uploadTripDocument(actor, tripId, {}, pdf());
   mocks.selectRows = [stored()];
   await uploadTripDocument(actor, tripId, { id: documentId }, pdf());
-  expect(mocks.wasRecentlyDeleted).not.toHaveBeenCalled();
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
 });
 it("records the deletion inside the delete transaction, and none for a repeat delete", async () => {
   mocks.selectRows = [stored()];

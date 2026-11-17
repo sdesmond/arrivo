@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   lockTripForUpdate: vi.fn(),
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
+  recordDeletion: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
   now: new Date("2026-06-01T12:00:00.000Z"),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
@@ -32,6 +34,10 @@ vi.mock("./timeline-positions", () => ({
   shiftFromPosition: mocks.shiftFromPosition,
 }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ del: mocks.storageDelete }) }));
+vi.mock("./deletion-records", () => ({
+  recordDeletion: mocks.recordDeletion,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 
 import { createEvent, deleteEvent, updateEvent } from "./events";
 import { TripNotFoundError } from "./trip-access";
@@ -781,4 +787,34 @@ it.each([
   await expect(deleteEvent(actor, id, body)).rejects.toThrow();
   expect(mocks.select).not.toHaveBeenCalled();
   expect(mocks.transaction).not.toHaveBeenCalled();
+});
+
+it("refuses a client id whose event was deleted recently, writing nothing", async () => {
+  eventReads = [[], []];
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This event was deleted."));
+  await expect(createEvent(actor, dayId, { id: clientId, name: "Dinner" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledExactlyOnceWith(mocks, "event", clientId);
+  expect(inserted).toEqual([]);
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+it("checks no deletion record without a client id or for a replay", async () => {
+  await createEvent(actor, dayId, { name: "Dinner" });
+  eventReads = [[storedEvent], [storedEvent]];
+  await createEvent(actor, dayId, { id: clientId, name: "Dinner" });
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+});
+
+it("records the deletion inside the delete transaction, and none for an event already gone", async () => {
+  mocks.recordDeletion.mockImplementationOnce(async () => {
+    calls.push("record");
+  });
+  await deleteEvent(actor, eventId, { tripId });
+  expect(mocks.recordDeletion).toHaveBeenCalledExactlyOnceWith(mocks, "event", eventId, "user");
+  expect(calls.indexOf("record")).toBeGreaterThan(calls.indexOf("delete-event"));
+  expect(calls.indexOf("record")).toBeLessThan(calls.indexOf("commit"));
+  mocks.recordDeletion.mockClear();
+  rows = [];
+  await deleteEvent(actor, eventId, { tripId });
+  expect(mocks.recordDeletion).not.toHaveBeenCalled();
 });
