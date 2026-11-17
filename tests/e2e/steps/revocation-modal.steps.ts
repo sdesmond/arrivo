@@ -2,6 +2,7 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { After, Given, Then, When } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForLiveSyncResponse } from "../live-sync";
+import { waitForApiResponse } from "../api-response";
 
 const REMOVED_PAGE_KEY = "revocationModalRemovedPage";
 const REMOVED_CONTEXT_KEY = "revocationModalRemovedContext";
@@ -29,7 +30,10 @@ async function removeNamedContributorAndSave(page: Page, scenario: ScenarioFixtu
   await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
 
   await page.getByTitle(`Remove ${removedName}`).click();
+  const trip = await scenario.ensureCurrentTrip();
+  const saved = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/trips/${trip.id}/collaborators` });
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await saved;
   await expect(page.getByRole("heading", { name: "Share trip" })).toBeHidden();
 }
 

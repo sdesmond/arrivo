@@ -66,6 +66,10 @@ const PASSWORD_RULES = [
 export const FEATURE_MAP = [
   entry("api", [
     "src/lib/services/sharing.ts",
+    "src/lib/api/contract/sharing.ts",
+    // The contributor batch PATCH applies its changes through the locked in-transaction writer.
+    "src/lib/membership-writes.ts",
+    "tests/e2e/steps/api-contributor-batch.steps.ts",
     "src/app/api/v1/trips/*/collaborators/**",
     "src/app/api/v1/trips/*/invitations/**",
     "src/app/api/v1/users/invitable/**",
@@ -502,13 +506,17 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/create-trip-days.ts",
   ]),
   entry("new-trip", ["src/components/arrivo/new-trip-dialog.tsx", "src/components/arrivo/new-trip-card.tsx"]),
-  // Deliberately maps no source: `src/lib/use-dashboard-live-refresh.ts` and `use-live-refresh.ts`
-  // must stay on the SHARED_GLOBS full-suite tier, same reasoning as use-bfcache-refresh below.
-  // The dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so
-  // it can move any feature — naming it here would demote it to these two scenarios. The entry
-  // itself still has to exist (scripts/feature-map.test.mjs pairs every .feature with one) and
-  // `entry()` covers its own feature/step files, so editing a scenario still re-runs it.
-  entry("dashboard-live-sync", []),
+  // Maps only the contributor batch PATCH path its scenarios save through. The dashboard hooks
+  // (`src/lib/use-dashboard-live-refresh.ts`, `use-live-refresh.ts`) are deliberately NOT listed and
+  // stay on the SHARED_GLOBS full-suite tier, same reasoning as use-bfcache-refresh below: the
+  // dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so it
+  // can move any feature — naming it here would demote it to these two scenarios.
+  entry("dashboard-live-sync", [
+    "src/lib/services/sharing.ts",
+    "src/lib/membership-writes.ts",
+    "src/components/arrivo/use-trip-share-dialog-controller.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
+  ]),
   entry("day-planning", [
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
@@ -722,6 +730,13 @@ export const FEATURE_MAP = [
     "src/components/arrivo/contributor-revocation-modal.tsx",
     "src/lib/use-live-sync.ts",
     "src/app/(app)/trips/[tripId]/actions.ts",
+    // Removal is saved from the sharing dialog through the contributor batch PATCH.
+    "src/components/arrivo/use-trip-share-dialog-controller.ts",
+    "src/lib/services/sharing.ts",
+    "src/lib/api/contract/sharing.ts",
+    "src/lib/membership-writes.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
+    "tests/e2e/api-response.ts",
   ]),
   entry("reservations", [
     "src/components/arrivo/document-delete-dialog.tsx",
@@ -855,6 +870,12 @@ export const FEATURE_MAP = [
     "src/lib/use-trip-live-refresh.ts",
     "src/app/api/trips/[tripId]/events/route.ts",
     "src/lib/trip-events.ts",
+    // Role changes are saved from the sharing dialog through the contributor batch PATCH.
+    "src/components/arrivo/use-trip-share-dialog-controller.ts",
+    "src/lib/services/sharing.ts",
+    "src/lib/membership-writes.ts",
+    "src/lib/api/contract/sharing.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("trip-notes", [
     "src/components/arrivo/trip-notes-*.tsx",
@@ -886,6 +907,7 @@ export const FEATURE_MAP = [
   entry("trip-sharing", [
     "src/lib/services/sharing.ts",
     "src/lib/api/contract/sharing.ts",
+    "src/lib/membership-writes.ts",
     "src/app/api/v1/trips/*/collaborators/**",
     "src/app/api/v1/trips/*/invitations/**",
     "src/app/api/v1/users/invitable/**",
