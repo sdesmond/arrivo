@@ -224,6 +224,7 @@ Travel itinerary planner. Next.js 16 App Router, React 19, TypeScript strict, Ta
 
 - `page.tsx` is the Server Component (data, auth); `page-client.tsx` is the `"use client"` half. Keep that split in `src/app/(app)/trips/**`.
 - DB schema `src/db/schema.ts`; server actions sit beside their route as `actions.ts`.
+- `/api/v1` contracts are `src/lib/api/contract/*.ts`, documented in `docs/api-v1.md`. Changing an endpoint (fields, limits, errors, roles) means updating that page in the same change; `api-reference.test.ts` catches added, removed and replay-mismatched routes but not field details.
 - Every `src/db/schema.ts` change ships with a generated migration in the same change: `npm run db:generate`, review the SQL (renames come out as drop+add), commit `drizzle/`. Never edit an applied migration. CI fails on drift.
 
 ## Conventions that differ from defaults
