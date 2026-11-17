@@ -11,6 +11,7 @@ import { holdScenarioTripLock, type HeldTripLock } from "../document-scope-concu
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
 import { waitForServerActionResponse } from "../server-action";
 import { After, Given, When, Then } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 const RESERVATION_PDF = Buffer.from("%PDF-1.4 PDF content %%EOF");
 const RACE_TIMEOUT_MS = 30_000;
@@ -429,7 +430,7 @@ Then("the reservation doc {string} is no longer visible on the reservation", asy
 });
 
 Then("after reload the reservation shows uploaded document {string}", async ({ page }, name: string) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Reservations", exact: true }).click();
   const section = page.getByRole("button", { name: /^Lodging, / });
   await expect(section).toBeVisible();

@@ -21,6 +21,7 @@ import { Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 // The race steps hold the member's account lock and must finish the reset only once the member's own request is
 // queued behind it. Parallel scenarios also queue on the shared app_state row, so "anything blocked by us" can fire
@@ -393,7 +394,7 @@ When("the member's {string} races a reset", async ({ page, scenario }, action: s
       sessionVersion: account.sessionVersion,
     });
     // Render the target at the old version before taking the lock.
-    await page.reload();
+    await reloadPage(page);
     await page.getByRole("tab", { name: "Security" }).click();
     const issued = await issueCredentialAuthorization(
       database as unknown as CredentialAuthorizationDatabase,

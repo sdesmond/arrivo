@@ -28,6 +28,7 @@ import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
 import { apiClient, disposeAnonymousApiClient, markAnonymousApiRole } from "../anonymous-api";
 import { Given, When, Then, After } from "../fixtures";
+import { reloadPage } from "../page-reload";
 const rememberedCookies = new WeakMap<Page, Awaited<ReturnType<ReturnType<Page["context"]>["cookies"]>>>();
 After(async ({ page }) => {
   await disposeAnonymousApiClient(page);
@@ -155,7 +156,7 @@ When("I set the checklist API checked state to {string} twice", async ({ page },
   }
 });
 Then("the checklist API state {string} persists after reload", async ({ page }, value: string) => {
-  await page.reload();
+  await reloadPage(page);
   const firstDayToggle = page
     .locator("button")
     .filter({ hasText: /\d+ stops/ })
@@ -595,7 +596,7 @@ When("I create a checklist with its first item through the lifecycle API concurr
 });
 Then("lifecycle creation persists once with mixed timeline ordering after reload", async ({ page }) => {
   const input = state(page).lifecycle!;
-  await page.reload();
+  await reloadPage(page);
   await expandLifecycleDay(page);
   const result = await withE2EDb(async (database) => {
     const created = await database.select().from(itineraryChecklists).where(eq(itineraryChecklists.id, input.id));
@@ -654,7 +655,7 @@ Then("the lifecycle retry returns the original checklist at its shifted position
 });
 Then("the day holds the original and the shifting checklist once after reload", async ({ page }) => {
   const input = state(page).lifecycle!;
-  await page.reload();
+  await reloadPage(page);
   const rows = await withE2EDb((database) =>
     database
       .select({ id: itineraryChecklists.id, position: itineraryChecklists.position })
@@ -713,7 +714,7 @@ When("I rename, omit and clear the lifecycle checklist title", async ({ page }) 
   }
 });
 Then("the lifecycle checklist title is cleared after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await expandLifecycleDay(page);
   const input = state(page).lifecycle!;
   const [row] = await withE2EDb((database) =>
@@ -745,7 +746,7 @@ When("I delete the lifecycle checklist twice", async ({ page }) => {
   expect(response.status()).toBe(204);
 });
 Then("the lifecycle checklist is absent after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await expandLifecycleDay(page);
   const input = state(page).lifecycle!;
   await expect(page.locator(`#checklist-${input.id}`)).toHaveCount(0);
@@ -962,7 +963,7 @@ When("I create a checklist item with a client UUID concurrently", async ({ page,
 });
 Then("the checklist item persists once after the original item after reload", async ({ page }) => {
   const item = itemApi(page);
-  await page.reload();
+  await reloadPage(page);
   const checklist = await expandPackingChecklist(page);
   const rows = await storedItems(item.checklistId);
   expect(rows.map((row) => row.content)).toEqual(["API passport", item.content]);
@@ -1097,7 +1098,7 @@ When("I resend the same checklist item content and checked state", async ({ page
   expect(await response.json()).toMatchObject({ content: "Renamed passport", isChecked: true });
 });
 Then("the checklist item has the patched content and checked state after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   const checklist = await expandPackingChecklist(page).catch(() => undefined);
   const [row] = await storedItems(itemApi(page).checklistId);
   expect(row).toMatchObject({ content: "Renamed passport", isChecked: true });
@@ -1136,7 +1137,7 @@ When("I delete the checklist item with the wrong trip and then twice", async ({ 
   expect(unkeyed.status()).toBe(204);
 });
 Then("the checklist item is absent after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   expect(await storedItems(itemApi(page).checklistId)).toHaveLength(0);
   await expect(page.locator(`[data-checklist-item-id="${state(page).itemId}"]`)).toHaveCount(0);
 });
@@ -1349,7 +1350,7 @@ Then(
   "the source checklist persists once with ordered unchecked items and shifted timeline after reload",
   async ({ page }) => {
     const input = sourceApi(page);
-    await page.reload();
+    await reloadPage(page);
     await expandLifecycleDay(page);
     const result = await withE2EDb(async (database) => ({
       created: await database.select().from(itineraryChecklists).where(eq(itineraryChecklists.id, input.checklistId)),
@@ -1804,7 +1805,7 @@ Then("the {string} event is stored as:", async ({ page }, kind: string, expected
   expect(await storedEvent(eventState(page).ids[eventKind(kind)])).toMatchObject(JSON.parse(expected));
 });
 Then("after reload the {string} event is stored as:", async ({ page }, kind: string, expected: string) => {
-  await page.reload();
+  await reloadPage(page);
   expect(await storedEvent(eventState(page).ids[eventKind(kind)])).toMatchObject(JSON.parse(expected));
 });
 When("I send the keyed {string} event edit {string} twice", async ({ page }, kind: string, name: string) => {
@@ -1957,7 +1958,7 @@ Then("the day order API response lists the reversed order", async ({ page }) => 
 });
 Then("after reload the day stores the reversed order", async ({ page }) => {
   const current = dayOrderState(page);
-  await page.reload();
+  await reloadPage(page);
   expect(await storedDayOrder(current.dayId)).toEqual([...current.original].reverse());
 });
 Then("the day stores the original order", async ({ page }) => {
@@ -2032,7 +2033,7 @@ Then("the event create API returns {int} with code {string}", async ({ page }, s
   if (code === "forbidden") expect(body.error.requiredRole).toBe("editor");
 });
 Then("after reload the event {string} sits at timeline index {int}", async ({ page }, name: string, index: number) => {
-  await page.reload();
+  await reloadPage(page);
   const { dayId } = dayOrderState(page);
   const [row] = await eventsNamed(dayId, name);
   expect(row).toBeDefined();
@@ -2282,7 +2283,7 @@ Then(
   async ({ page }, kind: string) => {
     const current = eventDeleteState(page);
     const fixture = current.fixtures[deleteKind(kind)];
-    await page.reload();
+    await reloadPage(page);
     await expectEventCount(fixture.eventId, 0);
     const [document] = await expectDocument(fixture);
     expect(document).toMatchObject({ eventId: null, tripId: current.tripId });
@@ -2297,7 +2298,7 @@ Then(
   "after reload the {string} event, its document and its expense are gone and its file is removed",
   async ({ page }, kind: string) => {
     const fixture = eventDeleteState(page).fixtures[deleteKind(kind)];
-    await page.reload();
+    await reloadPage(page);
     await expectEventCount(fixture.eventId, 0);
     expect(await expectDocument(fixture)).toHaveLength(0);
     const expenseRows = await withE2EDb((database) =>
@@ -2454,7 +2455,7 @@ When("I create the note {string} on a day that no longer exists", async ({ page 
 Then(
   "after reload the note {string} sits at timeline index {int}",
   async ({ page }, content: string, index: number) => {
-    await page.reload();
+    await reloadPage(page);
     const { dayId } = dayOrderState(page);
     const [row] = await notesWithContent(dayId, content);
     expect(row).toBeDefined();
@@ -2573,7 +2574,7 @@ When("I submit note edit case {string}", async ({ page }, testCase: string) => {
   await patchNote(page, request.id, request.body);
 });
 Then("after reload the existing note holds {string} in its original place", async ({ page }, content: string) => {
-  await page.reload();
+  await reloadPage(page);
   expect((await storedNote(existingNoteId(page))).content).toBe(content);
   expect(await storedDayOrder(dayOrderState(page).dayId)).toEqual(dayOrderState(page).original);
 });
@@ -2613,7 +2614,7 @@ Then("both keyed note deletes return 204", async ({ page }) => {
   for (const response of responses) expect(response.status()).toBe(204);
 });
 Then("after reload the existing note is gone and the other items keep their order", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   const noteId = existingNoteId(page);
   const { dayId, original } = dayOrderState(page);
   expect(await storedNote(noteId)).toBeUndefined();
@@ -2733,7 +2734,7 @@ Then("the stored trip note titles are {string}", async ({ page }, titles: string
   expect(rows.map((row) => row.title)).toEqual(titles.split(", "));
 });
 Then("after reload the stored trip note titles are {string}", async ({ page }, titles: string) => {
-  await page.reload();
+  await reloadPage(page);
   const rows = await storedTripNotes(tripNoteApi(page).tripId);
   expect(rows.map((row) => row.title)).toEqual(titles.split(", "));
 });
@@ -3139,7 +3140,7 @@ When("I submit day edit case {string}", async ({ page }, testCase: string) => {
   await patchDay(page, request.id, request.body);
 });
 Then("after reload the {word} day is stored as:", async ({ page }, which: string, expected: string) => {
-  await page.reload();
+  await reloadPage(page);
   const row = (await storedDays(dayApi(page).tripId)).find((day) => day.id === dayIdAt(page, which));
   expect(row).toMatchObject(JSON.parse(expected));
 });
@@ -3240,14 +3241,14 @@ Then("both keyed day deletes return 204", async ({ page }) => {
   for (const response of responses) expect(response.status()).toBe(204);
 });
 Then("the last day is gone and the trip ends on the second day's date", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   const { tripId, before } = dayApi(page);
   const snapshot = await daySnapshot(tripId);
   expect(snapshot.days.map((day) => day.id)).toEqual(before.days.slice(0, 2).map((day) => day.id));
   expect(snapshot.endDate).toBe(before.days[1].date);
 });
 Then("the populated last day, its event, document and file are gone", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   const { tripId, before, populated } = dayApi(page);
   expect((await storedDays(tripId)).map((day) => day.id)).toEqual(before.days.slice(0, 2).map((day) => day.id));
   const [eventRows, documentRows, queued] = await withE2EDb((database) =>

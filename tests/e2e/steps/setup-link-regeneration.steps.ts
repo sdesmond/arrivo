@@ -20,6 +20,7 @@ import {
 } from "../credential-authorization-fixture";
 import { createLockGate } from "../role-service-fixture";
 import { openCredentialLink, recipientContext } from "../onboarding-browser";
+import { reloadPage } from "../page-reload";
 
 interface RegenerationTarget extends ScenarioUserRecord {
   oldToken: string;
@@ -103,7 +104,7 @@ Then("regeneration keeps the account ID and gives a fresh 24-hour setup link", a
   expect(lifetime).toBeLessThanOrEqual(24 * 3_600_000 + 10_000);
   await expect(dialog.locator("time")).toHaveAttribute("datetime", current.expiresAt.toISOString());
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.reload();
+  await reloadPage(page);
   await expect(targetRow(page, scenario)).toHaveCount(1);
 });
 Then("regeneration Activity identifies only the admin and target", async ({ scenario }) => {
@@ -137,7 +138,7 @@ Then("the prior setup link is rejected and the replacement opens setup", async (
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
-      await oldSetupPage.reload();
+      await reloadPage(oldSetupPage);
       await expect(oldSetupPage.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
     }
     const recipient = await context.newPage();

@@ -25,6 +25,7 @@ import { After, Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 import { waitForApiResponse } from "../api-response";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 // Also uses "I am signed in as an app {string}" and "app management is not found" from
 // account-menu.steps.ts, and the sign-in / code steps from mfa.steps.ts.
@@ -39,7 +40,7 @@ When("I open the app Activity page", async ({ page }) => {
 });
 
 When("I refresh the page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
 });
 
 Then("the Activity table lists a Sign-in row for me", async ({ page, scenario }) => {
@@ -47,7 +48,7 @@ Then("the Activity table lists a Sign-in row for me", async ({ page, scenario })
   const table = page.getByRole("table", { name: "Recent app activity" });
   // The row is written after the sign-in response, so it can land just after the first load.
   await expect(async () => {
-    await page.reload();
+    await reloadPage(page);
     await expect(table.getByRole("row").filter({ hasText: user.username }).filter({ hasText: "Sign-in" })).toHaveCount(
       1
     );
@@ -144,7 +145,7 @@ async function expectActivityRow(page: Page, texts: string[]) {
   const table = page.getByRole("table", { name: "Recent app activity" });
   // Rows are written after the response, so one can land just after the first load.
   await expect(async () => {
-    await page.reload();
+    await reloadPage(page);
     let rows = table.getByRole("row");
     for (const text of texts) rows = rows.filter({ hasText: text });
     await expect(rows).toHaveCount(1);
@@ -1153,7 +1154,7 @@ Then("Activity lists one ongoing summary for that trip with only approved metada
     tripId: trip.id,
   });
   expect(rows[0].endedAt.getTime()).toBeGreaterThan(rows[0].startedAt.getTime());
-  await page.reload();
+  await reloadPage(page);
   await waitForActivityIdle(page);
   const row = activityTable(page).locator("tbody tr");
   await expect(row).toHaveCount(1);
@@ -1315,7 +1316,7 @@ async function expectFilteredActions(scenario: ScenarioFixtureContext, username:
   const { page } = scenario.getValue<OtherAdminSession>(OTHER_ADMIN_SESSION_KEY)!;
   // Events are written after their responses, so reload until each expected row has landed.
   await expect(async () => {
-    await page.reload();
+    await reloadPage(page);
     await waitForActivityIdle(page);
     for (const action of actions.split(",").map((entry) => entry.trim())) {
       await expect(

@@ -6,6 +6,7 @@ import { withE2EDb } from "../e2e-db";
 import { openDialog } from "../dialog";
 import { waitForServerActionResponse } from "../server-action";
 import type { ScenarioFixtureContext } from "../scenario-fixture";
+import { reloadPage } from "../page-reload";
 
 async function rememberAddedAccount(scenario: ScenarioFixtureContext) {
   const username = scenario.getValue<string>("addedUsername")!;
@@ -54,7 +55,7 @@ Then("Add User has a blank form without a setup link", async ({ page }) => {
 
 Then("the added account persists as pending after reload", async ({ page, scenario }) => {
   await rememberAddedAccount(scenario);
-  await page.reload();
+  await reloadPage(page);
   const row = page
     .getByRole("list", { name: "App users" })
     .getByRole("listitem")

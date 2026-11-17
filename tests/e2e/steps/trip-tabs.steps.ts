@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { TripDetailTab } from "../../../src/data/types";
 import { Given, Then, When } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 const tabParamsByLabel = {
   Itinerary: TripDetailTab.Itinerary,
@@ -62,7 +63,7 @@ When("I open the {string} trip tab", async ({ page }, label: string) => {
 });
 
 When("I reload the browser page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   // "networkidle" never resolves once the app-shell's SyncStatusIndicator opens its persistent SSE connection.
   await page.waitForLoadState("domcontentloaded");
 });

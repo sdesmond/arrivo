@@ -9,6 +9,7 @@ import { onboardingClientHeaders, openCredentialLink, recipientContext } from ".
 import type { ScenarioFixtureContext } from "../scenario-fixture";
 import { waitForApiResponse } from "../api-response";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 const PASSWORD = "recipient-password-1";
 const recipientOf = (scenario: ScenarioFixtureContext) => scenario.getValue<Page>("onboardingRecipient")!;
@@ -121,7 +122,7 @@ Then("Users and the recipient identify the original account and the link is cons
   const rows = await accountRows(scenario);
   expect(rows.length === 1 && rows[0].id === session.user.id && rows[0].name === "Integrated Recipient").toBe(true);
   expect((await authorizations(rows[0].id))[0].consumedAt !== null).toBe(true);
-  await page.reload();
+  await reloadPage(page);
   const row = page.getByRole("listitem").filter({ has: page.getByText(usernameOf(scenario), { exact: true }) });
   await expect(row).toHaveCount(1);
   await expect(row).not.toContainText("Pending setup");
