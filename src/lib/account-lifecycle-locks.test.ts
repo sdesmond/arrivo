@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import {
+  accountLockMarker,
   assertAnotherCompletedAdmin,
   LastCompletedAdminError,
   lockAppAndUsersForUpdate,
@@ -11,6 +12,10 @@ import {
 } from "./account-lifecycle-locks";
 
 const dialect = new PgDialect();
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function createTransaction(
   options: {
@@ -47,6 +52,31 @@ describe("lockAppAndUsersForUpdate", () => {
     expect(statements.slice(1).map((statement) => statement.params[0])).toEqual(["a", "b", "c"]);
     expect(statements.every((statement) => statement.text.includes("for update"))).toBe(true);
     expect(scope).toEqual({ appLocked: true, lockedUserIds: new Set(["a", "b", "c"]) });
+  });
+
+  it("adds no statement outside E2E mode", async () => {
+    vi.stubEnv("E2E_MODE", "");
+    const { statements, transaction } = createTransaction();
+
+    await lockAppAndUsersForUpdate(transaction, ["a"]);
+
+    expect(statements.some((statement) => statement.text.includes("set_config"))).toBe(false);
+  });
+
+  it("in E2E mode names the waiting connection after the locked users before taking the singleton", async () => {
+    vi.stubEnv("E2E_MODE", "true");
+    const { statements, transaction } = createTransaction();
+
+    await lockAppAndUsersForUpdate(transaction, ["B", "a"]);
+
+    expect(statements[0].text).toContain("set_config('application_name'");
+    expect(statements[0].text).toContain("true)");
+    expect(statements[0].params).toEqual([accountLockMarker(["a", "b"])]);
+    expect(statements[1].text).toContain("app_state");
+  });
+
+  it("builds the marker from sorted, deduplicated, lowercased ids", () => {
+    expect(accountLockMarker(["B", "a", "b"])).toBe("arrivo-account-lock:a,b");
   });
 
   it("deduplicates ids that differ only by case", async () => {

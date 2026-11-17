@@ -207,7 +207,7 @@ Before starting any new development task, you MUST ask the user whether they wan
 - Coverage is enforced (`test:coverage`): maintain ≥95% lines/functions, ≥90% branches across `src/lib/**` and `src/components/arrivo/**`, but treat those thresholds as backstops rather than the trigger for adding tests
 - Excluded from coverage (see `vitest.config.mts`): `src/app/**`, `src/components/ui/**`, `src/components/providers/**`, `src/components/arrivo/trip-rail.tsx`, `src/components/arrivo/trips-mobile-tabs.tsx`, `src/lib/auth-helpers.ts`, `src/lib/queries.ts`, `src/lib/server-now.ts`
 - E2E tests run against the `arrivo_e2e` database — `global-setup.ts` seeds it fresh before each run; do not assume any pre-existing state in step definitions
-- The E2E webServer runs on port 3001 with `DATABASE_URL` pointed at `E2E_DATABASE_URL` and `NEXT_DISTDIR=.next-e2e` (separate build cache from dev)
+- E2E runs against a production build, not `next dev`: `scripts/run-e2e.mjs` builds into `.next-e2e`, then every E2E app (port 3001, bootstrap 3002, password-policy apps) runs `next start` on that build with its own `DATABASE_URL` and storage (`scripts/e2e-server.mjs`). A step that waits on a server action must not rely on reading its whole response: the router aborts the streamed payload once applied — use `waitForServerActionSettled` (`tests/e2e/server-action.ts`)
 
 <!-- bmad:context -->
 <!-- Verified 2026-10-16 against ba7407c. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
@@ -224,6 +224,7 @@ Travel itinerary planner. Next.js 16 App Router, React 19, TypeScript strict, Ta
 
 - `page.tsx` is the Server Component (data, auth); `page-client.tsx` is the `"use client"` half. Keep that split in `src/app/(app)/trips/**`.
 - DB schema `src/db/schema.ts`; server actions sit beside their route as `actions.ts`.
+- `/api/v1` contracts are `src/lib/api/contract/*.ts`, documented in `docs/api-v1.md`. Changing an endpoint (fields, limits, errors, roles) means updating that page in the same change; `api-reference.test.ts` catches added, removed and replay-mismatched routes but not field details.
 - Every `src/db/schema.ts` change ships with a generated migration in the same change: `npm run db:generate`, review the SQL (renames come out as drop+add), commit `drizzle/`. Never edit an applied migration. CI fails on drift.
 
 ## Conventions that differ from defaults

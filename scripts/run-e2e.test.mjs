@@ -154,14 +154,11 @@ describe("runner integration", async () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
-  it("removes only the two dedicated E2E caches", () => {
+  it("removes only the shared E2E build", () => {
     const remove = vi.fn();
     clearE2ECaches(process.cwd(), remove);
-    expect(remove.mock.calls.map(([target]) => target.replaceAll("\\", "/").split("/").at(-1))).toEqual([
-      ".next-e2e",
-      ".next-e2e-bootstrap",
-    ]);
-    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove.mock.calls.map(([target]) => target.replaceAll("\\", "/").split("/").at(-1))).toEqual([".next-e2e"]);
+    expect(remove).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledWith(expect.any(String), { recursive: true, force: true });
   });
   it("prepares both ports and databases before generating and running selected tests", async () => {
@@ -176,11 +173,14 @@ describe("runner integration", async () => {
       },
       ensureDatabase,
       runPackage: (command, args, options) => {
-        commands.push({ command, args, database: options.env.E2E_DATABASE_URL });
+        commands.push({ command, args, env: options.env, database: options.env.E2E_DATABASE_URL });
       },
     });
     expect(ports).toEqual([3001, 3002]);
     expect(ensureDatabase).toHaveBeenCalledWith("postgres://host/arrivo_e2e");
+    expect(commands[0].args).toEqual(["run", "build"]);
+    expect(commands[0].env).toMatchObject({ NODE_ENV: "production", NEXT_DISTDIR: ".next-e2e" });
+    commands.shift();
     expect(commands.slice(0, 4).map(({ args, database }) => [args[1], new URL(database).pathname])).toEqual([
       ["db:reset:e2e", "/arrivo_e2e"],
       ["db:migrate:e2e", "/arrivo_e2e"],
@@ -191,18 +191,25 @@ describe("runner integration", async () => {
     expect(commands[5].args).toEqual(["playwright", "test", "--grep", "@feat:auth|@feat:app-bootstrap"]);
     expect(process.env.E2E_DATABASE_URL).toBe("postgres://host/arrivo_e2e");
   });
-  it.each(["kill", "reuse"])("handles E2E caches in %s mode after preparing both ports", async (mode) => {
+  it.each([
+    ["kill", true, ["port:3001", "port:3002", "clear", "build", "database"]],
+    ["kill", false, ["port:3001", "port:3002", "clear", "build", "database"]],
+    // A reused server may be serving the existing build, so reuse mode only builds when none exists.
+    ["reuse", true, ["port:3001", "port:3002", "database"]],
+    ["reuse", false, ["port:3001", "port:3002", "build", "database"]],
+  ])("handles the E2E build in %s mode (existing build: %s)", async (mode, built, expected) => {
     vi.stubEnv("E2E_DATABASE_URL", "postgres://host/arrivo_e2e");
     const calls = [];
     await main([`--server=${mode}`, "--grep=@feat:auth"], {
       prepareServer: ({ port }) => calls.push(`port:${port}`),
       clearE2ECaches: () => calls.push("clear"),
+      hasE2EBuild: () => built,
       ensureDatabase: async () => calls.push("database"),
-      runPackage: () => undefined,
+      runPackage: (command, args) => {
+        if (args[1] === "build") calls.push("build");
+      },
     });
-    expect(calls).toEqual(
-      mode === "kill" ? ["port:3001", "port:3002", "clear", "database"] : ["port:3001", "port:3002", "database"]
-    );
+    expect(calls).toEqual(expected);
   });
   it("rejects port collisions before preparing servers or databases", async () => {
     const prepareServer = vi.fn();

@@ -9,7 +9,6 @@ import {
   cloneSecurityPolicyUserMother,
   createSecurityPolicyApp,
   policyAppDatabaseUrl,
-  policyAppDistDirectory,
   policyAppPort,
   policyAppStorageDirectory,
   type SecurityPolicyApp,
@@ -45,7 +44,7 @@ test.describe("E2E password-policy fixture", () => {
     app = undefined;
   });
 
-  test("derives a distinct database, port and caches per slot, and refuses slots it cannot isolate", () => {
+  test("derives a distinct database, port and storage per slot, and refuses slots it cannot isolate", () => {
     const source = "postgres://arrivo:secret@localhost:5432/arrivo_e2e?sslmode=disable";
     const urls = Array.from({ length: POLICY_APP_SLOTS }, (_, index) => policyAppDatabaseUrl(source, index));
     expect(new Set(urls).size).toBe(POLICY_APP_SLOTS);
@@ -54,7 +53,8 @@ test.describe("E2E password-policy fixture", () => {
       POLICY_APP_SLOTS
     );
     expect(policyAppPort(0)).toBe(POLICY_APP_BASE_PORT);
-    expect(policyAppDistDirectory(2)).toBe(".next-e2e-policy-2");
+    // One slot per worker: the slots must outnumber any worker count the suite runs with.
+    expect(POLICY_APP_SLOTS).toBeGreaterThanOrEqual(16);
     expect(policyAppStorageDirectory(1)).toContain("policy-1");
     for (const bad of [-1, POLICY_APP_SLOTS, 1.5]) {
       expect(() => policyAppPort(bad)).toThrow(/slot/);

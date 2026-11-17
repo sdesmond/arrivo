@@ -15,6 +15,14 @@ export class LastCompletedAdminError extends Error {
   }
 }
 
+/**
+ * The `application_name` an account-lock transaction carries in E2E mode. Postgres truncates it to 63 bytes, which
+ * fits one user id; tests only match single-account writers.
+ */
+export function accountLockMarker(userIds: readonly string[]): string {
+  return `arrivo-account-lock:${[...new Set(userIds.map((id) => id.toLowerCase()))].sort().join(",")}`;
+}
+
 // Lock order (AD-2): app singleton first, then the affected users in sorted, deduplicated ID order. Callers that
 // also lock trips do so afterwards. Rows that do not exist are reported, not thrown, so callers pick the refusal.
 // Runs inside the caller's transaction; never opens one.
@@ -22,6 +30,11 @@ export async function lockAppAndUsersForUpdate(
   transaction: DbTransaction,
   userIds: readonly string[]
 ): Promise<LockedAccountScope> {
+  if (process.env.E2E_MODE === "true") {
+    // Every account writer queues on the one app_state row, so a waiter is anonymous in pg_locks. Naming the
+    // connection lets a race test wait for one account's writer rather than any; `true` scopes it to this transaction.
+    await transaction.execute(sql`select set_config('application_name', ${accountLockMarker(userIds)}, true)`);
+  }
   const appRows = await transaction.execute(
     sql`select ${appState.id} from ${appState} where ${appState.id} = true for update`
   );
@@ -38,9 +51,7 @@ export async function lockAppAndUsersForUpdate(
 }
 
 export type UsersAndTripLock =
-  | { locked: true }
-  | { locked: false; missing: "user"; userId: string }
-  | { locked: false; missing: "trip" };
+  { locked: true } | { locked: false; missing: "user"; userId: string } | { locked: false; missing: "trip" };
 
 // Lock order (AD-7) for writers that touch accounts and one trip without taking the app singleton: the users in
 // sorted, deduplicated ID order, then the trip. The same order account deletion uses, so a writer and a deletion
