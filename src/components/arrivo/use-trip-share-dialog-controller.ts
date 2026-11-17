@@ -2,17 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getShareDialogData, saveContributorChanges } from "@/app/(app)/trips/[tripId]/actions";
+import { saveContributorChanges } from "@/app/(app)/trips/[tripId]/actions";
+import { api } from "@/lib/api/client";
+import { getCollaborators } from "@/lib/api/contract/sharing";
 import { useShareInvitationActions } from "@/components/arrivo/use-share-invitation-actions";
 import { useTripShareInviteForm } from "@/components/arrivo/use-trip-share-invite-form";
 import { LiveSyncEventType } from "@/data/types";
-import type { Collaborator, CollaboratorRole, ContributorChange, Invitation } from "@/data/types";
+import type { Collaborator, CollaboratorRole, ContributorChange, ShareDialogData } from "@/data/types";
 import { useLiveSync } from "@/lib/use-live-sync";
-export interface ShareDialogData {
-  collaborators: Collaborator[];
-  currentCollaboratorId: string | null;
-  invitations: Invitation[];
-}
 interface UseTripShareDialogControllerOptions {
   onRequestClose: () => void;
   tripId: string;
@@ -87,7 +84,7 @@ export function useTripShareDialogController({ onRequestClose, tripId }: UseTrip
     // cannot hold up the share data refresh (or the invite that is waiting on it).
     void inviteForm.reloadOptions();
     try {
-      const nextData = await getShareDialogData(tripId);
+      const nextData = await api(getCollaborators, { params: { tripId }, body: {} });
       if (isNewest()) applyShareData(nextData);
       return true;
     } catch {

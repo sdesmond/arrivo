@@ -181,3 +181,10 @@
   summary: Extend deletion records to every client-id create, so a retried create sent after a delete cannot bring the row back.
   evidence: After L104 only documents were covered; events, days, checklists, checklist items, day notes and trip notes still created again under a deleted id, which the mobile offline queue would hit.
   completed: 2026-11-16 on `fix/deletion-records`. Every service delete of those resources writes `deleted:<resource>:<id>`, the trip date change records the events and days it removes, and each create whose id names no row refuses a recent record with a 409 and a per-resource message (`refuseRecentlyDeleted`, `deletion-records.ts`). Cascaded children are not recorded: re-creating one needs its deleted parent (404). Add-day drops its retained id after a successful day removal. Tests: `deletion-records.test.ts`, the five service tests, `trips/actions.test.ts`, `use-trip-detail-handlers.test.tsx`, and the `api.feature` outline "A <resource> create retried after the delete conflicts instead of bringing it back" (six examples).
+
+- source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
+  summary: Recheck submitted normalized invitation username after acquiring account lock.
+  evidence: Pre-existing invite action and migrated service resolve account ID before locking; concurrent profile rename can change username ownership before mutation.
+- source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
+  summary: Replace caught unique-violation recovery inside invitation transaction with conflict-safe insertion.
+  evidence: Pre-existing writer catches PostgreSQL unique violation inside transaction; database marks transaction aborted, so later statements cannot persist a typed replay result. Cooperating writers serialize through existing account and trip locks.

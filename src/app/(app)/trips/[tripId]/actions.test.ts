@@ -31,7 +31,6 @@ vi.mock("../actions", () => ({
 
 import {
   dismissShareInvitation,
-  getShareDialogData,
   rescindShareInvitation,
   resendShareInvitation,
   saveContributorChanges,
@@ -51,22 +50,6 @@ describe("share invitation actions", () => {
       currentCollaboratorId: "manager-row-1",
       invitations: [],
     });
-  });
-
-  it("delegates to getContributorsAndInvitations with the caller's id", async () => {
-    await expect(getShareDialogData("trip-1")).resolves.toEqual({
-      collaborators: [],
-      currentCollaboratorId: "manager-row-1",
-      invitations: [],
-    });
-
-    expect(mockGetContributorsAndInvitations).toHaveBeenCalledWith("trip-1", "manager-1");
-  });
-
-  it("propagates a rejection from getContributorsAndInvitations", async () => {
-    mockGetContributorsAndInvitations.mockRejectedValue(new Error("not found"));
-
-    await expect(getShareDialogData("trip-1")).rejects.toThrow("not found");
   });
 
   it("delegates a resend before revalidating the trip", async () => {

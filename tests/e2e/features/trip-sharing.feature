@@ -46,6 +46,17 @@ Feature: Trip sharing dialog
     And I invite that user to the trip as an editor
     Then I see a pending sharing row for the invited user with the editor role
     And the invited user is no longer offered in the invite picker
+    When I reload the sharing trip and reopen sharing
+    Then I see a pending sharing row for the invited user with the editor role
+
+  Scenario: API invitation updates an invitee watching their dashboard
+    Given I have a trip with sharing rows
+    And there is a registered user I can invite
+    And the invitable user is watching their dashboard
+    When I go to the current trip
+    And I open the sharing dialog
+    And I invite that user to the trip as an editor
+    Then the invitable user's dashboard shows the new invitation without reloading
 
   Scenario: Typing a name that matches no registered user offers nothing to invite
     Given I have a trip with sharing rows

@@ -59,7 +59,7 @@ A failure is always this envelope:
 
 ### Roles
 
-Every trip-scoped write needs the **editor** role or above (`viewer` < `editor` < `manager`). A caller who is not a member gets 404; a viewer gets 403 with `"requiredRole": "editor"`. Access is checked again inside the write's transaction, after the trip lock, so a role removed mid-request still refuses.
+Sharing reads and invitation creation require **manager**; insufficient member roles receive 403 with `"requiredRole": "manager"`. Other trip-scoped writes need the **editor** role or above (`viewer` < `editor` < `manager`). A caller who is not a member gets 404; a viewer gets 403 with `"requiredRole": "editor"`. Access is checked again inside the write's transaction, after the trip lock, so a role removed mid-request still refuses.
 
 ### Rate limits
 
@@ -77,7 +77,7 @@ The server runs each request under a deadline set ahead of the web client's own 
 
 ### Idempotency-Key
 
-Endpoints marked **`Idempotency-Key`: yes** replay a retried request instead of running it twice.
+Endpoints marked **`Idempotency-Key`**: yes replay a retried request instead of running it twice.
 
 - A record belongs to the caller and the key, and remembers a fingerprint of the method, the concrete path and the validated body (object key order ignored, array order not).
 - **Same request within 24 hours:** the stored response is returned, with no write and no side effects.
@@ -216,7 +216,7 @@ interface CoverImageSearchResult {
 The one public endpoint, so a client can discover the API before signing in. It skips the session, origin and rate-limit checks and reveals no version, user or environment data.
 
 ```json
-{ "apiVersion": 1, "capabilities": ["idempotency-key"] }
+{ "apiVersion": 1, "capabilities": ["idempotency-key", "sharing-invitations"] }
 ```
 
 ## Days
@@ -533,3 +533,64 @@ Geocodes a destination name, for a map cover. `center` is `null` when nothing ma
 | Query  | Type          | Notes             |
 | ------ | ------------- | ----------------- |
 | `name` | string, 1–200 | Required; trimmed |
+
+## Sharing
+
+### GET /api/v1/trips/:tripId/collaborators
+
+**Role:** manager. **`Idempotency-Key`**: no.
+
+No query fields. Returns `{ collaborators, currentCollaboratorId, invitations }` using existing collaborator and invitation shapes. Invitations include pending (including expired pending) and declined rows. Nonmembers receive 404; viewers and editors receive 403.
+
+Response fields:
+
+| Field                   | JSON type                 | Presence and nullability                                                                  |
+| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `collaborators`         | collaborator object array | Always present; empty array allowed.                                                      |
+| `currentCollaboratorId` | UUID string or `null`     | Always present; caller's collaborator row ID, or `null` when no matching row is returned. |
+| `invitations`           | invitation object array   | Always present; empty array allowed.                                                      |
+
+Each collaborator object contains the mapped fields below. Optional fields are omitted when unavailable; they are never returned as `null`.
+
+| Field       | JSON type                              | Presence                                                         |
+| ----------- | -------------------------------------- | ---------------------------------------------------------------- |
+| `id`        | UUID string                            | Always present in this endpoint.                                 |
+| `name`      | string                                 | Always present; display name stored on membership.               |
+| `initials`  | string                                 | Always present.                                                  |
+| `role`      | `"viewer"`, `"editor"`, or `"manager"` | Always present.                                                  |
+| `isCreator` | boolean                                | Always present in this endpoint.                                 |
+| `username`  | string                                 | Optional; omitted after the linked account is deleted.           |
+| `image`     | string                                 | Optional; profile image URL, omitted without a photo or account. |
+| `tintBg`    | string                                 | Optional; stored background color token.                         |
+| `tintFg`    | string                                 | Optional; stored foreground color token.                         |
+
+Each invitation object contains these fields. This read returns only `pending` and `declined` statuses; expired pending invitations still have `status: "pending"` and an `expiresAt` in the past.
+
+| Field             | JSON type                              | Presence and nullability                               |
+| ----------------- | -------------------------------------- | ------------------------------------------------------ |
+| `id`              | UUID string                            | Always present; never null.                            |
+| `tripId`          | UUID string                            | Always present; never null.                            |
+| `inviteeUsername` | string                                 | Always present; never null.                            |
+| `role`            | `"viewer"`, `"editor"`, or `"manager"` | Always present; never null.                            |
+| `status`          | `"pending"` or `"declined"`            | Always present; never null.                            |
+| `expiresAt`       | ISO 8601 date-time string              | Always present; never null.                            |
+| `invitedBy`       | UUID string                            | Always present; inviter account ID, never null.        |
+| `createdAt`       | ISO 8601 date-time string              | Optional; omitted when database creation time is null. |
+
+### GET /api/v1/users/invitable
+
+**Role:** manager on query `tripId` (required UUID). **`Idempotency-Key`**: no.
+
+Returns `{ users: [{ id, username }], hasOtherUsers }`. Users are sorted by case-insensitive username. Excludes caller, accounts without passwords, existing collaborators, and all pending invitations including expired ones. `hasOtherUsers` reports whether any other account exists, independently of picker eligibility.
+
+### POST /api/v1/trips/:tripId/invitations
+
+**Role:** manager. **`Idempotency-Key`**: yes.
+
+Body: `{ id?: UUID, username: string, role?: "viewer" | "editor" | "manager" }`. Usernames are trimmed, lowercased and validated against account username rules; role defaults to viewer. Returns `{ status: "invited" }`, `{ status: "resent" }`, or typed domain rejection `{ status: "error", message, errorCode }` (`no-account`, `self-invite`, `already-collaborator`, `invite-conflict`). Malformed fields receive 422. Insufficient membership receives 403; nonmembership receives 404. Manager authority is rechecked under user-before-trip locks before reading any saved response.
+
+A new intent against an existing pending invitation preserves its row ID and refreshes role and expiry (72 hours), including when pending expiry has passed. Declined rows are replaced; rescinded rows remain retired. Successful writes publish invitee dashboard and trip membership events only after commit. Fresh creates record invitation activity once; resends and retries do not duplicate creation activity.
+
+UUID intent evidence and keyed responses commit atomically with invitation changes and share existing 24-hour replay-storage retention. The fingerprint includes validated UUID, normalized username, role, method and concrete trip path. Evidence remembers the actual pending row ID when a fresh UUID aliases an existing pending invitation. Exact UUID retries while that row remains pending return saved success without refreshing expiry, changing role, recording activity or publishing events, even with an independent header key or no header. Changed recipient, trip, role or actor conflicts with 409; foreign inaccessible trips remain concealed as 404.
+
+After rescind, dismissal, acceptance or decline, the same header key still returns saved success within retention after current manager authorization. A new key or absent header reusing that retired UUID receives 409 and cannot revive it, even if its row was deleted or replaced. A fresh intent must use a fresh UUID. Clients retain UUID on an uncertain network/timeout retry and replace it when trip, recipient or role changes or after successful completion. Without UUID or header, repeated requests are independent resend intents. After retention expires, replay protection is no longer guaranteed: send a fresh UUID for fresh intent. No schema migration or new configuration is required.

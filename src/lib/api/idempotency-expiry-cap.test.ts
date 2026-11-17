@@ -27,6 +27,8 @@ vi.mock("@/lib/api/route", () => ({
   },
 }));
 vi.mock("@/db", () => ({ db: {} }));
+// Route registration imports services but never invokes their authenticated operations.
+vi.mock("@/lib/auth-helpers", () => ({ assertTripAccess: vi.fn() }));
 
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 
@@ -37,7 +39,11 @@ beforeAll(async () => {
 
 it("loads the idempotent v1 routes", () => {
   expect(registrations.filter((registration) => registration.idempotent).map(({ route }) => route)).toEqual(
-    expect.arrayContaining(["PATCH /api/v1/checklist-items/:itemId", "POST /api/v1/checklists/:checklistId/items"])
+    expect.arrayContaining([
+      "PATCH /api/v1/checklist-items/:itemId",
+      "POST /api/v1/checklists/:checklistId/items",
+      "POST /api/v1/trips/:tripId/invitations",
+    ])
   );
 });
 

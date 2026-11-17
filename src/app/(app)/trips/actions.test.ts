@@ -155,9 +155,7 @@ import {
   deleteTrip,
   declineInvitation,
   dismissInvitation,
-  inviteContributor,
   leaveTrip,
-  listInvitableUsers,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
@@ -2128,274 +2126,6 @@ function setupInviteContributorDb({
   return operations;
 }
 
-describe("listInvitableUsers", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue("manager");
-  });
-
-  it("returns the invitable users after asserting manager access", async () => {
-    const result = { users: [{ id: "user-2", username: "alice" }], hasOtherUsers: true };
-    getInvitableUsers.mockResolvedValue(result);
-
-    await expect(listInvitableUsers("trip-1")).resolves.toEqual(result);
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(getInvitableUsers).toHaveBeenCalledWith("trip-1", "manager-1");
-  });
-
-  it("denies non-managers before querying the user directory", async () => {
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(listInvitableUsers("trip-1")).rejects.toThrow("not found");
-
-    expect(getInvitableUsers).not.toHaveBeenCalled();
-  });
-
-  it("requires a signed-in user before any lookup", async () => {
-    requireUser.mockRejectedValue(new Error("unauthorized"));
-
-    await expect(listInvitableUsers("trip-1")).rejects.toThrow("unauthorized");
-
-    expect(assertTripAccess).not.toHaveBeenCalled();
-    expect(getInvitableUsers).not.toHaveBeenCalled();
-  });
-});
-
-describe("inviteContributor", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("locks inviter and invitee in sorted order, then the trip, before reading or writing", async () => {
-    const operations = setupInviteContributorDb({ userRows: [{ id: "aaa-invitee" }] });
-
-    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({ status: "invited" });
-
-    expect(operations.locks).toEqual(["aaa-invitee", "manager-1", "trip-1"]);
-  });
-
-  it("reports the invitee's missing account when they vanish before the lock", async () => {
-    const operations = setupInviteContributorDb({ lockResults: [[]] });
-
-    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
-      status: "error",
-      message: "No account found for this username",
-      errorCode: "no-account",
-    });
-    expect(operations.inserts).toHaveLength(0);
-    expect(publishUserEvent).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["the inviter's account", [[{ id: "locked" }], []]],
-    ["the trip", [[{ id: "locked" }], [{ id: "locked" }], []]],
-  ])("answers not found and writes nothing when %s is gone", async (_label, lockResults) => {
-    const operations = setupInviteContributorDb({ lockResults });
-    const { notFound } = await import("next/navigation");
-
-    await inviteContributor("trip-1", "invitee");
-
-    expect(notFound).toHaveBeenCalled();
-    expect(operations.inserts).toHaveLength(0);
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-  });
-
-  it("creates a pending viewer invitation for the account matching the normalized username", async () => {
-    const operations = setupInviteContributorDb();
-    const lookupConditions: unknown[] = [];
-    db.select.mockReturnValue({
-      from: (table: unknown) => ({
-        where: async (condition: unknown) => {
-          if (table !== users) throw new Error("Unexpected non-transactional table read in invitation fixture.");
-          lookupConditions.push(condition);
-          return [{ id: "invitee-1" }];
-        },
-      }),
-    });
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-01T12:00:00.000Z"));
-
-    try {
-      await expect(inviteContributor("trip-1", "  Invitee  ")).resolves.toEqual({ status: "invited" });
-      expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_created", "manager-1", "trip-1");
-
-      expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-      expect(inspect(lookupConditions[0], { depth: 8 })).toContain("'invitee'");
-      expect(operations.inserts).toEqual([
-        {
-          table: invitations,
-          values: expect.objectContaining({
-            tripId: "trip-1",
-            inviteeId: "invitee-1",
-            role: "viewer",
-            status: "pending",
-            invitedBy: "manager-1",
-            expiresAt: new Date("2026-09-04T12:00:00.000Z"),
-          }),
-        },
-      ]);
-      expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-      expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
-        type: LiveSyncEventType.InvitationChanged,
-        tripId: "trip-1",
-      });
-      expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
-        type: LiveSyncEventType.MembershipChanged,
-        tripId: "trip-1",
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("returns an error without writing when no account matches", async () => {
-    const operations = setupInviteContributorDb({ userRows: [] });
-
-    await expect(inviteContributor("trip-1", "missing")).resolves.toEqual({
-      status: "error",
-      message: "No account found for this username",
-      errorCode: "no-account",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(db.transaction).not.toHaveBeenCalled();
-    expect(operations.inserts).toEqual([]);
-  });
-
-  it("updates a pending invitation in place and returns resent", async () => {
-    const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "pending" }] });
-
-    await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "resent" });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(operations.inserts).toEqual([]);
-    expect(operations.updates).toEqual([
-      {
-        table: invitations,
-        values: expect.objectContaining({ role: "editor", expiresAt: expect.any(Date) }),
-      },
-    ]);
-    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
-      type: LiveSyncEventType.InvitationChanged,
-      tripId: "trip-1",
-    });
-    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
-      type: LiveSyncEventType.MembershipChanged,
-      tripId: "trip-1",
-    });
-  });
-
-  it("replaces a declined invitation with a new pending invitation", async () => {
-    const operations = setupInviteContributorDb({ invitationRows: [{ id: "invite-1", status: "declined" }] });
-
-    await expect(inviteContributor("trip-1", "invitee", "editor")).resolves.toEqual({ status: "invited" });
-    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_created", "manager-1", "trip-1");
-
-    expect(operations.deletes).toEqual([invitations]);
-    expect(operations.inserts).toEqual([
-      {
-        table: invitations,
-        values: expect.objectContaining({ role: "editor", status: "pending" }),
-      },
-    ]);
-  });
-
-  it("returns an error without writing when invitee is already on trip", async () => {
-    const operations = setupInviteContributorDb({ collaboratorRows: [{ id: "collaborator-1" }] });
-
-    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
-      status: "error",
-      message: "This person is already a collaborator on this trip",
-      errorCode: "already-collaborator",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(operations.inserts).toEqual([]);
-    expect(operations.updates).toEqual([]);
-    expect(publishUserEvent).not.toHaveBeenCalled();
-    expect(publishTripEvent).not.toHaveBeenCalled();
-  });
-
-  it("returns an error without writing when manager invites themself", async () => {
-    const operations = setupInviteContributorDb({ userRows: [{ id: "manager-1" }] });
-
-    await expect(inviteContributor("trip-1", " Manager ")).resolves.toEqual({
-      status: "error",
-      message: "You cannot invite yourself to this trip",
-      errorCode: "self-invite",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(db.transaction).not.toHaveBeenCalled();
-    expect(operations.inserts).toEqual([]);
-  });
-
-  it("rejects editors before any write", async () => {
-    setupInviteContributorDb();
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(inviteContributor("trip-1", "invitee")).rejects.toThrow("not found");
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(db.transaction).not.toHaveBeenCalled();
-  });
-
-  it("returns an error without writing for an invalid role", async () => {
-    const operations = setupInviteContributorDb();
-
-    await expect(inviteContributor("trip-1", "invitee", "owner" as "viewer")).resolves.toEqual({
-      status: "error",
-      message: "Invalid collaborator role",
-      errorCode: "invalid-role",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(operations.inserts).toEqual([]);
-  });
-
-  it("returns a friendly error when a concurrent invite wins the unique-index race", async () => {
-    db.select.mockReturnValue({
-      from: (table: unknown) => ({
-        where: async () => {
-          if (table === users) return [{ id: "invitee-1" }];
-          throw new Error("Unexpected non-transactional table read.");
-        },
-      }),
-    });
-    db.transaction.mockImplementation(async (callback: (transaction: unknown) => Promise<unknown>) =>
-      callback({
-        execute: async () => [{ id: "locked" }],
-        insert: () => ({
-          values: async () => {
-            throw new Error("Failed query", {
-              cause: Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" }),
-            });
-          },
-        }),
-        select: () => ({
-          from: (table: unknown) => ({
-            where: async () => {
-              if (table === collaborators || table === invitations) return [];
-              throw new Error("Unexpected transactional table read.");
-            },
-          }),
-        }),
-      })
-    );
-
-    await expect(inviteContributor("trip-1", "invitee")).resolves.toEqual({
-      status: "error",
-      message: "This person was just invited by someone else. Try again.",
-      errorCode: "invite-conflict",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-  });
-});
-
 interface AcceptDeclineFixture {
   matchedRows?: Array<{ id: string; tripId: string; role: string; inviteeId: string; status: string; expiresAt: Date }>;
   diagnosticRow?: { id: string; inviteeId: string; status: string; expiresAt: Date } | null;
@@ -3074,7 +2804,7 @@ describe("invitation Activity commit boundaries", () => {
     assertTripAccess.mockResolvedValue(undefined);
   });
 
-  it.each(["create", "accept"] as const)("emits only after the %s transaction resolves", async (transition) => {
+  it.each(["accept"] as const)("emits only after the %s transaction resolves", async () => {
     setupInviteContributorDb();
     let commit!: (result: unknown) => void;
     db.transaction.mockImplementation(
@@ -3083,16 +2813,12 @@ describe("invitation Activity commit boundaries", () => {
           commit = resolve;
         })
     );
-    const pending = transition === "create" ? inviteContributor("trip-1", "invitee") : acceptInvitation("invite-1");
+    const pending = acceptInvitation("invite-1");
     await vi.waitFor(() => expect(db.transaction).toHaveBeenCalledOnce());
     expect(recordTripInvitation).not.toHaveBeenCalled();
-    commit(transition === "create" ? { status: "invited" } : { tripId: "trip-1" });
+    commit({ tripId: "trip-1" });
     await pending;
-    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith(
-      transition === "create" ? "invitation_created" : "invitation_accepted",
-      "manager-1",
-      "trip-1"
-    );
+    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_accepted", "manager-1", "trip-1");
   });
 
   it("emits only after the rescind returning row resolves", async () => {
@@ -3115,25 +2841,17 @@ describe("invitation Activity commit boundaries", () => {
     expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_rescinded", "manager-1", "trip-1");
   });
 
-  it.each(["create", "accept", "rescind"] as const)(
-    "does not emit after a throwing %s mutation",
-    async (transition) => {
-      setupInviteContributorDb();
-      if (transition === "rescind")
-        db.update.mockImplementationOnce(() => {
-          throw new Error("rollback");
-        });
-      else db.transaction.mockRejectedValueOnce(new Error("rollback"));
-      const pending =
-        transition === "create"
-          ? inviteContributor("trip-1", "invitee")
-          : transition === "accept"
-            ? acceptInvitation("invite-1")
-            : rescindInvitation("trip-1", "invite-1");
-      await expect(pending).rejects.toThrow("rollback");
-      expect(recordTripInvitation).not.toHaveBeenCalled();
-    }
-  );
+  it.each(["accept", "rescind"] as const)("does not emit after a throwing %s mutation", async (transition) => {
+    setupInviteContributorDb();
+    if (transition === "rescind")
+      db.update.mockImplementationOnce(() => {
+        throw new Error("rollback");
+      });
+    else db.transaction.mockRejectedValueOnce(new Error("rollback"));
+    const pending = transition === "accept" ? acceptInvitation("invite-1") : rescindInvitation("trip-1", "invite-1");
+    await expect(pending).rejects.toThrow("rollback");
+    expect(recordTripInvitation).not.toHaveBeenCalled();
+  });
 });
 
 describe("createTrip", () => {

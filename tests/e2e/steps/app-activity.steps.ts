@@ -547,7 +547,10 @@ When("I try an Activity invitation for the deleted account", async ({ page, scen
   const vanishing = scenario.getValue<ScenarioUserRecord>("vanishingUser")!;
   await pickInviteUser(page, vanishing.username);
   await withE2EDb((database) => database.delete(users).where(eq(users.id, vanishing.id)));
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations`,
+  });
   await page.getByTitle("Invite this person to the trip").click();
   await response;
   await expect(page.getByText("No account found for this username.", { exact: true })).toBeVisible();

@@ -1542,3 +1542,9 @@ export interface IdempotentRequest {
   /** Replay window in milliseconds; defaults to 24 hours. */
   expiryMs?: number;
 }
+
+export interface ShareDialogData {
+  collaborators: Collaborator[];
+  currentCollaboratorId: string | null;
+  invitations: Invitation[];
+}

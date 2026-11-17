@@ -3,7 +3,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import type { Invitation } from "@/data/types";
-import type { ShareDialogData } from "./use-trip-share-dialog-controller";
+import type { ShareDialogData } from "@/data/types";
 import { useShareInvitationActions } from "./use-share-invitation-actions";
 
 const mockRescindShareInvitation = vi.fn();

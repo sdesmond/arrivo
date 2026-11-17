@@ -65,6 +65,10 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/lib/services/sharing.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
+    "src/app/api/v1/trips/*/invitations/**",
+    "src/app/api/v1/users/invitable/**",
     "tests/e2e/steps/api-cover-search.steps.ts",
     "src/lib/services/cover-search.ts",
     "src/app/api/v1/cover-images/**",
@@ -880,6 +884,11 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mobile-upcoming-tab.tsx",
   ]),
   entry("trip-sharing", [
+    "src/lib/services/sharing.ts",
+    "src/lib/api/contract/sharing.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
+    "src/app/api/v1/trips/*/invitations/**",
+    "src/app/api/v1/users/invitable/**",
     "tests/e2e/invite-picker.ts",
     "src/app/(app)/trips/actions.ts",
     "src/app/(app)/trips/[tripId]/actions.ts",

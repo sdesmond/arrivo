@@ -16,16 +16,22 @@ const mockListInvitableUsers = vi.fn();
 const mockSaveContributorChanges = vi.fn();
 
 vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  getShareDialogData: (...args: unknown[]) => mockGetShareDialogData(...args),
   rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
   resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
   dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
   saveContributorChanges: (...args: unknown[]) => mockSaveContributorChanges(...args),
 }));
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  inviteContributor: (...args: unknown[]) => mockInviteContributor(...args),
-  listInvitableUsers: (...args: unknown[]) => mockListInvitableUsers(...args),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: (
+    endpoint: { path: string },
+    input: { params: { tripId?: string }; body: { tripId?: string; username?: string; role?: string; id?: string } }
+  ) => {
+    if (endpoint.path.endsWith("/collaborators")) return mockGetShareDialogData(input.params.tripId);
+    if (endpoint.path.endsWith("/invitable")) return mockListInvitableUsers(input.body.tripId);
+    return mockInviteContributor(input.params.tripId, input.body.username, input.body.role, input.body.id);
+  },
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -411,7 +417,7 @@ describe("useTripShareDialogController", () => {
 
       await act(async () => result.current.handleInvite());
 
-      expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "alice", "viewer");
+      expect(mockInviteContributor).toHaveBeenCalledWith("trip-1", "alice", "viewer", expect.any(String));
       expect(mockListInvitableUsers).toHaveBeenCalledOnce();
       expect(result.current.invitableUsers).toEqual([]);
       expect(result.current.selectedUser).toBeNull();
