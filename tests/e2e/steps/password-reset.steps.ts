@@ -14,13 +14,64 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { completePasswordReset } from "../../../src/lib/password-reset";
-import { lockAppAndUsersForUpdate } from "../../../src/lib/account-lifecycle-locks";
+import { accountLockMarker, lockAppAndUsersForUpdate } from "../../../src/lib/account-lifecycle-locks";
 import type { DbTransaction } from "../../../src/lib/server-action-locks";
 import { encryptField } from "../../../src/lib/field-encryption";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
+
+// The race steps hold the member's account lock and must finish the reset only once the member's own request is
+// queued behind it. Parallel scenarios also queue on the shared app_state row, so "anything blocked by us" can fire
+// before that request arrives; each wait below matches the member's writer alone.
+
+/**
+ * A writer that takes the app and account locks (`lockAppAndUsersForUpdate`) for `userId` only, named in E2E mode.
+ * It may queue behind other scenarios' app_state waiters, and then `pg_blocking_pids` names the waiter ahead of it
+ * rather than the step's transaction. Any lock wait counts: the step holds app_state, so every app_state waiter is
+ * ultimately behind it, and its own connection carries the same name but sits idle, never waiting.
+ */
+async function waitForQueuedAccountLock(userId: string): Promise<void> {
+  const marker = accountLockMarker([userId]);
+  await expect
+    .poll(
+      async () =>
+        withE2EDb(
+          async (observer) =>
+            (
+              await observer.execute(
+                sql`select pid from pg_stat_activity where application_name = ${marker} and wait_event_type = 'Lock'`
+              )
+            ).length
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(0);
+}
+
+/**
+ * A writer that locks a `users` row without the app lock. A backend waiting on a row lock holds a tuple lock on that
+ * row's table, and the only `users` row the blocker holds is the member's, so app_state waiters never match.
+ */
+async function waitForQueuedUserRow(blockerPid: number): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        withE2EDb(
+          async (observer) =>
+            (
+              await observer.execute(
+                sql`select pid from pg_locks
+                    where locktype = 'tuple' and relation = ${"users"}::regclass
+                      and ${blockerPid} = any(pg_blocking_pids(pid))`
+              )
+            ).length
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(0);
+}
 
 // Bundle the real recovery service for this Node test process; Next's server-only marker has no runtime here.
 let recoveryService: Promise<typeof import("../../../src/lib/admin-recovery-completion")> | undefined;
@@ -292,18 +343,8 @@ When("the member's password change races a reset", async ({ page, scenario }) =>
       }[];
       actionResponse = waitForServerActionResponse(page, { pathIncludes: "/profile", timeoutMs: 20_000 });
       await page.getByRole("button", { name: "Update password" }).click();
-      await expect
-        .poll(
-          async () =>
-            withE2EDb(async (observer) => {
-              const rows = await observer.execute(
-                sql`select pid from pg_stat_activity where ${connection.pid} = any(pg_blocking_pids(pid))`
-              );
-              return rows.length;
-            }),
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(0);
+      // The password change locks only the member's row (`lockCurrentSecurityVersion`), not app_state.
+      await waitForQueuedUserRow(connection.pid);
       const scoped = { transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction) };
       const result = await completePasswordReset(scoped as unknown as CredentialAuthorizationDatabase, {
         token: issued.token,
@@ -377,18 +418,8 @@ When("the member's {string} races a reset", async ({ page, scenario }, action: s
           exact: true,
         })
         .click();
-      await expect
-        .poll(
-          async () =>
-            withE2EDb(async (observer) => {
-              const rows = await observer.execute(
-                sql`select pid from pg_stat_activity where ${connection.pid} = any(pg_blocking_pids(pid))`
-              );
-              return rows.length;
-            }),
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(0);
+      // Both actions lock only the member's row (`lockCurrentSecurityVersion`), not app_state.
+      await waitForQueuedUserRow(connection.pid);
       const scoped = { transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction) };
       const result = await completePasswordReset(scoped as unknown as CredentialAuthorizationDatabase, {
         token: issued.token,
@@ -466,25 +497,9 @@ When("the member's self-deletion queues behind {string}", async ({ page, scenari
     let response: Promise<unknown> | undefined;
     await database.transaction(async (transaction) => {
       await lockAppAndUsersForUpdate(transaction as unknown as DbTransaction, [target.id]);
-      const [connection] = (await transaction.execute(sql`select pg_backend_pid() as pid`)) as unknown as {
-        pid: number;
-      }[];
       response = waitForServerActionResponse(page, { pathIncludes: "/profile", expectedStatus: 303, timeoutMs: 20000 });
       await dialog.getByRole("button", { name: "Delete account", exact: true }).click();
-      await expect
-        .poll(
-          async () =>
-            withE2EDb(
-              async (observer) =>
-                (
-                  await observer.execute(
-                    sql`select pid from pg_stat_activity where ${connection.pid} = any(pg_blocking_pids(pid))`
-                  )
-                ).length
-            ),
-          { timeout: 15000 }
-        )
-        .toBeGreaterThan(0);
+      await waitForQueuedAccountLock(target.id);
       const scoped = {
         transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
       } as unknown as CredentialAuthorizationDatabase;
