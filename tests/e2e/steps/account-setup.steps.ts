@@ -13,6 +13,7 @@ import { BASELINE_E2E_USER } from "../e2e-seed-data";
 import { After, Given, When, Then } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
 import { exchangeCredentialLink, openCredentialLink, recipientContext } from "../onboarding-browser";
+import { reloadPage } from "../page-reload";
 
 const LINK_KEY = "accountSetupLink";
 const SETUP_COOKIE = "arrivo_account_setup";
@@ -149,7 +150,7 @@ Then("the setup exchange response is not cacheable and sends no referrer", async
 });
 
 Then("the setup page response is not cacheable and sends no referrer", async ({ page }) => {
-  const response = await page.reload();
+  const response = await reloadPage(page);
   // `next dev` replaces the page's Cache-Control with no-cache; production keeps no-store from the proxy.
   expect(response!.headers()["cache-control"]).toMatch(/no-store|no-cache/);
   expect(response!.headers()["referrer-policy"]).toBe("no-referrer");

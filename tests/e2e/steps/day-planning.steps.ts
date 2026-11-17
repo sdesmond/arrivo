@@ -16,6 +16,7 @@ import {
 } from "../e2e-seed-data";
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then, Before } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 // A third reorderable event for the rapid-drag scenario; only this step file uses it.
 const E2E_EVENT_REORDER_THIRD = { name: "Drag Third", position: 13 } as const;
@@ -552,7 +553,7 @@ Then(
               { locationAddress: null, locationName: null, locationLat: null, locationLng: null },
             ]
       );
-      await page.reload();
+      await reloadPage(page);
       await openFirstDay(page);
       await expect(row.getByRole("button", { name: field === "time" ? "Add time" : /add location/i })).toBeVisible();
       const [stored] = await withE2EDb((db) => db.select().from(events).where(eq(events.id, eventId)));
@@ -655,7 +656,7 @@ When("I delete the event named {string}", async ({ page }, name: string) => {
 Then("the event {string} is gone after reload", async ({ page, scenario }, name: string) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await page.reload();
+  await reloadPage(page);
   const stored = await withE2EDb((db) =>
     db
       .select({ id: events.id })
@@ -691,7 +692,7 @@ Then(
   async ({ page, scenario }, name: string, above: string, below: string) => {
     const currentTrip = scenario.currentTrip;
     if (!currentTrip) throw new Error("Current scenario trip is missing.");
-    await page.reload();
+    await reloadPage(page);
     await openFirstDay(page);
     await expect(async () => {
       const tops: number[] = [];
@@ -799,7 +800,7 @@ Then(
   async ({ page, scenario }, first: string, second: string, third: string) => {
     const currentTrip = scenario.currentTrip;
     if (!currentTrip) throw new Error("Current scenario trip is missing.");
-    await page.reload();
+    await reloadPage(page);
     await openFirstDay(page);
     const names = [first, second, third];
     await expect(async () => {
@@ -946,7 +947,7 @@ When("I delete the note {string}", async ({ page }, content: string) => {
 });
 
 Then("the note {string} persists after reload", async ({ page }, content: string) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toBeVisible();
 });
@@ -954,7 +955,7 @@ Then("the note {string} persists after reload", async ({ page }, content: string
 Then("the note {string} is gone after reload", async ({ page, scenario }, content: string) => {
   const currentTrip = scenario.currentTrip;
   if (!currentTrip) throw new Error("Current scenario trip is missing.");
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="note-"]').filter({ hasText: content })).toHaveCount(0);
   const stored = await withE2EDb((db) =>
@@ -1048,7 +1049,7 @@ When("I delete the checklist", async ({ page }) => {
 });
 
 Then("the checklist stays deleted after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(0);
 });
@@ -1089,7 +1090,7 @@ Then("the checklist shows the title {string} while its save is still in flight",
     await response;
     await page.unroute(endpoint);
   }
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(getLatestChecklist(page).getByText(title, { exact: true }).first()).toBeVisible();
 });
@@ -1109,13 +1110,13 @@ When("I clear the checklist title {string}", async ({ page }, title: string) => 
 });
 
 Then("the checklist title {string} persists after reload", async ({ page }, title: string) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(getLatestChecklist(page).getByText(title, { exact: true }).first()).toBeVisible();
 });
 
 Then("the checklist has no title after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
   await expect(getLatestChecklist(page).getByText("Checklist · item")).toBeVisible();
@@ -1153,7 +1154,7 @@ Then("retrying the draft creates exactly one checklist that persists after reloa
   await response;
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
   await expect(getLatestChecklist(page).getByText("Retry checklist")).toBeVisible();
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
 });
@@ -1165,7 +1166,7 @@ Then("one expanded checklist sits in the timeline and the order persists after r
   await expect(getLatestChecklist(page).getByPlaceholder("Add an item…")).toBeVisible();
   const before = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id));
   expect(before.filter((id) => id.startsWith("checklist-"))).toHaveLength(1);
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
   const after = await page.locator(TIMELINE_ITEMS).evaluateAll((nodes) => nodes.map((node) => node.id));
@@ -1182,7 +1183,7 @@ async function expectTimelineOrder(page: Page, expected: string): Promise<void> 
 }
 
 Then("after reload the timeline reads {string}", async ({ page }, expected: string) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expectTimelineOrder(page, expected);
 });
@@ -1304,7 +1305,7 @@ Then("the populated final day and its content are deleted", async ({ page, scena
     expect(remainingEvents).toHaveLength(0);
     expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
   });
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByText(formatDayHeading(E2E_TRIP_SECOND_DATE))).not.toBeVisible();
   await expectTripsListEndsOn(page, currentTrip, E2E_TRIP_START_DATE);
 });
@@ -1318,7 +1319,7 @@ When("I add the day note {string}", async ({ page, scenario }, note: string) => 
 });
 
 Then("the day note {string} is saved and shown after reload", async ({ page, scenario }, note: string) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("button", { name: note, exact: true })).toBeVisible();
   const [day] = await withE2EDb((db) =>
     db
@@ -1338,7 +1339,7 @@ When("I clear the day note {string}", async ({ page, scenario }, note: string) =
 });
 
 Then("the first day shows no note after reload", async ({ page, scenario }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("button", { name: "Add a note", exact: true }).first()).toBeVisible();
   const [day] = await withE2EDb((db) =>
     db
@@ -1509,7 +1510,7 @@ When("I open the first day", async ({ page }) => {
 });
 
 Then("exactly one checklist with item {string} persists after reload", async ({ page }, itemContent: string) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   // A reloaded checklist renders collapsed, so expand it to see its item.
   await expect(page.locator('[id^="checklist-"]')).toHaveCount(1);
@@ -1519,7 +1520,7 @@ Then("exactly one checklist with item {string} persists after reload", async ({ 
 });
 
 Then("checklist completion persists after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await expect(getLatestChecklist(page).getByLabel("Complete")).toBeVisible();
 });
@@ -1591,7 +1592,7 @@ Then("rapid checklist toggles stay visible and persist in FIFO order", async ({ 
     await page.unroute(endpoint);
     await page.unroute(routePath);
   }
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await getLatestChecklist(page).getByRole("button").first().click();
   await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
@@ -1649,7 +1650,7 @@ Then("a failed checklist toggle rolls back and the next click persists", async (
   const response = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/checklist-items/${itemId}` });
   await row.getByRole("button", { name: "Check item", exact: true }).click();
   await response;
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   await getLatestChecklist(page).getByRole("button").first().click();
   await expect(row.getByRole("button", { name: "Uncheck item", exact: true })).toBeVisible();
@@ -1666,7 +1667,7 @@ async function checklistItemId(page: Page, content: string): Promise<string> {
 }
 
 async function reloadAndOpenLatestChecklist(page: Page): Promise<Locator> {
-  await page.reload();
+  await reloadPage(page);
   await openFirstDay(page);
   const checklist = getLatestChecklist(page);
   if (!(await checklist.getByPlaceholder("Add an item…").isVisible()))

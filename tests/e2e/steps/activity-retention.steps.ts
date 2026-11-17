@@ -10,6 +10,7 @@ import {
 import { holdActivityMaintenance, type ActivityMaintenanceHold } from "../activity-integration-fixture";
 import { withE2EDb } from "../e2e-db";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 const MAINTENANCE_HOLD_KEY = "retentionMaintenanceHold";
 
@@ -52,7 +53,7 @@ Then("Cancel has initial retention confirmation focus", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
 });
 Then("saved Activity retention is {int} days after reload", async ({ page }, days: number) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByText(`Saved retention: ${days} days`, { exact: true })).toBeVisible();
 });
 Then("my retention change event contains no private metadata", async ({ scenario }) => {

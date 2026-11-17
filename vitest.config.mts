@@ -31,6 +31,7 @@ export default defineConfig({
       "tests/e2e/server-action.test.ts",
       "tests/e2e/api-response.test.ts",
       "tests/e2e/dialog.test.ts",
+      "tests/e2e/page-reload.test.ts",
       "tests/e2e/onboarding-browser.test.ts",
     ],
     setupFiles: ["./vitest.setup.mts"],

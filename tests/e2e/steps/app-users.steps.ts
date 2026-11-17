@@ -6,6 +6,7 @@ import { withE2EDb } from "../e2e-db";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import type { Page } from "@playwright/test";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 const roleSelect = (page: Page, username: string) =>
   page.getByRole("combobox", { name: `Role: ${username}`, exact: true });
@@ -46,7 +47,7 @@ Then("the other app member is persistently an admin", async ({ page, scenario })
     database.select({ role: users.role }).from(users).where(eq(users.id, user.id))
   );
   expect(record.role).toBe("admin");
-  await page.reload();
+  await reloadPage(page);
   await expect(roleSelect(page, user.username)).toContainText("Admin");
 });
 

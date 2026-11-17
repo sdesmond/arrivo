@@ -5,6 +5,7 @@ import { withE2EDb } from "../e2e-db";
 import { E2E_DOCUMENT } from "../e2e-seed-data";
 import { waitForApiResponse } from "../api-response";
 import { Given, When, Then } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 // Uploads are checked against the file's first bytes, so each fixture carries the real signature of its type.
 const FILE_SIGNATURES: Record<string, Buffer> = {
@@ -40,7 +41,7 @@ Given("the Documents tab has one seeded document", async ({ page, scenario }) =>
     await db.insert(documents).values({ tripId: currentTrip.id, ...E2E_DOCUMENT });
   });
 
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(E2E_DOCUMENT.name)).toBeVisible();
 });
@@ -75,7 +76,7 @@ When("I upload a {int} MB PDF named {string}", async ({ page, scenario }, megaby
 });
 
 Then("the document {string} is listed after reloading", async ({ page }, filename: string) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Documents" }).click();
   await expect(page.getByText(filename)).toBeVisible({ timeout: 10_000 });
 });
@@ -172,7 +173,7 @@ When("I click the share button for {string}", async ({ page }, docName: string) 
 });
 
 Then("after reload the document {string} remains deleted", async ({ page }, name: string) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("button", { name: "Documents", exact: true }).click();
   await expect(page.getByRole("button", { name: "Delete " + name })).not.toBeVisible();
 });

@@ -7,6 +7,7 @@ import { Given, When, Then } from "../fixtures";
 import type { PolicyAppRegistry } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
 import { cloneSecurityPolicyUserMother, type SecurityPolicyUser } from "../security-policy-fixture";
+import { reloadPage } from "../page-reload";
 
 // Every scenario here runs against its own app and database (see security-policy-fixture.ts): password rules are one
 // row that all other scenarios read, so they are never changed on the shared E2E database.
@@ -99,7 +100,7 @@ When("the {string} browser opens the Security settings", async ({ policyApp }, l
 
 When("the {string} browser reloads the Security settings", async ({ policyApp }, label: string) => {
   const page = policyApp.browser(label);
-  await page.reload();
+  await reloadPage(page);
   await settle(page);
   await expect(page.getByRole("heading", { name: "Password rules", level: 3 })).toBeVisible();
 });

@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { E2E_TRIP_NOTES_REORDER } from "../e2e-seed-data";
 import { Before, Given, When, Then } from "../fixtures";
 import { waitForApiResponse } from "../api-response";
+import { reloadPage } from "../page-reload";
 
 function decodeStepValue(value: string): string {
   return value.replace(/\\n/g, "\n");
@@ -344,7 +345,7 @@ When("I press Escape to cancel the reorder", async ({ page }) => {
 });
 
 When("I reload the Notes tab", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await page.waitForURL(/\/trips\/.+/);
   await page.getByRole("button", { name: "Notes" }).click();
 });

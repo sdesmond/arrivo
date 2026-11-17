@@ -5,6 +5,7 @@ import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioUserRecord } from "../scenario-fixture";
 import { waitForServerActionResponse } from "../server-action";
+import { reloadPage } from "../page-reload";
 
 Given("I am on the profile page", async ({ page, scenario }) => {
   await scenario.signIn(page);
@@ -91,7 +92,7 @@ When("I save the Preferences section", async ({ page }) => {
 });
 
 Then("the currency preference should persist after reload", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("tab", { name: "Preferences" }).click();
   await expect(page.getByRole("button", { name: /Currency: Euro EUR/i })).toBeVisible();
 });
@@ -154,7 +155,7 @@ Then("the font size should use {int} pixels with scale {string}", async ({ page 
 });
 
 When("I reload the page", async ({ page }) => {
-  await page.reload();
+  await reloadPage(page);
 });
 
 When("I type in the name field", async ({ page }) => {
@@ -359,7 +360,7 @@ Then("my second device should be signed out", async ({ scenario }) => {
 
 When("I remove my other browser", async ({ page }) => {
   // The list was rendered before the second device signed in.
-  await page.reload();
+  await reloadPage(page);
   await page.getByRole("tab", { name: "Security" }).click();
   const otherBrowser = page
     .getByRole("list", { name: "Your browsers" })
@@ -450,7 +451,7 @@ Then("the delete account dialog should say the password is incorrect", async ({ 
 
 Then("my account should still exist", async ({ page }) => {
   await expect(page).not.toHaveURL(/\/sign-in/);
-  await page.reload();
+  await reloadPage(page);
   await expect(page).toHaveURL(/\/profile/);
 });
 

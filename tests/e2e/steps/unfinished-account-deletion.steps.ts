@@ -16,6 +16,7 @@ import {
 } from "../credential-authorization-fixture";
 import { createLockGate } from "../role-service-fixture";
 import { openCredentialLink, recipientContext } from "../onboarding-browser";
+import { reloadPage } from "../page-reload";
 
 // The target comes from the shared "a regeneration target with a {string} setup link" step.
 interface DeletionTarget extends ScenarioUserRecord {
@@ -64,7 +65,7 @@ When("I delete the unfinished account in Users", async ({ page, scenario }) => {
   await response;
 });
 Then("the unfinished account is gone after refresh", async ({ page, scenario }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(page.getByRole("list", { name: "App users" })).toBeVisible();
   await expect(targetRow(page, scenario)).toHaveCount(0);
   const accounts = await withE2EDb((database) =>
@@ -87,7 +88,7 @@ Then("its old setup link admits no one", async ({ page, scenario }) => {
   try {
     const oldSetupPage = scenario.getValue<Page>("regenerationOldSetupPage");
     if (oldSetupPage) {
-      await oldSetupPage.reload();
+      await reloadPage(oldSetupPage);
       await expect(oldSetupPage.getByRole("heading", { name: "Setup link unavailable" })).toBeVisible();
     }
     const recipient = await context.newPage();
@@ -107,7 +108,7 @@ Then("deletion Activity identifies only the admin and target", async ({ scenario
   expect(JSON.stringify(event).includes("token")).toBe(false);
 });
 Then("the completed account remains with no deletion Activity", async ({ page, scenario }) => {
-  await page.reload();
+  await reloadPage(page);
   await expect(targetRow(page, scenario)).not.toContainText("Pending setup");
   // Once Users shows it as completed, the same review is offered for it.
   await expect(targetRow(page, scenario).getByRole("button", { name: /Delete account/ })).toHaveCount(1);

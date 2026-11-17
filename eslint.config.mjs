@@ -85,6 +85,20 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": ["error", blobImportRestrictions],
     },
   },
+  {
+    files: ["tests/e2e/**/*.ts"],
+    ignores: ["tests/e2e/page-reload.ts", "tests/e2e/page-reload.test.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='reload']",
+          message:
+            "Use reloadPage(page) from tests/e2e/page-reload.ts: a bare reload aborts when it cancels an in-flight router.refresh().",
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ]);
 
