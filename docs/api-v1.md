@@ -577,6 +577,33 @@ Each invitation object contains these fields. This read returns only `pending` a
 | `invitedBy`       | UUID string                            | Always present; inviter account ID, never null.        |
 | `createdAt`       | ISO 8601 date-time string              | Optional; omitted when database creation time is null. |
 
+### PATCH /api/v1/trips/:tripId/collaborators
+
+**Role:** manager. **`Idempotency-Key`**: yes.
+
+Applies a batch of contributor role changes and removals all-or-nothing in one transaction. Returns `200` `{ status: "success" }`. An empty `changes` array is a no-op that also returns `200` and publishes nothing.
+
+Body: `{ changes: Change[] }`, at most 50 changes, each naming a different `collaboratorId`.
+
+| Change field     | JSON type                              | Notes                                                                         |
+| ---------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
+| `type`           | `"role"` or `"remove"`                 | Required.                                                                     |
+| `collaboratorId` | UUID string                            | Required; collaborator row ID from the GET above. Must appear once per batch. |
+| `fromRole`       | `"viewer"`, `"editor"`, or `"manager"` | Required for `"role"`; the role the client saw. Not allowed on `"remove"`.    |
+| `toRole`         | `"viewer"`, `"editor"`, or `"manager"` | Required for `"role"`; the new role. Not allowed on `"remove"`.               |
+
+Errors, with no change applied in any case:
+
+| Status | Code                | When                                                                                                                                                                                                                   |
+| ------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 422    | `validation_failed` | More than 50 changes, a repeated `collaboratorId`, an unknown field, type or role, a malformed UUID, or a change targeting the trip creator or the caller.                                                             |
+| 409    | `conflict`          | Stale batch: a `fromRole` no longer matches, a target left the trip (or belongs to another), or the trip was deleted. Reload the collaborators and stage again. Also a reused `Idempotency-Key` with a different body. |
+| 403    | `forbidden`         | Caller is an editor or viewer, including a manager demoted while the request waited for the trip lock.                                                                                                                 |
+| 404    | `not_found`         | Caller is not on the trip.                                                                                                                                                                                             |
+| 503    | `deadline_exceeded` | The request deadline passed; writes and the saved replay roll back together.                                                                                                                                           |
+
+The trip row is locked, then manager authority is rechecked, then any saved `Idempotency-Key` response is read, all in one transaction, so a demoted manager never sees a saved response. A retry with the same key and body returns the saved `{ status: "success" }` without applying changes or publishing events again. After commit, each removed user receives a membership-removed event on their personal channel and loses their trip-channel subscriptions, each re-roled user receives a membership-changed event, and the trip channel receives one membership-changed event. Rolled-back and replayed requests publish nothing. Batches record no activity. No schema migration or new configuration is required.
+
 ### GET /api/v1/users/invitable
 
 **Role:** manager on query `tripId` (required UUID). **`Idempotency-Key`**: no.
