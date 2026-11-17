@@ -51,6 +51,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: No API reference documents `PATCH /api/v1/events/:eventId` or the pilot endpoints.
   evidence: Raised by blind-hunter; `docs/plans/mobile-api.md` is the plan, not a reference.
+  completed: 2026-11-17 on `docs/api-reference`. `docs/api-v1.md` documents all 23 v1 routes (conventions, error codes, roles, rate limits, deadlines, replay, client ids, deletes, ordering, types, then each endpoint's fields and failures). `src/lib/api/api-reference.test.ts` fails when a route is added or removed without the page, when a contract and its route disagree, or when an endpoint's documented `Idempotency-Key` support differs from its route. Field-level drift (limits, nullability) is not checked; generated OpenAPI stays a mobile-phase item.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-harden-the-api-mutation-client-plan.md`
   summary: A write that times out client-side may still commit later and land after the next write on the same key.

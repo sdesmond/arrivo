@@ -8,7 +8,7 @@ V1 evolves additively. Writes use absolute values and partial PATCH semantics; f
 
 ## Idempotency-Key replay
 
-A handler opts in with `apiRoute(endpoint, handler, { idempotent: { expiryMs? } })`; a keyed request to any other handler gets 400 `bad_request`. The wrapper validates the header (1 to 255 characters after trimming, otherwise 422 with an `Idempotency-Key` field error) and hands the service `{ key, method, path, expiryMs? }`. Requests without a key behave as before. Today only the checklist-item `PATCH` opts in.
+A handler opts in with `apiRoute(endpoint, handler, { idempotent: { expiryMs? } })`; a keyed request to any other handler gets 400 `bad_request`. The wrapper validates the header (1 to 255 characters after trimming, otherwise 422 with an `Idempotency-Key` field error) and hands the service `{ key, method, path, expiryMs? }`. Requests without a key behave as before. Every JSON write opts in; the uploads and the GET helpers do not (the list per endpoint is in [the API reference](../api-v1.md)).
 
 - **Scope.** A record belongs to the actor and key. Its fingerprint is a SHA-256 over method, concrete path (contract template filled with validated params) and the validated payload; object key order is ignored, array order is not.
 - **Storage.** The existing `idempotency_keys` table, no migration. API rows use the key `api:v1:<key>` and a versioned JSON envelope `{ version, fingerprint, expiresAt, response }`. Packing keeps its raw keys, `{ templateId }` results and 24-hour window untouched. An unreadable row in the API namespace fails closed (500) and is never overwritten.
