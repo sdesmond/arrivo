@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionSettled } from "../server-action";
 
 Given("I have a trip available to delete from the listing page", async ({ page, scenario }) => {
   await scenario.ensureCurrentTrip("deleteTrip");
@@ -29,7 +30,10 @@ When("I choose {string} from the trip options menu", async ({ page }, action: st
 });
 
 When("I confirm the trip deletion", async ({ page }) => {
+  // Used from the trip list and from Travel History, so any page's server action counts.
+  const deleted = waitForServerActionSettled(page, { pathIncludes: "" });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
+  expect(await deleted).toBe(true);
 });
 
 Then("the trip {string} is no longer visible in the trip list", async ({ page }, tripName: string) => {
@@ -49,6 +53,9 @@ When("I delete the trip", async ({ page, scenario }) => {
     await expect(deleteTripItem).toBeVisible({ timeout: 1_500 });
   }).toPass({ timeout: 10_000 });
   await deleteTripItem.click();
+  // Wait for the delete action itself: under load it can outlast the card assertion's timeout on its own.
+  const deleted = waitForServerActionSettled(page, { pathIncludes: "/trips" });
   await page.getByRole("button", { name: "Delete", exact: true }).click();
+  expect(await deleted).toBe(true);
   await expect(page.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0);
 });

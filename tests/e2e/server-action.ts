@@ -1,4 +1,4 @@
-import type { Page, Response } from "@playwright/test";
+import type { Page, Request, Response } from "@playwright/test";
 
 const SERVER_ACTION_TIMEOUT_MS = 5_000;
 
@@ -44,5 +44,36 @@ export function waitForServerActionResponse(
       throw new Error(`Server action POST to ${response.url()} failed with status ${response.status()}.`);
     }
     return response;
+  });
+}
+
+/**
+ * Resolves once the server action POST matching `pathIncludes` is over, whether its response finished or the
+ * browser dropped it. A production server streams the action's revalidated payload and the router aborts the rest
+ * once it has applied it (net::ERR_ABORTED), so `response.finished()` alone can wait forever. Arm before the gesture.
+ * Resolves false when no such POST settles within the timeout, for gestures allowed to send nothing.
+ */
+export function waitForServerActionSettled(
+  page: Page,
+  { pathIncludes, timeoutMs = 10_000 }: { pathIncludes: string; timeoutMs?: number }
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const matches = (request: Request) =>
+      request.method() === "POST" &&
+      request.headers()["next-action"] !== undefined &&
+      request.url().includes(pathIncludes);
+    const settle = (request: Request) => {
+      if (!matches(request)) return;
+      finish(true);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    function finish(settled: boolean) {
+      clearTimeout(timer);
+      page.off("requestfinished", settle);
+      page.off("requestfailed", settle);
+      resolve(settled);
+    }
+    page.on("requestfinished", settle);
+    page.on("requestfailed", settle);
   });
 }
