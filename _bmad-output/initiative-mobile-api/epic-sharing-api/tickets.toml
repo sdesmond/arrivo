@@ -1,0 +1,93 @@
+# Approved epic 4 breakdown. One lane: shared actions, API contracts, feature map and API E2E.
+# Tests, documentation, metadata and feature-map updates ship with each implementation story.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Invite one contributor through the API"
+description = "Tracer: migrate sharing-data and invitable-user GETs plus invitation POST through services, contracts and the sharing controller/form; establish deadline-aware atomic replay with existing user-before-trip locks, transactional manager checks, client UUID plumbing, pending/reinvite identity and transition/replay rules that later stories reuse."
+verify = "A manager opens sharing, invites a registered user and sees the pending invitation after reload and on the invitee's live dashboard; colocated service, writer, contract, route and UI tests plus trip-sharing and API feature/step updates prove picker exclusions, expiry/reinvite, UUID collisions, no revival after rescind/dismiss, deadline rollback, manager-demotion races, replay and access concealment."
+covers = ["S1","S2","S7","S8"]
+after = ["1.10","3.10"]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Apply contributor changes through the API"
+description = "Migrate atomic contributor PATCH batches and sharing controller/row callers on entry 1's transaction and replay contract, preserving max-50 and duplicate-target validation, stale fromRole recovery, creator/self guards, all-or-nothing writes and postcommit membership revocation events."
+verify = "Colocated service, writer, route and sharing controller/row tests plus trip-sharing and API feature/steps prove staged role changes and removals persist after reload, a stale or invalid batch rolls back, creator/self changes fail, and removed or demoted users receive correct live access updates."
+covers = ["S5","S7","S8"]
+after = [1]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Accept and decline invitations through the API"
+description = "Migrate addressed-invitee accept/decline POSTs and pending-invitation callers using entry 1's lifecycle/replay table, preserving pending/unexpired transitions, user-before-trip locks, atomic membership creation, dashboard badge refresh and trip navigation while Server Component reads stay direct."
+verify = "Colocated service, writer, route and pending-invitations-list tests plus pending-invitations and API feature/steps prove acceptance redirects to the persisted trip, decline removes the row, live badges refresh, foreign invitations return 404, expired transitions fail and authorized retries repeat no membership or side effects."
+covers = ["S4","S7","S8"]
+after = [2]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Manage invitation lifecycle through the API"
+description = "Migrate manager resend/dismiss POSTs and rescind DELETE with invitation hooks/rows using entry 1's replay and deleted-row authorization rules, preserving expired-pending resend, trip binding, current manager authorization and postcommit activity/live updates."
+verify = "Colocated invitation service/helper, route, hook and row tests plus trip-sharing, pending-invitations and API feature/steps prove resend refreshes expiry, rescind removes pending rows, dismiss stays removed after reopening/reload, cross-trip IDs remain concealed, below-role members get 403 and replay repeats no effects."
+covers = ["S3","S7","S8"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Leave a shared trip through the API"
+description = "Migrate DELETE of the session user's own membership and use-leave-trip on entry 1's transaction/replay pattern, preserving manager refusal and personal MembershipLeft then subscriber removal then trip MembershipChanged, with identical empty no-op success for already-left, foreign or missing trips."
+verify = "Colocated service, writer, route and leave hook/page-client tests plus leave-trip and API feature/steps prove editor/viewer departure persists after reload and redirects other tabs, manager leave is refused, other memberships remain, event ordering holds and absent-membership retries disclose no trip data or repeat effects."
+covers = ["S6","S7","S8"]
+after = [4]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Refactor sweep"
+description = "Read completed epic plans and deferred findings, then remove only epic-created duplication and unused sharing actions/wrappers with matching tests, without moving deferred functionality into cleanup."
+verify = "Targeted collaboration tests pass and each cleanup traces to a completed plan or review finding; searches enumerate retired exports and prove no remaining migrated-action callers."
+covers = ["S8"]
+after = [1,2,3,4,5]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Verify collaboration API end to end"
+description = "Close integrated gaps across sharing, invitation and leave routes under the production build, auditing access/CSRF/replay/deadline behavior, explicit action retirement, API reference and feature-map completeness while retaining scenario-owned fixtures and affected-only validation."
+verify = "API, trip-sharing, pending-invitations and leave-trip feature/step checks pass against the production server using the pilot 1.10 procedure, epic Done when is evidenced, no migrated callers remain and final build-validator passes with no new migration/environment requirement or automatic full E2E suite."
+covers = ["S1","S2","S3","S4","S5","S6","S7","S8"]
+after = [6]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
