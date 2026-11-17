@@ -1,9 +1,12 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { getTableConfig, type IndexColumn } from "drizzle-orm/pg-core";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { idempotencyKeys } from "./schema";
 
-function columnName(column: IndexColumn): string | undefined {
+/** One entry of an index's `config.columns`: a column, or SQL for an expression index. */
+type IndexConfigColumn = ReturnType<typeof getTableConfig>["indexes"][number]["config"]["columns"][number];
+
+function columnName(column: IndexConfigColumn): string | undefined {
   return "name" in column ? column.name : undefined;
 }
 
