@@ -74,7 +74,21 @@ Given("a completed account owns a private trip shared with two editors", async (
 });
 
 async function reviewDeletionOf(page: Page, scenario: Scenario, username: string) {
-  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users", timeoutMs: 15_000 });
+  // The browser drops the rest of a streamed action response once the router has applied it, so its body cannot be
+  // read back afterwards. Fetch the review action here instead and keep the full payload the admin received.
+  let reviewBody: Promise<string> | undefined;
+  await page.route("**/admin/users**", async (route) => {
+    const request = route.request();
+    if (reviewBody || request.method() !== "POST" || request.headers()["next-action"] === undefined) {
+      await route.fallback();
+      return;
+    }
+    const fetched = route.fetch();
+    reviewBody = fetched.then((response) => response.text());
+    const response = await fetched;
+    if (!response.ok()) throw new Error(`Deletion review POST failed with status ${response.status()}.`);
+    await route.fulfill({ response });
+  });
   const trigger = page.getByRole("button", { name: `Delete account: ${username}`, exact: true });
   const dialog = page.getByRole("dialog");
   // A click before the page hydrates opens nothing, so retry until the dialog is up.
@@ -82,7 +96,9 @@ async function reviewDeletionOf(page: Page, scenario: Scenario, username: string
     if (!(await dialog.isVisible())) await trigger.click();
     await expect(dialog).toBeVisible({ timeout: 1_500 });
   }).toPass({ timeout: 10_000 });
-  scenario.setValue(REVIEW_BODY_KEY, await (await response)!.text());
+  await expect.poll(() => reviewBody !== undefined, { timeout: 15_000 }).toBe(true);
+  scenario.setValue(REVIEW_BODY_KEY, await reviewBody!);
+  await page.unroute("**/admin/users**");
   // An account with no trips has no outcome copy, so the enabled confirm button is what says the review arrived.
   await expect(page.getByRole("dialog").getByRole("button", { name: /^Delete account$/ })).toBeEnabled();
 }

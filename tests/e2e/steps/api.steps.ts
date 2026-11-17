@@ -22,7 +22,7 @@ import {
   tripPackingLists,
   trips,
 } from "../../../src/db/schema";
-import { withE2EDb } from "../e2e-db";
+import { runSharedTableDdl, withE2EDb } from "../e2e-db";
 import { E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
@@ -292,11 +292,15 @@ async function dropScenarioObjects(page: Page) {
   await releaseKeyLock(current);
   await withE2EDb(async (database) => {
     if (failureInstalled) {
-      await database.execute(sql.raw(`drop trigger if exists e2e_fail_trg_${suffix} on idempotency_keys`));
+      await runSharedTableDdl(() =>
+        database.execute(sql.raw(`drop trigger if exists e2e_fail_trg_${suffix} on idempotency_keys`))
+      );
       await database.execute(sql.raw(`drop function if exists e2e_fail_fn_${suffix}()`));
     }
     if (auditInstalled) {
-      await database.execute(sql.raw(`drop trigger if exists e2e_audit_trg_${suffix} on checklist_items`));
+      await runSharedTableDdl(() =>
+        database.execute(sql.raw(`drop trigger if exists e2e_audit_trg_${suffix} on checklist_items`))
+      );
       await database.execute(sql.raw(`drop function if exists e2e_audit_fn_${suffix}()`));
       await database.execute(sql.raw(`drop table if exists e2e_audit_${suffix}`));
     }
@@ -317,9 +321,11 @@ Given("the checklist API write audit is installed", async ({ page }) => {
         `create function e2e_audit_fn_${suffix}() returns trigger language plpgsql as $$ begin insert into e2e_audit_${suffix} (item_id) values (new.id); return new; end $$`
       )
     );
-    await database.execute(
-      sql.raw(
-        `create trigger e2e_audit_trg_${suffix} after update on checklist_items for each row when (old.id = '${itemId}') execute function e2e_audit_fn_${suffix}()`
+    await runSharedTableDdl(() =>
+      database.execute(
+        sql.raw(
+          `create trigger e2e_audit_trg_${suffix} after update on checklist_items for each row when (old.id = '${itemId}') execute function e2e_audit_fn_${suffix}()`
+        )
       )
     );
   });
@@ -333,9 +339,11 @@ Given("the checklist API replay record write is set to fail", async ({ page }) =
         `create function e2e_fail_fn_${suffix}() returns trigger language plpgsql as $$ begin raise exception 'e2e replay record write failure'; end $$`
       )
     );
-    await database.execute(
-      sql.raw(
-        `create trigger e2e_fail_trg_${suffix} before insert or update on idempotency_keys for each row when (new.key = '${REPLAY_KEY_PREFIX}${key}') execute function e2e_fail_fn_${suffix}()`
+    await runSharedTableDdl(() =>
+      database.execute(
+        sql.raw(
+          `create trigger e2e_fail_trg_${suffix} before insert or update on idempotency_keys for each row when (new.key = '${REPLAY_KEY_PREFIX}${key}') execute function e2e_fail_fn_${suffix}()`
+        )
       )
     );
   });

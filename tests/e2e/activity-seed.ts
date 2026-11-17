@@ -21,12 +21,23 @@ export interface SeedActivityEvent {
 
 // Rows are scenario-owned: every seeded row is deleted after the scenario, and scenarios scope their assertions with
 // the actor filter or a one-minute date range so rows from parallel scenarios never mix in. Exception: admin-overview's
-// recent-actions scenario seeds rows up to an hour ahead so they outrank real parallel events; while it runs they sit
-// on top of the unfiltered Activity first page, which is why other scenarios must keep scoping their assertions.
+// recent-actions scenario and the Username-filter scenarios (aheadSeedMinute) seed rows up to an hour ahead so they
+// outrank real parallel events; while they run those rows sit on top of the unfiltered Activity first page, which is
+// why other scenarios must keep scoping their assertions.
 const seededIds: string[] = [];
 
 export function seedActor(username: string): SeedActor {
   return { id: randomUUID(), username };
+}
+
+/**
+ * A random minute 5–55 minutes ahead. The Username filter offers only the most recently active actors
+ * (ACTIVITY_ACTOR_LIMIT), and a full parallel run signs in hundreds of scenario accounts, so an actor seeded in the past
+ * can drop off the list before its scenario opens it.
+ */
+export function aheadSeedMinute(): Date {
+  const minute = Math.floor(Date.now() / 60_000) * 60_000;
+  return new Date(minute + randomInt(5, 56) * 60_000);
 }
 
 /** A random past minute 1–20 days ago, safely inside every retention policy, including day-hour range fixtures. */
