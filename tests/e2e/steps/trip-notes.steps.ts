@@ -312,8 +312,14 @@ When("I keyboard-move the note {string} down one position", async ({ page, scena
   const position = Number((await handle.getAttribute("aria-label"))!.match(/position (\d+)/)![1]);
   await handle.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
-  await handle.press("ArrowDown");
-  await expect(handle).toHaveAttribute("aria-label", new RegExp(`position ${position + 1} of`));
+  // dnd-kit's keyboard sensor starts listening for arrow keys on a timer after the pickup, so a fast first ArrowDown
+  // can land before it. Press again only while the note has not moved, so it never moves two places.
+  const moved = new RegExp(`position ${position + 1} of`);
+  await expect(async () => {
+    const label = (await handle.getAttribute("aria-label")) ?? "";
+    if (!moved.test(label)) await handle.press("ArrowDown");
+    await expect(handle).toHaveAttribute("aria-label", moved, { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
 
   // Enter drops the item and sends the order to the API. Wait for that PUT to resolve so a later reload cannot
   // out-race persistence.

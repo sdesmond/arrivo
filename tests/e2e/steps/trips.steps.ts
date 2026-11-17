@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { format, parseISO } from "date-fns";
 import { Given, When, Then } from "../fixtures";
+import { waitForServerActionSettled } from "../server-action";
 
 Given("I have an existing trip", async ({ page, scenario }) => {
   await scenario.signIn(page);
@@ -56,14 +57,14 @@ When("I type {string} in the budget field", async ({ page }, budget: string) => 
 });
 
 When("I save", async ({ page }) => {
-  const saved = page
-    .waitForResponse((response) => response.request().method() === "POST", { timeout: 10_000 })
-    .catch(() => null);
+  // The sheet is used from the trip page and from Travel History, so any page's server action counts.
+  const saved = waitForServerActionSettled(page, { pathIncludes: "" });
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  // Count, not visibility: the drawer and any popover inside it run their exit animations together.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   // The sheet seeds its draft from the trip prop only while closed, so reopening before the revalidated trip
   // lands (the dialog closes first) shows the old values. Wait for the action's payload, then two frames for React.
-  await (await saved)?.finished();
+  await saved;
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });
 
@@ -92,7 +93,7 @@ Then("the sheet should close and focus should return to the edit button", async 
 
 When("I close the trip edit sheet without saving", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 Then("the trip edit sheet shows the original dates", async ({ page, scenario }) => {

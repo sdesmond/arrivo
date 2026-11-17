@@ -17,6 +17,7 @@ import {
   removeSeededActivity,
   seedActivityEvents,
   seedActor,
+  aheadSeedMinute,
   uniqueSeedMinute,
   type SeedActor,
 } from "../activity-seed";
@@ -670,7 +671,7 @@ Given(
   "{int} Activity trips were created by one seeded account in the same instant",
   async ({ scenario }, count: number) => {
     const actor = seedActor(scenario.uniqueUsername("histactor"));
-    const minute = uniqueSeedMinute();
+    const minute = aheadSeedMinute();
     const tripIds = Array.from({ length: count }, () => crypto.randomUUID());
     const ids = await seedActivityEvents(
       tripIds.map((tripId) => ({ type: "trip_created", actor, startedAt: minute, tripId }))
@@ -873,7 +874,7 @@ Given("Activity history for a renamed account, a deleted account and unidentifie
   const renamed = seedActor(scenario.uniqueUsername("oldname"));
   const renamedLater = { id: renamed.id, username: scenario.uniqueUsername("newname") };
   const deleted = seedActor(scenario.uniqueUsername("gone"));
-  const minute = uniqueSeedMinute();
+  const minute = aheadSeedMinute();
   const unknownTarget = scenario.uniqueUsername("ghost");
   const named = { withTarget: crypto.randomUUID(), noTarget: crypto.randomUUID() };
   await seedActivityEvents([

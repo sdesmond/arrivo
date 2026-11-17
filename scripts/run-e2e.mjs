@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { BOOTSTRAP_E2E_PORT, deriveBootstrapConnectionString, ensureBootstrapDatabase } from "./e2e-bootstrap.mjs";
+import { E2E_DIST_DIRECTORY, e2eBuildEnv, hasE2EBuild as hasExistingE2EBuild } from "./e2e-server.mjs";
 import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -294,11 +295,9 @@ export function getE2EServerPorts(port) {
 }
 
 export function clearE2ECaches(rootDir, remove = rmSync) {
-  for (const directory of [".next-e2e", ".next-e2e-bootstrap"]) {
-    const target = resolve(rootDir, directory);
-    if (dirname(target) !== resolve(rootDir)) throw new Error("Invalid E2E cache path");
-    remove(target, { recursive: true, force: true });
-  }
+  const target = resolve(rootDir, E2E_DIST_DIRECTORY);
+  if (dirname(target) !== resolve(rootDir)) throw new Error("Invalid E2E cache path");
+  remove(target, { recursive: true, force: true });
 }
 
 export async function prepareE2EDatabases(source, runDatabaseCommand, ensureDatabase = ensureBootstrapDatabase) {
@@ -328,14 +327,21 @@ export async function main(argv = process.argv.slice(2), dependencies = {}) {
     prepareServer({ serverMode: plan.serverMode, port, rootDir });
   }
 
-  if (plan.serverMode === SERVER_MODE_KILL) {
-    (dependencies.clearE2ECaches ?? clearE2ECaches)(rootDir);
-  }
-
   const env = {
     E2E_REUSE_SERVER: plan.serverMode === SERVER_MODE_REUSE ? "true" : "false",
     PORT: `${plan.port}`,
   };
+
+  // Every E2E server runs `next start` on one production build. Kill mode rebuilds it from the current tree; reuse
+  // mode keeps an existing build, since a reused server may be serving it, and builds only when there is none.
+  const hasE2EBuild = dependencies.hasE2EBuild ?? hasExistingE2EBuild;
+  if (plan.serverMode === SERVER_MODE_KILL) {
+    (dependencies.clearE2ECaches ?? clearE2ECaches)(rootDir);
+  }
+  if (plan.serverMode === SERVER_MODE_KILL || !hasE2EBuild(rootDir)) {
+    log("Building the production app for E2E.");
+    runPackage("npm", ["run", "build"], { cwd: rootDir, env: { ...env, ...e2eBuildEnv() } });
+  }
 
   await prepareE2EDatabases(
     process.env.E2E_DATABASE_URL,

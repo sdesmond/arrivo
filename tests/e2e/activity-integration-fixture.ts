@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
+import { runSharedTableDdl } from "./e2e-db";
 import { ACTIVITY_MAINTENANCE_LOCK } from "../../src/lib/activity-maintenance";
 
 const SAFE_UUID = /^[0-9a-f-]{36}$/;
@@ -29,7 +30,7 @@ export async function installActivityRecorderFault(actorId: string): Promise<Act
     if (closed) return;
     closed = true;
     try {
-      await client.unsafe(`drop trigger if exists "${trigger}" on activity_events`);
+      await runSharedTableDdl(() => client.unsafe(`drop trigger if exists "${trigger}" on activity_events`));
       await client.unsafe(`drop function if exists "${func}"()`);
       await client.unsafe(`drop sequence if exists "${sequence}"`);
     } finally {
@@ -41,8 +42,10 @@ export async function installActivityRecorderFault(actorId: string): Promise<Act
     await client.unsafe(
       `create function "${func}"() returns trigger language plpgsql as $body$ begin perform nextval('"${sequence}"'); raise exception 'e2e injected Activity failure'; end $body$`
     );
-    await client.unsafe(
-      `create trigger "${trigger}" before insert or update on activity_events for each row when (new.actor_id = '${actorId}'::uuid) execute function "${func}"()`
+    await runSharedTableDdl(() =>
+      client.unsafe(
+        `create trigger "${trigger}" before insert or update on activity_events for each row when (new.actor_id = '${actorId}'::uuid) execute function "${func}"()`
+      )
     );
   } catch (error) {
     await close();

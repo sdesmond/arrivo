@@ -105,7 +105,13 @@ describe("Playwright project isolation wiring", () => {
       bootstrapDatabase: true,
       storageState: { cookies: [], origins: [] },
     });
-    expect(config.webServer.map((server) => server.env.NEXT_DISTDIR)).toEqual([".next-e2e", ".next-e2e-bootstrap"]);
+    // Both servers serve the one production build; only port, database and storage differ.
+    expect(config.webServer.map((server) => server.command)).toEqual([
+      "npm run start -- -p 3001",
+      "npm run start -- -p 3002",
+    ]);
+    expect(config.webServer.map((server) => server.env.NEXT_DISTDIR)).toEqual([".next-e2e", ".next-e2e"]);
+    expect(config.webServer.every((server) => server.env.AUTH_TRUST_HOST === "true")).toBe(true);
     expect(config.webServer.map((server) => new URL(server.env.DATABASE_URL).pathname)).toEqual([
       "/arrivo_e2e",
       "/arrivo_e2e_bootstrap",
