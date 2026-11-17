@@ -248,12 +248,38 @@ export interface ContributorChangeOutcome {
   removedUserIds: string[];
   roleChangedUserIds: string[];
   tripName: string;
+  /** Remover's display name, falling back to their username; empty when nobody was removed. */
+  removedByName: string;
   removedByUsername: string;
 }
+
+export const NO_LONGER_ON_TRIP_MESSAGE = "One or more contributors are no longer on this trip.";
 
 /** Applies a validated batch of role/removal changes all-or-nothing under the trip lock. */
 export async function saveContributorChangesWrite(
   database: MembershipDatabase,
+  input: { tripId: string; actorId: string; changes: ContributorChange[] }
+): Promise<ContributorChangeOutcome> {
+  return database.transaction(async (transaction) => {
+    try {
+      await lockTripForUpdate(transaction, input.tripId);
+    } catch (error) {
+      // Trip deleted (for example with its owner's account) after the caller's access check.
+      if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) {
+        throw new ContributorChangeGuardError(NO_LONGER_ON_TRIP_MESSAGE, { stale: true });
+      }
+      throw error;
+    }
+    return saveContributorChangesInTransaction(transaction, input);
+  });
+}
+
+/**
+ * Caller holds the trip lock and has rechecked manager access. Throws `ContributorChangeGuardError` on the first
+ * refused change, so the caller's transaction discards any earlier writes in the batch.
+ */
+export async function saveContributorChangesInTransaction(
+  transaction: DbTransaction,
   input: { tripId: string; actorId: string; changes: ContributorChange[] }
 ): Promise<ContributorChangeOutcome> {
   const { tripId, actorId, changes } = input;
@@ -261,72 +287,64 @@ export async function saveContributorChangesWrite(
     removedUserIds: [],
     roleChangedUserIds: [],
     tripName: "",
+    removedByName: "",
     removedByUsername: "",
   };
+  // The API contract refuses duplicates first; this keeps direct callers from double-applying a seat.
+  if (new Set(changes.map((change) => change.collaboratorId)).size !== changes.length) {
+    throw new ContributorChangeGuardError("Duplicate change for the same contributor");
+  }
 
-  await database.transaction(async (transaction) => {
-    try {
-      await lockTripForUpdate(transaction, tripId);
-    } catch (error) {
-      // Trip deleted (for example with its owner's account) after the caller's access check.
-      if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE) {
-        throw new ContributorChangeGuardError("One or more contributors are no longer on this trip.", {
+  const collaboratorsOnTrip = await transaction.select().from(collaborators).where(eq(collaborators.tripId, tripId));
+  const collaboratorById = new Map(collaboratorsOnTrip.map((collaborator) => [collaborator.id, collaborator]));
+
+  const myRow = collaboratorsOnTrip.find((collaborator) => collaborator.userId === actorId);
+  if (myRow?.role !== CollaboratorRole.Manager) {
+    throw new ContributorChangeGuardError("You no longer have permission to manage contributors.", { stale: true });
+  }
+  const myRowId = myRow.id;
+
+  for (const change of changes) {
+    const target = collaboratorById.get(change.collaboratorId);
+    if (!target || target.tripId !== tripId) {
+      throw new ContributorChangeGuardError(NO_LONGER_ON_TRIP_MESSAGE, { stale: true });
+    }
+    assertNotCreator(target, "The trip creator's seat cannot be changed.", ContributorChangeGuardError);
+    if (target.id === myRowId) {
+      throw new ContributorChangeGuardError("You cannot change your own access.");
+    }
+
+    if (change.type === "role") {
+      if (target.role !== change.fromRole) {
+        throw new ContributorChangeGuardError("A contributor's role changed since you started editing.", {
           stale: true,
         });
       }
-      throw error;
-    }
-
-    const collaboratorsOnTrip = await transaction.select().from(collaborators).where(eq(collaborators.tripId, tripId));
-    const collaboratorById = new Map(collaboratorsOnTrip.map((collaborator) => [collaborator.id, collaborator]));
-
-    const myRow = collaboratorsOnTrip.find((collaborator) => collaborator.userId === actorId);
-    if (myRow?.role !== CollaboratorRole.Manager) {
-      throw new ContributorChangeGuardError("You no longer have permission to manage contributors.", { stale: true });
-    }
-    const myRowId = myRow.id;
-
-    for (const change of changes) {
-      const target = collaboratorById.get(change.collaboratorId);
-      if (!target || target.tripId !== tripId) {
-        throw new ContributorChangeGuardError("One or more contributors are no longer on this trip.", {
-          stale: true,
-        });
+      await transaction
+        .update(collaborators)
+        .set({ role: change.toRole })
+        .where(eq(collaborators.id, change.collaboratorId));
+      if (target.userId) {
+        outcome.roleChangedUserIds.push(target.userId);
       }
-      assertNotCreator(target, "The trip creator's seat cannot be changed.", ContributorChangeGuardError);
-      if (target.id === myRowId) {
-        throw new ContributorChangeGuardError("You cannot change your own access.");
-      }
-
-      if (change.type === "role") {
-        if (target.role !== change.fromRole) {
-          throw new ContributorChangeGuardError("A contributor's role changed since you started editing.", {
-            stale: true,
-          });
-        }
-        await transaction
-          .update(collaborators)
-          .set({ role: change.toRole })
-          .where(eq(collaborators.id, change.collaboratorId));
-        if (target.userId) {
-          outcome.roleChangedUserIds.push(target.userId);
-        }
-      } else {
-        await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
-        if (target.userId) {
-          outcome.removedUserIds.push(target.userId);
-        }
+    } else {
+      await transaction.delete(collaborators).where(eq(collaborators.id, change.collaboratorId));
+      if (target.userId) {
+        outcome.removedUserIds.push(target.userId);
       }
     }
+  }
 
-    if (outcome.removedUserIds.length > 0) {
-      const [tripRow] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId));
-      outcome.tripName = tripRow?.name ?? "";
-      const [remover] = await transaction.select({ username: users.username }).from(users).where(eq(users.id, actorId));
-      outcome.removedByUsername = remover?.username ?? "";
-    }
-  });
-
+  if (outcome.removedUserIds.length > 0) {
+    const [tripRow] = await transaction.select({ name: trips.name }).from(trips).where(eq(trips.id, tripId));
+    outcome.tripName = tripRow?.name ?? "";
+    const [remover] = await transaction
+      .select({ username: users.username, name: users.name })
+      .from(users)
+      .where(eq(users.id, actorId));
+    outcome.removedByUsername = remover?.username ?? "";
+    outcome.removedByName = remover?.name ?? outcome.removedByUsername;
+  }
   return outcome;
 }
 
