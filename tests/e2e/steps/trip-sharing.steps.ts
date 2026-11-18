@@ -5,7 +5,6 @@ import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
 import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
-import { waitForServerActionResponse } from "../server-action";
 import { waitForApiResponse } from "../api-response";
 import { reloadPage } from "../page-reload";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
@@ -549,7 +548,10 @@ When("the sharing contributor leaves the trip", async ({ page, scenario }) => {
 
   await contributorPage.getByRole("button", { name: /^Leave trip .+/ }).click();
   const confirmation = contributorPage.getByRole("alertdialog");
-  const leavePosted = waitForServerActionResponse(contributorPage, { pathIncludes: `/trips/${trip.id}` });
+  const leavePosted = waitForApiResponse(contributorPage, {
+    method: "DELETE",
+    path: `/api/v1/trips/${trip.id}/collaborators/me`,
+  });
   await confirmation.getByRole("button", { name: "Leave trip", exact: true }).click();
   await leavePosted;
 });

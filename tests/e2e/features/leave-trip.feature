@@ -25,6 +25,17 @@ Feature: Leave a shared trip
     And opening the shared trip directly is denied
     And the owner still has the trip with their membership intact
 
+  Scenario: Leaving redirects the leaver's other open tab and keeps the remaining members
+    Given I am an editor on "Leave Oslo Fjords" owned by "Ida Berg"
+    And another editor is on the shared trip
+    When I go to the shared trip
+    And I open the shared trip in another tab
+    And I leave the trip and confirm
+    Then I am back on the trips list
+    And my other tab is redirected to the trips list
+    And the remaining members keep their memberships
+    And opening the shared trip directly is denied
+
   Scenario: Cancelling the confirmation keeps the membership
     Given I am a viewer on "Leave Nairobi Safari" owned by "Marie Curie"
     When I go to the shared trip

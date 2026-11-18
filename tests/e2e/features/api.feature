@@ -2262,3 +2262,67 @@ Feature: Absolute checklist checked-state API
     Given a "editor" invitation for the manager lifecycle API
     When I send the manager lifecycle "resend" request
     Then the manager lifecycle API returns 403 and "forbidden"
+
+  @leave-trip-api
+  Scenario Outline: A <role> leaves a shared trip through the API
+    Given I am <article> <role> on "API Leave <role>" owned by "Bo Nilsen"
+    And another editor is on the shared trip
+    And the shared trip for the leave trip API
+    When I send the leave trip API request with "none" key
+    Then the leave trip API returns an empty 204
+    And my membership on the leave trip API trip is "absent"
+    And the remaining members keep their memberships
+
+    Examples:
+      | article | role   |
+      | an      | editor |
+      | a       | viewer |
+
+  @leave-trip-api
+  Scenario: A manager collaborator cannot leave through the API
+    Given I am a manager on "API Leave Manager" owned by "Bo Nilsen"
+    And the shared trip for the leave trip API
+    When I send the leave trip API request with "none" key
+    Then the leave trip API rejects with 422 and "validation_failed"
+    And the leave trip API message is "Managers can't leave a trip."
+    And my membership on the leave trip API trip is "present"
+
+  @leave-trip-api
+  Scenario: The trip creator cannot leave through the API
+    Given I have an existing trip
+    And the shared trip for the leave trip API
+    When I send the leave trip API request with "none" key
+    Then the leave trip API rejects with 422 and "validation_failed"
+    And my membership on the leave trip API trip is "present"
+
+  @leave-trip-api
+  Scenario Outline: Departure from a trip with no membership is an identical empty success
+    Given <trip> for the leave trip API
+    When I send the leave trip API request with "<key>" key
+    Then the leave trip API returns an empty 204
+
+    Examples:
+      | trip                          | key  |
+      | a trip I am not on            | none |
+      | a trip I am not on            | one  |
+      | a missing trip                | none |
+      | a missing trip                | one  |
+
+  @leave-trip-api
+  Scenario: A repeated or keyed departure succeeds without removing a later membership
+    Given I am an editor on "API Leave Repeat" owned by "Bo Nilsen"
+    And the shared trip for the leave trip API
+    When I send the leave trip API request with "one" key
+    Then the leave trip API returns an empty 204
+    And my membership on the leave trip API trip is "absent"
+    When I send the leave trip API request with "one" key
+    Then the leave trip API returns an empty 204
+    When I send the leave trip API request with "two" key
+    Then the leave trip API returns an empty 204
+    When I rejoin the leave trip API trip as an editor
+    And I send the leave trip API request with "one" key
+    Then the leave trip API returns an empty 204
+    And my membership on the leave trip API trip is "present"
+    When I send the leave trip API request with "three" key
+    Then the leave trip API returns an empty 204
+    And my membership on the leave trip API trip is "absent"
