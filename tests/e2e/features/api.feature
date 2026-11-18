@@ -2326,3 +2326,80 @@ Feature: Absolute checklist checked-state API
     When I send the leave trip API request with "three" key
     Then the leave trip API returns an empty 204
     And my membership on the leave trip API trip is "absent"
+
+  @collaboration-guards-api
+  Scenario Outline: Collaboration routes reject anonymous callers
+    Given a "pending" invitation for the collaboration guards API
+    And my collaboration guards role is "anonymous"
+    When I call the collaboration guards "<operation>" route
+    Then the collaboration guards API returns 401 and "unauthenticated"
+    And the collaboration guards state is unchanged
+
+    Examples:
+      | operation     |
+      | collaborators |
+      | invitable     |
+      | invite        |
+      | batch         |
+      | accept        |
+      | decline       |
+      | resend        |
+      | rescind       |
+      | dismiss       |
+      | leave         |
+
+  @collaboration-guards-api
+  Scenario Outline: Collaboration write routes reject a cross-origin caller with a valid session
+    Given a "pending" invitation for the collaboration guards API
+    When I call the collaboration guards "<operation>" route from origin "https://evil.example"
+    Then the collaboration guards API returns 403 and "forbidden"
+    And the collaboration guards state is unchanged
+
+    Examples:
+      | operation |
+      | invite    |
+      | batch     |
+      | accept    |
+      | decline   |
+      | resend    |
+      | rescind   |
+      | dismiss   |
+      | leave     |
+
+  @collaboration-guards-api
+  Scenario Outline: Cached invitation lifecycle replay denies access lost after a successful write
+    Given a "<state>" invitation for the collaboration guards API
+    When I send the keyed collaboration guards "<operation>" request
+    And my collaboration guards role is "<role>"
+    And I replay the exact collaboration guards "<operation>" request
+    Then the collaboration guards API returns <status> and "<code>"
+    And the collaboration guards state is unchanged
+
+    Examples:
+      | operation | state    | role     | status | code      |
+      | resend    | pending  | editor   | 403    | forbidden |
+      | resend    | pending  | viewer   | 403    | forbidden |
+      | resend    | pending  | stranger | 404    | not_found |
+      | rescind   | pending  | editor   | 403    | forbidden |
+      | rescind   | pending  | viewer   | 403    | forbidden |
+      | rescind   | pending  | stranger | 404    | not_found |
+      | dismiss   | declined | editor   | 403    | forbidden |
+      | dismiss   | declined | viewer   | 403    | forbidden |
+      | dismiss   | declined | stranger | 404    | not_found |
+
+  @collaboration-guards-api
+  Scenario Outline: A viewer or stranger cannot manage a pending invitation
+    Given a "<state>" invitation for the collaboration guards API
+    And my collaboration guards role is "<role>"
+    When I call the collaboration guards "<operation>" route
+    Then the collaboration guards API returns <status> and "<code>"
+    And the collaboration guards state is unchanged
+
+    Examples:
+      | operation | state    | role     | status | code      |
+      | resend    | pending  | viewer   | 403    | forbidden |
+      | resend    | pending  | stranger | 404    | not_found |
+      | rescind   | pending  | viewer   | 403    | forbidden |
+      | rescind   | pending  | stranger | 404    | not_found |
+      | dismiss   | declined | viewer   | 403    | forbidden |
+      | dismiss   | declined | stranger | 404    | not_found |

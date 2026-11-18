@@ -69,6 +69,7 @@ export const FEATURE_MAP = [
     "src/lib/api/contract/sharing.ts",
     // The contributor batch PATCH applies its changes through the locked in-transaction writer.
     "src/lib/membership-writes.ts",
+    "tests/e2e/steps/api-collaboration-guards.steps.ts",
     "tests/e2e/steps/api-contributor-batch.steps.ts",
     "tests/e2e/steps/api-invitation-decisions.steps.ts",
     "tests/e2e/steps/api-invitation-lifecycle.steps.ts",
