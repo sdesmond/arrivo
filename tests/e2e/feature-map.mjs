@@ -71,6 +71,7 @@ export const FEATURE_MAP = [
     "src/lib/membership-writes.ts",
     "tests/e2e/steps/api-contributor-batch.steps.ts",
     "tests/e2e/steps/api-invitation-decisions.steps.ts",
+    "tests/e2e/steps/api-invitation-lifecycle.steps.ts",
     "src/app/api/v1/invitations/**",
     "src/app/api/v1/trips/*/collaborators/**",
     "src/app/api/v1/trips/*/invitations/**",
@@ -329,12 +330,13 @@ export const FEATURE_MAP = [
     "src/app/(app)/admin/users/**",
   ]),
   entry("app-activity", [
+    "src/app/api/v1/invitations/**",
+    "src/app/api/v1/trips/*/invitations/**",
     "tests/e2e/invite-picker.ts",
     "src/lib/trip-activity.ts",
     // Bounds every trip-activity write.
     "src/lib/with-timeout.ts",
     "src/app/(app)/trips/actions.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     // The note steps add through the day-note API.
     "src/lib/api/**",
     "src/lib/services/itinerary-notes.ts",
@@ -546,7 +548,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
     "tests/e2e/api-response.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/components/arrivo/day-card*.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/note-item.tsx",
@@ -583,7 +584,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/docs-rail.tsx",
     "src/components/arrivo/doc-kind-badge.tsx",
     "src/components/arrivo/trip-docs-tab.tsx",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/api/**",
     "src/lib/services/documents.ts",
     "src/lib/services/deletion-records.ts",
@@ -611,7 +611,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/events/*/documents/**",
     "src/app/api/v1/reservations/*/documents/**",
     "src/components/arrivo/event-doc-row.tsx",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     // Deleting an event keeping or discarding its documents runs through the delete API.
     "src/components/arrivo/delete-event-dialog.tsx",
     "src/components/arrivo/place-row-dialogs.tsx",
@@ -698,6 +697,8 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/checklists/**",
   ]),
   entry("pending-invitations", [
+    "src/app/api/v1/invitations/**",
+    "src/app/api/v1/trips/*/invitations/**",
     "tests/e2e/invite-picker.ts",
     "src/components/arrivo/pending-invitations-list.tsx",
     "src/components/arrivo/invitation-live-refresh.tsx",
@@ -736,7 +737,6 @@ export const FEATURE_MAP = [
   entry("revocation-modal", [
     "src/components/arrivo/contributor-revocation-modal.tsx",
     "src/lib/use-live-sync.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     // Removal is saved from the sharing dialog through the contributor batch PATCH.
     "src/components/arrivo/use-trip-share-dialog-controller.ts",
     "src/lib/services/sharing.ts",
@@ -833,7 +833,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/cover/**",
     "src/components/arrivo/cover-*.tsx",
     "src/components/arrivo/trip-cover.tsx",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/app/api/mapbox/static/**",
     ...STORAGE,
   ]),
@@ -871,7 +870,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/checklists/**",
     "src/app/api/v1/trips/*/checklists/**",
     "tests/e2e/api-response.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/live-sync-constants.ts",
     "src/lib/use-live-sync.ts",
     "src/lib/use-trip-live-refresh.ts",
@@ -889,7 +887,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/trip-notes-*.ts",
     "src/components/arrivo/use-trip-notes-*.ts",
     "src/lib/note-preview.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     // The steps wait on the notes API, so its client, contract, service and routes can move this feature.
     "src/lib/api/**",
     "src/lib/services/trip-notes.ts",
@@ -912,6 +909,7 @@ export const FEATURE_MAP = [
     "src/components/arrivo/mobile-upcoming-tab.tsx",
   ]),
   entry("trip-sharing", [
+    "src/app/api/v1/invitations/**",
     "src/lib/services/sharing.ts",
     "src/lib/api/contract/sharing.ts",
     "src/lib/membership-writes.ts",
@@ -920,7 +918,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/users/invitable/**",
     "tests/e2e/invite-picker.ts",
     "src/app/(app)/trips/actions.ts",
-    "src/app/(app)/trips/[tripId]/actions.ts",
     "src/lib/trip-activity.ts",
     "src/lib/invitable-users.ts",
     "src/lib/with-timeout.ts",
@@ -1036,7 +1033,6 @@ export const SHARED_GLOBS = [
   "src/app/(app)/trips/actions.ts",
   "src/app/(app)/trips/[tripId]/page-client.tsx",
   "src/app/(app)/trips/[tripId]/page.tsx",
-  "src/app/(app)/trips/[tripId]/actions.ts",
   "src/app/(app)/trips/[tripId]/trip-detail-tab*",
   // Shared UI primitives + providers + cross-feature arrivo chrome
   "src/components/ui/**",

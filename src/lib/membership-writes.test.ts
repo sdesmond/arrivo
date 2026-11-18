@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { collaborators, days, invitations, trips, users } from "@/db/schema";
 import type { ContributorChange } from "@/data/types";
 import type { DbTransaction } from "./server-action-locks";
@@ -754,5 +755,25 @@ describe("invitation decisions", () => {
   ])("explains a %s refusal", async (_label, invitation, message) => {
     const { transaction } = decisionTransaction({ invitation });
     await expect(describeUnmatchedInvitationInTransaction(transaction, "invite-1", "user-1")).resolves.toBe(message);
+  });
+});
+
+describe.each(["rescind", "dismiss"] as const)("%s invitation writer", (operation) => {
+  it("returns the guarded row when it matches", async () => {
+    const writers = await import("./membership-writes");
+    const row = { id: "invite", tripId: "trip", inviteeId: "invitee" };
+    const returning = vi.fn().mockResolvedValue([row]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const transaction = { update: () => ({ set: () => ({ where }) }), delete: () => ({ where }) };
+    const writer =
+      operation === "rescind" ? writers.rescindInvitationInTransaction : writers.dismissInvitationInTransaction;
+    await expect(writer(transaction as never, { tripId: "trip", invitationId: "invite" })).resolves.toEqual(row);
+    const query = new PgDialect().sqlToQuery(where.mock.calls[0][0]);
+    expect(query.sql).toMatch(/"invitations"\."id" = \$1/);
+    expect(query.sql).toMatch(/"invitations"\."trip_id" = \$2/);
+    expect(query.sql).toMatch(
+      operation === "rescind" ? /"invitations"\."status" = \$3/ : /"invitations"\."status" <> \$3/
+    );
+    expect(query.params).toEqual(["invite", "trip", "pending"]);
   });
 });

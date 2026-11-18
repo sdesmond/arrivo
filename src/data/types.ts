@@ -924,11 +924,11 @@ export type AcceptInvitationResult = { status: "accepted"; tripId: string };
 
 export type DeclineInvitationResult = { status: "declined" };
 
-export type RescindInvitationResult = { status: "success" } | { status: "error"; message: string };
+export type RescindInvitationResult = { status: "success" };
 
-export type DismissInvitationResult = { status: "success" } | { status: "error"; message: string };
+export type DismissInvitationResult = { status: "success" };
 
-export type ResendInvitationResult = { status: "success"; expiresAt: string } | { status: "error"; message: string };
+export type ResendInvitationResult = { status: "success"; expiresAt: string };
 
 export type ContributorChange =
   | { type: "role"; collaboratorId: string; fromRole: CollaboratorRole; toRole: CollaboratorRole }

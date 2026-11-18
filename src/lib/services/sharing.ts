@@ -13,18 +13,24 @@ import type {
   InviteContributorResult,
   SaveContributorChangesResult,
   ShareDialogData,
+  ResendInvitationResult,
+  RescindInvitationResult,
+  DismissInvitationResult,
 } from "@/data/types";
 import * as contract from "@/lib/api/contract/sharing";
 import { withIdempotency, fingerprintRequest } from "@/lib/api/idempotency";
 import { lockUsersThenTripForUpdate } from "@/lib/account-lifecycle-locks";
 import { dbCollabToType, dbInvitationToType } from "@/lib/db-mappers";
 import { getInvitableUsers } from "@/lib/invitable-users";
+import { applyInvitationResend } from "@/lib/invitation-resend";
 import { getInvitationExpiry, hasNormalizedUsername } from "@/lib/invitations";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 import {
   acceptInvitationInTransaction,
   ContributorChangeGuardError,
   declineInvitationInTransaction,
+  rescindInvitationInTransaction,
+  dismissInvitationInTransaction,
   describeUnmatchedInvitationInTransaction,
   inviteContributorInTransaction,
   NO_LONGER_ON_TRIP_MESSAGE,
@@ -395,4 +401,93 @@ export async function declineInvitation(
 ): Promise<DeclineInvitationResult> {
   invitationId = contract.declineInvitation.params.parse({ invitationId }).invitationId;
   return decideInvitation<DeclineInvitationResult>(actor, invitationId, "decline", replay);
+}
+
+/** Manager lifecycle writes authorize the supplied trip under lock before replay lookup. */
+async function transitionInvitation(
+  actor: Actor,
+  tripId: string,
+  invitationId: string,
+  operation: "resend" | "rescind" | "dismiss",
+  replay?: IdempotentRequest
+): Promise<ResendInvitationResult | RescindInvitationResult | DismissInvitationResult> {
+  invitationId = contract.resendInvitation.params.parse({ invitationId }).invitationId;
+  tripId = contract.getCollaborators.params.parse({ tripId }).tripId;
+  let changed: { inviteeId: string } | undefined;
+  const outcome = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<ResendInvitationResult | RescindInvitationResult | DismissInvitationResult>(
+        transaction,
+        { actor, request: replay, payload: operation === "rescind" ? {} : { tripId } },
+        {
+          authorize: async () => {
+            const lock = await lockUsersThenTripForUpdate(transaction, [actor.userId], tripId);
+            if (!lock.locked) throw new TripNotFoundError();
+            await requireTripRole(tripId, actor.userId, "manager", transaction);
+          },
+          mutate: async () => {
+            if (operation === "resend") {
+              const result = await applyInvitationResend(transaction, invitationId, tripId, getInvitationExpiry());
+              if (result.status === "error") {
+                if (result.message === "Invitation not found.") throw new TripNotFoundError();
+                throw new ConflictError(result.message);
+              }
+              changed = result;
+              return { status: "success", expiresAt: result.expiresAt };
+            }
+            const input = { tripId, invitationId };
+            const row =
+              operation === "rescind"
+                ? await rescindInvitationInTransaction(transaction, input)
+                : await dismissInvitationInTransaction(transaction, input);
+            if (!row) {
+              const [existing] = await transaction
+                .select({ id: invitations.id })
+                .from(invitations)
+                .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId)));
+              if (!existing) throw new TripNotFoundError();
+              throw new ConflictError(
+                operation === "rescind" ? "Invitation is no longer pending." : "Invitation is still pending."
+              );
+            }
+            changed = row;
+            return { status: "success" };
+          },
+        }
+      )
+    )
+  );
+  if (changed && !outcome.replayed) {
+    if (operation === "rescind") recordTripInvitation("invitation_rescinded", actor.userId, tripId);
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    if (operation !== "dismiss")
+      publishUserEvent(changed.inviteeId, { type: LiveSyncEventType.InvitationChanged, tripId });
+    if (operation !== "resend") revalidatePath("/trips");
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return outcome.value;
+}
+export async function resendInvitation(
+  actor: Actor,
+  tripId: string,
+  invitationId: string,
+  replay?: IdempotentRequest
+): Promise<ResendInvitationResult> {
+  return transitionInvitation(actor, tripId, invitationId, "resend", replay) as Promise<ResendInvitationResult>;
+}
+export async function rescindInvitation(
+  actor: Actor,
+  tripId: string,
+  invitationId: string,
+  replay?: IdempotentRequest
+): Promise<RescindInvitationResult> {
+  return transitionInvitation(actor, tripId, invitationId, "rescind", replay) as Promise<RescindInvitationResult>;
+}
+export async function dismissInvitation(
+  actor: Actor,
+  tripId: string,
+  invitationId: string,
+  replay?: IdempotentRequest
+): Promise<DismissInvitationResult> {
+  return transitionInvitation(actor, tripId, invitationId, "dismiss", replay) as Promise<DismissInvitationResult>;
 }

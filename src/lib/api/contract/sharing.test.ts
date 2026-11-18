@@ -112,3 +112,17 @@ it.each([
   expect(endpoint.body.parse({})).toEqual({});
   expect(endpoint.body.safeParse({ extra: true }).success).toBe(false);
 });
+
+it.each([
+  ["resendInvitation", "POST", "/api/v1/invitations/:invitationId/resend"],
+  ["dismissInvitation", "POST", "/api/v1/invitations/:invitationId/dismiss"],
+  ["rescindInvitation", "DELETE", "/api/v1/trips/:tripId/invitations/:invitationId"],
+] as const)("defines manager invitation lifecycle endpoint %s", async (name, method, path) => {
+  const sharing = await import("./sharing");
+  const endpoint = sharing[name];
+  expect(endpoint.method).toBe(method);
+  expect(endpoint.path).toBe(path);
+  expect(endpoint.params.safeParse({ invitationId, tripId }).success).toBe(true);
+  expect(endpoint.body.safeParse(name === "rescindInvitation" ? {} : { tripId }).success).toBe(true);
+  expect(endpoint.body.safeParse({ extra: true }).success).toBe(false);
+});

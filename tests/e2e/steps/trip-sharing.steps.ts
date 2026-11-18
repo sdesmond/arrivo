@@ -271,10 +271,26 @@ Then("I see a pending sharing row for the invited user with the editor role", as
   await expect(row).toContainText("Editor");
 });
 
+async function sharingInvitationId(scenario: ScenarioFixtureContext, account: ShareAccount): Promise<string> {
+  const trip = await scenario.ensureCurrentTrip();
+  const user = scenario.getValue<ScenarioUserRecord>(`shareAccount:${account}`)!;
+  const [row] = await withE2EDb((database) =>
+    database
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, trip.id), eq(invitations.inviteeId, user.id)))
+  );
+  if (!row) throw new Error("Sharing invitation missing");
+  return row.id;
+}
+
 When("I resend the pending sharing invitation", async ({ page, scenario }) => {
   const expiryLabel = (await page.getByLabel(/^Invitation expires/).getAttribute("aria-label")) ?? "";
   scenario.setValue(PENDING_INVITATION_EXPIRY_LABEL_KEY, expiryLabel);
+  const invitationId = await sharingInvitationId(scenario, ShareAccount.Pending);
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/invitations/${invitationId}/resend` });
   await page.getByTitle(`Resend invitation to ${shareHandle(scenario, ShareAccount.Pending)}`).click();
+  await response;
 });
 
 Then("I see the pending sharing invitation expiry refresh", async ({ page, scenario }) => {
@@ -284,7 +300,13 @@ Then("I see the pending sharing invitation expiry refresh", async ({ page, scena
 });
 
 When("I rescind the pending sharing invitation", async ({ page, scenario }) => {
+  const invitationId = await sharingInvitationId(scenario, ShareAccount.Pending);
+  const response = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations/${invitationId}`,
+  });
   await page.getByTitle(`Rescind invitation to ${shareHandle(scenario, ShareAccount.Pending)}`).click();
+  await response;
 });
 
 Then("I do not see the pending sharing row", async ({ page, scenario }) => {
@@ -292,7 +314,10 @@ Then("I do not see the pending sharing row", async ({ page, scenario }) => {
 });
 
 When("I dismiss the declined sharing invitation", async ({ page, scenario }) => {
+  const invitationId = await sharingInvitationId(scenario, ShareAccount.Declined);
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/invitations/${invitationId}/dismiss` });
   await page.getByTitle(`Dismiss invitation to ${shareHandle(scenario, ShareAccount.Declined)}`).click();
+  await response;
 });
 
 Then("I do not see the declined sharing row", async ({ page, scenario }) => {

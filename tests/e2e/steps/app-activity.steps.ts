@@ -511,7 +511,18 @@ When("the Activity invitee accepts their real invitation", async ({ page, scenar
   const session = await scenario.openSecondSession(page);
   try {
     await scenario.signInAsUser(session.page, invitee.username);
-    const response = waitForServerActionResponse(session.page, { pathIncludes: "/trips", timeoutMs: 15_000 });
+    const [invitation] = await withE2EDb((database) =>
+      database
+        .select({ id: invitations.id })
+        .from(invitations)
+        .where(and(eq(invitations.tripId, trip.id), eq(invitations.inviteeId, invitee.id)))
+    );
+    if (!invitation) throw new Error("Invitation missing");
+    const response = waitForApiResponse(session.page, {
+      method: "POST",
+      path: `/api/v1/invitations/${invitation.id}/accept`,
+      timeoutMs: 15_000,
+    });
     await session.page.getByTitle(`Accept invitation to ${trip.name}`).click();
     await response;
     await expect(session.page).toHaveURL(`/trips/${trip.id}`);
@@ -522,7 +533,17 @@ When("the Activity invitee accepts their real invitation", async ({ page, scenar
 
 When("I rescind the Activity invitation", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  const [invitation] = await withE2EDb((database) =>
+    database
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, scenario.currentTrip!.id), eq(invitations.inviteeId, invitee.id)))
+  );
+  if (!invitation) throw new Error("Invitation missing");
+  const response = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations/${invitation.id}`,
+  });
   await page.getByTitle(`Rescind invitation to @${invitee.username}`).click();
   await response;
   await expect(page.getByTitle(`Rescind invitation to @${invitee.username}`)).toBeHidden();
@@ -530,7 +551,14 @@ When("I rescind the Activity invitation", async ({ page, scenario }) => {
 
 When("I resend the Activity invitation from its row", async ({ page, scenario }) => {
   const invitee = scenario.getValue<ScenarioUserRecord>("invitableUser")!;
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+  const [invitation] = await withE2EDb((database) =>
+    database
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, scenario.currentTrip!.id), eq(invitations.inviteeId, invitee.id)))
+  );
+  if (!invitation) throw new Error("Invitation missing");
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/invitations/${invitation.id}/resend` });
   await page.getByTitle(`Resend invitation to @${invitee.username}`).click();
   await response;
 });

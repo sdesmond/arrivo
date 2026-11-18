@@ -6,7 +6,6 @@ import { withE2EDb } from "../e2e-db";
 import { After, Given, When, Then } from "../fixtures";
 import { pickInviteUser } from "../invite-picker";
 import { LIVE_SYNC_ASSERTION_TIMEOUT_MS, waitForLiveSyncResponse } from "../live-sync";
-import { waitForServerActionResponse } from "../server-action";
 import { waitForApiResponse } from "../api-response";
 import type { ScenarioFixtureContext, ScenarioUserRecord } from "../scenario-fixture";
 
@@ -209,7 +208,17 @@ Then("the watching user's Trips nav badge shows {string} pending invitation", as
 
 When("I rescind the watching user's invitation", async ({ page, scenario }) => {
   const { user: watchingUser } = getWatchingSession(scenario);
-  const rescindPosted = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+  const [invitation] = await withE2EDb((database) =>
+    database
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(and(eq(invitations.tripId, scenario.currentTrip!.id), eq(invitations.inviteeId, watchingUser.id)))
+  );
+  if (!invitation) throw new Error("Invitation missing");
+  const rescindPosted = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/invitations/${invitation.id}`,
+  });
   await page.getByTitle(`Rescind invitation to @${watchingUser.username}`).click();
   await rescindPosted;
   await expect(page.getByTitle(`Rescind invitation to @${watchingUser.username}`)).toBeHidden({

@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { db } from "@/db";
 import { collaborators, days, invitations, trips, users } from "@/db/schema";
 import { CollaboratorRole } from "@/data/types";
@@ -450,4 +450,40 @@ export async function leaveTripWrite(
       .delete(collaborators)
       .where(and(eq(collaborators.id, membership.id), eq(collaborators.userId, userId)));
   });
+}
+
+/** Caller holds the trip lock and has verified manager access. */
+export async function rescindInvitationInTransaction(
+  transaction: DbTransaction,
+  input: { tripId: string; invitationId: string }
+): Promise<InvitationRow | null> {
+  const [row] = await transaction
+    .update(invitations)
+    .set({ status: "rescinded" })
+    .where(
+      and(
+        eq(invitations.id, input.invitationId),
+        eq(invitations.tripId, input.tripId),
+        eq(invitations.status, "pending")
+      )
+    )
+    .returning();
+  return row ?? null;
+}
+/** Caller holds the trip lock and has verified manager access. */
+export async function dismissInvitationInTransaction(
+  transaction: DbTransaction,
+  input: { tripId: string; invitationId: string }
+): Promise<InvitationRow | null> {
+  const [row] = await transaction
+    .delete(invitations)
+    .where(
+      and(
+        eq(invitations.id, input.invitationId),
+        eq(invitations.tripId, input.tripId),
+        ne(invitations.status, "pending")
+      )
+    )
+    .returning();
+  return row ?? null;
 }

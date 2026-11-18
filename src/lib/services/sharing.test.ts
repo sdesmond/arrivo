@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   decline: vi.fn(),
   describe: vi.fn(),
+  rescind: vi.fn(),
+  dismiss: vi.fn(),
+  resend: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
 vi.mock("@/lib/auth-helpers", () => ({ assertTripAccess: vi.fn() }));
@@ -33,8 +36,11 @@ vi.mock("@/lib/membership-writes", async (original) => ({
   saveContributorChangesInTransaction: mocks.batch,
   acceptInvitationInTransaction: mocks.accept,
   declineInvitationInTransaction: mocks.decline,
+  rescindInvitationInTransaction: mocks.rescind,
+  dismissInvitationInTransaction: mocks.dismiss,
   describeUnmatchedInvitationInTransaction: mocks.describe,
 }));
+vi.mock("@/lib/invitation-resend", () => ({ applyInvitationResend: mocks.resend }));
 vi.mock("@/lib/server-action-locks", async (original) => ({
   ...(await original<typeof import("@/lib/server-action-locks")>()),
   lockTripForUpdate: mocks.tripLock,
@@ -898,5 +904,127 @@ describe.each([
     expect(rolledBack).toBe(true);
     expectNoDecisionEffects();
     clock.mockRestore();
+  });
+});
+
+describe.each(["resend", "rescind", "dismiss"] as const)("manager %s invitation", (operation) => {
+  it("locks and authorizes before mutation and publishes after commit", async () => {
+    const service = await import("./sharing");
+    const mutation = mocks[operation];
+    mutation.mockResolvedValue(
+      operation === "resend"
+        ? { status: "success", expiresAt: "2030-01-01T00:00:00.000Z", inviteeId: "invitee" }
+        : { id: inviteId, inviteeId: "invitee" }
+    );
+    await service[(operation + "Invitation") as "resendInvitation"](actor, tripId, inviteId);
+    expect(mocks.lock).toHaveBeenCalledWith(mocks, [actor.userId], tripId);
+    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.access.mock.invocationCallOrder.at(-1)!);
+    expect(mocks.access.mock.invocationCallOrder.at(-1)!).toBeLessThan(mutation.mock.invocationCallOrder[0]);
+    expect(mocks.tripEvent).toHaveBeenCalledOnce();
+    expect(mocks.revalidate.mock.calls).toEqual(
+      operation === "resend" ? [[`/trips/${tripId}`]] : [["/trips"], [`/trips/${tripId}`]]
+    );
+  });
+});
+
+describe.each(["resend", "rescind", "dismiss"] as const)("manager %s replay and refusals", (operation) => {
+  const path =
+    operation === "rescind"
+      ? `/api/v1/trips/${tripId}/invitations/${inviteId}`
+      : `/api/v1/invitations/${inviteId}/${operation}`;
+  const method = operation === "rescind" ? "DELETE" : "POST";
+  const replay = { key: "retry", method, path };
+  const payload = operation === "rescind" ? {} : { tripId };
+  const value =
+    operation === "resend" ? { status: "success", expiresAt: "2030-01-01T00:00:00.000Z" } : { status: "success" };
+  async function run() {
+    const service = await import("./sharing");
+    return service[(operation + "Invitation") as "resendInvitation"](actor, tripId, inviteId, replay);
+  }
+  function noEffects() {
+    expect(mocks.activity).not.toHaveBeenCalled();
+    expect(mocks.tripEvent).not.toHaveBeenCalled();
+    expect(mocks.userEvent).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  }
+  it("replays after locked manager recheck without reading or mutating the invitation", async () => {
+    stored = [
+      {
+        result: {
+          version: 1,
+          fingerprint: fingerprintRequest(method, path, payload),
+          expiresAt: "2999-01-01T00:00:00.000Z",
+          response: value,
+        },
+      },
+    ];
+    await expect(run()).resolves.toEqual(value);
+    expect(mocks.lock).toHaveBeenCalledOnce();
+    expect(mocks.access).toHaveBeenCalledWith(tripId, actor.userId, "manager", mocks);
+    expect(mocks[operation]).not.toHaveBeenCalled();
+    noEffects();
+  });
+  it("does not read replay or mutate after loss of manager access", async () => {
+    mocks.access.mockRejectedValue(new TripForbiddenError("manager"));
+    await expect(run()).rejects.toBeInstanceOf(TripForbiddenError);
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks[operation]).not.toHaveBeenCalled();
+    noEffects();
+  });
+  it("rejects a key saved for another request before mutation", async () => {
+    stored = [
+      {
+        result: {
+          version: 1,
+          fingerprint: fingerprintRequest(method, path + "/other", payload),
+          expiresAt: "2999-01-01T00:00:00.000Z",
+          response: value,
+        },
+      },
+    ];
+    await expect(run()).rejects.toThrow("different request");
+    expect(mocks[operation]).not.toHaveBeenCalled();
+    noEffects();
+  });
+  it("rolls back mutation and replay when the deadline elapses", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    let committed = false;
+    mocks.transaction.mockImplementation(async (runner) => {
+      const result = await runner(mocks);
+      committed = true;
+      return result;
+    });
+    mocks[operation].mockResolvedValue(
+      operation === "resend" ? { ...value, inviteeId: "invitee" } : { id: inviteId, inviteeId: "invitee" }
+    );
+    mocks.insert.mockReturnValue({
+      values: () => ({
+        onConflictDoUpdate: async () => {
+          clock.mockReturnValue(2000);
+        },
+      }),
+    });
+    await expect(runWithRequestDeadline(1000, run)).rejects.toThrow("took too long");
+    expect(committed).toBe(false);
+    noEffects();
+    clock.mockRestore();
+  });
+  it("conceals missing or foreign invitations", async () => {
+    if (operation === "resend") mocks.resend.mockResolvedValue({ status: "error", message: "Invitation not found." });
+    else mocks[operation].mockResolvedValue(null);
+    await expect(run()).rejects.toBeInstanceOf(TripNotFoundError);
+    noEffects();
+  });
+  it("returns a state conflict without effects", async () => {
+    if (operation === "resend")
+      mocks.resend.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    else {
+      mocks[operation].mockResolvedValue(null);
+      invitationReads = [[{ id: inviteId }]];
+    }
+    await expect(run()).rejects.toThrow(
+      operation === "dismiss" ? "Invitation is still pending." : "Invitation is no longer pending."
+    );
+    noEffects();
   });
 });

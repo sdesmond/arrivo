@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { ApiClientError } from "@/lib/api/client";
 import type { Invitation } from "@/data/types";
 import type { ShareDialogData } from "@/data/types";
 import { useShareInvitationActions } from "./use-share-invitation-actions";
@@ -10,10 +11,18 @@ const mockRescindShareInvitation = vi.fn();
 const mockResendShareInvitation = vi.fn();
 const mockDismissShareInvitation = vi.fn();
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
-  resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
-  dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: (
+    endpoint: { method: string; path: string },
+    input: { params: { tripId?: string; invitationId: string }; body: { tripId?: string } }
+  ) => {
+    if (endpoint.path.endsWith("/resend"))
+      return mockResendShareInvitation(input.body.tripId, input.params.invitationId);
+    if (endpoint.path.endsWith("/dismiss"))
+      return mockDismissShareInvitation(input.body.tripId, input.params.invitationId);
+    return mockRescindShareInvitation(input.params.tripId, input.params.invitationId);
+  },
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -93,7 +102,9 @@ describe("useShareInvitationActions", () => {
   });
 
   it("toasts a resend error result and a thrown resend", async () => {
-    mockResendShareInvitation.mockResolvedValueOnce({ status: "error", message: "Invitation is no longer pending." });
+    mockResendShareInvitation.mockRejectedValueOnce(
+      new ApiClientError(409, "conflict", "Invitation is no longer pending.")
+    );
     mockResendShareInvitation.mockRejectedValueOnce(new Error("network"));
     const { result } = renderActions();
 
@@ -135,7 +146,7 @@ describe("useShareInvitationActions", () => {
   });
 
   it("keeps the row and toasts on a removal error result", async () => {
-    mockRescindShareInvitation.mockResolvedValue({ status: "error", message: "Invitation not found." });
+    mockRescindShareInvitation.mockRejectedValue(new ApiClientError(404, "not_found", "Invitation not found."));
     const { result, suppressedInvitationIdsRef } = renderActions();
 
     await act(async () => result.current.actions.rescindPendingInvitation(pendingInvitation));

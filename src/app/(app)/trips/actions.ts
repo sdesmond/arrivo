@@ -14,17 +14,14 @@ import {
   itineraryChecklists,
   reservations,
   users,
-  invitations,
 } from "@/db/schema";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
   CreateTripInput,
   UpdateTripPatch,
-  DismissInvitationResult,
   LeaveTripResult,
-  RescindInvitationResult,
   ReservationType,
   TripDateChangeConfirmation,
   TripDateChangePreviewReservation,
@@ -42,14 +39,13 @@ import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { assertValidCoverImageUrl } from "@/lib/url-policy";
-import { publishInvitationChanged } from "@/lib/invitations";
 import {
   ContributorChangeGuardError,
   createTripWrite,
   leaveTripWrite,
   NOT_ON_TRIP_MESSAGE,
 } from "@/lib/membership-writes";
-import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
+import { recordTripCreated, recordTripUpdated } from "@/lib/trip-activity";
 import { createTripSchema, parseInput, updateTripSchema } from "@/lib/validation-schemas";
 import { CoverType, LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
@@ -736,53 +732,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-export async function rescindInvitation(tripId: string, invitationId: string): Promise<RescindInvitationResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-
-  const [rescindedInvitation] = await db
-    .update(invitations)
-    .set({ status: "rescinded" })
-    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), eq(invitations.status, "pending")))
-    .returning();
-
-  if (!rescindedInvitation) {
-    const [invitation] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
-    const message =
-      invitation && invitation.tripId === tripId ? "Invitation is no longer pending." : "Invitation not found.";
-    return { status: "error", message };
-  }
-
-  recordTripInvitation("invitation_rescinded", user.id!, tripId);
-  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  publishInvitationChanged(rescindedInvitation.inviteeId, tripId);
-  revalidatePath("/trips");
-
-  return { status: "success" };
-}
-
-export async function dismissInvitation(tripId: string, invitationId: string): Promise<DismissInvitationResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-
-  const [dismissedInvitation] = await db
-    .delete(invitations)
-    .where(and(eq(invitations.id, invitationId), eq(invitations.tripId, tripId), ne(invitations.status, "pending")))
-    .returning();
-
-  if (!dismissedInvitation) {
-    const [invitation] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
-    const message =
-      invitation && invitation.tripId === tripId ? "Invitation is still pending." : "Invitation not found.";
-    return { status: "error", message };
-  }
-
-  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  revalidatePath("/trips");
-
-  return { status: "success" };
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
