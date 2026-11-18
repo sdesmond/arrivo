@@ -1,4 +1,5 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { and, eq } from "drizzle-orm";
 import { collaborators, invitations } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { After, Given, Then, When } from "../fixtures";
@@ -331,8 +332,63 @@ Then("the active sharing row still shows the editor role", async ({ page, scenar
   await expect(row).toContainText("Editor");
 });
 
-When("I save the contributor changes", async ({ page }) => {
+When("I save the contributor changes", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  // Armed before the click so the batch has committed before any later reopen or reload reads it.
+  const saved = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/trips/${trip.id}/collaborators` });
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await saved;
+});
+
+When("the active sharing contributor becomes a manager elsewhere", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const active = scenario.getValue<ScenarioUserRecord>(`shareAccount:${ShareAccount.Active}`)!;
+  await withE2EDb((db) =>
+    db
+      .update(collaborators)
+      .set({ role: "manager" })
+      .where(and(eq(collaborators.tripId, trip.id), eq(collaborators.userId, active.id)))
+  );
+});
+
+When("I save the stale contributor changes", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const path = `/api/v1/trips/${trip.id}/collaborators`;
+  const rejected = page.waitForResponse(
+    (response) => response.request().method() === "PATCH" && new URL(response.url()).pathname === path
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await rejected).status()).toBe(409);
+});
+
+Then(
+  "the stale contributor batch is rejected and the dialog shows current sharing rows",
+  async ({ page, scenario }) => {
+    await expect(page.getByRole("alert")).toContainText("A contributor's role changed since you started editing.");
+    await expect(page.getByRole("heading", { name: "Share trip" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    const activeRow = page
+      .getByText(shareHandle(scenario, ShareAccount.Active), { exact: true })
+      .locator("..")
+      .locator("..");
+    await expect(activeRow).toContainText("Manager");
+    await expect(page.getByText(shareHandle(scenario, ShareAccount.Removable), { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Removable Contributor will be removed")).not.toBeVisible();
+  }
+);
+
+Then("the stale contributor batch left every membership in place", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const rows = await withE2EDb((db) =>
+    db
+      .select({ userId: collaborators.userId, role: collaborators.role })
+      .from(collaborators)
+      .where(eq(collaborators.tripId, trip.id))
+  );
+  const active = scenario.getValue<ScenarioUserRecord>(`shareAccount:${ShareAccount.Active}`)!;
+  const removable = scenario.getValue<ScenarioUserRecord>(`shareAccount:${ShareAccount.Removable}`)!;
+  expect(rows).toContainEqual({ userId: active.id, role: "manager" });
+  expect(rows).toContainEqual({ userId: removable.id, role: "viewer" });
 });
 
 Then("I do not see the removed additional sharing contributor", async ({ page, scenario }) => {

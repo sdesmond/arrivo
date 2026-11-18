@@ -128,6 +128,18 @@ Feature: Trip sharing dialog
     Then I do not see the removed additional sharing contributor
     And the active sharing row role is updated to viewer
 
+  Scenario: A stale contributor batch rolls back and reloads the sharing rows
+    Given I have a trip with sharing rows
+    And I have an additional removable sharing contributor
+    When I go to the current trip
+    And I open the sharing dialog
+    And I stage a role change on the active sharing row to viewer
+    And I stage the removal of the additional sharing contributor
+    And the active sharing contributor becomes a manager elsewhere
+    And I save the stale contributor changes
+    Then the stale contributor batch is rejected and the dialog shows current sharing rows
+    And the stale contributor batch left every membership in place
+
   Scenario: The Save control is disabled until a change is staged
     Given I have a trip with sharing rows
     When I go to the current trip

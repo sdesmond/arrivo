@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { collaborators, days, invitations, trips } from "@/db/schema";
+import { collaborators, days, invitations, trips, users } from "@/db/schema";
+import type { ContributorChange } from "@/data/types";
+import type { DbTransaction } from "./server-action-locks";
 import {
+  ContributorChangeGuardError,
   createTripWrite,
   inviteContributorWrite,
+  saveContributorChangesInTransaction,
   saveContributorChangesWrite,
   type MembershipDatabase,
 } from "./membership-writes";
@@ -101,6 +105,297 @@ describe("saveContributorChangesWrite locked authority", () => {
       })
     ).rejects.toThrow("You no longer have permission to manage contributors.");
     expect(writes).toEqual([]);
+  });
+
+  it("reports a trip deleted before the lock as stale without writing", async () => {
+    const transaction = {
+      execute: async () => [],
+      select: () => {
+        throw new Error("must not read collaborators without the trip lock");
+      },
+    };
+    const database = {
+      transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+    } as unknown as MembershipDatabase;
+    const failure = saveContributorChangesWrite(database, {
+      tripId: "trip-1",
+      actorId: "actor",
+      changes: [{ type: "remove", collaboratorId: "target" }],
+    });
+    await expect(failure).rejects.toBeInstanceOf(ContributorChangeGuardError);
+    await expect(failure).rejects.toMatchObject({
+      message: "One or more contributors are no longer on this trip.",
+      stale: true,
+    });
+  });
+
+  it("propagates unexpected lock failures", async () => {
+    const transaction = {
+      execute: async () => {
+        throw new Error("connection reset");
+      },
+    };
+    const database = {
+      transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+    } as unknown as MembershipDatabase;
+    await expect(
+      saveContributorChangesWrite(database, { tripId: "trip-1", actorId: "actor", changes: [] })
+    ).rejects.toThrow("connection reset");
+  });
+
+  it("applies the batch through the in-transaction writer after locking", async () => {
+    const { transaction, operations } = contributorTransaction();
+    const database = {
+      transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+    } as unknown as MembershipDatabase;
+    await expect(
+      saveContributorChangesWrite(database, {
+        tripId: "trip-1",
+        actorId: "manager-1",
+        changes: [{ type: "remove", collaboratorId: "collab-editor" }],
+      })
+    ).resolves.toEqual({
+      removedUserIds: ["user-peer"],
+      roleChangedUserIds: [],
+      tripName: "Test Trip",
+      removedByName: "Manager Name",
+      removedByUsername: "manager",
+    });
+    expect(operations.locks).toBe(1);
+    expect(operations.deletes).toHaveLength(1);
+  });
+});
+
+interface ContributorRowFixture {
+  id: string;
+  tripId: string;
+  userId: string | null;
+  role: string;
+  isCreator: boolean | null;
+}
+
+function contributorTransaction({
+  collaboratorRows = [{ id: "collab-editor", tripId: "trip-1", userId: "user-peer", role: "editor", isCreator: false }],
+  actorRole = "manager",
+  remover = { username: "manager", name: "Manager Name" as string | null },
+}: {
+  collaboratorRows?: ContributorRowFixture[];
+  actorRole?: string | null;
+  remover?: { username: string; name: string | null };
+} = {}) {
+  const operations = {
+    locks: 0,
+    deletes: [] as Array<{ table: unknown }>,
+    updates: [] as Array<{ table: unknown; values: unknown }>,
+    reads: [] as unknown[],
+  };
+  const transaction = {
+    execute: async () => {
+      operations.locks += 1;
+      return [{ id: "trip-1" }];
+    },
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          operations.reads.push(table);
+          if (table === collaborators)
+            return [
+              ...(actorRole && !collaboratorRows.some((row) => row.userId === "manager-1")
+                ? [{ id: "manager-seat", tripId: "trip-1", userId: "manager-1", role: actorRole, isCreator: false }]
+                : []),
+              ...collaboratorRows,
+            ];
+          if (table === trips) return [{ name: "Test Trip" }];
+          if (table === users) return [remover];
+          throw new Error("Unexpected table read in contributor fixture.");
+        },
+      }),
+    }),
+    delete: (table: unknown) => ({
+      where: async () => {
+        operations.deletes.push({ table });
+      },
+    }),
+    update: (table: unknown) => ({
+      set: (values: unknown) => ({
+        where: async () => {
+          operations.updates.push({ table, values });
+        },
+      }),
+    }),
+  };
+  return { transaction, operations };
+}
+
+describe("saveContributorChangesInTransaction", () => {
+  function run(fixture: Parameters<typeof contributorTransaction>[0], changes: ContributorChange[]) {
+    const { transaction, operations } = contributorTransaction(fixture);
+    const result = saveContributorChangesInTransaction(transaction as unknown as DbTransaction, {
+      tripId: "trip-1",
+      actorId: "manager-1",
+      changes,
+    });
+    return { result, operations };
+  }
+
+  it("applies a role change and a removal and reports both users for postcommit effects", async () => {
+    const { result, operations } = run(
+      {
+        collaboratorRows: [
+          { id: "collab-editor", tripId: "trip-1", userId: "user-peer", role: "editor", isCreator: false },
+          { id: "collab-viewer", tripId: "trip-1", userId: "user-viewer", role: "viewer", isCreator: false },
+        ],
+      },
+      [
+        { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "manager" },
+        { type: "remove", collaboratorId: "collab-viewer" },
+      ]
+    );
+    await expect(result).resolves.toEqual({
+      removedUserIds: ["user-viewer"],
+      roleChangedUserIds: ["user-peer"],
+      tripName: "Test Trip",
+      removedByName: "Manager Name",
+      removedByUsername: "manager",
+    });
+    expect(operations.locks).toBe(0);
+    expect(operations.updates).toEqual([{ table: collaborators, values: { role: "manager" } }]);
+    expect(operations.deletes).toEqual([{ table: collaborators }]);
+  });
+
+  it("reports every removed user in batch order", async () => {
+    const { result, operations } = run(
+      {
+        collaboratorRows: [
+          { id: "collab-a", tripId: "trip-1", userId: "user-a", role: "editor", isCreator: false },
+          { id: "collab-b", tripId: "trip-1", userId: "user-b", role: "viewer", isCreator: false },
+        ],
+      },
+      [
+        { type: "remove", collaboratorId: "collab-a" },
+        { type: "remove", collaboratorId: "collab-b" },
+      ]
+    );
+    await expect(result).resolves.toMatchObject({ removedUserIds: ["user-a", "user-b"], roleChangedUserIds: [] });
+    expect(operations.deletes).toHaveLength(2);
+  });
+
+  it("skips trip and remover lookups for a role-only batch", async () => {
+    const { result, operations } = run({}, [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "viewer" },
+    ]);
+    await expect(result).resolves.toEqual({
+      removedUserIds: [],
+      roleChangedUserIds: ["user-peer"],
+      tripName: "",
+      removedByName: "",
+      removedByUsername: "",
+    });
+    expect(operations.reads).toEqual([collaborators]);
+  });
+
+  it("falls back to the remover username when the account has no display name", async () => {
+    const { result } = run({ remover: { username: "manager", name: null } }, [
+      { type: "remove", collaboratorId: "collab-editor" },
+    ]);
+    await expect(result).resolves.toMatchObject({ removedByName: "manager", removedByUsername: "manager" });
+  });
+
+  it.each([
+    ["removal", { type: "remove", collaboratorId: "collab-orphan" } as ContributorChange],
+    [
+      "role change",
+      { type: "role", collaboratorId: "collab-orphan", fromRole: "viewer", toRole: "editor" } as ContributorChange,
+    ],
+  ])("writes but reports no user for a %s on a collaborator without an account", async (_label, change) => {
+    const { result, operations } = run(
+      { collaboratorRows: [{ id: "collab-orphan", tripId: "trip-1", userId: null, role: "viewer", isCreator: false }] },
+      [change]
+    );
+    await expect(result).resolves.toMatchObject({ removedUserIds: [], roleChangedUserIds: [] });
+    expect(operations.deletes.length + operations.updates.length).toBe(1);
+  });
+
+  it.each([null, "editor", "viewer"])("refuses a caller whose locked role is %s before writing", async (actorRole) => {
+    const { result, operations } = run({ actorRole }, [{ type: "remove", collaboratorId: "collab-editor" }]);
+    await expect(result).rejects.toMatchObject({
+      message: "You no longer have permission to manage contributors.",
+      stale: true,
+    });
+    expect(operations.deletes).toEqual([]);
+  });
+
+  it.each([
+    [
+      "creator seat",
+      {
+        collaboratorRows: [
+          { id: "collab-creator", tripId: "trip-1", userId: "creator", role: "manager", isCreator: true },
+        ],
+      },
+      { type: "role", collaboratorId: "collab-creator", fromRole: "manager", toRole: "editor" } as ContributorChange,
+      { message: "The trip creator's seat cannot be changed.", stale: false },
+    ],
+    [
+      "caller's own seat",
+      {
+        collaboratorRows: [
+          { id: "collab-self", tripId: "trip-1", userId: "manager-1", role: "manager", isCreator: false },
+        ],
+      },
+      { type: "remove", collaboratorId: "collab-self" } as ContributorChange,
+      { message: "You cannot change your own access.", stale: false },
+    ],
+    [
+      "collaborator on another trip",
+      {
+        collaboratorRows: [{ id: "collab-other", tripId: "trip-2", userId: "other", role: "viewer", isCreator: false }],
+      },
+      { type: "remove", collaboratorId: "collab-other" } as ContributorChange,
+      { message: "One or more contributors are no longer on this trip.", stale: true },
+    ],
+    [
+      "missing collaborator",
+      { collaboratorRows: [] },
+      { type: "remove", collaboratorId: "collab-gone" } as ContributorChange,
+      { message: "One or more contributors are no longer on this trip.", stale: true },
+    ],
+    [
+      "stale fromRole",
+      {
+        collaboratorRows: [
+          { id: "collab-editor", tripId: "trip-1", userId: "user-peer", role: "manager", isCreator: false },
+        ],
+      },
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "viewer" } as ContributorChange,
+      { message: "A contributor's role changed since you started editing.", stale: true },
+    ],
+  ])("rejects a %s with a typed guard error and no writes", async (_label, fixture, change, expected) => {
+    const { result, operations } = run(fixture, [change]);
+    await expect(result).rejects.toBeInstanceOf(ContributorChangeGuardError);
+    await expect(result).rejects.toMatchObject(expected);
+    expect(operations.updates).toEqual([]);
+    expect(operations.deletes).toEqual([]);
+  });
+
+  it("rejects duplicate targets before any write as defense behind the contract", async () => {
+    const { result, operations } = run({}, [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "manager" },
+      { type: "remove", collaboratorId: "collab-editor" },
+    ]);
+    await expect(result).rejects.toMatchObject({ message: "Duplicate change for the same contributor", stale: false });
+    expect(operations.reads).toEqual([]);
+    expect(operations.updates).toEqual([]);
+  });
+
+  it("throws on a later guard so the caller's transaction rolls back earlier writes", async () => {
+    const { result, operations } = run({}, [
+      { type: "role", collaboratorId: "collab-editor", fromRole: "editor", toRole: "viewer" },
+      { type: "remove", collaboratorId: "collab-gone" },
+    ]);
+    await expect(result).rejects.toMatchObject({ stale: true });
+    // The caller owns the transaction; throwing is what discards the first update.
+    expect(operations.updates).toHaveLength(1);
   });
 });
 

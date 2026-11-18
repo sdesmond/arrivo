@@ -5,6 +5,7 @@ import type { Collaborator, Invitation } from "@/data/types";
 import { MockEventSource, tripSource } from "@/lib/live-sync-test-helpers";
 import { resetLiveSyncChannelsForTest } from "@/lib/use-live-sync";
 import { toast } from "sonner";
+import { ApiClientError } from "@/lib/api/client";
 import { useTripShareDialogController } from "./use-trip-share-dialog-controller";
 
 const mockGetShareDialogData = vi.fn();
@@ -19,15 +20,19 @@ vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
   rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
   resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
   dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
-  saveContributorChanges: (...args: unknown[]) => mockSaveContributorChanges(...args),
 }));
 
 vi.mock("@/lib/api/client", async (original) => ({
   ...(await original<typeof import("@/lib/api/client")>()),
   api: (
-    endpoint: { path: string },
-    input: { params: { tripId?: string }; body: { tripId?: string; username?: string; role?: string; id?: string } }
+    endpoint: { method: string; path: string },
+    input: {
+      params: { tripId?: string };
+      body: { tripId?: string; username?: string; role?: string; id?: string; changes?: unknown };
+    }
   ) => {
+    if (endpoint.method === "PATCH" && endpoint.path.endsWith("/collaborators"))
+      return mockSaveContributorChanges(input.params.tripId, input.body.changes);
     if (endpoint.path.endsWith("/collaborators")) return mockGetShareDialogData(input.params.tripId);
     if (endpoint.path.endsWith("/invitable")) return mockListInvitableUsers(input.body.tripId);
     return mockInviteContributor(input.params.tripId, input.body.username, input.body.role, input.body.id);
@@ -237,7 +242,7 @@ describe("useTripShareDialogController", () => {
     });
 
     it("defers a refetch that arrives mid-save until a failed save settles", async () => {
-      const save = createDeferred<{ status: "error"; message: string }>();
+      const save = createDeferred<{ status: "success" }>();
       mockSaveContributorChanges.mockReturnValue(save.promise);
       const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
       await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -251,7 +256,7 @@ describe("useTripShareDialogController", () => {
       expect(mockGetShareDialogData).toHaveBeenCalledOnce();
 
       await act(async () => {
-        save.resolve({ status: "error", message: "Could not save." });
+        save.reject(new ApiClientError(422, "validation_failed", "Could not save."));
         await savePromise!;
       });
 
@@ -325,7 +330,7 @@ describe("useTripShareDialogController", () => {
     });
 
     it("replays a membership change missed mid-save when stale recovery fails", async () => {
-      const save = createDeferred<{ status: "error"; message: string; stale: true }>();
+      const save = createDeferred<{ status: "success" }>();
       mockSaveContributorChanges.mockReturnValue(save.promise);
       const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
       await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -342,7 +347,7 @@ describe("useTripShareDialogController", () => {
       });
 
       await act(async () => {
-        save.resolve({ status: "error", message: "A contributor changed.", stale: true });
+        save.reject(new ApiClientError(409, "conflict", "A contributor changed."));
         await savePromise!;
       });
 
@@ -517,11 +522,9 @@ describe("useTripShareDialogController", () => {
   });
 
   it("retains the save error and reports an out-of-date warning when stale recovery fails", async () => {
-    mockSaveContributorChanges.mockResolvedValue({
-      status: "error",
-      message: "A contributor changed since you started editing.",
-      stale: true,
-    });
+    mockSaveContributorChanges.mockRejectedValue(
+      new ApiClientError(409, "conflict", "A contributor changed since you started editing.")
+    );
     mockGetShareDialogData
       .mockResolvedValueOnce({
         collaborators: [manager],
@@ -541,6 +544,120 @@ describe("useTripShareDialogController", () => {
     expect(result.current.stagedChanges).toEqual({});
     expect(result.current.isSavingChanges).toBe(false);
     expect(onRequestClose).not.toHaveBeenCalled();
+  });
+
+  describe("saving contributor changes through the API", () => {
+    async function renderWithEditor(onRequestClose = vi.fn()) {
+      mockGetShareDialogData.mockResolvedValue({
+        collaborators: [manager, editor],
+        currentCollaboratorId: "manager-1",
+        invitations: [],
+      });
+      const rendered = renderHook(() => useTripShareDialogController({ onRequestClose, tripId: "trip-1" }));
+      await waitFor(() => expect(rendered.result.current.isLoading).toBe(false));
+      return rendered;
+    }
+
+    it("sends every staged change in one PATCH batch and closes on success", async () => {
+      const onRequestClose = vi.fn();
+      const { result } = await renderWithEditor(onRequestClose);
+      act(() => {
+        result.current.stageRoleChange(editor, "viewer");
+        result.current.stageRemoval(acceptedCollaborator);
+      });
+
+      await act(async () => result.current.handleSaveChanges());
+
+      expect(mockSaveContributorChanges).toHaveBeenCalledExactlyOnceWith("trip-1", [
+        { type: "role", collaboratorId: "editor-1", fromRole: "editor", toRole: "viewer" },
+        { type: "remove", collaboratorId: "collaborator-2" },
+      ]);
+      expect(result.current.stagedChanges).toEqual({});
+      expect(result.current.saveError).toBeNull();
+      expect(onRequestClose).toHaveBeenCalledOnce();
+    });
+
+    it("does not send an empty batch", async () => {
+      const { result } = await renderWithEditor();
+      await act(async () => result.current.handleSaveChanges());
+      expect(mockSaveContributorChanges).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [409, "conflict", "One or more contributors are no longer on this trip."],
+      [403, "forbidden", "You do not have permission for this action."],
+      [404, "not_found", "Resource not found."],
+    ])("clears staged changes and reloads share data on a %s", async (status, code, message) => {
+      mockSaveContributorChanges.mockRejectedValue(new ApiClientError(status, code, message));
+      const onRequestClose = vi.fn();
+      const { result } = await renderWithEditor(onRequestClose);
+      act(() => result.current.stageRoleChange(editor, "viewer"));
+
+      await act(async () => result.current.handleSaveChanges());
+
+      expect(result.current.saveError).toBe(message);
+      expect(result.current.stagedChanges).toEqual({});
+      expect(mockGetShareDialogData).toHaveBeenCalledTimes(2);
+      expect(result.current.recoveryWarning).toBeNull();
+      expect(onRequestClose).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("keeps staged changes and shows a 422 message without reloading", async () => {
+      const message = "The trip creator's seat cannot be changed.";
+      mockSaveContributorChanges.mockRejectedValue(new ApiClientError(422, "validation_failed", message));
+      const onRequestClose = vi.fn();
+      const { result } = await renderWithEditor(onRequestClose);
+      act(() => result.current.stageRoleChange(editor, "viewer"));
+
+      await act(async () => result.current.handleSaveChanges());
+
+      expect(result.current.saveError).toBe(message);
+      expect(Object.keys(result.current.stagedChanges)).toEqual(["editor-1"]);
+      expect(mockGetShareDialogData).toHaveBeenCalledOnce();
+      expect(onRequestClose).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(result.current.isSavingChanges).toBe(false);
+    });
+
+    it.each([
+      ["server error", new ApiClientError(500, "server_error", "Something went wrong. Try again.")],
+      ["deadline", new ApiClientError(503, "deadline_exceeded", "The request took too long.")],
+      ["network failure", new ApiClientError(0, "network_error", "Could not reach the server. Try again.")],
+      ["thrown error", new Error("boom")],
+    ])("toasts and keeps staged changes on a %s", async (_label, failure) => {
+      mockSaveContributorChanges.mockRejectedValue(failure);
+      const onRequestClose = vi.fn();
+      const { result } = await renderWithEditor(onRequestClose);
+      act(() => result.current.stageRoleChange(editor, "viewer"));
+
+      await act(async () => result.current.handleSaveChanges());
+
+      expect(toast.error).toHaveBeenCalledWith("Could not save changes.");
+      expect(result.current.saveError).toBeNull();
+      expect(Object.keys(result.current.stagedChanges)).toEqual(["editor-1"]);
+      expect(onRequestClose).not.toHaveBeenCalled();
+    });
+
+    it("does not toast when the dialog unmounts before a failed save settles", async () => {
+      const save = createDeferred<{ status: "success" }>();
+      mockSaveContributorChanges.mockReturnValue(save.promise);
+      const { result, unmount } = await renderWithEditor();
+      act(() => result.current.stageRoleChange(editor, "viewer"));
+      let savePromise: Promise<void>;
+      act(() => {
+        savePromise = result.current.handleSaveChanges();
+      });
+      unmount();
+
+      await act(async () => {
+        save.reject(new ApiClientError(409, "conflict", "Stale."));
+        await savePromise!;
+      });
+
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(mockGetShareDialogData).toHaveBeenCalledOnce();
+    });
   });
 
   const UNMOUNTED_UPDATE_WARNING = /Can't perform a React state update on an unmounted component/;

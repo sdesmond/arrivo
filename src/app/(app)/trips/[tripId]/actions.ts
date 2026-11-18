@@ -5,12 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { resendInvitation } from "@/lib/invitations";
 
-import {
-  dismissInvitation,
-  rescindInvitation,
-  saveContributorChanges as saveContributorChangesAction,
-} from "../actions";
-import type { ContributorChange } from "@/data/types";
+import { dismissInvitation, rescindInvitation } from "../actions";
 
 export async function resendShareInvitation(tripId: string, invitationId: string) {
   const user = await requireUser();
@@ -31,14 +26,6 @@ export async function rescindShareInvitation(tripId: string, invitationId: strin
 
 export async function dismissShareInvitation(tripId: string, invitationId: string) {
   const result = await dismissInvitation(tripId, invitationId);
-  if (result.status === "success") {
-    revalidatePath(`/trips/${tripId}`);
-  }
-  return result;
-}
-
-export async function saveContributorChanges(tripId: string, changes: ContributorChange[]) {
-  const result = await saveContributorChangesAction(tripId, changes);
   if (result.status === "success") {
     revalidatePath(`/trips/${tripId}`);
   }

@@ -8,7 +8,6 @@ const {
   mockGetContributorsAndInvitations,
   mockRescindInvitation,
   mockResendInvitation,
-  mockSaveContributorChanges,
 } = vi.hoisted(() => ({
   mockRequireUser: vi.fn(),
   mockRevalidatePath: vi.fn(),
@@ -16,7 +15,6 @@ const {
   mockGetContributorsAndInvitations: vi.fn(),
   mockRescindInvitation: vi.fn(),
   mockResendInvitation: vi.fn(),
-  mockSaveContributorChanges: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-helpers", () => ({ requireUser: mockRequireUser }));
@@ -26,16 +24,9 @@ vi.mock("@/lib/queries", () => ({ getContributorsAndInvitations: mockGetContribu
 vi.mock("../actions", () => ({
   dismissInvitation: mockDismissInvitation,
   rescindInvitation: mockRescindInvitation,
-  saveContributorChanges: mockSaveContributorChanges,
 }));
 
-import {
-  dismissShareInvitation,
-  rescindShareInvitation,
-  resendShareInvitation,
-  saveContributorChanges,
-} from "./actions";
-import { type ContributorChange } from "@/data/types";
+import { dismissShareInvitation, rescindShareInvitation, resendShareInvitation } from "./actions";
 
 describe("share invitation actions", () => {
   beforeEach(() => {
@@ -44,7 +35,6 @@ describe("share invitation actions", () => {
     mockResendInvitation.mockResolvedValue({ status: "success", expiresAt: "2026-09-04T12:00:00.000Z" });
     mockRescindInvitation.mockResolvedValue({ status: "success" });
     mockDismissInvitation.mockResolvedValue({ status: "success" });
-    mockSaveContributorChanges.mockResolvedValue({ status: "success" });
     mockGetContributorsAndInvitations.mockResolvedValue({
       collaborators: [],
       currentCollaboratorId: "manager-row-1",
@@ -95,29 +85,6 @@ describe("share invitation actions", () => {
     await expect(resendShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
     await expect(rescindShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
     await expect(dismissShareInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
-
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("delegates saveContributorChanges and revalidates the detail route on success", async () => {
-    const changes: ContributorChange[] = [
-      { type: "role", collaboratorId: "collab-1", fromRole: "editor", toRole: "viewer" },
-      { type: "remove", collaboratorId: "collab-2" },
-    ];
-
-    await expect(saveContributorChanges("trip-1", changes)).resolves.toEqual({ status: "success" });
-
-    expect(mockSaveContributorChanges).toHaveBeenCalledWith("trip-1", changes);
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/trip-1");
-  });
-
-  it("does not revalidate when a saveContributorChanges batch is rejected", async () => {
-    mockSaveContributorChanges.mockResolvedValue({ status: "error", message: "Batch rejected." });
-
-    await expect(saveContributorChanges("trip-1", [{ type: "remove", collaboratorId: "collab-1" }])).resolves.toEqual({
-      status: "error",
-      message: "Batch rejected.",
-    });
 
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });

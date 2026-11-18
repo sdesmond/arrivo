@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { collaborators, idempotencyKeys, invitations, users } from "@/db/schema";
 import { LiveSyncEventType } from "@/data/types";
-import type { Actor, IdempotentRequest, InviteContributorResult, ShareDialogData } from "@/data/types";
+import type {
+  Actor,
+  IdempotentRequest,
+  InviteContributorResult,
+  SaveContributorChangesResult,
+  ShareDialogData,
+} from "@/data/types";
 import * as contract from "@/lib/api/contract/sharing";
 import { withIdempotency, fingerprintRequest } from "@/lib/api/idempotency";
 import { lockUsersThenTripForUpdate } from "@/lib/account-lifecycle-locks";
@@ -13,15 +19,23 @@ import { dbCollabToType, dbInvitationToType } from "@/lib/db-mappers";
 import { getInvitableUsers } from "@/lib/invitable-users";
 import { getInvitationExpiry, hasNormalizedUsername } from "@/lib/invitations";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
-import { inviteContributorInTransaction } from "@/lib/membership-writes";
+import {
+  ContributorChangeGuardError,
+  inviteContributorInTransaction,
+  NO_LONGER_ON_TRIP_MESSAGE,
+  saveContributorChangesInTransaction,
+  type ContributorChangeOutcome,
+} from "@/lib/membership-writes";
 import { getNow } from "@/lib/mock-date";
 import { isUuid } from "@/lib/validation-limits";
 import { guardTransactionDeadline } from "@/lib/request-deadline";
 import { recordTripInvitation } from "@/lib/trip-activity";
-import { publishTripEvent, publishUserEvent } from "@/lib/trip-events";
+import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
+import { publishTripEvent, publishUserEvent, removeTripSubscribersForUser } from "@/lib/trip-events";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
+import { ValidationFailedError } from "./validation-failed-error";
 
 export async function getCollaborators(actor: Actor, tripId: string): Promise<ShareDialogData> {
   tripId = contract.getCollaborators.params.parse({ tripId }).tripId;
@@ -211,6 +225,83 @@ export async function createInvitation(
     publishUserEvent(invitee.id, { type: LiveSyncEventType.InvitationChanged, tripId });
     publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
     revalidatePath(`/trips/${tripId}`);
+  }
+  return outcome.value;
+}
+
+/**
+ * Atomic contributor role/removal batch. The trip lock and locked manager recheck precede the replay lookup, so a
+ * demoted manager never sees a saved response. Guard refusals roll the whole batch back: stale ones are conflicts the
+ * client recovers from by reloading, the rest are validation failures.
+ */
+export async function saveContributorChanges(
+  actor: Actor,
+  tripId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<SaveContributorChangesResult> {
+  tripId = contract.saveContributorChanges.params.parse({ tripId }).tripId;
+  const draft = contract.saveContributorChanges.body.parse(input);
+  await requireTripRole(tripId, actor.userId, "manager");
+  let applied = undefined as ContributorChangeOutcome | undefined;
+  const outcome = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<SaveContributorChangesResult>(
+        transaction,
+        { actor, request: replay, payload: draft },
+        {
+          authorize: async () => {
+            try {
+              await lockTripForUpdate(transaction, tripId);
+            } catch (error) {
+              // Deleted after the precheck, for example with its owner's account: the staged rows are stale.
+              if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE)
+                throw new ConflictError(NO_LONGER_ON_TRIP_MESSAGE);
+              throw error;
+            }
+            await requireTripRole(tripId, actor.userId, "manager", transaction);
+          },
+          mutate: async () => {
+            if (draft.changes.length === 0) return { status: "success" };
+            try {
+              applied = await saveContributorChangesInTransaction(transaction, {
+                tripId,
+                actorId: actor.userId,
+                changes: draft.changes,
+              });
+            } catch (error) {
+              if (error instanceof ContributorChangeGuardError) {
+                if (error.stale) throw new ConflictError(error.message);
+                throw new ValidationFailedError(error.message, { changes: [error.message] });
+              }
+              throw error;
+            }
+            return { status: "success" };
+          },
+        }
+      )
+    )
+  );
+  if (applied && !outcome.replayed) {
+    const { removedUserIds, roleChangedUserIds, tripName, removedByName, removedByUsername } = applied;
+    for (const removedUserId of removedUserIds) {
+      publishUserEvent(removedUserId, {
+        type: LiveSyncEventType.MembershipRemoved,
+        removedUserId,
+        tripId,
+        tripName,
+        removedByName,
+        removedByUsername,
+      });
+      removeTripSubscribersForUser(tripId, removedUserId);
+    }
+    for (const roleChangedUserId of roleChangedUserIds) {
+      publishUserEvent(roleChangedUserId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    }
+    // Every open session on the trip channel needs the change, not only the removed or re-roled users.
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    revalidatePath(`/trips/${tripId}`);
+    revalidatePath("/trips");
   }
   return outcome.value;
 }

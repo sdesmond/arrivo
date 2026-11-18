@@ -2117,3 +2117,64 @@ Feature: Absolute checklist checked-state API
       | expired  | deleted  | 200    |
       | swept    | present  | 409    |
       | swept    | deleted  | 200    |
+
+  @sharing-api @contributor-batch
+  Scenario: Contributor batch API applies a mixed batch once and replays it without duplicate writes
+    Given a contributor batch API trip
+    When I send the contributor batch "mixed" with "same" key
+    Then the contributor batch API returns 200 and the mixed batch persisted
+    When I send the contributor batch "mixed" with "same" key
+    Then the contributor batch API returns 200 and the mixed batch persisted
+    When I send the contributor batch "changed" with "same" key
+    Then the contributor batch API returns 409 and the mixed batch persisted
+
+  @sharing-api @contributor-batch
+  Scenario: Contributor batch API accepts an empty batch as a no-op
+    Given a contributor batch API trip
+    When I send the contributor batch "empty" with "none" key
+    Then the contributor batch API returns 200 without changing seats
+
+  @sharing-api @contributor-batch
+  Scenario Outline: Contributor batch API rejects invalid, guarded and stale batches without writes
+    Given a contributor batch API trip
+    When I send the contributor batch "<batch>" with "none" key
+    Then the contributor batch API rejects with <status> and "<code>" without writes
+    Examples:
+      | batch          | status | code              |
+      | oversized      | 422    | validation_failed |
+      | duplicate      | 422    | validation_failed |
+      | bad-type       | 422    | validation_failed |
+      | bad-role       | 422    | validation_failed |
+      | bad-uuid       | 422    | validation_failed |
+      | creator        | 422    | validation_failed |
+      | self           | 422    | validation_failed |
+      | stale-role     | 409    | conflict          |
+      | missing-target | 409    | conflict          |
+      | foreign-target | 409    | conflict          |
+      | rollback       | 409    | conflict          |
+
+  @sharing-api @contributor-batch
+  Scenario Outline: Contributor batch API denies callers below manager access
+    Given a contributor batch API trip
+    And my checklist API role is "<role>"
+    When I send the contributor batch "mixed" with "none" key
+    Then the contributor batch API rejects with <status> and "<code>" without writes
+    Examples:
+      | role     | status | code      |
+      | editor   | 403    | forbidden |
+      | viewer   | 403    | forbidden |
+      | stranger | 404    | not_found |
+
+  @sharing-api @contributor-batch
+  Scenario Outline: Contributor batch API replay rechecks current manager access
+    Given a contributor batch API trip
+    When I send the contributor batch "mixed" with "same" key
+    Then the contributor batch API returns 200 and the mixed batch persisted
+    When my checklist API role is "<role>"
+    And the contributor batch snapshot is refreshed
+    And I send the contributor batch "mixed" with "same" key
+    Then the contributor batch API rejects with <status> and "<code>" without writes
+    Examples:
+      | role     | status | code      |
+      | editor   | 403    | forbidden |
+      | stranger | 404    | not_found |

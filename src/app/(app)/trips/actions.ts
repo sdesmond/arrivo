@@ -21,20 +21,18 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
   AcceptInvitationResult,
-  ContributorChange,
   CreateTripInput,
   UpdateTripPatch,
   DeclineInvitationResult,
   DismissInvitationResult,
   LeaveTripResult,
   RescindInvitationResult,
-  SaveContributorChangesResult,
   ReservationType,
   TripDateChangeConfirmation,
   TripDateChangePreviewReservation,
   UpdateTripMetadataResult,
 } from "@/data/types";
-import { CollaboratorRole, TransitMode, TripDateConflictResolution } from "@/data/types";
+import { TransitMode, TripDateConflictResolution } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
@@ -53,7 +51,6 @@ import {
   createTripWrite,
   leaveTripWrite,
   NOT_ON_TRIP_MESSAGE,
-  saveContributorChangesWrite,
 } from "@/lib/membership-writes";
 import { recordTripCreated, recordTripUpdated, recordTripInvitation } from "@/lib/trip-activity";
 import { createTripSchema, parseInput, updateTripSchema } from "@/lib/validation-schemas";
@@ -722,7 +719,7 @@ export async function deleteTrip(tripId: string) {
   // publishTripEvent above reaches anyone with the trip page open (useTripLiveRefresh). Collaborators
   // without that page open — e.g. watching their dashboard — only hold their personal channel, so
   // each one (other than the acting manager, who is already navigating away client-side) needs its
-  // own push too, mirroring the removedUserIds loop in saveContributorChanges.
+  // own push too, mirroring the removedUserIds loop in the sharing service's saveContributorChanges.
   for (const collaborator of tripCollaborators) {
     if (collaborator.userId && collaborator.userId !== user.id) {
       publishUserEvent(collaborator.userId, { type: LiveSyncEventType.TripDeleted, tripId });
@@ -892,92 +889,12 @@ export async function dismissInvitation(tripId: string, invitationId: string): P
   return { status: "success" };
 }
 
-/**
- * Applies a batch of role/removal changes for collaborators on a trip, all-or-nothing, in a single
- * transaction. The server is authoritative: every change is validated against the DB regardless of
- * what the dialog staged, and the whole batch is rejected if any single change fails.
- */
-const MAX_CONTRIBUTOR_CHANGES = 50;
-
-export async function saveContributorChanges(
-  tripId: string,
-  changes: ContributorChange[]
-): Promise<SaveContributorChangesResult> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-
-  if (changes.length === 0) {
-    return { status: "success" };
-  }
-  if (changes.length > MAX_CONTRIBUTOR_CHANGES) {
-    return { status: "error", message: `Cannot change more than ${MAX_CONTRIBUTOR_CHANGES} contributors at once.` };
-  }
-
-  const VALID_ROLES = Object.values(CollaboratorRole);
-  for (const change of changes) {
-    if (change.type !== "role" && change.type !== "remove") {
-      return { status: "error", message: "Invalid change type" };
-    }
-    if (change.type === "role" && !VALID_ROLES.includes(change.toRole)) {
-      return { status: "error", message: "Invalid collaborator role" };
-    }
-  }
-  const changedCollaboratorIds = changes.map((change) => change.collaboratorId);
-  if (new Set(changedCollaboratorIds).size !== changedCollaboratorIds.length) {
-    return { status: "error", message: "Duplicate change for the same contributor" };
-  }
-
-  try {
-    const { removedUserIds, roleChangedUserIds, tripName, removedByUsername } = await saveContributorChangesWrite(db, {
-      tripId,
-      actorId: user.id!,
-      changes,
-    });
-
-    if (removedUserIds.length > 0) {
-      const removedByName = user.name ?? removedByUsername;
-      for (const removedUserId of removedUserIds) {
-        publishUserEvent(removedUserId, {
-          type: LiveSyncEventType.MembershipRemoved,
-          removedUserId,
-          tripId,
-          tripName,
-          removedByName,
-          removedByUsername,
-        });
-        removeTripSubscribersForUser(tripId, removedUserId);
-      }
-    }
-
-    for (const roleChangedUserId of roleChangedUserIds) {
-      publishUserEvent(roleChangedUserId, {
-        type: LiveSyncEventType.MembershipChanged,
-        tripId,
-      });
-    }
-
-    // The batch reaching here always applied at least one change (role or removal) — `changes` was
-    // checked non-empty above and the transaction is all-or-nothing — so every open session on this
-    // trip's channel needs to know, not just the sessions of removed users.
-    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-
-    revalidatePath(`/trips/${tripId}`);
-    revalidatePath("/trips");
-    return { status: "success" };
-  } catch (error) {
-    if (error instanceof ContributorChangeGuardError) {
-      return { status: "error", message: error.message, stale: error.stale };
-    }
-    throw error;
-  }
-}
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Removes the signed-in editor or viewer from a trip — their own membership row only. The trip, its
  * content, and every other membership stay intact. Deliberately separate from the manager-only
- * `saveContributorChanges` (which rejects self-changes): identity comes from the session, never the
+ * contributor batch API (which rejects self-changes): identity comes from the session, never the
  * client, and role/creator protection is re-checked under the same trip lock the manager batch takes,
  * so a concurrent manager removal can't interleave with this one.
  *
