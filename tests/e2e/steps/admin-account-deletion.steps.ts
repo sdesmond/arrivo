@@ -74,17 +74,29 @@ Given("a completed account owns a private trip shared with two editors", async (
 });
 
 async function reviewDeletionOf(page: Page, scenario: Scenario, username: string) {
-  const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users", timeoutMs: 15_000 });
-  const trigger = page.getByRole("button", { name: `Delete account: ${username}`, exact: true });
-  const dialog = page.getByRole("dialog");
-  // A click before the page hydrates opens nothing, so retry until the dialog is up.
-  await expect(async () => {
-    if (!(await dialog.isVisible())) await trigger.click();
-    await expect(dialog).toBeVisible({ timeout: 1_500 });
-  }).toPass({ timeout: 10_000 });
-  scenario.setValue(REVIEW_BODY_KEY, await (await response)!.text());
-  // An account with no trips has no outcome copy, so the enabled confirm button is what says the review arrived.
-  await expect(page.getByRole("dialog").getByRole("button", { name: /^Delete account$/ })).toBeEnabled();
+  // Capture the preview before the router can cancel its streamed response.
+  const capturePreview = async (route: import("@playwright/test").Route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const upstream = await route.fetch();
+    scenario.setValue(REVIEW_BODY_KEY, await upstream.text());
+    await route.fulfill({ response: upstream });
+  };
+  await page.route("**/admin/users", capturePreview);
+  try {
+    const response = waitForServerActionResponse(page, { pathIncludes: "/admin/users", timeoutMs: 15_000 });
+    const trigger = page.getByRole("button", { name: `Delete account: ${username}`, exact: true });
+    const dialog = page.getByRole("dialog");
+    // A click before the page hydrates opens nothing, so retry until the dialog is up.
+    await expect(async () => {
+      if (!(await dialog.isVisible())) await trigger.click();
+      await expect(dialog).toBeVisible({ timeout: 1_500 });
+    }).toPass({ timeout: 10_000 });
+    await response;
+    // An account with no trips has no outcome copy, so the enabled confirm button says the review arrived.
+    await expect(dialog.getByRole("button", { name: /^Delete account$/ })).toBeEnabled();
+  } finally {
+    await page.unroute("**/admin/users", capturePreview);
+  }
 }
 
 When("I review deleting the completed account", async ({ page, scenario }) => {
