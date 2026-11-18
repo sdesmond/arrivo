@@ -415,13 +415,44 @@ export async function saveContributorChangesInTransaction(
 
 export const NOT_ON_TRIP_MESSAGE = "You're no longer on this trip.";
 
+/**
+ * Caller holds the trip lock. Returns the user's own editor/viewer membership; throws `ContributorChangeGuardError`
+ * when it is gone (stale) or protected (creator, manager).
+ */
+export async function readLeavableMembership(
+  transaction: DbTransaction,
+  input: { tripId: string; userId: string }
+): Promise<{ id: string }> {
+  const [membership] = await transaction
+    .select({ id: collaborators.id, role: collaborators.role, isCreator: collaborators.isCreator })
+    .from(collaborators)
+    .where(and(eq(collaborators.tripId, input.tripId), eq(collaborators.userId, input.userId)));
+  if (!membership) {
+    throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
+  }
+  assertNotCreator(membership, "The trip creator can't leave this trip.", ContributorChangeGuardError);
+  if (membership.role !== CollaboratorRole.Editor && membership.role !== CollaboratorRole.Viewer) {
+    throw new ContributorChangeGuardError("Managers can't leave a trip.");
+  }
+  return { id: membership.id };
+}
+
+/** Caller holds the trip lock and has read the membership with `readLeavableMembership`. */
+export async function deleteOwnMembership(
+  transaction: DbTransaction,
+  input: { membershipId: string; userId: string }
+): Promise<void> {
+  await transaction
+    .delete(collaborators)
+    .where(and(eq(collaborators.id, input.membershipId), eq(collaborators.userId, input.userId)));
+}
+
 /** Removes `userId`'s own editor/viewer membership under the trip lock; throws `ContributorChangeGuardError` on refusal. */
 export async function leaveTripWrite(
   database: MembershipDatabase,
   input: { tripId: string; userId: string }
 ): Promise<void> {
   const { tripId, userId } = input;
-  const ownMembership = and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId));
 
   await database.transaction(async (transaction) => {
     try {
@@ -433,22 +464,8 @@ export async function leaveTripWrite(
       }
       throw error;
     }
-
-    const [membership] = await transaction
-      .select({ id: collaborators.id, role: collaborators.role, isCreator: collaborators.isCreator })
-      .from(collaborators)
-      .where(ownMembership);
-    if (!membership) {
-      throw new ContributorChangeGuardError(NOT_ON_TRIP_MESSAGE, { stale: true });
-    }
-    assertNotCreator(membership, "The trip creator can't leave this trip.", ContributorChangeGuardError);
-    if (membership.role !== CollaboratorRole.Editor && membership.role !== CollaboratorRole.Viewer) {
-      throw new ContributorChangeGuardError("Managers can't leave a trip.");
-    }
-
-    await transaction
-      .delete(collaborators)
-      .where(and(eq(collaborators.id, membership.id), eq(collaborators.userId, userId)));
+    const membership = await readLeavableMembership(transaction, { tripId, userId });
+    await deleteOwnMembership(transaction, { membershipId: membership.id, userId });
   });
 }
 

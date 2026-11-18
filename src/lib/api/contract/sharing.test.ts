@@ -126,3 +126,14 @@ it.each([
   expect(endpoint.body.safeParse(name === "rescindInvitation" ? {} : { tripId }).success).toBe(true);
   expect(endpoint.body.safeParse({ extra: true }).success).toBe(false);
 });
+
+it("defines self-departure: DELETE, lowercased trip id, empty strict body, declared 204", async () => {
+  const { leaveTrip } = await import("./sharing");
+  expect(leaveTrip.method).toBe("DELETE");
+  expect(leaveTrip.path).toBe("/api/v1/trips/:tripId/collaborators/me");
+  expect(leaveTrip.status).toBe(204);
+  expect(leaveTrip.params.parse({ tripId: tripId.toUpperCase() })).toEqual({ tripId });
+  expect(leaveTrip.params.safeParse({ tripId: "trip-1" }).success).toBe(false);
+  expect(leaveTrip.body.parse({})).toEqual({});
+  expect(leaveTrip.body.safeParse({ extra: true }).success).toBe(false);
+});
