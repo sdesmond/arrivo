@@ -71,7 +71,7 @@ let account: { id: string }[];
 let claims: { userId: string; result: unknown }[];
 let rows: { id: string; tripId: string; status: string }[];
 let stored: { result: unknown }[];
-let invitationReads: (typeof rows)[];
+let invitationReads: Record<string, unknown>[][];
 let savedValues: Record<string, unknown>[];
 beforeEach(() => {
   vi.clearAllMocks();
@@ -718,17 +718,23 @@ describe("saveContributorChanges", () => {
   });
 });
 
+type DecisionRunner = (
+  actor: Parameters<typeof acceptInvitation>[0],
+  invitationId: string,
+  replay?: Parameters<typeof acceptInvitation>[2]
+) => Promise<unknown>;
+
 describe.each([
   {
     name: "accept",
-    run: acceptInvitation,
+    run: acceptInvitation as DecisionRunner,
     mutation: mocks.accept,
     value: { status: "accepted", tripId },
     activity: true,
   },
   {
     name: "decline",
-    run: declineInvitation,
+    run: declineInvitation as DecisionRunner,
     mutation: mocks.decline,
     value: { status: "declined" },
     activity: false,
