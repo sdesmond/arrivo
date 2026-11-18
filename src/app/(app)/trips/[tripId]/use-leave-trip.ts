@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { leaveTrip } from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { leaveTrip } from "@/lib/api/contract/sharing";
 
 interface UseLeaveTripOptions {
   tripId: string;
@@ -45,21 +46,12 @@ export function useLeaveTrip({ tripId }: UseLeaveTripOptions) {
     }
 
     try {
-      const result = await leaveTrip(tripId);
-      if (result.status === "success") {
-        // Stay in the pending state until navigation unmounts this page, so the action can't re-fire.
-        router.replace("/trips");
-        return;
-      }
-      if (result.stale) {
-        // Membership was already gone — nothing to confirm, and this view is no longer reachable.
-        toast.error(result.message);
-        router.replace("/trips");
-        return;
-      }
-      reportFailure(result.message);
-    } catch {
-      reportFailure("Couldn't leave this trip. Try again.");
+      await api(leaveTrip, { params: { tripId }, body: {} });
+      // Stay in the pending state until navigation unmounts this page, so the request can't re-fire. An
+      // already-absent membership is the same empty success, so this view is left either way.
+      router.replace("/trips");
+    } catch (error) {
+      reportFailure(error instanceof ApiClientError ? error.message : "Couldn't leave this trip. Try again.");
     }
   }
 

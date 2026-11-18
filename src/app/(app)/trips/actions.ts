@@ -21,7 +21,6 @@ import { headers } from "next/headers";
 import type {
   CreateTripInput,
   UpdateTripPatch,
-  LeaveTripResult,
   ReservationType,
   TripDateChangeConfirmation,
   TripDateChangePreviewReservation,
@@ -39,16 +38,11 @@ import { type DbTransaction, lockTripForUpdate } from "@/lib/server-action-locks
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { assertValidCoverImageUrl } from "@/lib/url-policy";
-import {
-  ContributorChangeGuardError,
-  createTripWrite,
-  leaveTripWrite,
-  NOT_ON_TRIP_MESSAGE,
-} from "@/lib/membership-writes";
+import { createTripWrite } from "@/lib/membership-writes";
 import { recordTripCreated, recordTripUpdated } from "@/lib/trip-activity";
 import { createTripSchema, parseInput, updateTripSchema } from "@/lib/validation-schemas";
 import { CoverType, LiveSyncEventType } from "@/data/types";
-import { publishTripEvent, publishUserEvent, purgeTripTopic, removeTripSubscribersForUser } from "@/lib/trip-events";
+import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "@/lib/services/cover-search";
@@ -732,54 +726,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Removes the signed-in editor or viewer from a trip — their own membership row only. The trip, its
- * content, and every other membership stay intact. Deliberately separate from the manager-only
- * contributor batch API (which rejects self-changes): identity comes from the session, never the
- * client, and role/creator protection is re-checked under the same trip lock the manager batch takes,
- * so a concurrent manager removal can't interleave with this one.
- *
- * A caller who is already off the trip (forged id, concurrent removal, repeated click) gets a `stale`
- * error rather than `notFound()`, so the client can return to the trips list without claiming success.
- */
-export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
-  const user = await requireUser();
-  const userId = user.id!;
-
-  if (typeof tripId !== "string" || !UUID_PATTERN.test(tripId)) {
-    return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
-  }
-
-  const [existingMembership] = await db
-    .select({ id: collaborators.id })
-    .from(collaborators)
-    .where(and(eq(collaborators.tripId, tripId), eq(collaborators.userId, userId)));
-  if (!existingMembership) {
-    return { status: "error", message: NOT_ON_TRIP_MESSAGE, stale: true };
-  }
-
-  try {
-    await leaveTripWrite(db, { tripId, userId });
-  } catch (error) {
-    if (error instanceof ContributorChangeGuardError) {
-      return { status: "error", message: error.message, stale: error.stale };
-    }
-    throw error;
-  }
-
-  // Personal event first so the leaver's other tabs redirect, then close their trip streams before the
-  // trip-wide broadcast — otherwise those tabs would refresh into a denied page on membership-changed.
-  publishUserEvent(userId, { type: LiveSyncEventType.MembershipLeft, tripId });
-  removeTripSubscribersForUser(tripId, userId);
-  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-  return { status: "success" };
 }
 
 export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {

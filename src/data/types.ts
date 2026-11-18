@@ -937,10 +937,6 @@ export type ContributorChange =
 // Guard failures are typed API errors (409 stale, 422 invalid), so a saved batch has only one result.
 export type SaveContributorChangesResult = { status: "success" };
 
-// `stale` marks a caller whose membership was already gone (concurrent removal, forged trip id) —
-// the client returns to the trips list rather than reporting a successful exit.
-export type LeaveTripResult = { status: "success" } | { status: "error"; message: string; stale?: boolean };
-
 // ─────────────────────────────────────────────────────────────────────────────
 // ACCOUNT DELETION
 // ─────────────────────────────────────────────────────────────────────────────
