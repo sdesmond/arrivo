@@ -99,3 +99,11 @@ export const rescindInvitation = defineEndpoint<RescindInvitationResult>()({
   params: z.object({ tripId: uuid, invitationId: uuid }),
   body: z.strictObject({}),
 });
+
+export const leaveTrip = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/trips/:tripId/collaborators/me",
+  params: tripParams,
+  body: z.strictObject({}),
+  status: 204,
+});

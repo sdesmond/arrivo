@@ -48,6 +48,7 @@ it("loads the idempotent v1 routes", () => {
       "POST /api/v1/invitations/:invitationId/resend",
       "POST /api/v1/invitations/:invitationId/dismiss",
       "DELETE /api/v1/trips/:tripId/invitations/:invitationId",
+      "DELETE /api/v1/trips/:tripId/collaborators/me",
     ])
   );
 });

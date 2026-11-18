@@ -10,8 +10,12 @@ import {
   ContributorChangeGuardError,
   createTripWrite,
   declineInvitationInTransaction,
+  deleteOwnMembership,
   describeUnmatchedInvitationInTransaction,
   inviteContributorWrite,
+  leaveTripWrite,
+  NOT_ON_TRIP_MESSAGE,
+  readLeavableMembership,
   saveContributorChangesInTransaction,
   saveContributorChangesWrite,
   type MembershipDatabase,
@@ -775,5 +779,99 @@ describe.each(["rescind", "dismiss"] as const)("%s invitation writer", (operatio
       operation === "rescind" ? /"invitations"\."status" = \$3/ : /"invitations"\."status" <> \$3/
     );
     expect(query.params).toEqual(["invite", "trip", "pending"]);
+  });
+});
+
+describe("self-departure writers", () => {
+  const input = { tripId: "trip-1", userId: "user-1" };
+
+  function leaveTransaction(options: { lockRows?: unknown[]; membership?: unknown[]; lockError?: Error } = {}) {
+    const deletes: unknown[] = [];
+    const selects: unknown[] = [];
+    const order: string[] = [];
+    const transaction = {
+      execute: async () => {
+        order.push("lock");
+        if (options.lockError) throw options.lockError;
+        return options.lockRows ?? [{ id: "trip-1" }];
+      },
+      select: () => ({
+        from: () => ({
+          where: async (condition: unknown) => {
+            order.push("read");
+            selects.push(condition);
+            return options.membership ?? [{ id: "seat-1", role: "editor", isCreator: false }];
+          },
+        }),
+      }),
+      delete: () => ({
+        where: async (condition: unknown) => {
+          order.push("delete");
+          deletes.push(condition);
+        },
+      }),
+    };
+    const database = {
+      transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+    } as unknown as MembershipDatabase;
+    return { transaction: transaction as unknown as DbTransaction, database, deletes, selects, order };
+  }
+
+  it("reads only the caller's own membership and returns it", async () => {
+    const { transaction, selects } = leaveTransaction();
+    await expect(readLeavableMembership(transaction, input)).resolves.toEqual({ id: "seat-1" });
+    const query = new PgDialect().sqlToQuery(selects[0] as never);
+    expect(query.params).toEqual(["trip-1", "user-1"]);
+  });
+
+  it("reports an absent membership as a stale guard error", async () => {
+    const { transaction } = leaveTransaction({ membership: [] });
+    const failure = readLeavableMembership(transaction, input);
+    await expect(failure).rejects.toBeInstanceOf(ContributorChangeGuardError);
+    await expect(failure).rejects.toMatchObject({ stale: true, message: NOT_ON_TRIP_MESSAGE });
+  });
+
+  it.each([
+    ["creator", { id: "seat-1", role: "manager", isCreator: true }, "The trip creator can't leave this trip."],
+    ["manager", { id: "seat-1", role: "manager", isCreator: false }, "Managers can't leave a trip."],
+  ])("refuses a %s without the stale flag", async (_label, membership, message) => {
+    const { transaction } = leaveTransaction({ membership: [membership] });
+    const failure = readLeavableMembership(transaction, input);
+    await expect(failure).rejects.toMatchObject({ stale: false, message });
+  });
+
+  it("allows a viewer", async () => {
+    const { transaction } = leaveTransaction({ membership: [{ id: "seat-2", role: "viewer", isCreator: false }] });
+    await expect(readLeavableMembership(transaction, input)).resolves.toEqual({ id: "seat-2" });
+  });
+
+  it("deletes only the guarded membership row", async () => {
+    const { transaction, deletes } = leaveTransaction();
+    await deleteOwnMembership(transaction, { membershipId: "seat-1", userId: "user-1" });
+    const query = new PgDialect().sqlToQuery(deletes[0] as never);
+    expect(query.params).toEqual(["seat-1", "user-1"]);
+  });
+
+  it("wrapper locks the trip, rechecks, then deletes in one transaction", async () => {
+    const { database, order } = leaveTransaction();
+    await expect(leaveTripWrite(database, input)).resolves.toBeUndefined();
+    expect(order).toEqual(["lock", "read", "delete"]);
+  });
+
+  it("wrapper maps a trip deleted before the lock to a stale guard error", async () => {
+    const { database, order } = leaveTransaction({ lockRows: [] });
+    await expect(leaveTripWrite(database, input)).rejects.toMatchObject({ stale: true, message: NOT_ON_TRIP_MESSAGE });
+    expect(order).toEqual(["lock"]);
+  });
+
+  it("wrapper propagates unexpected lock failures", async () => {
+    const { database } = leaveTransaction({ lockError: new Error("connection reset") });
+    await expect(leaveTripWrite(database, input)).rejects.toThrow("connection reset");
+  });
+
+  it("wrapper refuses protected roles without deleting", async () => {
+    const { database, order } = leaveTransaction({ membership: [{ id: "seat-1", role: "manager", isCreator: false }] });
+    await expect(leaveTripWrite(database, input)).rejects.toThrow("Managers can't leave a trip.");
+    expect(order).toEqual(["lock", "read"]);
   });
 });

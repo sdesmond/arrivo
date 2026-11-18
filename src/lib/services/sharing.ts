@@ -29,11 +29,13 @@ import {
   acceptInvitationInTransaction,
   ContributorChangeGuardError,
   declineInvitationInTransaction,
+  deleteOwnMembership,
   rescindInvitationInTransaction,
   dismissInvitationInTransaction,
   describeUnmatchedInvitationInTransaction,
   inviteContributorInTransaction,
   NO_LONGER_ON_TRIP_MESSAGE,
+  readLeavableMembership,
   saveContributorChangesInTransaction,
   type ContributorChangeOutcome,
 } from "@/lib/membership-writes";
@@ -490,4 +492,65 @@ export async function dismissInvitation(
   replay?: IdempotentRequest
 ): Promise<DismissInvitationResult> {
   return transitionInvitation(actor, tripId, invitationId, "dismiss", replay) as Promise<DismissInvitationResult>;
+}
+
+/** Private: absence is answered as success outside the transaction so no replay row is read or written. */
+class MembershipAbsentError extends Error {}
+
+/**
+ * Self-departure. Absence (never joined, already left, foreign or missing trip) is the same empty success and never
+ * reads replay or reveals trip data. Under the actor-key and trip locks the membership is rechecked and protected roles
+ * refused before any saved response is read, so a rejoined member's old key cannot remove the new membership.
+ */
+export async function leaveTrip(actor: Actor, tripId: string, replay?: IdempotentRequest): Promise<null> {
+  tripId = contract.leaveTrip.params.parse({ tripId }).tripId;
+  let membershipId: string | undefined;
+  let outcome: Awaited<ReturnType<typeof withIdempotency<null>>>;
+  try {
+    outcome = await db.transaction((transaction) =>
+      guardTransactionDeadline(transaction, () =>
+        withIdempotency<null>(
+          transaction,
+          { actor, request: replay, payload: {} },
+          {
+            authorize: async () => {
+              try {
+                await lockTripForUpdate(transaction, tripId);
+              } catch (error) {
+                if (error instanceof Error && error.message === TRIP_NOT_FOUND_MESSAGE)
+                  throw new MembershipAbsentError();
+                throw error;
+              }
+              try {
+                membershipId = (await readLeavableMembership(transaction, { tripId, userId: actor.userId })).id;
+              } catch (error) {
+                if (error instanceof ContributorChangeGuardError) {
+                  if (error.stale) throw new MembershipAbsentError();
+                  throw new ValidationFailedError(error.message, { tripId: [error.message] });
+                }
+                throw error;
+              }
+            },
+            mutate: async () => {
+              await deleteOwnMembership(transaction, { membershipId: membershipId!, userId: actor.userId });
+              return null;
+            },
+          }
+        )
+      )
+    );
+  } catch (error) {
+    if (error instanceof MembershipAbsentError) return null;
+    throw error;
+  }
+  if (membershipId && !outcome.replayed) {
+    // Personal event first so the leaver's other tabs redirect, then close their trip streams before the
+    // trip-wide broadcast, otherwise those tabs would refresh into a denied page on membership-changed.
+    publishUserEvent(actor.userId, { type: LiveSyncEventType.MembershipLeft, tripId });
+    removeTripSubscribersForUser(tripId, actor.userId);
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    revalidatePath(`/trips/${tripId}`);
+    revalidatePath("/trips");
+  }
+  return null;
 }

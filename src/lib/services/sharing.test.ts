@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   rescind: vi.fn(),
   dismiss: vi.fn(),
   resend: vi.fn(),
+  readLeavable: vi.fn(),
+  deleteOwn: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
 vi.mock("@/lib/auth-helpers", () => ({ assertTripAccess: vi.fn() }));
@@ -39,6 +41,8 @@ vi.mock("@/lib/membership-writes", async (original) => ({
   rescindInvitationInTransaction: mocks.rescind,
   dismissInvitationInTransaction: mocks.dismiss,
   describeUnmatchedInvitationInTransaction: mocks.describe,
+  readLeavableMembership: mocks.readLeavable,
+  deleteOwnMembership: mocks.deleteOwn,
 }));
 vi.mock("@/lib/invitation-resend", () => ({ applyInvitationResend: mocks.resend }));
 vi.mock("@/lib/server-action-locks", async (original) => ({
@@ -58,6 +62,7 @@ import {
   createInvitation,
   declineInvitation,
   getCollaborators,
+  leaveTrip,
   listInvitableUsers,
   saveContributorChanges,
 } from "./sharing";
@@ -1026,5 +1031,174 @@ describe.each(["resend", "rescind", "dismiss"] as const)("manager %s replay and 
       operation === "dismiss" ? "Invitation is still pending." : "Invitation is no longer pending."
     );
     noEffects();
+  });
+});
+
+describe("leaveTrip", () => {
+  const member = { userId: "member" };
+  const path = `/api/v1/trips/${tripId}/collaborators/me`;
+  const replay = { key: "leave-1", method: "DELETE", path };
+  function envelope() {
+    return {
+      result: {
+        version: 1,
+        fingerprint: fingerprintRequest("DELETE", path, {}),
+        expiresAt: "2999-01-01T00:00:00.000Z",
+        response: null,
+      },
+    };
+  }
+  function expectNoLeaveEffects() {
+    expect(mocks.userEvent).not.toHaveBeenCalled();
+    expect(mocks.removeSubscribers).not.toHaveBeenCalled();
+    expect(mocks.tripEvent).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  }
+  beforeEach(() => {
+    mocks.readLeavable.mockResolvedValue({ id: "seat" });
+    mocks.deleteOwn.mockResolvedValue(undefined);
+  });
+
+  it("locks the trip, rechecks membership, deletes only that seat, then publishes in order after commit", async () => {
+    await expect(leaveTrip(member, tripId.toUpperCase())).resolves.toBeNull();
+    expect(mocks.tripLock).toHaveBeenCalledExactlyOnceWith(mocks, tripId);
+    expect(mocks.readLeavable).toHaveBeenCalledExactlyOnceWith(mocks, { tripId, userId: "member" });
+    expect(mocks.deleteOwn).toHaveBeenCalledExactlyOnceWith(mocks, { membershipId: "seat", userId: "member" });
+    expect(mocks.tripLock.mock.invocationCallOrder[0]).toBeLessThan(mocks.readLeavable.mock.invocationCallOrder[0]);
+    expect(mocks.readLeavable.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteOwn.mock.invocationCallOrder[0]);
+    expect(mocks.userEvent).toHaveBeenCalledExactlyOnceWith("member", {
+      type: LiveSyncEventType.MembershipLeft,
+      tripId,
+    });
+    expect(mocks.removeSubscribers).toHaveBeenCalledExactlyOnceWith(tripId, "member");
+    expect(mocks.tripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId,
+    });
+    expect(mocks.deleteOwn.mock.invocationCallOrder[0]).toBeLessThan(mocks.userEvent.mock.invocationCallOrder[0]);
+    expect(mocks.userEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.removeSubscribers.mock.invocationCallOrder[0]
+    );
+    expect(mocks.removeSubscribers.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.tripEvent.mock.invocationCallOrder[0]
+    );
+    expect(mocks.revalidate.mock.calls).toEqual([[`/trips/${tripId}`], ["/trips"]]);
+    expect(mocks.activity).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["without a key", undefined],
+    ["with a key, even one that has a saved result", replay],
+  ])("answers an absent membership %s with success, no replay access and no effects", async (_label, request) => {
+    stored = [envelope()];
+    mocks.readLeavable.mockRejectedValue(
+      new ContributorChangeGuardError("You're no longer on this trip.", { stale: true })
+    );
+    await expect(leaveTrip(member, tripId, request)).resolves.toBeNull();
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.deleteOwn).not.toHaveBeenCalled();
+    expectNoLeaveEffects();
+  });
+
+  it("answers a trip missing under the lock with the same success", async () => {
+    mocks.tripLock.mockRejectedValue(new Error(TRIP_NOT_FOUND_MESSAGE));
+    await expect(leaveTrip(member, tripId, replay)).resolves.toBeNull();
+    expect(mocks.readLeavable).not.toHaveBeenCalled();
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expectNoLeaveEffects();
+  });
+
+  it("propagates unexpected lock failures", async () => {
+    mocks.tripLock.mockRejectedValue(new Error("connection reset"));
+    await expect(leaveTrip(member, tripId)).rejects.toThrow("connection reset");
+    expectNoLeaveEffects();
+  });
+
+  it.each(["The trip creator can't leave this trip.", "Managers can't leave a trip."])(
+    "refuses a protected membership (%s) as a validation error without writes or effects",
+    async (message) => {
+      mocks.readLeavable.mockRejectedValue(new ContributorChangeGuardError(message));
+      const failure = leaveTrip(member, tripId, replay);
+      await expect(failure).rejects.toBeInstanceOf(ValidationFailedError);
+      await expect(failure).rejects.toThrow(message);
+      expect(mocks.deleteOwn).not.toHaveBeenCalled();
+      expect(mocks.insert).not.toHaveBeenCalled();
+      expectNoLeaveEffects();
+    }
+  );
+
+  it("rejects a malformed trip id before any transaction", async () => {
+    await expect(leaveTrip(member, "trip-1")).rejects.toThrow();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("stores the response with the write and replays it without a second delete or effects", async () => {
+    await leaveTrip(member, tripId, replay);
+    expect(mocks.insert).toHaveBeenCalledWith(idempotencyKeys);
+    expect(savedValues[0].result).toMatchObject({
+      fingerprint: fingerprintRequest("DELETE", path, {}),
+      response: null,
+    });
+    vi.clearAllMocks();
+    mocks.readLeavable.mockResolvedValue({ id: "seat" });
+    stored = [envelope()];
+    await expect(leaveTrip(member, tripId, replay)).resolves.toBeNull();
+    // A member who rejoined and reuses the old key: membership is rechecked, but nothing is removed again.
+    expect(mocks.readLeavable).toHaveBeenCalledOnce();
+    expect(mocks.deleteOwn).not.toHaveBeenCalled();
+    expectNoLeaveEffects();
+  });
+
+  it("conflicts when the key was saved for a different request while membership exists", async () => {
+    stored = [envelope()];
+    const other = { ...replay, path: "/api/v1/trips/other/collaborators/me" };
+    await expect(leaveTrip(member, tripId, other)).rejects.toBeInstanceOf(ConflictError);
+    expect(mocks.deleteOwn).not.toHaveBeenCalled();
+    expectNoLeaveEffects();
+  });
+
+  it("propagates unexpected write failures without effects", async () => {
+    mocks.deleteOwn.mockRejectedValue(new Error("connection reset"));
+    await expect(leaveTrip(member, tripId)).rejects.toThrow("connection reset");
+    expectNoLeaveEffects();
+  });
+
+  it("emits nothing when the deadline has already elapsed", async () => {
+    await expect(runWithRequestDeadline(-1, () => leaveTrip(member, tripId))).rejects.toThrow("took too long");
+    expect(mocks.deleteOwn).not.toHaveBeenCalled();
+    expectNoLeaveEffects();
+  });
+
+  it("rolls back the departure and the replay row together when the deadline elapses after them", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    let committed = false;
+    let rolledBack = false;
+    mocks.transaction.mockImplementation(async (runner) => {
+      try {
+        const result = await runner(mocks);
+        committed = true;
+        return result;
+      } catch (error) {
+        rolledBack = true;
+        throw error;
+      }
+    });
+    mocks.insert.mockReturnValue({
+      values: () => ({
+        onConflictDoUpdate: async () => {
+          clock.mockReturnValue(2000);
+        },
+      }),
+    });
+    await expect(runWithRequestDeadline(1000, () => leaveTrip(member, tripId, replay))).rejects.toThrow(
+      "took too long"
+    );
+    expect(mocks.deleteOwn).toHaveBeenCalledOnce();
+    expect(committed).toBe(false);
+    expect(rolledBack).toBe(true);
+    expectNoLeaveEffects();
+    clock.mockRestore();
   });
 });

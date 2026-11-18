@@ -7,6 +7,8 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { TripDetailClient } from "./page-client";
 import { LiveSyncEventType, type TripDetailPayload } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
+import { leaveTrip } from "@/lib/api/contract/sharing";
 import { clearRevocationTicket, publishRevocationTicket } from "@/lib/revocation-ticket";
 
 const {
@@ -18,11 +20,11 @@ const {
   mockUseFocusScroll,
   mockUseTripLiveRefresh,
   mockUseBfcacheRefresh,
-  mockLeaveTrip,
+  mockApi,
   mockToastSuccess,
   mockToastError,
 } = vi.hoisted(() => ({
-  mockLeaveTrip: vi.fn(),
+  mockApi: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   tripConfettiMock: vi.fn(({ tripId }: { tripId: string }) => {
@@ -204,8 +206,9 @@ vi.mock("@/components/arrivo/trip-edit-sheet", () => ({
     ) : null,
 }));
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  leaveTrip: mockLeaveTrip,
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api: mockApi,
 }));
 
 vi.mock("sonner", () => ({
@@ -478,26 +481,26 @@ describe("TripDetailClient", () => {
       await user.click(screen.getByRole("button", { name: "Cancel" }));
 
       await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-      expect(mockLeaveTrip).not.toHaveBeenCalled();
+      expect(mockApi).not.toHaveBeenCalled();
       expect(mockRouterReplace).not.toHaveBeenCalled();
     });
 
     it("leaves the trip and returns to the trips list on success without a confirmation toast", async () => {
-      mockLeaveTrip.mockResolvedValue({ status: "success" });
+      mockApi.mockResolvedValue(null);
       const user = userEvent.setup();
       renderAs();
 
       const dialog = await openLeaveDialog(user);
       await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
 
-      expect(mockLeaveTrip).toHaveBeenCalledExactlyOnceWith("trip-1");
+      expect(mockApi).toHaveBeenCalledExactlyOnceWith(leaveTrip, { params: { tripId: "trip-1" }, body: {} });
       expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
       expect(mockToastSuccess).not.toHaveBeenCalled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
 
     it("shows the pending state while the leave is in flight", async () => {
-      mockLeaveTrip.mockReturnValue(new Promise(() => {}));
+      mockApi.mockReturnValue(new Promise(() => {}));
       const user = userEvent.setup();
       renderAs();
 
@@ -512,7 +515,7 @@ describe("TripDetailClient", () => {
     });
 
     it("keeps the user on the trip and shows the error when the leave is rejected", async () => {
-      mockLeaveTrip.mockResolvedValue({ status: "error", message: "Managers can't leave a trip.", stale: false });
+      mockApi.mockRejectedValue(new ApiClientError(422, "validation_failed", "Managers can't leave a trip."));
       const user = userEvent.setup();
       renderAs();
 
@@ -526,7 +529,7 @@ describe("TripDetailClient", () => {
     });
 
     it("shows a generic error and stays on the trip when the request fails", async () => {
-      mockLeaveTrip.mockRejectedValue(new Error("network down"));
+      mockApi.mockRejectedValue(new Error("network down"));
       const user = userEvent.setup();
       renderAs();
 
@@ -535,19 +538,6 @@ describe("TripDetailClient", () => {
 
       expect(await within(dialog).findByRole("alert")).toHaveTextContent("Couldn't leave this trip. Try again.");
       expect(mockRouterReplace).not.toHaveBeenCalled();
-    });
-
-    it("returns to the trips list without claiming success when the membership was already gone", async () => {
-      mockLeaveTrip.mockResolvedValue({ status: "error", message: "You're no longer on this trip.", stale: true });
-      const user = userEvent.setup();
-      renderAs();
-
-      const dialog = await openLeaveDialog(user);
-      await user.click(within(dialog).getByRole("button", { name: "Leave trip" }));
-
-      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
-      expect(mockToastError).toHaveBeenCalledWith("You're no longer on this trip.");
-      expect(mockToastSuccess).not.toHaveBeenCalled();
     });
 
     it("force-closes the leave confirmation when this session's own role changes", async () => {
@@ -563,7 +553,7 @@ describe("TripDetailClient", () => {
 
     function deferLeave() {
       let settle: { resolve: (value: unknown) => void; reject: (reason: unknown) => void } | undefined;
-      mockLeaveTrip.mockReturnValue(
+      mockApi.mockReturnValue(
         new Promise((resolve, reject) => {
           settle = { resolve, reject };
         })
@@ -590,7 +580,7 @@ describe("TripDetailClient", () => {
       await confirmThenForceClose(user);
 
       await act(async () => {
-        settle().resolve({ status: "error", message: "Managers can't leave a trip.", stale: false });
+        settle().reject(new ApiClientError(422, "validation_failed", "Managers can't leave a trip."));
       });
 
       expect(mockToastError).toHaveBeenCalledExactlyOnceWith("Managers can't leave a trip.");
@@ -624,25 +614,11 @@ describe("TripDetailClient", () => {
       await confirmThenForceClose(user);
 
       await act(async () => {
-        settle().resolve({ status: "success" });
+        settle().resolve(null);
       });
 
       expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
       expect(mockToastSuccess).not.toHaveBeenCalled();
-    });
-
-    it("still returns to the trips list when a superseded leave turns out stale", async () => {
-      const settle = deferLeave();
-      const user = userEvent.setup();
-      renderAs();
-      await confirmThenForceClose(user);
-
-      await act(async () => {
-        settle().resolve({ status: "error", message: "You're no longer on this trip.", stale: true });
-      });
-
-      expect(mockRouterReplace).toHaveBeenCalledExactlyOnceWith("/trips");
-      expect(mockToastError).toHaveBeenCalledExactlyOnceWith("You're no longer on this trip.");
     });
   });
 

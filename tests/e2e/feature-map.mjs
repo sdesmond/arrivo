@@ -72,6 +72,7 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/api-contributor-batch.steps.ts",
     "tests/e2e/steps/api-invitation-decisions.steps.ts",
     "tests/e2e/steps/api-invitation-lifecycle.steps.ts",
+    "tests/e2e/steps/api-leave-trip.steps.ts",
     "src/app/api/v1/invitations/**",
     "src/app/api/v1/trips/*/collaborators/**",
     "src/app/api/v1/trips/*/invitations/**",
@@ -842,6 +843,11 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/use-leave-trip.ts",
     "src/app/(app)/trips/[tripId]/trip-detail-dialogs.tsx",
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
+    // Departure is the self-delete endpoint: its contract, service, locked writer and route.
+    "src/lib/services/sharing.ts",
+    "src/lib/api/contract/sharing.ts",
+    "src/lib/membership-writes.ts",
+    "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("trip-live-refresh", [
     "src/lib/api/**",

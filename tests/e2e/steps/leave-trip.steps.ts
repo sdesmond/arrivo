@@ -2,8 +2,9 @@ import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { collaborators, days, trips } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
-import { Then, When } from "../fixtures";
-import { waitForServerActionResponse } from "../server-action";
+import { Given, Then, When } from "../fixtures";
+import { waitForApiResponse } from "../api-response";
+import { waitForLiveSyncResponse } from "../live-sync";
 import type { ScenarioFixtureContext } from "../scenario-fixture";
 
 // Shared-trip fixtures come from viewer-trip-access.steps.ts ("I am a <role> on ... owned by ..."),
@@ -59,9 +60,13 @@ When("I leave the trip and confirm", async ({ page, scenario }) => {
   await expect(dialog).toContainText("disappear from your trips list");
 
   // Arm before the click, await after: the leave must commit before later reload/DB assertions.
-  const leavePosted = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}` });
+  const leavePosted = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/trips/${trip.id}/collaborators/me`,
+  });
   await dialog.getByRole("button", { name: "Leave trip", exact: true }).click();
-  await leavePosted;
+  const response = await leavePosted;
+  expect(response.status()).toBe(204);
 });
 
 Then("I am back on the trips list", async ({ page }) => {
@@ -98,4 +103,42 @@ Then("the owner still has the trip with their membership intact", async ({ scena
 
 Then("I am still a member of the shared trip", async ({ scenario }) => {
   expect(await loadCallerMembership(scenario)).toHaveLength(1);
+});
+
+const OTHER_TAB_KEY = "leaveTripOtherTab";
+const REMAINING_MEMBER_KEY = "leaveTripRemainingMember";
+
+Given("another editor is on the shared trip", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const member = await scenario.seedCollaborator(trip.id, "Remaining Editor", "RE", "editor");
+  scenario.setValue(REMAINING_MEMBER_KEY, member.id);
+});
+
+When("I open the shared trip in another tab", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const otherTab = await page.context().newPage();
+  scenario.setValue(OTHER_TAB_KEY, otherTab);
+  const tripChannelReady = waitForLiveSyncResponse(otherTab, `/api/trips/${trip.id}/events`);
+  const personalChannelReady = waitForLiveSyncResponse(otherTab, "/api/users/me/events");
+  await Promise.all([otherTab.goto(`/trips/${trip.id}`), tripChannelReady, personalChannelReady]);
+  await expect(otherTab.getByRole("heading", { level: 1, name: trip.name })).toBeVisible();
+});
+
+Then("my other tab is redirected to the trips list", async ({ scenario }) => {
+  const otherTab = scenario.getValue<Page>(OTHER_TAB_KEY)!;
+  await expect(otherTab).toHaveURL(/\/trips$/, { timeout: 15_000 });
+});
+
+Then("the remaining members keep their memberships", async ({ scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  const remainingMemberId = scenario.getValue<string>(REMAINING_MEMBER_KEY)!;
+  const rows = await withE2EDb(async (db) =>
+    db
+      .select({ userId: collaborators.userId, isCreator: collaborators.isCreator })
+      .from(collaborators)
+      .where(eq(collaborators.tripId, trip.id))
+  );
+  expect(rows).toHaveLength(2);
+  expect(rows.some((row) => row.isCreator)).toBe(true);
+  expect(rows.some((row) => row.userId === remainingMemberId)).toBe(true);
 });

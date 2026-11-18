@@ -655,3 +655,13 @@ Body: `{ "tripId": "<uuid>" }`. Deletes a non-pending invitation and returns `{ 
 Body: `{}`. Rescinds a pending invitation and returns `{ "status": "success" }`.
 
 These operations return 404 for unknown or other-trip invitations and 409 for a conflicting invitation state. Nonmembers receive 404 and editors and viewers receive 403. Current manager authorization is checked before replay lookup; a keyed retry returns the saved response without repeated effects, including after dismissal deletes the row. Reusing a key with another path or body returns 409.
+
+### DELETE /api/v1/trips/:tripId/collaborators/me
+
+**Role:** none required; identity comes from the session. **`Idempotency-Key`**: yes. **Success** `204`
+
+Body: `{}`. Removes the caller's own editor or viewer membership and leaves the trip, its content and every other membership intact. The response is an identical empty `204` whether the caller left now, had already left, was never on the trip, or the trip does not exist, so the endpoint reveals nothing about trips the caller is not on. An absent membership skips replay lookup and storage entirely, even when the key was used before.
+
+A creator or manager is refused with 422 `validation_failed` ("The trip creator can't leave this trip." or "Managers can't leave a trip.") and keeps their membership; a manager must be demoted first. A reused `Idempotency-Key` with a different request returns 409 while the membership exists; 503 `deadline_exceeded` rolls back the removal and its saved replay together.
+
+The trip row is locked, then the caller's membership and role are rechecked, then any saved response is read, all in one transaction. A keyed retry returns `204` without repeating effects, and cannot remove a membership the caller regained later: leave again with a fresh key. After commit the caller receives a membership-left event on their personal channel and loses their trip-channel subscriptions, then the trip channel receives a membership-changed event; the trip and trips list are revalidated. No-op, rolled-back and replayed requests publish nothing. No schema migration or new configuration is required.
