@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { acceptInvitation, declineInvitation } from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { acceptInvitation, declineInvitation } from "@/lib/api/contract/sharing";
 import { Button } from "@/components/ui/button";
 import { SectionHead } from "./trips-section-head";
 import type { CollaboratorRole, PendingInvitation } from "@/data/types";
@@ -17,6 +18,11 @@ const ROLE_LABELS: Record<CollaboratorRole, string> = {
   editor: "Editor",
   viewer: "Viewer",
 };
+
+function decisionErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiClientError)) return "Could not save changes. Try again.";
+  return error.status === 404 ? "Invitation not found." : error.message;
+}
 
 export function PendingInvitationsList({ invitations }: PendingInvitationsListProps) {
   const router = useRouter();
@@ -34,26 +40,27 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
   function handleAccept(invitation: PendingInvitation) {
     setPendingId(invitation.id);
     startTransition(async () => {
-      const result = await acceptInvitation(invitation.id);
-      if (result.status === "accepted") {
+      try {
+        const result = await api(acceptInvitation, { params: { invitationId: invitation.id }, body: {} });
         router.push(`/trips/${result.tripId}`);
-        return;
+      } catch (error) {
+        setPendingId(null);
+        toast.error(decisionErrorMessage(error));
       }
-      setPendingId(null);
-      toast.error(result.message);
     });
   }
 
   function handleDecline(invitation: PendingInvitation) {
     setPendingId(invitation.id);
     startTransition(async () => {
-      const result = await declineInvitation(invitation.id);
-      setPendingId(null);
-      if (result.status === "declined") {
+      try {
+        await api(declineInvitation, { params: { invitationId: invitation.id }, body: {} });
+        setPendingId(null);
         setDeclinedIds((current) => new Set(current).add(invitation.id));
-        return;
+      } catch (error) {
+        setPendingId(null);
+        toast.error(decisionErrorMessage(error));
       }
-      toast.error(result.message);
     });
   }
 

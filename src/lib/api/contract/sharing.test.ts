@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
 import {
+  acceptInvitation,
   createInvitation,
+  declineInvitation,
   getCollaborators,
   listInvitableUsers,
   MAX_CONTRIBUTOR_CHANGES,
@@ -96,4 +98,17 @@ it("reports duplicate contributors on the changes field", () => {
     path: ["changes"],
     message: "Each contributor can appear only once per batch.",
   });
+});
+
+const invitationId = "523e4567-e89b-12d3-a456-426614174000";
+it.each([
+  [acceptInvitation, "/api/v1/invitations/:invitationId/accept"],
+  [declineInvitation, "/api/v1/invitations/:invitationId/decline"],
+])("defines invitee decision %#: POST, lowercased id, empty strict body", (endpoint, path) => {
+  expect(endpoint.method).toBe("POST");
+  expect(endpoint.path).toBe(path);
+  expect(endpoint.params.parse({ invitationId: invitationId.toUpperCase() })).toEqual({ invitationId });
+  expect(endpoint.params.safeParse({ invitationId: "invite-1" }).success).toBe(false);
+  expect(endpoint.body.parse({})).toEqual({});
+  expect(endpoint.body.safeParse({ extra: true }).success).toBe(false);
 });

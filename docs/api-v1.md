@@ -621,3 +621,17 @@ A new intent against an existing pending invitation preserves its row ID and ref
 UUID intent evidence and keyed responses commit atomically with invitation changes and share existing 24-hour replay-storage retention. The fingerprint includes validated UUID, normalized username, role, method and concrete trip path. Evidence remembers the actual pending row ID when a fresh UUID aliases an existing pending invitation. Exact UUID retries while that row remains pending return saved success without refreshing expiry, changing role, recording activity or publishing events, even with an independent header key or no header. Changed recipient, trip, role or actor conflicts with 409; foreign inaccessible trips remain concealed as 404.
 
 After rescind, dismissal, acceptance or decline, the same header key still returns saved success within retention after current manager authorization. A new key or absent header reusing that retired UUID receives 409 and cannot revive it, even if its row was deleted or replaced. A fresh intent must use a fresh UUID. Clients retain UUID on an uncertain network/timeout retry and replace it when trip, recipient or role changes or after successful completion. Without UUID or header, repeated requests are independent resend intents. After retention expires, replay protection is no longer guaranteed: send a fresh UUID for fresh intent. No schema migration or new configuration is required.
+
+### POST /api/v1/invitations/:invitationId/accept
+
+**Role:** the invited account (no trip membership needed). **`Idempotency-Key`**: yes.
+
+Empty body (`{}`). Returns `{ status: "accepted", tripId }` and adds the caller to the trip as a collaborator with the invited role. An invitation addressed to another account, or one that does not exist, receives 404 `not_found` and changes nothing; the two cases are indistinguishable. A rescinded, accepted or declined invitation receives 409 `conflict` with the reason as `message` ("This invitation was rescinded by the trip owner." or "This invitation is no longer pending."); an expired one receives 409 "This invitation has expired.", judged on the database clock. A deleted account or trip receives 404.
+
+The caller's account and the trip are locked, user before trip, and the invitation is rechecked as addressed to the caller before any saved response is read. Accepting records invitation activity and publishes trip and invitee membership events and the invitee's invitation-badge event only after commit; a keyed retry returns the saved result without a second membership write, activity or events. The fingerprint includes method and concrete path, so a key reused on another invitation or on decline conflicts with 409. A keyed retry after a manager dismisses the accepted row receives 404, because the caller no longer has a row addressed to them.
+
+### POST /api/v1/invitations/:invitationId/decline
+
+**Role:** the invited account (no trip membership needed). **`Idempotency-Key`**: yes.
+
+Empty body (`{}`). Returns `{ status: "declined" }`. Authorization, 404 and 409 behavior, locking, replay and the after-commit events match accept, except that declining records no activity and creates no membership.

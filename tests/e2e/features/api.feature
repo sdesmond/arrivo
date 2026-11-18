@@ -2178,3 +2178,50 @@ Feature: Absolute checklist checked-state API
       | role     | status | code      |
       | editor   | 403    | forbidden |
       | stranger | 404    | not_found |
+
+  @invitation-decisions-api
+  Scenario: Invitation accept API adds the invitee once and replays a keyed retry
+    Given a "pending" invitation for the invitation decision API
+    When I send the invitation decision "accept" with "same" key
+    Then the invitation decision API returns 200 with "accepted"
+    And the invitation is "accepted" with 1 membership rows for its invitee
+    When I send the invitation decision "accept" with "same" key
+    Then the invitation decision API returns 200 with "accepted"
+    And the invitation is "accepted" with 1 membership rows for its invitee
+    When I send the invitation decision "decline" with "same" key
+    Then the invitation decision API rejects with 409 and "conflict"
+    And the invitation is "accepted" with 1 membership rows for its invitee
+
+  @invitation-decisions-api
+  Scenario: Invitation decline API retires the invitation without a membership
+    Given a "pending" invitation for the invitation decision API
+    When I send the invitation decision "decline" with "none" key
+    Then the invitation decision API returns 200 with "declined"
+    And the invitation is "declined" with 0 membership rows for its invitee
+
+  @invitation-decisions-api
+  Scenario Outline: Invitation decision API conceals a foreign invitation
+    Given a "foreign" invitation for the invitation decision API
+    When I send the invitation decision "<decision>" with "none" key
+    Then the invitation decision API rejects with 404 and "not_found"
+    And the invitation is "pending" with 0 membership rows for its invitee
+    Examples:
+      | decision |
+      | accept   |
+      | decline  |
+
+  @invitation-decisions-api
+  Scenario: Invitation decision API refuses an expired invitation
+    Given a "expired" invitation for the invitation decision API
+    When I send the invitation decision "accept" with "none" key
+    Then the invitation decision API rejects with 409 and "conflict"
+    And the invitation decision API message is "This invitation has expired."
+    And the invitation is "pending" with 0 membership rows for its invitee
+
+  @invitation-decisions-api
+  Scenario: Invitation decision API refuses a retired invitation
+    Given a "retired" invitation for the invitation decision API
+    When I send the invitation decision "accept" with "none" key
+    Then the invitation decision API rejects with 409 and "conflict"
+    And the invitation decision API message is "This invitation was rescinded by the trip owner."
+    And the invitation is "rescinded" with 0 membership rows for its invitee
