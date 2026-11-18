@@ -70,6 +70,8 @@ export const FEATURE_MAP = [
     // The contributor batch PATCH applies its changes through the locked in-transaction writer.
     "src/lib/membership-writes.ts",
     "tests/e2e/steps/api-contributor-batch.steps.ts",
+    "tests/e2e/steps/api-invitation-decisions.steps.ts",
+    "src/app/api/v1/invitations/**",
     "src/app/api/v1/trips/*/collaborators/**",
     "src/app/api/v1/trips/*/invitations/**",
     "src/app/api/v1/users/invitable/**",
@@ -700,6 +702,11 @@ export const FEATURE_MAP = [
     "src/components/arrivo/pending-invitations-list.tsx",
     "src/components/arrivo/invitation-live-refresh.tsx",
     "src/lib/invitations.ts",
+    // Accept and decline go through the invitation decision API.
+    "src/lib/services/sharing.ts",
+    "src/lib/api/contract/sharing.ts",
+    "src/lib/membership-writes.ts",
+    "src/app/api/v1/invitations/**",
   ]),
   entry("pull-templates", ["src/components/arrivo/template-pull-dialog.tsx"]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),

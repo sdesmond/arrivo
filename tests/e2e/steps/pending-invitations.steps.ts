@@ -1,5 +1,6 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import bcrypt from "bcryptjs";
+import { and, eq } from "drizzle-orm";
 import { collaborators, days, invitations, trips, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { After, Given, When, Then } from "../fixtures";
@@ -82,12 +83,32 @@ When("I open the trips dashboard", async ({ page }) => {
   await page.waitForURL(/\/trips$/);
 });
 
-When("I accept the invitation to {string}", async ({ page }, tripName: string) => {
+async function invitationIdFor(scenario: ScenarioFixtureContext, tripName: string): Promise<string> {
+  const invitee = await scenario.ensureCurrentUser();
+  const [row] = await withE2EDb((db) =>
+    db
+      .select({ id: invitations.id })
+      .from(invitations)
+      .innerJoin(trips, eq(trips.id, invitations.tripId))
+      .where(and(eq(trips.name, tripName), eq(invitations.inviteeId, invitee.id)))
+  );
+  if (!row) throw new Error(`No invitation to "${tripName}" for the signed-in user.`);
+  return row.id;
+}
+
+// Arm the exact API POST before the click so a failed or missing decision fails here, not as a later assertion.
+When("I accept the invitation to {string}", async ({ page, scenario }, tripName: string) => {
+  const invitationId = await invitationIdFor(scenario, tripName);
+  const posted = waitForApiResponse(page, { method: "POST", path: `/api/v1/invitations/${invitationId}/accept` });
   await page.getByTitle(`Accept invitation to ${tripName}`).click();
+  await posted;
 });
 
-When("I decline the invitation to {string}", async ({ page }, tripName: string) => {
+When("I decline the invitation to {string}", async ({ page, scenario }, tripName: string) => {
+  const invitationId = await invitationIdFor(scenario, tripName);
+  const posted = waitForApiResponse(page, { method: "POST", path: `/api/v1/invitations/${invitationId}/decline` });
   await page.getByTitle(`Decline invitation to ${tripName}`).click();
+  await posted;
 });
 
 Then(
