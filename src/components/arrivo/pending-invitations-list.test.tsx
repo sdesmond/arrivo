@@ -2,7 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { acceptInvitation, declineInvitation } from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { acceptInvitation, declineInvitation } from "@/lib/api/contract/sharing";
 import { PendingInvitationsList } from "./pending-invitations-list";
 import type { PendingInvitation } from "@/data/types";
 
@@ -18,9 +19,9 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  acceptInvitation: vi.fn(),
-  declineInvitation: vi.fn(),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
 const INVITATION: PendingInvitation = {
@@ -72,18 +73,18 @@ describe("PendingInvitationsList", () => {
 
   it("redirects to the trip on a successful accept", async () => {
     const user = userEvent.setup();
-    vi.mocked(acceptInvitation).mockResolvedValue({ status: "accepted", tripId: "trip-1" });
+    vi.mocked(api).mockResolvedValue({ status: "accepted", tripId: "trip-1" });
 
     render(<PendingInvitationsList invitations={[INVITATION]} />);
     await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
 
     await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1"));
-    expect(acceptInvitation).toHaveBeenCalledWith("invite-1");
+    expect(api).toHaveBeenCalledExactlyOnceWith(acceptInvitation, { params: { invitationId: "invite-1" }, body: {} });
   });
 
   it("shows an error toast and keeps the row when accept fails", async () => {
     const user = userEvent.setup();
-    vi.mocked(acceptInvitation).mockResolvedValue({ status: "error", message: "This invitation has expired." });
+    vi.mocked(api).mockRejectedValue(new ApiClientError(409, "conflict", "This invitation has expired."));
 
     render(<PendingInvitationsList invitations={[INVITATION]} />);
     await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
@@ -93,24 +94,46 @@ describe("PendingInvitationsList", () => {
     expect(screen.getByText("Kyoto Trip")).toBeInTheDocument();
   });
 
+  it.each([
+    ["accept", "Accept"],
+    ["decline", "Decline"],
+  ])("shows a not-found toast and keeps the row when %s hits a concealed 404", async (_name, label) => {
+    const user = userEvent.setup();
+    vi.mocked(api).mockRejectedValue(new ApiClientError(404, "not_found", "Resource not found."));
+
+    render(<PendingInvitationsList invitations={[INVITATION]} />);
+    await user.click(screen.getByTitle(`${label} invitation to Kyoto Trip`));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Invitation not found."));
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(screen.getByTitle(`${label} invitation to Kyoto Trip`)).toBeEnabled();
+  });
+
+  it("shows a generic toast for an unexpected failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api).mockRejectedValue(new Error("boom"));
+
+    render(<PendingInvitationsList invitations={[INVITATION]} />);
+    await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save changes. Try again."));
+  });
+
   it("removes the row on a successful decline without a confirmation toast", async () => {
     const user = userEvent.setup();
-    vi.mocked(declineInvitation).mockResolvedValue({ status: "declined" });
+    vi.mocked(api).mockResolvedValue({ status: "declined" });
 
     render(<PendingInvitationsList invitations={[INVITATION]} />);
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
 
     await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
-    expect(declineInvitation).toHaveBeenCalledWith("invite-1");
+    expect(api).toHaveBeenCalledExactlyOnceWith(declineInvitation, { params: { invitationId: "invite-1" }, body: {} });
     expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows an error toast and keeps the row when decline fails", async () => {
     const user = userEvent.setup();
-    vi.mocked(declineInvitation).mockResolvedValue({
-      status: "error",
-      message: "This invitation is no longer pending.",
-    });
+    vi.mocked(api).mockRejectedValue(new ApiClientError(409, "conflict", "This invitation is no longer pending."));
 
     render(<PendingInvitationsList invitations={[INVITATION]} />);
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
@@ -122,7 +145,7 @@ describe("PendingInvitationsList", () => {
 
   it("declining one invitation does not remove other rows", async () => {
     const user = userEvent.setup();
-    vi.mocked(declineInvitation).mockResolvedValue({ status: "declined" });
+    vi.mocked(api).mockResolvedValue({ status: "declined" });
 
     render(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
@@ -150,7 +173,7 @@ describe("PendingInvitationsList", () => {
 
   it("keeps a locally declined invitation hidden when stale props re-deliver it", async () => {
     const user = userEvent.setup();
-    vi.mocked(declineInvitation).mockResolvedValue({ status: "declined" });
+    vi.mocked(api).mockResolvedValue({ status: "declined" });
 
     const { rerender } = render(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));

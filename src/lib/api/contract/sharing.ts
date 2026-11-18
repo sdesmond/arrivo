@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type {
+  AcceptInvitationResult,
+  DeclineInvitationResult,
   InviteContributorResult,
   InvitableUsersResult,
   SaveContributorChangesResult,
@@ -60,4 +62,18 @@ export const saveContributorChanges = defineEndpoint<SaveContributorChangesResul
         "Each contributor can appear only once per batch."
       ),
   }),
+});
+
+const invitationParams = z.object({ invitationId: uuid });
+export const acceptInvitation = defineEndpoint<AcceptInvitationResult>()({
+  method: "POST",
+  path: "/api/v1/invitations/:invitationId/accept",
+  params: invitationParams,
+  body: z.strictObject({}),
+});
+export const declineInvitation = defineEndpoint<DeclineInvitationResult>()({
+  method: "POST",
+  path: "/api/v1/invitations/:invitationId/decline",
+  params: invitationParams,
+  body: z.strictObject({}),
 });

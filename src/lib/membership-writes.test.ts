@@ -4,8 +4,12 @@ import { collaborators, days, invitations, trips, users } from "@/db/schema";
 import type { ContributorChange } from "@/data/types";
 import type { DbTransaction } from "./server-action-locks";
 import {
+  acceptInvitationInTransaction,
+  acceptInvitationWrite,
   ContributorChangeGuardError,
   createTripWrite,
+  declineInvitationInTransaction,
+  describeUnmatchedInvitationInTransaction,
   inviteContributorWrite,
   saveContributorChangesInTransaction,
   saveContributorChangesWrite,
@@ -573,5 +577,182 @@ describe("inviteContributorInTransaction", () => {
       })
     ).resolves.toEqual({ status: "invited" });
     expect(inserted[0]).toMatchObject({ id: "client-id", tripId: "trip", inviteeId: "invitee" });
+  });
+});
+
+describe("invitation decisions", () => {
+  const acceptedRow = {
+    id: "invite-1",
+    tripId: "trip-1",
+    inviteeId: "user-1",
+    role: "editor",
+    status: "accepted",
+    expiresAt: new Date("2030-01-01"),
+  };
+  function decisionTransaction(
+    options: {
+      updated?: unknown[];
+      account?: { name: string | null; username: string } | null;
+      candidate?: unknown[];
+      lockRows?: unknown[][];
+      invitation?: unknown[];
+    } = {}
+  ) {
+    const writes: Array<{ table: unknown; values: unknown; conflict?: unknown }> = [];
+    const reads: string[] = [];
+    const lockRows = [...(options.lockRows ?? [])];
+    let locks = 0;
+    const transaction = {
+      execute: async () => {
+        locks += 1;
+        return lockRows.shift() ?? [{ id: "locked" }];
+      },
+      select: () => ({
+        from: (table: unknown) => ({
+          where: async () => {
+            if (table === users) {
+              reads.push("account");
+              return options.account === null
+                ? []
+                : [options.account ?? { name: "Invitee Person", username: "invitee" }];
+            }
+            reads.push("invitation");
+            return options.candidate ?? options.invitation ?? [{ tripId: "trip-1" }];
+          },
+        }),
+      }),
+      update: (table: unknown) => ({
+        set: (values: unknown) => ({
+          where: () => ({
+            returning: async () => {
+              writes.push({ table, values });
+              return options.updated ?? [acceptedRow];
+            },
+          }),
+        }),
+      }),
+      insert: (table: unknown) => ({
+        values: (values: unknown) => ({
+          onConflictDoUpdate: async (conflict: unknown) => {
+            writes.push({ table, values, conflict });
+          },
+        }),
+      }),
+    };
+    return {
+      transaction: transaction as unknown as DbTransaction,
+      database: {
+        transaction: async (run: (value: typeof transaction) => Promise<unknown>) => run(transaction),
+      } as unknown as MembershipDatabase,
+      writes,
+      reads,
+      locks: () => locks,
+    };
+  }
+  const acceptInput = { userId: "user-1", fallbackName: "Fallback", invitationId: "invite-1" };
+
+  it("accepts in the caller's transaction and upserts the collaborator with the invited role", async () => {
+    const { transaction, writes } = decisionTransaction();
+    await expect(acceptInvitationInTransaction(transaction, acceptInput)).resolves.toEqual(acceptedRow);
+    expect(writes).toEqual([
+      { table: invitations, values: { status: "accepted" } },
+      {
+        table: collaborators,
+        values: {
+          tripId: "trip-1",
+          userId: "user-1",
+          name: "Invitee Person",
+          initials: "IN",
+          role: "editor",
+          isCreator: false,
+        },
+        conflict: expect.objectContaining({ set: expect.objectContaining({ role: "editor" }) }),
+      },
+    ]);
+  });
+
+  it.each([
+    [{ name: null, username: "invitee" }, "invitee"],
+    [null, "Fallback"],
+  ])("names the collaborator from %j", async (account, name) => {
+    const { transaction, writes } = decisionTransaction({ account });
+    await acceptInvitationInTransaction(transaction, acceptInput);
+    expect(writes[1].values).toMatchObject({ name });
+  });
+
+  it("returns null without a collaborator write when the guarded accept matches nothing", async () => {
+    const { transaction, writes } = decisionTransaction({ updated: [] });
+    await expect(acceptInvitationInTransaction(transaction, acceptInput)).resolves.toBeNull();
+    expect(writes).toHaveLength(1);
+  });
+
+  it("declines through one guarded update and writes no membership", async () => {
+    const { transaction, writes } = decisionTransaction({ updated: [{ ...acceptedRow, status: "declined" }] });
+    await expect(
+      declineInvitationInTransaction(transaction, { userId: "user-1", invitationId: "invite-1" })
+    ).resolves.toMatchObject({ tripId: "trip-1" });
+    expect(writes).toEqual([{ table: invitations, values: { status: "declined" } }]);
+  });
+
+  it("returns null when the guarded decline matches nothing", async () => {
+    const { transaction } = decisionTransaction({ updated: [] });
+    await expect(
+      declineInvitationInTransaction(transaction, { userId: "user-1", invitationId: "invite-1" })
+    ).resolves.toBeNull();
+  });
+
+  it("wrapper locks before accepting and keeps its signature", async () => {
+    const { database, writes, locks } = decisionTransaction();
+    await expect(acceptInvitationWrite(database, acceptInput)).resolves.toEqual(acceptedRow);
+    expect(locks()).toBe(2);
+    expect(writes).toHaveLength(2);
+  });
+
+  it("wrapper takes no lock for an invitation not addressed to the user", async () => {
+    const { database, writes, locks } = decisionTransaction({ candidate: [] });
+    await expect(acceptInvitationWrite(database, acceptInput)).resolves.toBeNull();
+    expect(locks()).toBe(0);
+    expect(writes).toEqual([]);
+  });
+
+  it.each([
+    ["account", [[]]],
+    ["trip", [[{ id: "locked" }], []]],
+  ])("wrapper writes nothing when the %s is gone", async (_label, lockRows) => {
+    const { database, writes } = decisionTransaction({ lockRows });
+    await expect(acceptInvitationWrite(database, acceptInput)).resolves.toBeNull();
+    expect(writes).toEqual([]);
+  });
+
+  it.each([
+    ["missing", [], "Invitation not found."],
+    [
+      "foreign",
+      [{ inviteeId: "user-2", status: "pending", expiresAt: new Date("2030-01-01") }],
+      "This invitation is not addressed to your account.",
+    ],
+    [
+      "rescinded",
+      [{ inviteeId: "user-1", status: "rescinded", expiresAt: new Date("2030-01-01") }],
+      "This invitation was rescinded by the trip owner.",
+    ],
+    [
+      "resolved",
+      [{ inviteeId: "user-1", status: "declined", expiresAt: new Date("2030-01-01") }],
+      "This invitation is no longer pending.",
+    ],
+    [
+      "expired",
+      [{ inviteeId: "user-1", status: "pending", expiresAt: new Date("2020-01-01") }],
+      "This invitation has expired.",
+    ],
+    [
+      "still pending",
+      [{ inviteeId: "user-1", status: "pending", expiresAt: new Date("2030-01-01") }],
+      "This invitation is no longer pending.",
+    ],
+  ])("explains a %s refusal", async (_label, invitation, message) => {
+    const { transaction } = decisionTransaction({ invitation });
+    await expect(describeUnmatchedInvitationInTransaction(transaction, "invite-1", "user-1")).resolves.toBe(message);
   });
 });

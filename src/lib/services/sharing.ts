@@ -6,7 +6,9 @@ import { db } from "@/db";
 import { collaborators, idempotencyKeys, invitations, users } from "@/db/schema";
 import { LiveSyncEventType } from "@/data/types";
 import type {
+  AcceptInvitationResult,
   Actor,
+  DeclineInvitationResult,
   IdempotentRequest,
   InviteContributorResult,
   SaveContributorChangesResult,
@@ -20,7 +22,10 @@ import { getInvitableUsers } from "@/lib/invitable-users";
 import { getInvitationExpiry, hasNormalizedUsername } from "@/lib/invitations";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 import {
+  acceptInvitationInTransaction,
   ContributorChangeGuardError,
+  declineInvitationInTransaction,
+  describeUnmatchedInvitationInTransaction,
   inviteContributorInTransaction,
   NO_LONGER_ON_TRIP_MESSAGE,
   saveContributorChangesInTransaction,
@@ -304,4 +309,90 @@ export async function saveContributorChanges(
     revalidatePath("/trips");
   }
   return outcome.value;
+}
+
+/**
+ * Invitee decision on one invitation. Authorization is the addressed recipient, not trip membership: an unknown or
+ * foreign invitation is concealed as not found. The pre-lookup only finds lock targets; the row is re-verified under
+ * the user then trip locks, before the replay lookup, so account deletion cannot interleave and a stale actor never
+ * reads a saved response.
+ */
+async function decideInvitation<Result extends AcceptInvitationResult | DeclineInvitationResult>(
+  actor: Actor,
+  invitationId: string,
+  decision: "accept" | "decline",
+  replay?: IdempotentRequest
+): Promise<Result> {
+  const [addressed] = await db
+    .select({ tripId: invitations.tripId })
+    .from(invitations)
+    .where(and(eq(invitations.id, invitationId), eq(invitations.inviteeId, actor.userId)));
+  if (!addressed) throw new TripNotFoundError();
+  let decided: { tripId: string } | undefined;
+  const outcome = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<Result>(
+        transaction,
+        { actor, request: replay, payload: {} },
+        {
+          authorize: async () => {
+            const lock = await lockUsersThenTripForUpdate(transaction, [actor.userId], addressed.tripId);
+            if (!lock.locked) throw new TripNotFoundError();
+            const [current] = await transaction
+              .select({ id: invitations.id })
+              .from(invitations)
+              .where(and(eq(invitations.id, invitationId), eq(invitations.inviteeId, actor.userId)));
+            if (!current) throw new TripNotFoundError();
+          },
+          mutate: async () => {
+            const row =
+              decision === "accept"
+                ? await acceptInvitationInTransaction(transaction, {
+                    userId: actor.userId,
+                    fallbackName: "",
+                    invitationId,
+                  })
+                : await declineInvitationInTransaction(transaction, { userId: actor.userId, invitationId });
+            if (!row)
+              throw new ConflictError(
+                await describeUnmatchedInvitationInTransaction(transaction, invitationId, actor.userId)
+              );
+            decided = row;
+            return (
+              decision === "accept" ? { status: "accepted", tripId: row.tripId } : { status: "declined" }
+            ) as Result;
+          },
+        }
+      )
+    )
+  );
+  if (decided && !outcome.replayed) {
+    const { tripId } = decided;
+    if (decision === "accept") recordTripInvitation("invitation_accepted", actor.userId, tripId);
+    publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    publishUserEvent(actor.userId, { type: LiveSyncEventType.MembershipChanged, tripId });
+    // The actor's other tabs drop the invitation from their sidebar badge.
+    publishUserEvent(actor.userId, { type: LiveSyncEventType.InvitationChanged, tripId });
+    revalidatePath("/trips");
+    revalidatePath(`/trips/${tripId}`);
+  }
+  return outcome.value;
+}
+
+export async function acceptInvitation(
+  actor: Actor,
+  invitationId: string,
+  replay?: IdempotentRequest
+): Promise<AcceptInvitationResult> {
+  invitationId = contract.acceptInvitation.params.parse({ invitationId }).invitationId;
+  return decideInvitation<AcceptInvitationResult>(actor, invitationId, "accept", replay);
+}
+
+export async function declineInvitation(
+  actor: Actor,
+  invitationId: string,
+  replay?: IdempotentRequest
+): Promise<DeclineInvitationResult> {
+  invitationId = contract.declineInvitation.params.parse({ invitationId }).invitationId;
+  return decideInvitation<DeclineInvitationResult>(actor, invitationId, "decline", replay);
 }

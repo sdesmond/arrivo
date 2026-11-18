@@ -185,11 +185,116 @@ export async function inviteContributorInTransaction(
   return { status: "invited" };
 }
 
+/**
+ * Accepts a pending, unexpired invitation and upserts the invitee's membership. The caller holds the user and trip
+ * locks and has verified the row is addressed to `userId`; the guarded update still decides on the database clock.
+ */
+export async function acceptInvitationInTransaction(
+  transaction: DbTransaction,
+  input: { userId: string; fallbackName: string; invitationId: string }
+): Promise<InvitationRow | null> {
+  const { userId, fallbackName, invitationId } = input;
+  const [updatedInvitation] = await transaction
+    .update(invitations)
+    .set({ status: "accepted" })
+    .where(
+      and(
+        eq(invitations.id, invitationId),
+        eq(invitations.inviteeId, userId),
+        eq(invitations.status, "pending"),
+        sql`${invitations.expiresAt} > now()`
+      )
+    )
+    .returning();
+
+  if (!updatedInvitation) {
+    return null;
+  }
+
+  const [account] = await transaction
+    .select({ name: users.name, username: users.username })
+    .from(users)
+    .where(eq(users.id, userId));
+  const userName = account?.name ?? account?.username ?? fallbackName;
+  const collaboratorValues = {
+    tripId: updatedInvitation.tripId,
+    userId,
+    name: userName,
+    initials: userName.slice(0, 2).toUpperCase(),
+    role: updatedInvitation.role,
+    isCreator: false,
+  };
+
+  await transaction
+    .insert(collaborators)
+    .values(collaboratorValues)
+    .onConflictDoUpdate({
+      target: [collaborators.tripId, collaborators.userId],
+      set: collaboratorValues,
+    });
+
+  return updatedInvitation;
+}
+
+/** Declines a pending, unexpired invitation. Same caller contract as `acceptInvitationInTransaction`. */
+export async function declineInvitationInTransaction(
+  transaction: DbTransaction,
+  input: { userId: string; invitationId: string }
+): Promise<InvitationRow | null> {
+  const [updatedInvitation] = await transaction
+    .update(invitations)
+    .set({ status: "declined" })
+    .where(
+      and(
+        eq(invitations.id, input.invitationId),
+        eq(invitations.inviteeId, input.userId),
+        eq(invitations.status, "pending"),
+        sql`${invitations.expiresAt} > now()`
+      )
+    )
+    .returning();
+  return updatedInvitation ?? null;
+}
+
+/**
+ * Diagnoses why a guarded accept/decline matched zero rows. Read-only: never gates the mutation, which stays a single
+ * atomic UPDATE ... WHERE ... RETURNING.
+ */
+export async function describeUnmatchedInvitationInTransaction(
+  transaction: DbTransaction,
+  invitationId: string,
+  userId: string
+): Promise<string> {
+  const [invitationRow] = await transaction.select().from(invitations).where(eq(invitations.id, invitationId));
+
+  if (!invitationRow) {
+    return "Invitation not found.";
+  }
+
+  if (invitationRow.inviteeId !== userId) {
+    return "This invitation is not addressed to your account.";
+  }
+
+  if (invitationRow.status === "rescinded") {
+    return "This invitation was rescinded by the trip owner.";
+  }
+
+  if (invitationRow.status !== "pending") {
+    return "This invitation is no longer pending.";
+  }
+
+  if (invitationRow.expiresAt.getTime() <= Date.now()) {
+    return "This invitation has expired.";
+  }
+
+  return "This invitation is no longer pending.";
+}
+
 export async function acceptInvitationWrite(
   database: MembershipDatabase,
   input: { userId: string; fallbackName: string; invitationId: string }
 ): Promise<InvitationRow | null> {
-  const { userId, fallbackName, invitationId } = input;
+  const { userId, invitationId } = input;
   return database.transaction(async (transaction) => {
     // Lock the invitee and the trip before touching the invitation row: deletion holds them and then needs the
     // invitation row (cascade), so taking the row first would let the two wait on each other.
@@ -200,47 +305,7 @@ export async function acceptInvitationWrite(
     if (!candidate) return null;
     const lock = await lockUsersThenTripForUpdate(transaction, [userId], candidate.tripId);
     if (!lock.locked) return null;
-
-    const [updatedInvitation] = await transaction
-      .update(invitations)
-      .set({ status: "accepted" })
-      .where(
-        and(
-          eq(invitations.id, invitationId),
-          eq(invitations.inviteeId, userId),
-          eq(invitations.status, "pending"),
-          sql`${invitations.expiresAt} > now()`
-        )
-      )
-      .returning();
-
-    if (!updatedInvitation) {
-      return null;
-    }
-
-    const [account] = await transaction
-      .select({ name: users.name, username: users.username })
-      .from(users)
-      .where(eq(users.id, userId));
-    const userName = account?.name ?? account?.username ?? fallbackName;
-    const collaboratorValues = {
-      tripId: updatedInvitation.tripId,
-      userId,
-      name: userName,
-      initials: userName.slice(0, 2).toUpperCase(),
-      role: updatedInvitation.role,
-      isCreator: false,
-    };
-
-    await transaction
-      .insert(collaborators)
-      .values(collaboratorValues)
-      .onConflictDoUpdate({
-        target: [collaborators.tripId, collaborators.userId],
-        set: collaboratorValues,
-      });
-
-    return updatedInvitation;
+    return acceptInvitationInTransaction(transaction, input);
   });
 }
 

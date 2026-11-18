@@ -43,6 +43,8 @@ it("loads the idempotent v1 routes", () => {
       "PATCH /api/v1/checklist-items/:itemId",
       "POST /api/v1/checklists/:checklistId/items",
       "POST /api/v1/trips/:tripId/invitations",
+      "POST /api/v1/invitations/:invitationId/accept",
+      "POST /api/v1/invitations/:invitationId/decline",
     ])
   );
 });

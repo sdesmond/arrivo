@@ -16,14 +16,12 @@ import {
   users,
   invitations,
 } from "@/db/schema";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type {
-  AcceptInvitationResult,
   CreateTripInput,
   UpdateTripPatch,
-  DeclineInvitationResult,
   DismissInvitationResult,
   LeaveTripResult,
   RescindInvitationResult,
@@ -46,7 +44,6 @@ import { createUploadStorageName } from "@/lib/upload-policy";
 import { assertValidCoverImageUrl } from "@/lib/url-policy";
 import { publishInvitationChanged } from "@/lib/invitations";
 import {
-  acceptInvitationWrite,
   ContributorChangeGuardError,
   createTripWrite,
   leaveTripWrite,
@@ -739,107 +736,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-/**
- * Diagnoses why a conditional accept/decline UPDATE matched zero rows, so the caller can surface a
- * descriptive error instead of a generic one. Read-only — never used to gate the mutation itself,
- * which stays a single atomic UPDATE ... WHERE ... RETURNING.
- */
-async function describeUnmatchedInvitation(invitationId: string, userId: string): Promise<string> {
-  const [invitationRow] = await db.select().from(invitations).where(eq(invitations.id, invitationId));
-
-  if (!invitationRow) {
-    return "Invitation not found.";
-  }
-
-  if (invitationRow.inviteeId !== userId) {
-    return "This invitation is not addressed to your account.";
-  }
-
-  if (invitationRow.status === "rescinded") {
-    return "This invitation was rescinded by the trip owner.";
-  }
-
-  if (invitationRow.status !== "pending") {
-    return "This invitation is no longer pending.";
-  }
-
-  if (invitationRow.expiresAt.getTime() <= Date.now()) {
-    return "This invitation has expired.";
-  }
-
-  return "This invitation is no longer pending.";
-}
-
-export async function acceptInvitation(invitationId: string): Promise<AcceptInvitationResult> {
-  const user = await requireUser();
-  if (!user.id) {
-    return { status: "error", message: "Invitation not found." };
-  }
-  const userId = user.id;
-  const matchedInvitation = await acceptInvitationWrite(db, {
-    userId,
-    fallbackName: user.name ?? "",
-    invitationId,
-  });
-
-  if (!matchedInvitation) {
-    const message = await describeUnmatchedInvitation(invitationId, userId);
-    return { status: "error", message };
-  }
-
-  recordTripInvitation("invitation_accepted", userId, matchedInvitation.tripId);
-  publishTripEvent(matchedInvitation.tripId, {
-    type: LiveSyncEventType.MembershipChanged,
-    tripId: matchedInvitation.tripId,
-  });
-  publishUserEvent(userId, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
-  // The acting user's other tabs drop the invitation from their sidebar badge.
-  publishUserEvent(userId, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
-
-  revalidatePath("/trips");
-  revalidatePath(`/trips/${matchedInvitation.tripId}`);
-
-  return { status: "accepted", tripId: matchedInvitation.tripId };
-}
-
-export async function declineInvitation(invitationId: string): Promise<DeclineInvitationResult> {
-  const user = await requireUser();
-  if (!user.id) {
-    return { status: "error", message: "Invitation not found." };
-  }
-  const userId = user.id;
-
-  const [matchedInvitation] = await db
-    .update(invitations)
-    .set({ status: "declined" })
-    .where(
-      and(
-        eq(invitations.id, invitationId),
-        eq(invitations.inviteeId, userId),
-        eq(invitations.status, "pending"),
-        sql`${invitations.expiresAt} > now()`
-      )
-    )
-    .returning();
-
-  if (!matchedInvitation) {
-    const message = await describeUnmatchedInvitation(invitationId, userId);
-    return { status: "error", message };
-  }
-
-  publishTripEvent(matchedInvitation.tripId, {
-    type: LiveSyncEventType.MembershipChanged,
-    tripId: matchedInvitation.tripId,
-  });
-  publishUserEvent(userId, { type: LiveSyncEventType.MembershipChanged, tripId: matchedInvitation.tripId });
-  publishUserEvent(userId, { type: LiveSyncEventType.InvitationChanged, tripId: matchedInvitation.tripId });
-
-  revalidatePath("/trips");
-  revalidatePath(`/trips/${matchedInvitation.tripId}`);
-
-  return { status: "declined" };
 }
 
 export async function rescindInvitation(tripId: string, invitationId: string): Promise<RescindInvitationResult> {

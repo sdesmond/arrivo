@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   batch: vi.fn(),
   tripLock: vi.fn(),
   removeSubscribers: vi.fn(),
+  accept: vi.fn(),
+  decline: vi.fn(),
+  describe: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
 vi.mock("@/lib/auth-helpers", () => ({ assertTripAccess: vi.fn() }));
@@ -28,6 +31,9 @@ vi.mock("@/lib/membership-writes", async (original) => ({
   ...(await original<typeof import("@/lib/membership-writes")>()),
   inviteContributorInTransaction: mocks.write,
   saveContributorChangesInTransaction: mocks.batch,
+  acceptInvitationInTransaction: mocks.accept,
+  declineInvitationInTransaction: mocks.decline,
+  describeUnmatchedInvitationInTransaction: mocks.describe,
 }));
 vi.mock("@/lib/server-action-locks", async (original) => ({
   ...(await original<typeof import("@/lib/server-action-locks")>()),
@@ -41,7 +47,14 @@ vi.mock("@/lib/trip-events", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/invitable-users", () => ({ getInvitableUsers: mocks.picker }));
-import { createInvitation, getCollaborators, listInvitableUsers, saveContributorChanges } from "./sharing";
+import {
+  acceptInvitation,
+  createInvitation,
+  declineInvitation,
+  getCollaborators,
+  listInvitableUsers,
+  saveContributorChanges,
+} from "./sharing";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
 import { ContributorChangeGuardError } from "@/lib/membership-writes";
@@ -701,6 +714,183 @@ describe("saveContributorChanges", () => {
     expect(committed).toBe(false);
     expect(rolledBack).toBe(true);
     expectNoEffects();
+    clock.mockRestore();
+  });
+});
+
+describe.each([
+  {
+    name: "accept",
+    run: acceptInvitation,
+    mutation: mocks.accept,
+    value: { status: "accepted", tripId },
+    activity: true,
+  },
+  {
+    name: "decline",
+    run: declineInvitation,
+    mutation: mocks.decline,
+    value: { status: "declined" },
+    activity: false,
+  },
+])("$name invitation", ({ name, run, mutation, value, activity }) => {
+  const invitationId = "523e4567-e89b-12d3-a456-426614174000";
+  const invitee = { userId: "invitee" };
+  const path = `/api/v1/invitations/${invitationId}/${name}`;
+  const replay = { key: "retry", method: "POST", path };
+  const decided = { id: invitationId, tripId, inviteeId: "invitee", role: "editor" };
+  function envelope() {
+    return {
+      result: {
+        version: 1,
+        fingerprint: fingerprintRequest("POST", path, {}),
+        expiresAt: "2999-01-01T00:00:00.000Z",
+        response: value,
+      },
+    };
+  }
+  function expectNoDecisionEffects() {
+    expect(mocks.activity).not.toHaveBeenCalled();
+    expect(mocks.tripEvent).not.toHaveBeenCalled();
+    expect(mocks.userEvent).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  }
+  beforeEach(() => {
+    // Pre-lookup finds the lock target; the locked recheck confirms the row is still addressed to the actor.
+    invitationReads = [[{ tripId }], [{ id: invitationId }]];
+    mutation.mockResolvedValue(decided);
+    mocks.describe.mockResolvedValue("This invitation is no longer pending.");
+  });
+
+  it("locks user then trip, rechecks the recipient, mutates, then publishes in order after commit", async () => {
+    await expect(run(invitee, invitationId)).resolves.toEqual(value);
+    expect(mocks.lock).toHaveBeenCalledExactlyOnceWith(mocks, ["invitee"], tripId);
+    expect(mutation).toHaveBeenCalledExactlyOnceWith(
+      mocks,
+      expect.objectContaining({ userId: "invitee", invitationId })
+    );
+    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mutation.mock.invocationCallOrder[0]);
+    if (activity) expect(mocks.activity).toHaveBeenCalledExactlyOnceWith("invitation_accepted", "invitee", tripId);
+    else expect(mocks.activity).not.toHaveBeenCalled();
+    expect(mocks.tripEvent).toHaveBeenCalledExactlyOnceWith(tripId, {
+      type: LiveSyncEventType.MembershipChanged,
+      tripId,
+    });
+    expect(mocks.userEvent.mock.calls).toEqual([
+      ["invitee", { type: LiveSyncEventType.MembershipChanged, tripId }],
+      ["invitee", { type: LiveSyncEventType.InvitationChanged, tripId }],
+    ]);
+    expect(mocks.revalidate.mock.calls).toEqual([["/trips"], [`/trips/${tripId}`]]);
+  });
+
+  it.each([
+    ["foreign or missing invitation", [[]]],
+    ["row re-addressed under the lock", [[{ tripId }], []]],
+  ])("conceals a %s as not found without writes or effects", async (_label, reads) => {
+    invitationReads = reads;
+    await expect(run(invitee, invitationId)).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(mutation).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it.each([
+    ["account", { locked: false, missing: "user", userId: "invitee" }],
+    ["trip", { locked: false, missing: "trip" }],
+  ])("is not found when the %s is gone before the lock", async (_label, lock) => {
+    mocks.lock.mockResolvedValue(lock);
+    await expect(run(invitee, invitationId)).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(mutation).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it("refuses before replay when the recipient recheck fails, even with a saved result", async () => {
+    invitationReads = [[{ tripId }], []];
+    stored = [envelope()];
+    await expect(run(invitee, invitationId, replay)).rejects.toBeInstanceOf(TripNotFoundError);
+    expectNoDecisionEffects();
+  });
+
+  it("maps a refused mutation to a conflict carrying the refusal message and publishes nothing", async () => {
+    mutation.mockResolvedValue(null);
+    mocks.describe.mockResolvedValue("This invitation has expired.");
+    const failure = run(invitee, invitationId, replay);
+    await expect(failure).rejects.toBeInstanceOf(ConflictError);
+    await expect(failure).rejects.toThrow("This invitation has expired.");
+    expect(mocks.describe).toHaveBeenCalledWith(mocks, invitationId, "invitee");
+    expect(mocks.insert).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it("rejects a malformed invitation id before any lookup", async () => {
+    await expect(run(invitee, "invite-1")).rejects.toThrow();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
+  it("stores the result with the write and replays it without a second mutation or effects", async () => {
+    await run(invitee, invitationId, replay);
+    expect(mocks.insert).toHaveBeenCalledWith(idempotencyKeys);
+    expect(savedValues[0].result).toMatchObject({
+      fingerprint: fingerprintRequest("POST", path, {}),
+      response: value,
+    });
+    vi.clearAllMocks();
+    invitationReads = [[{ tripId }], [{ id: invitationId }]];
+    stored = [envelope()];
+    await expect(run(invitee, invitationId, replay)).resolves.toEqual(value);
+    expect(mocks.lock).toHaveBeenCalledOnce();
+    expect(mutation).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it("conflicts when the same key was saved for a different path", async () => {
+    stored = [envelope()];
+    const other = { ...replay, path: "/api/v1/invitations/other/accept" };
+    await expect(run(invitee, invitationId, other)).rejects.toThrow("different request");
+    expect(mutation).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it("propagates unexpected write failures without effects", async () => {
+    mutation.mockRejectedValue(new Error("connection reset"));
+    await expect(run(invitee, invitationId)).rejects.toThrow("connection reset");
+    expectNoDecisionEffects();
+  });
+
+  it("emits nothing when the deadline has already elapsed", async () => {
+    await expect(runWithRequestDeadline(-1, () => run(invitee, invitationId))).rejects.toThrow("took too long");
+    expect(mutation).not.toHaveBeenCalled();
+    expectNoDecisionEffects();
+  });
+
+  it("rolls back the decision and the replay row together when the deadline elapses after them", async () => {
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    let committed = false;
+    let rolledBack = false;
+    mocks.transaction.mockImplementation(async (runner) => {
+      try {
+        const result = await runner(mocks);
+        committed = true;
+        return result;
+      } catch (error) {
+        rolledBack = true;
+        throw error;
+      }
+    });
+    mocks.insert.mockReturnValue({
+      values: () => ({
+        onConflictDoUpdate: async () => {
+          clock.mockReturnValue(2000);
+        },
+      }),
+    });
+    await expect(runWithRequestDeadline(1000, () => run(invitee, invitationId, replay))).rejects.toThrow(
+      "took too long"
+    );
+    expect(mutation).toHaveBeenCalledOnce();
+    expect(committed).toBe(false);
+    expect(rolledBack).toBe(true);
+    expectNoDecisionEffects();
     clock.mockRestore();
   });
 });
