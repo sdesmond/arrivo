@@ -45,8 +45,13 @@ vi.mock("@/db/schema", () => ({
 }));
 
 import { getMyPendingInvitations, hasNormalizedUsername, publishInvitationChanged } from "@/lib/invitations";
+import * as invitationHelpers from "@/lib/invitations";
 import { users } from "@/db/schema";
 import { LiveSyncEventType } from "@/data/types";
+
+it("does not expose the retired invitation resend alias", () => {
+  expect(invitationHelpers).not.toHaveProperty("applyInvitationResend");
+});
 
 describe("hasNormalizedUsername", () => {
   it("builds a case-insensitive equality condition against the given column", () => {

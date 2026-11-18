@@ -6,10 +6,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { LiveSyncEventType } from "@/data/types";
 import type { CollaboratorRole, PendingInvitation } from "@/data/types";
 import { getNow } from "@/lib/mock-date";
-import { applyInvitationResend } from "@/lib/invitation-resend";
 import { publishUserEvent } from "@/lib/trip-events";
-
-export { applyInvitationResend };
 
 export const INVITE_TTL_HOURS = 72;
 
