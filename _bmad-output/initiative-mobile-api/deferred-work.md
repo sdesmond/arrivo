@@ -191,3 +191,9 @@
 - source_plan: `epic-sharing-api/story-apply-contributor-changes-through-the-api-plan.md`
   summary: Move deletion-concurrency contributor-change fixtures from the unused `saveContributorChangesWrite` wrapper onto the service/PATCH path.
   evidence: Production batches now run lock, locked role recheck and idempotency read/upsert in `services/sharing.ts`; `deletion-concurrency.steps.ts:161-191` still calls the outer writer, so real-lock interleavings with account deletion are verified only for a path production no longer uses (same as 4.1 `inviteContributorWrite`).
+- source_plan: `epic-sharing-api/story-accept-and-decline-invitations-through-the-api-plan.md`
+  summary: Make the invitation-accept collaborator upsert preserve an existing member's role and `isCreator`.
+  evidence: `acceptInvitationInTransaction` (as the baseline writer did) uses `onConflictDoUpdate` with `set: collaboratorValues`, so accepting a pending invitation when the invitee is already a collaborator overwrites role and sets `isCreator: false`; reachable only if membership was created after the invite.
+- source_plan: `epic-sharing-api/story-accept-and-decline-invitations-through-the-api-plan.md`
+  summary: Move deletion-concurrency accept fixtures from the unused `acceptInvitationWrite` wrapper onto the service/POST path.
+  evidence: Production accept now runs lock, recheck and idempotency in `services/sharing.ts`; `deletion-concurrency.steps.ts` still calls the outer writer, so its real-lock interleavings cover a path production no longer uses (same as 4.1/4.2).
