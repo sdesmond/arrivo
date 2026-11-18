@@ -6,6 +6,9 @@ import type {
   InvitableUsersResult,
   SaveContributorChangesResult,
   ShareDialogData,
+  ResendInvitationResult,
+  RescindInvitationResult,
+  DismissInvitationResult,
 } from "@/data/types";
 import { normalizeUsername, validateUsername } from "@/lib/username";
 import { defineEndpoint } from "../endpoint";
@@ -75,5 +78,24 @@ export const declineInvitation = defineEndpoint<DeclineInvitationResult>()({
   method: "POST",
   path: "/api/v1/invitations/:invitationId/decline",
   params: invitationParams,
+  body: z.strictObject({}),
+});
+
+export const resendInvitation = defineEndpoint<ResendInvitationResult>()({
+  method: "POST",
+  path: "/api/v1/invitations/:invitationId/resend",
+  params: invitationParams,
+  body: z.strictObject({ tripId: uuid }),
+});
+export const dismissInvitation = defineEndpoint<DismissInvitationResult>()({
+  method: "POST",
+  path: "/api/v1/invitations/:invitationId/dismiss",
+  params: invitationParams,
+  body: z.strictObject({ tripId: uuid }),
+});
+export const rescindInvitation = defineEndpoint<RescindInvitationResult>()({
+  method: "DELETE",
+  path: "/api/v1/trips/:tripId/invitations/:invitationId",
+  params: z.object({ tripId: uuid, invitationId: uuid }),
   body: z.strictObject({}),
 });

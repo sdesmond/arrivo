@@ -16,21 +16,20 @@ const mockInviteContributor = vi.fn();
 const mockListInvitableUsers = vi.fn();
 const mockSaveContributorChanges = vi.fn();
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
-  resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
-  dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
-}));
-
 vi.mock("@/lib/api/client", async (original) => ({
   ...(await original<typeof import("@/lib/api/client")>()),
   api: (
     endpoint: { method: string; path: string },
     input: {
-      params: { tripId?: string };
+      params: { tripId?: string; invitationId?: string };
       body: { tripId?: string; username?: string; role?: string; id?: string; changes?: unknown };
     }
   ) => {
+    if (endpoint.path.endsWith("/resend"))
+      return mockResendShareInvitation(input.body.tripId, input.params.invitationId);
+    if (endpoint.path.endsWith("/dismiss"))
+      return mockDismissShareInvitation(input.body.tripId, input.params.invitationId);
+    if (endpoint.method === "DELETE") return mockRescindShareInvitation(input.params.tripId, input.params.invitationId);
     if (endpoint.method === "PATCH" && endpoint.path.endsWith("/collaborators"))
       return mockSaveContributorChanges(input.params.tripId, input.body.changes);
     if (endpoint.path.endsWith("/collaborators")) return mockGetShareDialogData(input.params.tripId);
@@ -479,7 +478,9 @@ describe("useTripShareDialogController", () => {
   });
 
   it("does not suppress an invitation when rescinding fails", async () => {
-    mockRescindShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    mockRescindShareInvitation.mockRejectedValue(
+      new ApiClientError(409, "conflict", "Invitation is no longer pending.")
+    );
     const { result } = renderHook(() => useTripShareDialogController({ onRequestClose: vi.fn(), tripId: "trip-1" }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 

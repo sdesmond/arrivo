@@ -635,3 +635,23 @@ The caller's account and the trip are locked, user before trip, and the invitati
 **Role:** the invited account (no trip membership needed). **`Idempotency-Key`**: yes.
 
 Empty body (`{}`). Returns `{ status: "declined" }`. Authorization, 404 and 409 behavior, locking, replay and the after-commit events match accept, except that declining records no activity and creates no membership.
+
+### POST /api/v1/invitations/:invitationId/resend
+
+**Role:** manager of the supplied trip. **`Idempotency-Key`**: yes.
+
+Body: `{ "tripId": "<uuid>" }`. Refreshes a pending invitation's expiry to 72 hours from now, including an expired pending invitation. Returns `{ "status": "success", "expiresAt": "<ISO 8601>" }`.
+
+### POST /api/v1/invitations/:invitationId/dismiss
+
+**Role:** manager of the supplied trip. **`Idempotency-Key`**: yes.
+
+Body: `{ "tripId": "<uuid>" }`. Deletes a non-pending invitation and returns `{ "status": "success" }`.
+
+### DELETE /api/v1/trips/:tripId/invitations/:invitationId
+
+**Role:** manager. **`Idempotency-Key`**: yes.
+
+Body: `{}`. Rescinds a pending invitation and returns `{ "status": "success" }`.
+
+These operations return 404 for unknown or other-trip invitations and 409 for a conflicting invitation state. Nonmembers receive 404 and editors and viewers receive 403. Current manager authorization is checked before replay lookup; a keyed retry returns the saved response without repeated effects, including after dismissal deletes the row. Reusing a key with another path or body returns 409.

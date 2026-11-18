@@ -34,21 +34,20 @@ const mockInviteContributor = vi.fn();
 const mockListInvitableUsers = vi.fn();
 const mockSaveContributorChanges = vi.fn();
 
-vi.mock("@/app/(app)/trips/[tripId]/actions", () => ({
-  rescindShareInvitation: (...args: unknown[]) => mockRescindShareInvitation(...args),
-  resendShareInvitation: (...args: unknown[]) => mockResendShareInvitation(...args),
-  dismissShareInvitation: (...args: unknown[]) => mockDismissShareInvitation(...args),
-}));
-
 vi.mock("@/lib/api/client", async (original) => ({
   ...(await original<typeof import("@/lib/api/client")>()),
   api: (
     endpoint: { method: string; path: string },
     input: {
-      params: { tripId?: string };
+      params: { tripId?: string; invitationId?: string };
       body: { tripId?: string; username?: string; role?: string; id?: string; changes?: unknown };
     }
   ) => {
+    if (endpoint.path.endsWith("/resend"))
+      return mockResendShareInvitation(input.body.tripId, input.params.invitationId);
+    if (endpoint.path.endsWith("/dismiss"))
+      return mockDismissShareInvitation(input.body.tripId, input.params.invitationId);
+    if (endpoint.method === "DELETE") return mockRescindShareInvitation(input.params.tripId, input.params.invitationId);
     if (endpoint.method === "PATCH" && endpoint.path.endsWith("/collaborators"))
       return mockSaveContributorChanges(input.params.tripId, input.body.changes);
     if (endpoint.path.endsWith("/collaborators")) return mockGetShareDialogData(input.params.tripId);
@@ -250,7 +249,7 @@ describe("TripShareDialog", () => {
 
   it("keeps a declined invitation and shows an error when dismissal fails", async () => {
     const { toast } = await import("sonner");
-    mockDismissShareInvitation.mockResolvedValue({ status: "error", message: "Invitation not found." });
+    mockDismissShareInvitation.mockRejectedValue(new ApiClientError(409, "conflict", "Invitation not found."));
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     fireEvent.click(await screen.findByTitle("Dismiss invitation to @declined"));
@@ -378,7 +377,9 @@ describe("TripShareDialog", () => {
 
   it("shows an error toast when a pending resend action fails", async () => {
     const { toast } = await import("sonner");
-    mockResendShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    mockResendShareInvitation.mockRejectedValue(
+      new ApiClientError(409, "conflict", "Invitation is no longer pending.")
+    );
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     fireEvent.click(await screen.findByTitle("Resend invitation to @pending"));
@@ -389,7 +390,9 @@ describe("TripShareDialog", () => {
 
   it("shows an error toast when a pending rescind action fails and keeps the row", async () => {
     const { toast } = await import("sonner");
-    mockRescindShareInvitation.mockResolvedValue({ status: "error", message: "Invitation is no longer pending." });
+    mockRescindShareInvitation.mockRejectedValue(
+      new ApiClientError(409, "conflict", "Invitation is no longer pending.")
+    );
     render(<TripShareDialog open onOpenChange={vi.fn()} tripId="trip-1" />);
 
     fireEvent.click(await screen.findByTitle("Rescind invitation to @pending"));

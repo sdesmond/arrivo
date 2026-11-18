@@ -7,18 +7,12 @@ import {
   documents,
   events,
   expenses,
-  invitations,
   itineraryChecklists,
   itineraryNotes,
   reservations,
   trips,
-  users,
 } from "@/db/schema";
 import { headers } from "next/headers";
-import { PgDialect } from "drizzle-orm/pg-core";
-import type { SQL } from "drizzle-orm";
-
-const dialect = new PgDialect();
 
 const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoisted(() => ({
   recordTripInvitation: vi.fn(),
@@ -152,13 +146,11 @@ import {
   addPackingItem,
   createTrip,
   deleteTrip,
-  dismissInvitation,
   leaveTrip,
   pullTemplatesOntoTrip,
   reorderPackingItems,
   removePackingItem,
   retrieveLocation,
-  rescindInvitation,
   saveTripListAsTemplate,
   searchAddressLocations,
   searchLocations,
@@ -171,7 +163,6 @@ import {
   LiveSyncEventType,
   TransitMode,
   TripDateConflictResolution,
-  type InvitationStatus,
   type TripDateChangeConfirmation,
 } from "@/data/types";
 import { deriveGraphicCover } from "@/lib/utils";
@@ -1561,348 +1552,6 @@ describe("updateTripMetadata", () => {
     );
 
     expect(recordDeletions).toHaveBeenCalledExactlyOnceWith(transaction, "day", ["day-2"], "user-1");
-  });
-});
-
-interface InvitationFixture {
-  collaboratorRows?: Array<{ id: string }>;
-  invitationRows?: Array<{ id: string; status: string }>;
-  userRows?: Array<{ id: string }>;
-}
-
-function setupInviteContributorDb({
-  collaboratorRows = [],
-  invitationRows = [],
-  userRows = [{ id: "invitee-1" }],
-  lockResults = [],
-}: InvitationFixture & { lockResults?: unknown[][] } = {}) {
-  const operations = {
-    locks: [] as string[],
-    deletes: [] as unknown[],
-    inserts: [] as Array<{ table: unknown; values: unknown }>,
-    updates: [] as Array<{ table: unknown; values: unknown }>,
-  };
-  const pendingLockResults = [...lockResults];
-  const transaction = {
-    execute: async (query: SQL) => {
-      operations.locks.push(dialect.sqlToQuery(query).params.join(","));
-      return pendingLockResults.shift() ?? [{ id: "locked" }];
-    },
-    delete: (table: unknown) => ({
-      where: async () => {
-        operations.deletes.push(table);
-      },
-    }),
-    insert: (table: unknown) => ({
-      values: async (values: unknown) => {
-        operations.inserts.push({ table, values });
-      },
-    }),
-    select: () => ({
-      from: (table: unknown) => ({
-        where: async () => {
-          if (table === users) return userRows;
-          if (table === collaborators) return collaboratorRows;
-          if (table === invitations) return invitationRows;
-          throw new Error("Unexpected table read in invitation fixture.");
-        },
-      }),
-    }),
-    update: (table: unknown) => ({
-      set: (values: unknown) => ({
-        where: () => {
-          operations.updates.push({ table, values });
-          return { returning: async () => [{ id: "invite-1" }] };
-        },
-      }),
-    }),
-  };
-
-  db.select.mockReturnValue({
-    from: (table: unknown) => ({
-      where: async () => {
-        if (table === users) return userRows;
-        throw new Error("Unexpected non-transactional table read in invitation fixture.");
-      },
-    }),
-  });
-  db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-    callback(transaction)
-  );
-
-  return operations;
-}
-
-interface RescindInvitationFixture {
-  // The row the atomic UPDATE would have matched — present only when the invitation truly is
-  // `pending` and belongs to `tripId`, mirroring the real `WHERE id = ? AND tripId = ? AND status =
-  // 'pending'` predicate rather than an independently-asserted outcome.
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus; inviteeId?: string } | null;
-  // The row the post-failure diagnostic SELECT would find, used only to pick between "not found"
-  // (missing or wrong trip) and "no longer pending" (right trip, wrong status).
-  diagnosticRow?: { id: string; tripId: string } | null;
-}
-
-interface DismissInvitationFixture {
-  matchedRow?: { id: string; tripId: string; status: InvitationStatus; inviteeId?: string } | null;
-  diagnosticRow?: { id: string; tripId: string } | null;
-}
-
-function setupDismissInvitationDb({ matchedRow = null, diagnosticRow = null }: DismissInvitationFixture = {}) {
-  const operations = {
-    deletes: [] as Array<{ table: unknown; condition: unknown }>,
-  };
-
-  db.delete.mockReturnValue({
-    where: (condition: unknown) => ({
-      returning: async () => {
-        operations.deletes.push({ table: invitations, condition });
-        return matchedRow ? [matchedRow] : [];
-      },
-    }),
-  });
-
-  db.select.mockReturnValue({
-    from: (table: unknown) => ({
-      where: async () => {
-        if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
-        throw new Error("Unexpected table read in dismiss fixture.");
-      },
-    }),
-  });
-
-  return operations;
-}
-
-function setupRescindInvitationDb({ matchedRow = null, diagnosticRow = null }: RescindInvitationFixture = {}) {
-  const operations = {
-    updates: [] as Array<{ table: unknown; values: unknown; condition: unknown }>,
-  };
-
-  db.update.mockReturnValue({
-    set: (values: unknown) => ({
-      where: (condition: unknown) => ({
-        returning: async () => {
-          operations.updates.push({ table: invitations, values, condition });
-          return matchedRow ? [matchedRow] : [];
-        },
-      }),
-    }),
-  });
-
-  db.select.mockReturnValue({
-    from: (table: unknown) => ({
-      where: async () => {
-        if (table === invitations) return diagnosticRow ? [diagnosticRow] : [];
-        throw new Error("Unexpected table read in rescind fixture.");
-      },
-    }),
-  });
-
-  return operations;
-}
-
-describe("rescindInvitation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("rescinds a pending invitation belonging to the managed trip", async () => {
-    const operations = setupRescindInvitationDb({
-      matchedRow: { id: "invite-1", tripId: "trip-1", status: "rescinded", inviteeId: "invitee-1" },
-    });
-
-    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
-    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_rescinded", "manager-1", "trip-1");
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(operations.updates).toEqual([
-      expect.objectContaining({ table: invitations, values: { status: "rescinded" }, condition: expect.anything() }),
-    ]);
-    expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.MembershipChanged,
-      tripId: "trip-1",
-    });
-    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("invitee-1", {
-      type: LiveSyncEventType.InvitationChanged,
-      tripId: "trip-1",
-    });
-  });
-
-  it.each(["rescinded", "accepted", "declined"])("rejects an already-%s invitation", async () => {
-    const operations = setupRescindInvitationDb({
-      diagnosticRow: { id: "invite-1", tripId: "trip-1" },
-    });
-
-    await expect(rescindInvitation("trip-1", "invite-1")).resolves.toEqual({
-      status: "error",
-      message: "Invitation is no longer pending.",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    // The invitation's real status never reaches the atomic UPDATE's WHERE clause in this fixture —
-    // it only drives which branch of `rescindInvitation` we're documenting via the test title (the
-    // %s in each case name). What actually proves the UPDATE's status guard exists is the predicate
-    // assertion below:
-    // a production change that dropped `eq(invitations.status, "pending")` would still return zero
-    // rows here (since `matchedRow` is unset), but this assertion on the composed WHERE clause fails.
-    expect(inspect(operations.updates[0]?.condition, { depth: 8 })).toContain("pending");
-    expect(revalidatePath).not.toHaveBeenCalled();
-    expect(publishTripEvent).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invitation that belongs to a different trip", async () => {
-    setupRescindInvitationDb({
-      diagnosticRow: { id: "invite-2", tripId: "trip-2" },
-    });
-
-    await expect(rescindInvitation("trip-1", "invite-2")).resolves.toEqual({
-      status: "error",
-      message: "Invitation not found.",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("rejects an editor before reading or writing invitations", async () => {
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(rescindInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(db.update).not.toHaveBeenCalled();
-    expect(db.select).not.toHaveBeenCalled();
-  });
-
-  it("returns not found for a missing invitation", async () => {
-    setupRescindInvitationDb();
-
-    await expect(rescindInvitation("trip-1", "missing-invite")).resolves.toEqual({
-      status: "error",
-      message: "Invitation not found.",
-    });
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-});
-
-describe("dismissInvitation", () => {
-  afterEach(() => {
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-  });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("hard-deletes a non-pending invitation belonging to the managed trip", async () => {
-    const operations = setupDismissInvitationDb({
-      matchedRow: { id: "invite-1", tripId: "trip-1", status: "declined" },
-    });
-
-    await expect(dismissInvitation("trip-1", "invite-1")).resolves.toEqual({ status: "success" });
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "manager-1", "manager");
-    expect(operations.deletes).toHaveLength(1);
-    const deletionCondition = inspect(operations.deletes[0]?.condition, { depth: 8 });
-    expect(deletionCondition).toContain("pending");
-    expect(deletionCondition).toContain("trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-    expect(publishTripEvent).toHaveBeenCalledExactlyOnceWith("trip-1", {
-      type: LiveSyncEventType.MembershipChanged,
-      tripId: "trip-1",
-    });
-  });
-
-  it("rejects a pending invitation without deletion success or revalidation", async () => {
-    const operations = setupDismissInvitationDb({
-      diagnosticRow: { id: "invite-1", tripId: "trip-1" },
-    });
-
-    await expect(dismissInvitation("trip-1", "invite-1")).resolves.toEqual({
-      status: "error",
-      message: "Invitation is still pending.",
-    });
-
-    expect(operations.deletes).toHaveLength(1);
-    expect(inspect(operations.deletes[0]?.condition, { depth: 8 })).toContain("pending");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invitation from another trip without revealing its state", async () => {
-    setupDismissInvitationDb({ diagnosticRow: { id: "invite-2", tripId: "trip-2" } });
-
-    await expect(dismissInvitation("trip-1", "invite-2")).resolves.toEqual({
-      status: "error",
-      message: "Invitation not found.",
-    });
-
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("rejects a missing invitation without revalidating", async () => {
-    setupDismissInvitationDb();
-
-    await expect(dismissInvitation("trip-1", "missing-invite")).resolves.toEqual({
-      status: "error",
-      message: "Invitation not found.",
-    });
-
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("rejects a non-manager before reading or deleting invitations", async () => {
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(dismissInvitation("trip-1", "invite-1")).rejects.toThrow("not found");
-
-    expect(db.delete).not.toHaveBeenCalled();
-    expect(db.select).not.toHaveBeenCalled();
-  });
-});
-describe("invitation Activity commit boundaries", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("emits only after the rescind returning row resolves", async () => {
-    let commit!: (rows: unknown[]) => void;
-    db.update.mockReturnValue({
-      set: () => ({
-        where: () => ({
-          returning: () =>
-            new Promise((resolve) => {
-              commit = resolve;
-            }),
-        }),
-      }),
-    });
-    const pending = rescindInvitation("trip-1", "invite-1");
-    await vi.waitFor(() => expect(db.update).toHaveBeenCalledOnce());
-    expect(recordTripInvitation).not.toHaveBeenCalled();
-    commit([{ tripId: "trip-1", inviteeId: "invitee-1" }]);
-    await expect(pending).resolves.toEqual({ status: "success" });
-    expect(recordTripInvitation).toHaveBeenCalledExactlyOnceWith("invitation_rescinded", "manager-1", "trip-1");
-  });
-
-  it("does not emit after a throwing rescind mutation", async () => {
-    setupInviteContributorDb();
-    db.update.mockImplementationOnce(() => {
-      throw new Error("rollback");
-    });
-    const pending = rescindInvitation("trip-1", "invite-1");
-    await expect(pending).rejects.toThrow("rollback");
-    expect(recordTripInvitation).not.toHaveBeenCalled();
   });
 });
 

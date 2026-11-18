@@ -2225,3 +2225,40 @@ Feature: Absolute checklist checked-state API
     Then the invitation decision API rejects with 409 and "conflict"
     And the invitation decision API message is "This invitation was rescinded by the trip owner."
     And the invitation is "rescinded" with 0 membership rows for its invitee
+
+  @invitation-lifecycle-api
+  Scenario: Manager resends an expired invitation
+    Given a "expired" invitation for the manager lifecycle API
+    When I send the manager lifecycle "resend" request
+    Then the manager lifecycle API returns 200 and "success"
+    And the manager lifecycle invitation is "pending"
+
+  @invitation-lifecycle-api
+  Scenario: Manager retries a rescind with a key
+    Given a "pending" invitation for the manager lifecycle API
+    When I send the manager lifecycle "rescind" request
+    Then the manager lifecycle API returns 200 and "success"
+    When I send the manager lifecycle "rescind" request
+    Then the manager lifecycle API returns 200 and "success"
+    And the manager lifecycle invitation is "rescinded"
+
+  @invitation-lifecycle-api
+  Scenario: Manager retries dismissal after deletion
+    Given a "declined" invitation for the manager lifecycle API
+    When I send the manager lifecycle "dismiss" request
+    Then the manager lifecycle API returns 200 and "success"
+    When I send the manager lifecycle "dismiss" request
+    Then the manager lifecycle API returns 200 and "success"
+    And the manager lifecycle invitation is "deleted"
+
+  @invitation-lifecycle-api
+  Scenario: Manager cannot manage another trip's invitation
+    Given a "foreign" invitation for the manager lifecycle API
+    When I send the manager lifecycle "resend" request
+    Then the manager lifecycle API returns 404 and "not_found"
+
+  @invitation-lifecycle-api
+  Scenario: Editor cannot manage invitations
+    Given a "editor" invitation for the manager lifecycle API
+    When I send the manager lifecycle "resend" request
+    Then the manager lifecycle API returns 403 and "forbidden"

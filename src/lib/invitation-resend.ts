@@ -1,19 +1,17 @@
 import { and, eq } from "drizzle-orm";
 import { invitations } from "@/db/schema";
-import type { CollaboratorRole, ResendInvitationResult } from "@/data/types";
+import type { CollaboratorRole } from "@/data/types";
 import type { DbTransaction } from "@/lib/server-action-locks";
 
 type InvitationExecutor = Pick<DbTransaction, "select" | "update">;
 
 export type AppliedInvitationResend =
-  | { status: "success"; expiresAt: string; inviteeId: string }
-  | Extract<ResendInvitationResult, { status: "error" }>;
+  { status: "success"; expiresAt: string; inviteeId: string } | { status: "error"; message: string };
 
 /**
  * Resets `expiresAt` (and optionally `role`) on a trip's pending invitation. Takes an `executor` so
  * callers already inside a transaction (e.g. `inviteContributor`'s re-invite branch) can reuse this
- * instead of hand-rolling the same update — the auth check stays with the standalone `resendInvitation`
- * in `invitations.ts` since transactional callers have already authorized the caller themselves.
+ * instead of hand-rolling the same update. Callers authorize before invoking it.
  */
 export async function applyInvitationResend(
   executor: InvitationExecutor,

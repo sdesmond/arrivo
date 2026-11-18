@@ -63,14 +63,22 @@ describe("feature-map consistency", async () => {
     ])
       expect(matchesAnyGlob(path, dayPlanning.sourceGlobs)).toBe(true);
   });
-  it("classifies the trip actions module under app-activity and SHARED_GLOBS", () => {
-    const path = "src/app/(app)/trips/[tripId]/actions.ts";
-    // An explicit FEATURE_MAP match wins over SHARED_GLOBS, so the effective scope is the mapped tag(s).
-    expect(mapChangedFilesToTags([path], { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS })).toEqual({
-      mode: "tags",
-      tags: expect.arrayContaining(["@feat:app-activity"]),
-    });
-    expect(SHARED_GLOBS.some((glob) => matchesAnyGlob(path, [glob]))).toBe(true);
+  it("classifies invitation lifecycle routes under their consumers", () => {
+    for (const path of [
+      "src/app/api/v1/invitations/[invitationId]/resend/route.ts",
+      "src/app/api/v1/invitations/[invitationId]/dismiss/route.ts",
+      "src/app/api/v1/trips/[tripId]/invitations/[invitationId]/route.ts",
+    ]) {
+      expect(mapChangedFilesToTags([path], { FEATURE_MAP, SHARED_GLOBS, IGNORE_GLOBS })).toEqual({
+        mode: "tags",
+        tags: expect.arrayContaining([
+          "@feat:api",
+          "@feat:app-activity",
+          "@feat:pending-invitations",
+          "@feat:trip-sharing",
+        ]),
+      });
+    }
   });
   it("includes lifecycle routes among packing-list consumers", () => {
     const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:packing-lists");

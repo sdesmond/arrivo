@@ -4,11 +4,10 @@ import { invitations, trips, users } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { LiveSyncEventType } from "@/data/types";
-import type { CollaboratorRole, PendingInvitation, ResendInvitationResult } from "@/data/types";
-import { assertTripAccess } from "@/lib/auth-helpers";
+import type { CollaboratorRole, PendingInvitation } from "@/data/types";
 import { getNow } from "@/lib/mock-date";
 import { applyInvitationResend } from "@/lib/invitation-resend";
-import { publishTripEvent, publishUserEvent } from "@/lib/trip-events";
+import { publishUserEvent } from "@/lib/trip-events";
 
 export { applyInvitationResend };
 
@@ -61,22 +60,6 @@ export async function getMyPendingInvitations(userId: string): Promise<PendingIn
     role: row.role as CollaboratorRole,
     expiresAt: row.expiresAt.toISOString(),
   }));
-}
-
-export async function resendInvitation(
-  invitationId: string,
-  tripId: string,
-  userId: string
-): Promise<ResendInvitationResult> {
-  await assertTripAccess(tripId, userId, "manager");
-
-  const result = await applyInvitationResend(db, invitationId, tripId, getInvitationExpiry());
-  if (result.status !== "success") return result;
-
-  // Trip channel: other managers' open share dialogs pick up the new expiry.
-  publishTripEvent(tripId, { type: LiveSyncEventType.MembershipChanged, tripId });
-  publishInvitationChanged(result.inviteeId, tripId);
-  return { status: "success", expiresAt: result.expiresAt };
 }
 
 /**

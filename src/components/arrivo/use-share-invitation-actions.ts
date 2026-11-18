@@ -3,11 +3,8 @@
 import { useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { toast } from "sonner";
-import {
-  dismissShareInvitation,
-  rescindShareInvitation,
-  resendShareInvitation,
-} from "@/app/(app)/trips/[tripId]/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import * as contract from "@/lib/api/contract/sharing";
 import type { InvitationRowAction } from "@/components/arrivo/trip-share-invitation-row";
 import type { Invitation, ShareDialogData } from "@/data/types";
 
@@ -49,9 +46,11 @@ export function useShareInvitationActions({
   async function resendPendingInvitation(invitation: Invitation): Promise<void> {
     await runInvitationAction(invitation, "resend", async () => {
       try {
-        const result = await resendShareInvitation(tripId, invitation.id);
+        const result = await api(contract.resendInvitation, {
+          params: { invitationId: invitation.id },
+          body: { tripId },
+        });
         if (!isCurrentRef.current) return;
-        if (result.status === "error") return void toast.error(result.message);
         setData((currentData) =>
           currentData
             ? {
@@ -63,39 +62,49 @@ export function useShareInvitationActions({
             : currentData
         );
         toast.success("Invitation resent.");
-      } catch {
-        if (isCurrentRef.current) toast.error("Could not resend invitation.");
+      } catch (error) {
+        if (isCurrentRef.current)
+          toast.error(error instanceof ApiClientError ? error.message : "Could not resend invitation.");
       }
     });
   }
   async function removeInvitation(
     invitation: Invitation,
     action: "rescind" | "dismiss",
-    request: () => Promise<{ status: "success" } | { status: "error"; message: string }>
+    request: () => Promise<{ status: "success" }>
   ): Promise<void> {
     await runInvitationAction(invitation, action, async () => {
       try {
-        const result = await request();
+        await request();
         if (!isCurrentRef.current) return;
-        if (result.status === "error") return void toast.error(result.message);
         suppressedInvitationIdsRef.current.add(invitation.id);
         setData((currentData) =>
           currentData
             ? { ...currentData, invitations: currentData.invitations.filter((item) => item.id !== invitation.id) }
             : currentData
         );
-      } catch {
+      } catch (error) {
         if (isCurrentRef.current) {
-          toast.error(action === "rescind" ? "Could not rescind invitation." : "Could not dismiss invitation.");
+          toast.error(
+            error instanceof ApiClientError
+              ? error.message
+              : action === "rescind"
+                ? "Could not rescind invitation."
+                : "Could not dismiss invitation."
+          );
         }
       }
     });
   }
   function rescindPendingInvitation(invitation: Invitation): Promise<void> {
-    return removeInvitation(invitation, "rescind", () => rescindShareInvitation(tripId, invitation.id));
+    return removeInvitation(invitation, "rescind", () =>
+      api(contract.rescindInvitation, { params: { tripId, invitationId: invitation.id }, body: {} })
+    );
   }
   function dismissDeclinedInvitation(invitation: Invitation): Promise<void> {
-    return removeInvitation(invitation, "dismiss", () => dismissShareInvitation(tripId, invitation.id));
+    return removeInvitation(invitation, "dismiss", () =>
+      api(contract.dismissInvitation, { params: { invitationId: invitation.id }, body: { tripId } })
+    );
   }
 
   return { dismissDeclinedInvitation, pendingActions, rescindPendingInvitation, resendPendingInvitation };
