@@ -185,15 +185,19 @@
 - source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
   summary: Recheck submitted normalized invitation username after acquiring account lock.
   evidence: Pre-existing invite action and migrated service resolve account ID before locking; concurrent profile rename can change username ownership before mutation.
+  completed: 2026-11-18 on `fix/epic-4-retrospective`. The service rechecks both resolved account ID and normalized username under the account lock, after replay handling; a mismatch returns no-account without effects. Tests: `services/sharing.test.ts`.
 - source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
   summary: Replace caught unique-violation recovery inside invitation transaction with conflict-safe insertion.
   evidence: Pre-existing writer catches PostgreSQL unique violation inside transaction; database marks transaction aborted, so later statements cannot persist a typed replay result. Cooperating writers serialize through existing account and trip locks.
 - source_plan: `epic-sharing-api/story-apply-contributor-changes-through-the-api-plan.md`
   summary: Move deletion-concurrency contributor-change fixtures from the unused `saveContributorChangesWrite` wrapper onto the service/PATCH path.
   evidence: Production batches now run lock, locked role recheck and idempotency read/upsert in `services/sharing.ts`; `deletion-concurrency.steps.ts:161-191` still calls the outer writer, so real-lock interleavings with account deletion are verified only for a path production no longer uses (same as 4.1 `inviteContributorWrite`).
+  completed: 2026-11-18 on `fix/epic-4-retrospective`. Authenticated PATCH races now cover removal, role changes, creator protection, manager removal or demotion, manager deletion and trip deletion. Public scenario-owned rows and PostgreSQL blocker PID observations establish ordering. The complete deletion-concurrency feature passed.
 - source_plan: `epic-sharing-api/story-accept-and-decline-invitations-through-the-api-plan.md`
   summary: Make the invitation-accept collaborator upsert preserve an existing member's role and `isCreator`.
   evidence: `acceptInvitationInTransaction` (as the baseline writer did) uses `onConflictDoUpdate` with `set: collaboratorValues`, so accepting a pending invitation when the invitee is already a collaborator overwrites role and sets `isCreator: false`; reachable only if membership was created after the invite.
+  completed: 2026-11-18 on `fix/epic-4-retrospective`. Acceptance inserts only when the membership does not exist, preserving existing role and creator flag. Tests: `membership-writes.test.ts` and the API scenario accepting an invitation after creator-manager membership is seeded.
 - source_plan: `epic-sharing-api/story-accept-and-decline-invitations-through-the-api-plan.md`
   summary: Move deletion-concurrency accept fixtures from the unused `acceptInvitationWrite` wrapper onto the service/POST path.
   evidence: Production accept now runs lock, recheck and idempotency in `services/sharing.ts`; `deletion-concurrency.steps.ts` still calls the outer writer, so its real-lock interleavings cover a path production no longer uses (same as 4.1/4.2).
+  completed: 2026-11-18 on `fix/epic-4-retrospective`. Authenticated POST races cover both invitee-deletion orders and owner deletion against a held membership insert, with scenario-owned rows and observed PostgreSQL blockers. The complete deletion-concurrency feature passed.

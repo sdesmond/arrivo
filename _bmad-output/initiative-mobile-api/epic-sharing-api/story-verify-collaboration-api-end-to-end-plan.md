@@ -3,7 +3,7 @@ title: "Verify collaboration API end to end"
 type: chore
 ticket: "7"
 created: "2026-11-18"
-status: built
+status: done
 baseline_revision: "5dc2b2d18ede4c709ef4b6b7b1a893c31f0eca19"
 route: full
 route_source: auto

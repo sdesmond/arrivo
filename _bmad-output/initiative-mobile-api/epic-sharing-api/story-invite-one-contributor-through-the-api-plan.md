@@ -3,7 +3,7 @@ title: Invite one contributor through the API
 type: feature
 ticket: "1"
 created: "2026-11-17"
-status: built
+status: done
 baseline_revision: d2e352c64222313bc5d4912f2b40976ed0388d7c
 route: full
 route_source: auto

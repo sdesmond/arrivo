@@ -1,5 +1,6 @@
 ---
 type: epic
+status: done
 title: "Collaboration through the API"
 parent: initiative-mobile-api
 covers: [R3, R7]

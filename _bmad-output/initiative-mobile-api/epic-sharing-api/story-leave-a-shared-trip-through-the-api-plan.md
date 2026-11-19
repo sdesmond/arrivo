@@ -3,7 +3,7 @@ title: "Leave a shared trip through the API"
 type: "feature"
 ticket: "5"
 created: "2026-11-18"
-status: "built"
+status: done
 baseline_revision: "d8bcd8673e8cae10c00b708c46138ce8e52dad47"
 route: "full"
 route_source: "auto"

@@ -3,7 +3,7 @@ title: "Manage invitation lifecycle through the API"
 type: "feature"
 ticket: "4"
 created: "2026-11-18"
-status: "built"
+status: done
 baseline_revision: "955eb18b1504ec13e6e9b60cef9b88810dd2b8c1"
 route: "full"
 route_source: "auto"

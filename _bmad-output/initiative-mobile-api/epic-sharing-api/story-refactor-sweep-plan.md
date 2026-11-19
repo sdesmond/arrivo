@@ -3,7 +3,7 @@ title: "Sharing refactor sweep"
 type: refactor
 ticket: "6"
 created: "2026-11-18"
-status: built
+status: done
 baseline_revision: "aed0f2c8d5af295623f6e9f067ed92bda639f589"
 route: oneshot
 route_source: auto
