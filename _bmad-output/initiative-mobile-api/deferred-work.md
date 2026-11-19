@@ -205,6 +205,7 @@
 - source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
   summary: Increase existing packing list overview controls to the required interactive target size.
   evidence: The extracted overview retains pre-existing 32px icon buttons and 36px create and cancel controls.
+  completed: 2026-11-19 on `story/5-1-packing-item-api`. Packing list overview controls now meet the 44px minimum.
 - source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
   summary: Investigate whether a refresh transition can remain unresolved and block the shared refresh queue.
   evidence: Unverified; demonstrate a reachable transition that never settles or unmounts before adding recovery.

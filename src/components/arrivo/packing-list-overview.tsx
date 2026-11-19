@@ -105,7 +105,7 @@ export function PackingListOverview({
             <EmptyContent>
               <button
                 onClick={() => setShowNewForm(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-lg px-4 transition-colors hover:bg-surface"
+                className="inline-flex h-11 items-center gap-2 rounded-lg px-4 transition-colors hover:bg-surface"
                 style={{
                   fontSize: "calc(13.5px * var(--font-scale))",
                   color: "var(--fg)",
@@ -137,7 +137,7 @@ export function PackingListOverview({
                   setNewListName("");
                 }
               }}
-              className="h-9 flex-1 rounded-lg px-3 outline-none"
+              className="h-11 min-w-0 flex-1 rounded-lg px-3 outline-none"
               style={{
                 fontSize: "calc(13.5px * var(--font-scale))",
                 color: "var(--fg)",
@@ -148,7 +148,7 @@ export function PackingListOverview({
             <button
               onClick={() => void handleCreateList()}
               disabled={!newListName.trim() || creating}
-              className="h-9 rounded-lg px-3 transition-colors hover:bg-surface-2 disabled:opacity-40"
+              className="h-11 rounded-lg px-3 transition-colors hover:bg-surface-2 disabled:opacity-40"
               style={{
                 fontSize: "calc(13px * var(--font-scale))",
                 color: "var(--fg)",
@@ -164,7 +164,7 @@ export function PackingListOverview({
                 setShowNewForm(false);
                 setNewListName("");
               }}
-              className="h-9 rounded-lg px-3 transition-colors hover:bg-surface"
+              className="h-11 rounded-lg px-3 transition-colors hover:bg-surface"
               style={{
                 fontSize: "calc(13px * var(--font-scale))",
                 color: "var(--fg-3)",
@@ -180,7 +180,7 @@ export function PackingListOverview({
           hasLists && (
             <button
               onClick={() => setShowNewForm(true)}
-              className="inline-flex h-9 items-center gap-2 self-end rounded-lg px-3 transition-colors hover:bg-surface"
+              className="inline-flex h-11 items-center gap-2 self-end rounded-lg px-3 transition-colors hover:bg-surface"
               style={{
                 fontSize: "calc(13px * var(--font-scale))",
                 color: "var(--fg-3)",
@@ -222,7 +222,7 @@ export function PackingListOverview({
                         if (evt.key === "Enter") void handleRenameCommit();
                         if (evt.key === "Escape") setRenameState(null);
                       }}
-                      className="flex-1 rounded px-1 py-0.5 outline-none"
+                      className="h-11 min-w-0 flex-1 rounded px-1 py-0.5 outline-none"
                       style={{
                         fontSize: "calc(14px * var(--font-scale))",
                         fontWeight: 500,
@@ -237,7 +237,7 @@ export function PackingListOverview({
                       type="button"
                       aria-label={`Open "${list.name}"`}
                       onClick={() => onOpen(list.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-surface"
+                      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-surface"
                       style={{
                         cursor: "pointer",
                         border: "none",
@@ -277,7 +277,7 @@ export function PackingListOverview({
                       evt.stopPropagation();
                       setRenameState({ listId: list.id, value: list.name });
                     }}
-                    className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
+                    className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
                     style={{
                       color: "var(--fg-3)",
                       border: "none",
@@ -295,7 +295,7 @@ export function PackingListOverview({
                       evt.stopPropagation();
                       handleDeleteRequest(list);
                     }}
-                    className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
+                    className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
                     style={{
                       color: "var(--fg-3)",
                       border: "none",
