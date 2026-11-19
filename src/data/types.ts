@@ -1098,6 +1098,12 @@ export interface PackingItem {
   labelId?: string | null;
 }
 
+/** One packing list's complete order, as stored; `listId` null is the default list. */
+export interface PackingItemOrder {
+  listId: string | null;
+  items: { id: string; labelId: string | null }[];
+}
+
 export interface TripPackingList {
   id: string;
   tripId: string;

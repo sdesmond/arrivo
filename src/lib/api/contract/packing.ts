@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackingItem } from "@/data/types";
+import type { PackingItem, PackingItemOrder } from "@/data/types";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 import { defineEndpoint } from "../endpoint";
 const uuid = z.uuid().toLowerCase();
@@ -17,4 +17,24 @@ export const deletePackingItem = defineEndpoint<null>()({
   params,
   body: z.strictObject({ tripId: uuid }),
   status: 204,
+});
+
+/**
+ * Replaces one packing list's complete order. The list (`listId` null is the default list) must name every item and
+ * section label it holds right now: a stale or foreign list is a 409, so the client refreshes instead of overwriting
+ * another editor's change. Positions are the array index; `labelId` places an item in a section of the same list.
+ */
+export const reorderPackingItems = defineEndpoint<PackingItemOrder>()({
+  method: "PUT",
+  path: "/api/v1/trips/:tripId/packing/order",
+  params: z.object({ tripId: uuid }),
+  body: z.strictObject({
+    listId: uuid.nullable(),
+    items: z
+      .array(z.strictObject({ id: uuid, labelId: uuid.nullable() }))
+      .max(1000)
+      .refine((items) => new Set(items.map((item) => item.id)).size === items.length, {
+        message: "Each item can appear once.",
+      }),
+  }),
 });
