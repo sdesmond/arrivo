@@ -48,6 +48,7 @@ export function PackingListView({
 }: PackingListViewProps): ReactElement {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewSectionForm, setShowNewSectionForm] = useState(false);
+  const [isAddingSection, setIsAddingSection] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
   const [pendingToggles, setPendingToggles] = useState(new Map<string, { value: boolean; settled: boolean }>());
   const completedToggleIds = [...pendingToggles]
@@ -116,6 +117,11 @@ export function PackingListView({
     setPrevItems(items);
     setIsSubmitting(false);
     setLocalItems(null);
+    // The new section is on screen now, so close its form in the same render instead of after the save settles.
+    if (isAddingSection) {
+      setIsAddingSection(false);
+      setShowNewSectionForm(false);
+    }
   }
 
   function announce(message: string): void {
@@ -248,7 +254,14 @@ export function PackingListView({
           beforeItemId={groupPackingItems(effectiveItems).sections[0]?.label.id}
           isAdding={isSubmitting}
           onAddItem={async (name, isLabel, afterItemId, beforeItemId, labelId) => {
-            await handleContextualAdd(name, isLabel, afterItemId, beforeItemId, labelId);
+            setIsAddingSection(true);
+            try {
+              await handleContextualAdd(name, isLabel, afterItemId, beforeItemId, labelId);
+            } catch (error) {
+              setIsAddingSection(false);
+              throw error;
+            }
+            setIsAddingSection(false);
             setShowNewSectionForm(false);
           }}
         />

@@ -102,6 +102,8 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
           body: { id, name, isLabel, afterItemId, beforeItemId, labelId, listId: listId ?? null },
         },
         {
+          // A key makes the mutation wait for the refreshed list, so a new entry does not vanish between its form closing and the list updating.
+          key: id,
           onError: (error) => {
             failure = error;
             router.refresh();

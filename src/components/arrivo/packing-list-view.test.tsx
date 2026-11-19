@@ -227,6 +227,44 @@ describe("PackingListView", () => {
     expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
   });
 
+  it("hides the New section form as soon as the new section arrives, without waiting for the save to settle", async () => {
+    const user = userEvent.setup();
+    let settleAdd: () => void = () => {};
+    const onAddItem = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          settleAdd = resolve;
+        })
+    );
+    const props = {
+      tripId: "trip-1",
+      onAddItem,
+      onRemoveItem: createRemoveItemHandler(),
+      onToggleItem: createToggleItemHandler(),
+      onReorderItems: vi.fn(),
+      onEditItem: vi.fn(),
+    };
+    const { rerender } = render(<PackingListView {...props} items={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "New section" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "Camping");
+    await user.keyboard("{Enter}");
+    expect(screen.getByPlaceholderText("New section…")).toBeDisabled();
+
+    rerender(
+      <PackingListView
+        {...props}
+        items={[{ id: "label-new", name: "Camping", isLabel: true, done: false, position: 0 }]}
+      />
+    );
+    expect(screen.getByText("Camping")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
+
+    await act(async () => {
+      settleAdd();
+    });
+  });
+
   it.each([
     { items: [...groupedItems].reverse(), beforeId: "label-1" },
     { items: [], beforeId: undefined },
