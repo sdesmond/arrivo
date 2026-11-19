@@ -2447,3 +2447,49 @@ Feature: Absolute checklist checked-state API
       | role     | status |
       | viewer   | 403    |
       | stranger | 404    |
+
+  Scenario: Reordering a packing list stores the submitted order
+    Given scenario-owned packing items for the packing order API
+    And my checklist API role is "editor"
+    When I PUT the reversed packing order
+    Then the packing order API returns 200
+    And the packing order is stored reversed
+
+  Scenario Outline: A stale, partial or foreign packing list conflicts and writes nothing
+    Given scenario-owned packing items for the packing order API
+    And my checklist API role is "editor"
+    When I PUT the packing order case "<case>"
+    Then the packing order API returns 409 with code "conflict"
+    And the packing order stays as seeded
+    Examples:
+      | case    |
+      | partial |
+      | extra   |
+      | foreign |
+
+  Scenario Outline: Packing order requires editor access
+    Given scenario-owned packing items for the packing order API
+    And my checklist API role is "<role>"
+    When I PUT the reversed packing order
+    Then the packing order API returns <status> with code "<code>"
+    And the packing order stays as seeded
+    Examples:
+      | role     | status | code      |
+      | viewer   | 403    | forbidden |
+      | stranger | 404    | not_found |
+
+  Scenario: A named packing list order cannot take in a default-list item
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I PUT the named packing list order including the default-list item
+    Then the scoped packing order API returns 409
+    And the named packing list keeps its seeded order
+    And the default-list packing item is untouched
+
+  Scenario: Reordering a named packing list leaves the default list alone
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I PUT the reversed named packing list order
+    Then the scoped packing order API returns 200
+    And the named packing list is stored reversed
+    And the default-list packing item is untouched

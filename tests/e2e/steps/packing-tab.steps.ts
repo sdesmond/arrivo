@@ -3,7 +3,6 @@ import { and, eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { type E2EDb, withE2EDb } from "../e2e-db";
 import { waitForApiResponse } from "../api-response";
-import { waitForServerActionResponse } from "../server-action";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
   E2E_PACKING_DELETE_LABEL_ITEMS,
@@ -114,6 +113,24 @@ Before({ tags: "@packing-drag-two-sections" }, async ({ scenario }) => {
   if (!result.user || !result.trip) throw new Error("Failed to materialize two-section packing fixtures.");
 });
 
+/**
+ * Waits for the packing order PUT a drop sends. Arm before the drop and await after, so the write commits before a
+ * later reload. Optional where a gesture may legitimately send nothing (the caller retries).
+ */
+async function waitForPackingOrder(page: Page, required: boolean): Promise<void> {
+  const response = page
+    .waitForResponse(
+      (candidate) =>
+        candidate.request().method() === "PUT" &&
+        /^\/api\/v1\/trips\/[^/]+\/packing\/order$/.test(new URL(candidate.url()).pathname),
+      { timeout: 15_000 }
+    )
+    .then((candidate) => {
+      if (!candidate.ok()) throw new Error(`Packing order PUT failed with status ${candidate.status()}.`);
+    });
+  await (required ? response : response.catch(() => undefined));
+}
+
 async function dragItemOntoTarget(page: Page, sourceName: string, target: ReturnType<Page["locator"]>): Promise<void> {
   const targetContainer = target.locator("xpath=ancestor::*[@data-packing-container][1]");
   const sourceInTarget = targetContainer.locator('[data-packing-kind="item"]').filter({ hasText: sourceName });
@@ -154,19 +171,24 @@ async function dragItemOntoTarget(page: Page, sourceName: string, target: Return
     await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 3 });
     await page.waitForTimeout(60);
 
-    // The drop fires the reorder server action. Wait for that POST to resolve so a later reload
+    // The drop sends the order PUT. Wait for it to resolve so a later reload
     // cannot out-race persistence. Armed per attempt, since each retry fires its own reorder —
     // and not required, because an attempt whose drop misses the target fires no POST and is
     // expected to fall through to the retry below.
-    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
+    const reorderResponse = waitForPackingOrder(page, false);
     await page.mouse.up();
     await reorderResponse;
   }
 
   await performDrag();
 
-  if ((await sourceInTarget.count()) === 1) {
+  // The order PUT resolves before the page refresh lands, so let the move settle before retrying a drag that may
+  // already have succeeded.
+  try {
+    await expect(sourceInTarget).toHaveCount(1, { timeout: 3_000 });
     return;
+  } catch {
+    // Not there yet: drag again.
   }
 
   await page.waitForTimeout(120);
@@ -201,7 +223,7 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
     await page.mouse.move(targetPointX, targetPointY, { steps: 8 });
     if ((await previewItem.count()) === 1) {
       await page.waitForTimeout(60);
-      const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+      const reorderResponse = waitForPackingOrder(page, true);
       await page.mouse.up();
       await reorderResponse;
       return;
@@ -213,7 +235,7 @@ async function dragItemOntoUngrouped(page: Page, sourceName: string): Promise<vo
 
   await expect(previewItem).toHaveCount(1, { timeout: 2_000 });
   await page.waitForTimeout(60);
-  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+  const reorderResponse = waitForPackingOrder(page, true);
   await page.mouse.up();
   await reorderResponse;
 }
@@ -226,9 +248,13 @@ async function dragItemIntoUngroupedArea(page: Page, sourceName: string): Promis
 
   for (let attemptIndex = 0; attemptIndex < 2; attemptIndex += 1) {
     await dragItemOntoUngrouped(page, sourceName);
-    await page.waitForTimeout(150);
-    if ((await ungroupedItem.count()) === 1) {
+    // The order PUT resolves before the page refresh lands, so give the move time to settle before retrying a drag
+    // that may already have succeeded.
+    try {
+      await expect(ungroupedItem).toHaveCount(1, { timeout: 3_000 });
       return;
+    } catch {
+      // Not there yet: drag again.
     }
   }
 
@@ -275,12 +301,11 @@ async function keyboardMovePackingItemDownOnePosition(page: Page, name: string):
       }
     }).toPass({ timeout: 10_000 });
 
-    // Enter drops the item, firing the reorder server action. Wait for that POST
-    // to resolve — the transaction commits and revalidatePath runs before the
-    // response returns — so a later reload cannot out-race persistence. A move
+    // Enter drops the item, sending the order PUT. Wait for it to resolve
+    // — the transaction commits before the response returns — so a later reload cannot out-race persistence. A move
     // that registers as a no-op fires no POST, so tolerate a timeout and fall
     // through to the position check / retry.
-    const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/", required: false });
+    const reorderResponse = waitForPackingOrder(page, false);
     await dragHandle.press("Enter");
     await reorderResponse;
 

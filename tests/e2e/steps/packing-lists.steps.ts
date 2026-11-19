@@ -208,3 +208,27 @@ Then("after reload the {string} checklist is titled and empty", async ({ page, s
   );
   expect(items).toHaveLength(0);
 });
+
+Given(
+  "I have a seeded packing list named {string} holding {string}",
+  async ({ page, scenario }, name: string, items: string) => {
+    const trip = scenario.currentTrip;
+    if (!trip) throw new Error("No current trip in scenario");
+    await withE2EDb(async (db) => {
+      const [list] = await db
+        .insert(tripPackingLists)
+        .values({ tripId: trip.id, name, position: 0 })
+        .returning({ id: tripPackingLists.id });
+      await db.insert(packingItems).values(
+        items.split(", ").map((itemName, position) => ({
+          tripId: trip.id,
+          listId: list.id,
+          name: itemName,
+          done: false,
+          position,
+        }))
+      );
+    });
+    await reloadTrip(page);
+  }
+);

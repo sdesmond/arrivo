@@ -172,3 +172,10 @@ Feature: Packing tab
     And the packing item "Shirt" should be in the "Clothes" section
     And the section "Toiletries" should have no items
     And the packing list should show the label "Toiletries"
+
+  @packing-drag-two-sections
+  Scenario: Dragging an item into another section persists after reload
+    When I open the Packing tab
+    And I pointer-drag the packing item "Toothbrush" onto the packing item "Pants"
+    And I reload the trip page
+    Then the packing item "Toothbrush" should be in the "Clothes" section
