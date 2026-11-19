@@ -62,6 +62,31 @@ Given("a {string} invitation for the invitation decision API", async ({ page, sc
   });
 });
 
+Given("the invitee already has a creator manager membership", async ({ page }) => {
+  const current = decisionState(page);
+  await withE2EDb((database) =>
+    database.insert(collaborators).values({
+      tripId: current.tripId,
+      userId: current.inviteeId,
+      name: "Existing",
+      initials: "EX",
+      role: "manager",
+      isCreator: true,
+    })
+  );
+});
+
+Then("the invitee remains a creator manager after acceptance", async ({ page }) => {
+  const current = decisionState(page);
+  const rows = await withE2EDb((database) =>
+    database
+      .select({ role: collaborators.role, isCreator: collaborators.isCreator })
+      .from(collaborators)
+      .where(and(eq(collaborators.tripId, current.tripId), eq(collaborators.userId, current.inviteeId)))
+  );
+  expect(rows).toEqual([{ role: "manager", isCreator: true }]);
+});
+
 When("I send the invitation decision {string} with {string} key", async ({ page }, decision: string, key: string) => {
   const current = decisionState(page);
   const client = await apiClient(page);

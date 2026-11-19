@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import { collaborators, invitations, users, idempotencyKeys } from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -79,6 +81,8 @@ const tripId = "223e4567-e89b-12d3-a456-426614174000";
 const inviteId = "123e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "manager" };
 let account: { id: string }[];
+let lockedAccount: { id: string }[] | undefined;
+let lockedAccountPredicate: SQL | undefined;
 let claims: { userId: string; result: unknown }[];
 let rows: { id: string; tripId: string; status: string }[];
 let stored: { result: unknown }[];
@@ -87,6 +91,8 @@ let savedValues: Record<string, unknown>[];
 beforeEach(() => {
   vi.clearAllMocks();
   account = [{ id: "invitee" }];
+  lockedAccount = undefined;
+  lockedAccountPredicate = undefined;
   claims = [];
   rows = [];
   stored = [];
@@ -94,16 +100,20 @@ beforeEach(() => {
   savedValues = [];
   mocks.select.mockImplementation((fields?: Record<string, unknown>) => ({
     from: (table: unknown) => ({
-      where: async () =>
-        table === users
-          ? account
+      where: async (predicate: SQL) => {
+        if (table === users && fields && "username" in fields) lockedAccountPredicate = predicate;
+        return table === users
+          ? fields && "username" in fields
+            ? (lockedAccount ?? account)
+            : account
           : table === idempotencyKeys
             ? fields && "userId" in fields
               ? claims
               : stored
             : table === invitations
               ? (invitationReads.shift() ?? rows)
-              : [],
+              : [];
+      },
     }),
   }));
   mocks.execute.mockResolvedValue([]);
@@ -135,6 +145,31 @@ it("locks accounts and trip, rechecks manager authority, then commits before eff
   expect(mocks.write).toHaveBeenCalledOnce();
   expect(mocks.userEvent).toHaveBeenCalledOnce();
   expect(mocks.tripEvent).toHaveBeenCalledOnce();
+});
+it("returns no-account when the resolved username changes before the lock", async () => {
+  lockedAccount = [];
+  await expect(createInvitation(actor, tripId, { username: "alice" })).resolves.toMatchObject({
+    errorCode: "no-account",
+  });
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(mocks.userEvent).not.toHaveBeenCalled();
+  expect(mocks.tripEvent).not.toHaveBeenCalled();
+  expect(mocks.activity).not.toHaveBeenCalled();
+});
+it("returns no-account before a self-invite refusal when the username changed under lock", async () => {
+  account = [{ id: "manager" }];
+  lockedAccount = [];
+  await expect(createInvitation(actor, tripId, { username: "alice" })).resolves.toMatchObject({
+    errorCode: "no-account",
+  });
+  expect(mocks.write).not.toHaveBeenCalled();
+});
+it("rechecks both the locked account ID and normalized username without retargeting", async () => {
+  await createInvitation(actor, tripId, { username: "ALICE" });
+  const query = new PgDialect().sqlToQuery(lockedAccountPredicate!);
+  expect(query.params).toEqual(["invitee", "alice"]);
+  expect(query.sql).toContain("lower(");
+  expect(mocks.write).toHaveBeenCalledWith(mocks, expect.objectContaining({ inviteeId: "invitee" }));
 });
 it("rejects manager demotion before mutation and effects", async () => {
   mocks.access.mockResolvedValueOnce("manager").mockRejectedValueOnce(new TripForbiddenError("manager"));
@@ -229,6 +264,18 @@ it("replays exact UUID intent against pending row without effects", async () => 
   expect(mocks.write).not.toHaveBeenCalled();
   expect(mocks.activity).not.toHaveBeenCalled();
   expect(mocks.tripEvent).not.toHaveBeenCalled();
+});
+it("replays an authorized invitation intent after the username changes", async () => {
+  account = [];
+  claims = [claim()];
+  rows = [{ id: inviteId, tripId, status: "pending" }];
+  await expect(createInvitation(actor, tripId, draft)).resolves.toEqual({ status: "invited" });
+  expect(mocks.access).toHaveBeenLastCalledWith(tripId, actor.userId, "manager", mocks);
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(mocks.activity).not.toHaveBeenCalled();
+  expect(mocks.userEvent).not.toHaveBeenCalled();
+  expect(mocks.tripEvent).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
 });
 it.each(["rescinded", "accepted", "declined", "dismissed"])(
   "rejects retired %s UUID intent even with independent key",

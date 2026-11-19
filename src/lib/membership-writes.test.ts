@@ -638,7 +638,7 @@ describe("invitation decisions", () => {
       }),
       insert: (table: unknown) => ({
         values: (values: unknown) => ({
-          onConflictDoUpdate: async (conflict: unknown) => {
+          onConflictDoNothing: async (conflict: unknown) => {
             writes.push({ table, values, conflict });
           },
         }),
@@ -656,7 +656,7 @@ describe("invitation decisions", () => {
   }
   const acceptInput = { userId: "user-1", fallbackName: "Fallback", invitationId: "invite-1" };
 
-  it("accepts in the caller's transaction and upserts the collaborator with the invited role", async () => {
+  it("accepts and inserts the invited role without changing an existing creator or manager", async () => {
     const { transaction, writes } = decisionTransaction();
     await expect(acceptInvitationInTransaction(transaction, acceptInput)).resolves.toEqual(acceptedRow);
     expect(writes).toEqual([
@@ -671,7 +671,7 @@ describe("invitation decisions", () => {
           role: "editor",
           isCreator: false,
         },
-        conflict: expect.objectContaining({ set: expect.objectContaining({ role: "editor" }) }),
+        conflict: { target: [collaborators.tripId, collaborators.userId] },
       },
     ]);
   });

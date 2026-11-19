@@ -2180,6 +2180,16 @@ Feature: Absolute checklist checked-state API
       | stranger | 404    | not_found |
 
   @invitation-decisions-api
+  Scenario: Accepting an invitation preserves an existing creator membership
+    Given a "pending" invitation for the invitation decision API
+    And the invitee already has a creator manager membership
+    When I send the invitation decision "accept" with "same" key
+    Then the invitation decision API returns 200 with "accepted"
+    And the invitee remains a creator manager after acceptance
+    When I send the invitation decision "accept" with "same" key
+    Then the invitee remains a creator manager after acceptance
+
+  @invitation-decisions-api
   Scenario: Invitation accept API adds the invitee once and replays a keyed retry
     Given a "pending" invitation for the invitation decision API
     When I send the invitation decision "accept" with "same" key

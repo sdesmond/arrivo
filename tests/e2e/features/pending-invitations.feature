@@ -10,6 +10,21 @@ Feature: Pending Invitations
     When I accept the invitation to "Kyoto Adventure"
     Then I am redirected to the trip "Kyoto Adventure"
 
+  Scenario: A lost acceptance response is replayed without repeating the decision
+    Given I have a pending invitation to "Replay Adventure" from "Ada Lovelace"
+    When I open the trips dashboard
+    And I accept the invitation to "Replay Adventure" with its first response lost
+    Then I am redirected to the trip "Replay Adventure"
+    And the replayed acceptance for "Replay Adventure" has one membership and one activity
+
+  @lost-decline-response
+  Scenario: A lost decline response is replayed without repeated effects
+    Given I have a pending invitation to "Replay Decline" from "Ada Lovelace"
+    When I open the trips dashboard
+    And I decline the invitation to "Replay Decline" with its first response lost
+    Then the pending invitation row for "Replay Decline" is gone
+    And the replayed decline for "Replay Decline" has no membership or duplicate effects
+
   Scenario: Declining a pending invitation removes the row
     Given I have a pending invitation to "Oslo Weekend" from "Bo Nilsen"
     When I open the trips dashboard

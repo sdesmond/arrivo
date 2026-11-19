@@ -25,7 +25,7 @@ function timeoutError(): ApiClientError {
 }
 export async function api<Result, Params extends z.ZodType, Body extends z.ZodType>(
   endpoint: Endpoint<Result, Params, Body>,
-  input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number }
+  input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number; idempotencyKey?: string }
 ): Promise<Result> {
   const params = input.params as Record<string, string>;
   let path = endpoint.path.replace(/:([A-Za-z][A-Za-z0-9]*)/g, (_match, key: string) =>
@@ -51,6 +51,8 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
     // The browser sets the multipart content type with its boundary.
     headers = { "X-Arrivo-Client": "web" };
     body = form;
+  } else if (input.idempotencyKey) {
+    headers["Idempotency-Key"] = input.idempotencyKey;
   }
   const controller = new AbortController();
   const timeoutMs = input.timeoutMs ?? (endpoint.multipart ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS);

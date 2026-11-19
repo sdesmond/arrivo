@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -79,7 +79,11 @@ describe("PendingInvitationsList", () => {
     await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
 
     await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1"));
-    expect(api).toHaveBeenCalledExactlyOnceWith(acceptInvitation, { params: { invitationId: "invite-1" }, body: {} });
+    expect(api).toHaveBeenCalledExactlyOnceWith(acceptInvitation, {
+      params: { invitationId: "invite-1" },
+      body: {},
+      idempotencyKey: expect.any(String),
+    });
   });
 
   it("shows an error toast and keeps the row when accept fails", async () => {
@@ -127,7 +131,11 @@ describe("PendingInvitationsList", () => {
     await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
 
     await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
-    expect(api).toHaveBeenCalledExactlyOnceWith(declineInvitation, { params: { invitationId: "invite-1" }, body: {} });
+    expect(api).toHaveBeenCalledExactlyOnceWith(declineInvitation, {
+      params: { invitationId: "invite-1" },
+      body: {},
+      idempotencyKey: expect.any(String),
+    });
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -152,6 +160,99 @@ describe("PendingInvitationsList", () => {
 
     await waitFor(() => expect(screen.queryByText("Kyoto Trip")).not.toBeInTheDocument());
     expect(screen.getByText("Oslo Trip")).toBeInTheDocument();
+  });
+
+  it("retries an uncertain failure with the same key and completes normally", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Offline"))
+      .mockResolvedValueOnce({ status: "accepted", tripId: "trip-1" });
+    render(<PendingInvitationsList invitations={[INVITATION]} />);
+    await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1"));
+    expect(vi.mocked(api).mock.calls[0][1]).toEqual(vi.mocked(api).mock.calls[1][1]);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("retries HTTP 408 and retains its key for a later attempt after both requests time out", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(408, "timeout", "Timed out"))
+      .mockRejectedValueOnce(new ApiClientError(408, "timeout", "Timed out"))
+      .mockResolvedValueOnce({ status: "accepted", tripId: "trip-1" });
+    render(<PendingInvitationsList invitations={[INVITATION]} />);
+    const button = screen.getByTitle("Accept invitation to Kyoto Trip");
+    await user.click(button);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Timed out"));
+    await user.click(button);
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith("/trips/trip-1"));
+    const calls = vi.mocked(api).mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls[0][1].idempotencyKey).toBe(calls[1][1].idempotencyKey);
+    expect(calls[1][1].idempotencyKey).toBe(calls[2][1].idempotencyKey);
+  });
+
+  it("uses distinct keys for decisions after an uncertain failure and forgets definitive rejections", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api).mockRejectedValue(new ApiClientError(0, "timeout", "Timeout"));
+    render(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
+    await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await user.click(screen.getByTitle("Decline invitation to Kyoto Trip"));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(4));
+    const calls = vi.mocked(api).mock.calls;
+    expect(calls[0][1].idempotencyKey).not.toBe(calls[2][1].idempotencyKey);
+  });
+
+  it("retains a key after uncertain failures but replaces it after a definitive rejection", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "timeout", "Timeout"))
+      .mockRejectedValueOnce(new ApiClientError(0, "timeout", "Timeout"))
+      .mockRejectedValueOnce(new ApiClientError(409, "conflict", "Expired"))
+      .mockRejectedValueOnce(new ApiClientError(404, "not_found", "Gone"));
+    render(<PendingInvitationsList invitations={[INVITATION]} />);
+    const button = screen.getByTitle("Accept invitation to Kyoto Trip");
+    await user.click(button);
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(4));
+    const calls = vi.mocked(api).mock.calls;
+    expect(calls[0][1].idempotencyKey).toBe(calls[2][1].idempotencyKey);
+    expect(calls[2][1].idempotencyKey).not.toBe(calls[3][1].idempotencyKey);
+  });
+
+  it("does not retry or navigate after unmount", async () => {
+    const user = userEvent.setup();
+    let rejectRequest!: (error: Error) => void;
+    vi.mocked(api).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRequest = reject;
+        })
+    );
+    const { unmount } = render(<PendingInvitationsList invitations={[INVITATION]} />);
+    await user.click(screen.getByTitle("Accept invitation to Kyoto Trip"));
+    unmount();
+    rejectRequest(new ApiClientError(0, "network_error", "Offline"));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("prevents double submission while allowing another invitation its own key", async () => {
+    vi.mocked(api).mockImplementation(() => new Promise(() => {}));
+    render(<PendingInvitationsList invitations={[INVITATION, SECOND_INVITATION]} />);
+    const first = screen.getByTitle("Accept invitation to Kyoto Trip");
+    fireEvent.click(first);
+    fireEvent.click(first);
+    fireEvent.click(screen.getByTitle("Accept invitation to Oslo Trip"));
+    expect(api).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(api).mock.calls;
+    expect(calls[0][1].idempotencyKey).not.toBe(calls[1][1].idempotencyKey);
   });
 
   it("shows invitations that arrive through new props after a live refresh", () => {

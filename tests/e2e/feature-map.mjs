@@ -485,6 +485,7 @@ export const FEATURE_MAP = [
     "src/lib/membership-writes.ts",
     "src/lib/invitation-resend.ts",
     "tests/e2e/deletion-concurrency-fixture.ts",
+    "tests/e2e/deletion-http-fixture.ts",
   ]),
   entry("mfa", [
     "src/components/arrivo/auth-forms.tsx",

@@ -2,9 +2,27 @@ import { afterEach, expect, it, vi } from "vitest";
 import { api, ApiClientError, REQUEST_TIMEOUT_MS, UPLOAD_TIMEOUT_MS } from "./client";
 import { uploadTripDocument } from "./contract/documents";
 import { deleteChecklist, updateChecklistItem } from "./contract/checklists";
+import { acceptInvitation } from "./contract/sharing";
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+it("sends an explicitly supplied idempotency key on JSON writes", async () => {
+  const fetch = vi.fn().mockResolvedValue(Response.json({ status: "accepted", tripId }));
+  vi.stubGlobal("fetch", fetch);
+  await api(acceptInvitation, { params: { invitationId: "invite" }, body: {}, idempotencyKey: "key" });
+  expect(fetch.mock.calls[0][1].headers).toMatchObject({ "Idempotency-Key": "key" });
+});
+it("omits idempotency keys on GET and multipart requests", async () => {
+  const { searchCoverImages } = await import("./contract/cover-images");
+  const fetch = vi.fn().mockImplementation(async () => Response.json({}));
+  vi.stubGlobal("fetch", fetch);
+  await api(searchCoverImages, { params: {}, body: { query: "Paris" }, idempotencyKey: "key" });
+  await api(uploadTripDocument, { params: { tripId }, body: {}, file: pdf(), idempotencyKey: "key" });
+  expect(fetch.mock.calls.map((call) => call[1].headers)).toEqual([
+    { "X-Arrivo-Client": "web" },
+    { "X-Arrivo-Client": "web" },
+  ]);
 });
 it("sends typed absolute JSON with cookie credentials and client header", async () => {
   const fetch = vi.fn().mockResolvedValue(Response.json({ id: "item", isChecked: false }));

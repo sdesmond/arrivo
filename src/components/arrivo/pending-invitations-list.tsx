@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/api/client";
 import { acceptInvitation, declineInvitation } from "@/lib/api/contract/sharing";
+import { createRandomId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SectionHead } from "./trips-section-head";
 import type { CollaboratorRole, PendingInvitation } from "@/data/types";
@@ -29,37 +30,65 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
   // Props stay the source of truth so a live refresh can add or drop rows; declines are layered on
   // top until the refreshed props stop returning them.
   const [declinedIds, setDeclinedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [, startTransition] = useTransition();
+  const keys = useRef(new Map<string, string>());
+  const active = useRef(new Set<string>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const items = invitations.filter((invitation) => !declinedIds.has(invitation.id));
 
   if (items.length === 0) {
     return null;
   }
 
-  function handleAccept(invitation: PendingInvitation) {
-    setPendingId(invitation.id);
+  function handleDecision(invitation: PendingInvitation, decision: "accept" | "decline") {
+    if (active.current.has(invitation.id)) return;
+    active.current.add(invitation.id);
+    const keyId = `${invitation.id}:${decision}`;
+    const idempotencyKey = keys.current.get(keyId) ?? createRandomId();
+    keys.current.set(keyId, idempotencyKey);
+    setPendingIds((current) => new Set(current).add(invitation.id));
     startTransition(async () => {
       try {
-        const result = await api(acceptInvitation, { params: { invitationId: invitation.id }, body: {} });
-        router.push(`/trips/${result.tripId}`);
+        const request = () =>
+          decision === "accept"
+            ? api(acceptInvitation, { params: { invitationId: invitation.id }, body: {}, idempotencyKey })
+            : api(declineInvitation, { params: { invitationId: invitation.id }, body: {}, idempotencyKey });
+        let result;
+        try {
+          result = await request();
+        } catch (error) {
+          const uncertain =
+            !(error instanceof ApiClientError) ||
+            error.status === 0 ||
+            error.status === 408 ||
+            error.status >= 500 ||
+            (error.status >= 200 && error.status < 300);
+          if (!uncertain || !mounted.current) throw error;
+          result = await request();
+        }
+        keys.current.delete(keyId);
+        if (!mounted.current) return;
+        if (result.status === "accepted") router.push(`/trips/${result.tripId}`);
+        else setDeclinedIds((current) => new Set(current).add(invitation.id));
       } catch (error) {
-        setPendingId(null);
-        toast.error(decisionErrorMessage(error));
-      }
-    });
-  }
-
-  function handleDecline(invitation: PendingInvitation) {
-    setPendingId(invitation.id);
-    startTransition(async () => {
-      try {
-        await api(declineInvitation, { params: { invitationId: invitation.id }, body: {} });
-        setPendingId(null);
-        setDeclinedIds((current) => new Set(current).add(invitation.id));
-      } catch (error) {
-        setPendingId(null);
-        toast.error(decisionErrorMessage(error));
+        if (error instanceof ApiClientError && error.status >= 400 && error.status < 500 && error.status !== 408)
+          keys.current.delete(keyId);
+        if (mounted.current) toast.error(decisionErrorMessage(error));
+      } finally {
+        active.current.delete(invitation.id);
+        if (mounted.current)
+          setPendingIds((current) => {
+            const next = new Set(current);
+            next.delete(invitation.id);
+            return next;
+          });
       }
     });
   }
@@ -69,7 +98,7 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
       <SectionHead title="Invitations" count={String(items.length)} />
       <ul className="flex flex-col gap-2">
         {items.map((invitation) => {
-          const isRowPending = pendingId === invitation.id;
+          const isRowPending = pendingIds.has(invitation.id);
           return (
             <li
               key={invitation.id}
@@ -112,7 +141,7 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
                   className="h-11 px-4"
                   disabled={isRowPending}
                   title={`Accept invitation to ${invitation.tripName}`}
-                  onClick={() => handleAccept(invitation)}
+                  onClick={() => handleDecision(invitation, "accept")}
                 >
                   Accept
                 </Button>
@@ -122,7 +151,7 @@ export function PendingInvitationsList({ invitations }: PendingInvitationsListPr
                   className="h-11 px-4"
                   disabled={isRowPending}
                   title={`Decline invitation to ${invitation.tripName}`}
-                  onClick={() => handleDecline(invitation)}
+                  onClick={() => handleDecision(invitation, "decline")}
                 >
                   Decline
                 </Button>
