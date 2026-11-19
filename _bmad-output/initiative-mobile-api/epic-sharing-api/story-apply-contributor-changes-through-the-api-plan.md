@@ -3,7 +3,7 @@ title: "Apply contributor changes through the API"
 type: "feature"
 ticket: "2"
 created: "2026-11-17"
-status: "built"
+status: done
 baseline_revision: "0cca1870a77f2accc6ee60a502dc0f75571ca5ed"
 route: "full"
 route_source: "auto"

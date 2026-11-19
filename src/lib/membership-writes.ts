@@ -186,7 +186,7 @@ export async function inviteContributorInTransaction(
 }
 
 /**
- * Accepts a pending, unexpired invitation and upserts the invitee's membership. The caller holds the user and trip
+ * Accepts a pending, unexpired invitation and preserves any existing membership. The caller holds the user and trip
  * locks and has verified the row is addressed to `userId`; the guarded update still decides on the database clock.
  */
 export async function acceptInvitationInTransaction(
@@ -228,9 +228,8 @@ export async function acceptInvitationInTransaction(
   await transaction
     .insert(collaborators)
     .values(collaboratorValues)
-    .onConflictDoUpdate({
+    .onConflictDoNothing({
       target: [collaborators.tripId, collaborators.userId],
-      set: collaboratorValues,
     });
 
   return updatedInvitation;

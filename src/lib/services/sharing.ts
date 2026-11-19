@@ -192,10 +192,13 @@ export async function createInvitation(
               errorCode: "no-account",
             } as const;
             if (!invitee) return missing;
+            const [account] = await transaction
+              .select({ id: users.id, username: users.username })
+              .from(users)
+              .where(and(eq(users.id, invitee.id), hasNormalizedUsername(users.username, draft.username)));
+            if (!account) return missing;
             if (invitee.id === actor.userId)
               return { status: "error", message: "You cannot invite yourself to this trip", errorCode: "self-invite" };
-            const [account] = await transaction.select({ id: users.id }).from(users).where(eq(users.id, invitee.id));
-            if (!account) return missing;
             const id = draft.id ?? randomUUID();
             const result = await inviteContributorInTransaction(transaction, {
               tripId,

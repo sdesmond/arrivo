@@ -3,7 +3,7 @@ title: "Accept and decline invitations through the API"
 type: "feature"
 ticket: "3"
 created: "2026-11-17"
-status: "built"
+status: done
 baseline_revision: "9ca251e8cc2f49f5fb4979225f79a5fc7fb5d086"
 route: "full"
 route_source: "auto"

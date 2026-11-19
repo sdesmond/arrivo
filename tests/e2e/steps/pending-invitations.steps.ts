@@ -1,7 +1,7 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import bcrypt from "bcryptjs";
 import { and, eq } from "drizzle-orm";
-import { collaborators, days, invitations, trips, users } from "../../../src/db/schema";
+import { activityEvents, collaborators, days, invitations, trips, users } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { After, Given, When, Then } from "../fixtures";
 import { pickInviteUser } from "../invite-picker";
@@ -102,6 +102,106 @@ When("I accept the invitation to {string}", async ({ page, scenario }, tripName:
   await page.getByTitle(`Accept invitation to ${tripName}`).click();
   await posted;
 });
+
+When(
+  "I {word} the invitation to {string} with its first response lost",
+  async ({ page, scenario }, decision: string, tripName: string) => {
+    if (decision !== "accept" && decision !== "decline") throw new Error(`Unknown decision: ${decision}`);
+    const invitationId = await invitationIdFor(scenario, tripName);
+    const keys: string[] = [];
+    if (decision === "decline") {
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            const target = window as typeof window & { decisionEvents: { type: string; tripId: string }[] };
+            target.decisionEvents = [];
+            const source = new EventSource("/api/users/me/events");
+            source.onopen = () => resolve();
+            source.onerror = () => reject(new Error("Decision event stream failed"));
+            source.onmessage = (event) => target.decisionEvents.push(JSON.parse(event.data));
+          })
+      );
+    }
+    await page.route(`**/api/v1/invitations/${invitationId}/${decision}`, async (route) => {
+      keys.push(route.request().headers()["idempotency-key"]);
+      if (keys.length === 1) {
+        const response = await route.fetch();
+        expect(response.status()).toBe(200);
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await page.getByTitle(`${decision === "accept" ? "Accept" : "Decline"} invitation to ${tripName}`).click();
+    await expect.poll(() => keys.length).toBe(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  }
+);
+
+Then(
+  "the replayed decline for {string} has no membership or duplicate effects",
+  async ({ page, scenario }, tripName: string) => {
+    const invitationId = await invitationIdFor(scenario, tripName);
+    const invitee = await scenario.ensureCurrentUser();
+    const [invitation] = await withE2EDb((database) =>
+      database.select().from(invitations).where(eq(invitations.id, invitationId))
+    );
+    expect(invitation.status).toBe("declined");
+    const rows = await withE2EDb(async (database) => ({
+      seats: await database
+        .select()
+        .from(collaborators)
+        .where(and(eq(collaborators.tripId, invitation.tripId), eq(collaborators.userId, invitee.id))),
+      activity: await database.select().from(activityEvents).where(eq(activityEvents.tripId, invitation.tripId)),
+    }));
+    expect(rows.seats).toHaveLength(0);
+    expect(rows.activity).toHaveLength(0);
+    await expect
+      .poll(() =>
+        page.evaluate((tripId) => {
+          const target = window as typeof window & { decisionEvents: { type: string; tripId: string }[] };
+          return target.decisionEvents
+            .filter((event) => event.tripId === tripId)
+            .map((event) => event.type)
+            .sort();
+        }, invitation.tripId)
+      )
+      .toEqual(["invitation-changed", "membership-changed"]);
+  }
+);
+
+Then(
+  "the replayed acceptance for {string} has one membership and one activity",
+  async ({ scenario }, tripName: string) => {
+    const invitationId = await invitationIdFor(scenario, tripName);
+    const invitee = await scenario.ensureCurrentUser();
+    const [invitation] = await withE2EDb((database) =>
+      database.select().from(invitations).where(eq(invitations.id, invitationId))
+    );
+    expect(invitation.status).toBe("accepted");
+    const seats = await withE2EDb((database) =>
+      database
+        .select()
+        .from(collaborators)
+        .where(and(eq(collaborators.tripId, invitation.tripId), eq(collaborators.userId, invitee.id)))
+    );
+    expect(seats).toHaveLength(1);
+    await expect
+      .poll(
+        async () =>
+          (
+            await withE2EDb((database) =>
+              database
+                .select()
+                .from(activityEvents)
+                .where(
+                  and(eq(activityEvents.tripId, invitation.tripId), eq(activityEvents.type, "invitation_accepted"))
+                )
+            )
+          ).length
+      )
+      .toBe(1);
+  }
+);
 
 When("I decline the invitation to {string}", async ({ page, scenario }, tripName: string) => {
   const invitationId = await invitationIdFor(scenario, tripName);
