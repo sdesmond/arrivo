@@ -96,13 +96,11 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
-const { addPackingItemAction, pullTemplatesOntoTripAction, reorderPackingItemsAction, saveTripListAsTemplateAction } =
-  vi.hoisted(() => ({
-    addPackingItemAction: vi.fn(),
-    pullTemplatesOntoTripAction: vi.fn(),
-    reorderPackingItemsAction: vi.fn(),
-    saveTripListAsTemplateAction: vi.fn(),
-  }));
+const { addPackingItemAction, pullTemplatesOntoTripAction, saveTripListAsTemplateAction } = vi.hoisted(() => ({
+  addPackingItemAction: vi.fn(),
+  pullTemplatesOntoTripAction: vi.fn(),
+  saveTripListAsTemplateAction: vi.fn(),
+}));
 
 vi.mock("@mapbox/search-js-core", () => ({
   // Must use regular functions (not arrows) so `new SearchBoxCore()` works as a constructor
@@ -122,7 +120,6 @@ vi.mock("./packing-actions", async (importOriginal) => {
     ...actual,
     addPackingItem: addPackingItemAction,
     pullTemplatesOntoTrip: pullTemplatesOntoTripAction,
-    reorderPackingItems: reorderPackingItemsAction,
     saveTripListAsTemplate: saveTripListAsTemplateAction,
   };
 });
@@ -133,7 +130,6 @@ import {
   createTrip,
   deleteTrip,
   pullTemplatesOntoTrip,
-  reorderPackingItems,
   retrieveLocation,
   saveTripListAsTemplate,
   searchAddressLocations,
@@ -2148,19 +2144,12 @@ describe("packing action delegation", () => {
     vi.resetAllMocks();
     addPackingItemAction.mockResolvedValue(undefined);
     pullTemplatesOntoTripAction.mockResolvedValue({ added: 1, skipped: 0 });
-    reorderPackingItemsAction.mockResolvedValue(undefined);
     saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
   });
 
   it("delegates addPackingItem with the same arguments", async () => {
     await expect(addPackingItem("trip-1", { name: "Passport" })).resolves.toBeUndefined();
     expect(addPackingItemAction).toHaveBeenCalledWith("trip-1", { name: "Passport" });
-  });
-
-  it("delegates reorderPackingItems with the same arguments", async () => {
-    const orderedItems = [{ id: "item-1", labelId: null, position: 0 }];
-    await expect(reorderPackingItems("trip-1", orderedItems)).resolves.toBeUndefined();
-    expect(reorderPackingItemsAction).toHaveBeenCalledWith("trip-1", orderedItems);
   });
 
   it("delegates pullTemplatesOntoTrip with the same arguments", async () => {

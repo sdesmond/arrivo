@@ -2,13 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import {
-  addPackingItem,
-  deleteTrip,
-  pullTemplatesOntoTrip,
-  reorderPackingItems,
-  saveTripListAsTemplate,
-} from "../actions";
+import { addPackingItem, deleteTrip, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
 import { removePackingSection } from "../packing-actions";
 import { RemovePackingSectionMode, type TripDetailPayload } from "@/data/types";
 
@@ -29,7 +23,6 @@ vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
   deleteTrip: vi.fn(),
   pullTemplatesOntoTrip: vi.fn(),
-  reorderPackingItems: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
@@ -65,6 +58,17 @@ const detail: TripDetailPayload = {
   },
   unscheduledEvents: [],
 };
+
+function withPacking(): TripDetailPayload {
+  return {
+    ...detail,
+    packingItems: [
+      { id: "pack-1", name: "Socks", done: false, listId: null },
+      { id: "pack-2", name: "Hat", done: false },
+      { id: "pack-3", name: "Boots", done: false, listId: "list-1" },
+    ],
+  };
+}
 
 function detailWithChecklist(checklistId: string): TripDetailPayload {
   return {
@@ -649,50 +653,117 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Section remove failed"));
   });
 
-  it("persists reordered packing items against the current trip", async () => {
-    vi.mocked(reorderPackingItems).mockResolvedValueOnce(undefined);
+  it("sends a packing reorder through the API for the dragged list and refreshes once", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({});
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
 
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    const ordered = [
-      { id: "pack-2", labelId: null, position: 0 },
-      { id: "pack-1", labelId: null, position: 1 },
-    ];
-
-    act(() => {
-      result.current.handleReorderPackingItems(ordered);
+    await act(async () => {
+      result.current.handleReorderPackingItems([
+        { id: "pack-2", labelId: null },
+        { id: "pack-1", labelId: null },
+      ]);
     });
 
-    await waitFor(() => expect(reorderPackingItems).toHaveBeenCalledWith("trip-1", ordered));
+    expect(api).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ method: "PUT", path: "/api/v1/trips/:tripId/packing/order" }),
+      {
+        params: { tripId: "trip-1" },
+        body: {
+          listId: null,
+          items: [
+            { id: "pack-2", labelId: null },
+            { id: "pack-1", labelId: null },
+          ],
+        },
+      }
+    );
     expect(toast.error).not.toHaveBeenCalled();
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledOnce());
   });
 
-  it("surfaces a toast when packing reorder fails", async () => {
-    vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
+  it("names the list of the first item and drops positions", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({});
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
 
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }]);
+    await act(async () => {
+      result.current.handleReorderPackingItems([
+        { id: "pack-3", labelId: null, position: 4 } as { id: string; labelId: null },
+      ]);
     });
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
-    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(vi.mocked(api).mock.calls[0][1]).toEqual({
+      params: { tripId: "trip-1" },
+      body: { listId: "list-1", items: [{ id: "pack-3", labelId: null }] },
+    });
   });
 
-  it("calls onError callback when packing reorder fails", async () => {
-    vi.mocked(reorderPackingItems).mockRejectedValueOnce(new Error("Reorder failed"));
+  it("rolls back and refreshes when a packing reorder's first item is unknown or the list is empty", async () => {
+    const { api } = await import("@/lib/api/client");
     const onError = vi.fn();
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
 
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null, position: 0 }], onError);
+    await act(async () => {
+      result.current.handleReorderPackingItems([{ id: "missing", labelId: null }], onError);
+      result.current.handleReorderPackingItems([], onError);
     });
 
-    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(2);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("toasts the 409, rolls the drag back and refreshes the route when the list is stale", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(409, "conflict", "This packing list changed."));
+    const onError = vi.fn();
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
+
+    await act(async () => {
+      result.current.handleReorderPackingItems([{ id: "pack-1", labelId: null }], onError);
+    });
+
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("This packing list changed.");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("rolls back without an onError callback", async () => {
+    const { api, ApiClientError } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server."));
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
+
+    await act(async () => {
+      result.current.handleReorderPackingItems([{ id: "pack-1", labelId: null }]);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Could not reach the server.");
+    expect(mockRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("sends rapid packing drags of one list in order so the last order wins", async () => {
+    const { api } = await import("@/lib/api/client");
+    const finished: string[] = [];
+    const record = (input: unknown) => finished.push((input as { body: { items: { id: string }[] } }).body.items[0].id);
+    vi.mocked(api).mockImplementationOnce(async (_endpoint, input) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      record(input);
+      return {};
+    });
+    vi.mocked(api).mockImplementation(async (_endpoint, input) => {
+      record(input);
+      return {};
+    });
+    const { result } = renderHook(() => useTripDetailHandlers(withPacking()));
+
+    await act(async () => {
+      result.current.handleReorderPackingItems([{ id: "pack-1", labelId: null }]);
+      result.current.handleReorderPackingItems([{ id: "pack-2", labelId: null }]);
+      result.current.handleReorderPackingItems([{ id: "pack-1", labelId: null }]);
+    });
+
+    await waitFor(() => expect(finished).toEqual(["pack-1", "pack-2", "pack-1"]));
   });
 
   it("surfaces a toast when trip deletion fails", async () => {
