@@ -429,3 +429,54 @@ it("does not retain an older failure after a newer submission succeeds", async (
   await settled(result.current.handleAddPackingItem("Boots"));
   expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, secondId, thirdId]);
 });
+
+describe("packing list API writes", () => {
+  it("creates a list with a client UUID and returns it once the API succeeds", async () => {
+    const { createPackingList } = await import("@/lib/api/contract/packing");
+    const { result } = renderPackingHandlers(detail);
+    let created: string | undefined;
+    let done = false;
+    void result.current.handleCreatePackingList("Beach").then((id) => {
+      created = id;
+      done = true;
+    });
+    await waitFor(() => expect(done).toBe(true));
+    expect(created).toBe(checklistId);
+    expect(api).toHaveBeenCalledWith(createPackingList, {
+      params: { tripId },
+      body: { id: checklistId, name: "Beach" },
+    });
+  });
+  it("returns no id and toasts when creation fails", async () => {
+    api.mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "List name is required"));
+    const { result } = renderPackingHandlers(detail);
+    let created: string | undefined = "unset";
+    await act(async () => {
+      created = await result.current.handleCreatePackingList(" ");
+    });
+    expect(created).toBeUndefined();
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("List name is required");
+  });
+  it("renames and deletes through trip-scoped requests", async () => {
+    const { renamePackingList, deletePackingList } = await import("@/lib/api/contract/packing");
+    const { result } = renderPackingHandlers(detail);
+    await settled(result.current.handleRenamePackingList(sourceId, "Day bag"));
+    await settled(result.current.handleDeletePackingList(sourceId));
+    expect(api).toHaveBeenCalledWith(renamePackingList, {
+      params: { listId: sourceId },
+      body: { tripId, name: "Day bag" },
+    });
+    expect(api).toHaveBeenCalledWith(deletePackingList, { params: { listId: sourceId }, body: { tripId } });
+  });
+  it("toasts a failed rename or delete without throwing", async () => {
+    api.mockRejectedValueOnce(new ApiClientError(404, "not_found", "Gone"));
+    api.mockRejectedValueOnce(new ApiClientError(403, "forbidden", "Denied"));
+    const { result } = renderPackingHandlers(detail);
+    await act(async () => {
+      await result.current.handleRenamePackingList(sourceId, "x");
+      await result.current.handleDeletePackingList(sourceId);
+    });
+    expect(toast.error).toHaveBeenNthCalledWith(1, "Gone");
+    expect(toast.error).toHaveBeenNthCalledWith(2, "Denied");
+  });
+});

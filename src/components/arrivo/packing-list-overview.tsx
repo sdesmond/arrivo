@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pencil, Trash2, Plus, Backpack } from "lucide-react";
 import {
   AlertDialog,
@@ -49,6 +49,10 @@ export function PackingListOverview({
 }: PackingListOverviewProps) {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [renameState, setRenameState] = useState<RenameState | null>(null);
+  // Shows a committed rename while the stored name is still the one it replaced. A refresh (or another editor's
+  // rename) changes the stored name and ends the override; the timer ends it when a save was rejected.
+  const [pendingNames, setPendingNames] = useState<Record<string, { name: string; from: string; token: number }>>({});
+  const renameToken = useRef(0);
   const [newListName, setNewListName] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -77,8 +81,24 @@ export function PackingListOverview({
       setRenameState(null);
       return;
     }
-    await onRenameList(renameState.listId, trimmed);
+    const { listId } = renameState;
+    const from = packingLists.find((list) => list.id === listId)?.name ?? "";
+    const token = ++renameToken.current;
+    setPendingNames((current) => ({ ...current, [listId]: { name: trimmed, from, token } }));
     setRenameState(null);
+    try {
+      await onRenameList(listId, trimmed);
+    } finally {
+      // The refresh normally lands first; this clears the entry if it never does (a rejected save).
+      setTimeout(() => {
+        setPendingNames((current) => {
+          if (current[listId]?.token !== token) return current;
+          const rest = { ...current };
+          delete rest[listId];
+          return rest;
+        });
+      }, 4000);
+    }
   }
 
   function handleDeleteRequest(list: TripPackingList): void {
@@ -197,7 +217,10 @@ export function PackingListOverview({
 
         {hasLists && (
           <div className="flex flex-col gap-1">
-            {packingLists.map((list) => {
+            {packingLists.map((storedList) => {
+              const pending = pendingNames[storedList.id];
+              const list =
+                pending && pending.from === storedList.name ? { ...storedList, name: pending.name } : storedList;
               const itemCount = packingItems.filter((item) => item.listId === list.id && !item.isLabel).length;
               const isRenaming = renameState?.listId === list.id;
 

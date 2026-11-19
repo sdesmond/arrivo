@@ -5,13 +5,15 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
 import { pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
-import { createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
 import {
   createPackingItem,
   removePackingSection,
   updatePackingItem,
   deletePackingItem,
   reorderPackingItems,
+  createPackingList,
+  renamePackingList,
+  deletePackingList,
 } from "@/lib/api/contract/packing";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
@@ -62,6 +64,9 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const updateMutation = useApiMutation(updatePackingItem);
   const deleteMutation = useApiMutation(deletePackingItem);
   const reorderMutation = useApiMutation(reorderPackingItems);
+  const createListMutation = useApiMutation(createPackingList);
+  const renameListMutation = useApiMutation(renamePackingList);
+  const deleteListMutation = useApiMutation(deletePackingList);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -249,28 +254,22 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   }
 
   async function handleCreatePackingList(name: string): Promise<string | undefined> {
-    try {
-      return await createPackingList(trip.id, name);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create packing list. Please try again.");
-      return undefined;
-    }
+    const id = createRandomId();
+    let created = false;
+    // The hook toasts a failure; the overview stays open because no id comes back.
+    await createListMutation.mutate(
+      { params: { tripId: trip.id }, body: { id, name } },
+      { key: id, onSuccess: () => (created = true) }
+    );
+    return created ? id : undefined;
   }
 
   async function handleRenamePackingList(listId: string, name: string): Promise<void> {
-    try {
-      await renamePackingList(listId, name);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to rename packing list. Please try again.");
-    }
+    await renameListMutation.mutate({ params: { listId }, body: { tripId: trip.id, name } });
   }
 
   async function handleDeletePackingList(listId: string): Promise<void> {
-    try {
-      await deletePackingList(listId);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete packing list. Please try again.");
-    }
+    await deleteListMutation.mutate({ params: { listId }, body: { tripId: trip.id } });
   }
 
   async function handleInsertFromPackingSource(

@@ -9,7 +9,7 @@ import { withErrorHandling } from "@/lib/error-utils";
 import { lockTripForUpdate } from "@/lib/server-action-locks";
 import { recordTripUpdated } from "@/lib/trip-activity";
 import type { PullTemplatesResult, SaveTripAsTemplateResult } from "@/data/types";
-import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
 
 // The sweep deletes keys older than the retention, so the replay window must not outlast it.
@@ -298,80 +298,4 @@ export async function saveTripListAsTemplate(
   idempotencyKey?: string
 ): Promise<SaveTripAsTemplateResult> {
   return saveTripListAsTemplateWithErrorHandling(tripId, name, idempotencyKey);
-}
-
-export async function createPackingList(tripId: string, name: string): Promise<string> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  const trimmedName = name.trim();
-  if (!trimmedName) throw new Error("List name is required");
-  if (trimmedName.length > FIELD_LIMITS.packingListName) {
-    throw new Error(overLimitMessage("List name", FIELD_LIMITS.packingListName));
-  }
-
-  const row = await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, tripId);
-
-    const [{ maxPos }] = await tx
-      .select({ maxPos: max(tripPackingLists.position) })
-      .from(tripPackingLists)
-      .where(eq(tripPackingLists.tripId, tripId));
-
-    const [insertedRow] = await tx
-      .insert(tripPackingLists)
-      .values({ tripId, name: trimmedName, position: (maxPos ?? -1) + 1 })
-      .returning({ id: tripPackingLists.id });
-
-    return insertedRow;
-  });
-
-  if (!row) throw new Error("Failed to create packing list");
-
-  recordTripUpdated(user.id!, tripId);
-  revalidatePath(`/trips/${tripId}`);
-  return row.id;
-}
-
-export async function renamePackingList(listId: string, name: string): Promise<void> {
-  const user = await requireUser();
-
-  const trimmedName = name.trim();
-  if (!trimmedName) throw new Error("List name is required");
-  if (trimmedName.length > FIELD_LIMITS.packingListName) {
-    throw new Error(overLimitMessage("List name", FIELD_LIMITS.packingListName));
-  }
-
-  const [list] = await db
-    .select({ tripId: tripPackingLists.tripId })
-    .from(tripPackingLists)
-    .where(eq(tripPackingLists.id, listId));
-  if (!list) throw new Error("Packing list not found");
-
-  await assertTripAccess(list.tripId, user.id!, "editor");
-  await db.update(tripPackingLists).set({ name: trimmedName }).where(eq(tripPackingLists.id, listId));
-  recordTripUpdated(user.id!, list.tripId);
-  revalidatePath(`/trips/${list.tripId}`);
-}
-
-export async function deletePackingList(listId: string): Promise<void> {
-  const user = await requireUser();
-
-  const [list] = await db
-    .select({ tripId: tripPackingLists.tripId })
-    .from(tripPackingLists)
-    .where(eq(tripPackingLists.id, listId));
-  if (!list) return;
-
-  await assertTripAccess(list.tripId, user.id!, "editor");
-
-  await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, list.tripId);
-    await tx.delete(packingItems).where(eq(packingItems.listId, listId));
-    await tx.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
-  });
-
-  recordTripUpdated(user.id!, list.tripId);
-  revalidatePath(`/trips/${list.tripId}`);
-  revalidatePath("/trips");
 }
