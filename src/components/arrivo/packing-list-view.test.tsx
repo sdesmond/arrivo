@@ -58,6 +58,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import { RemovePackingSectionMode, type PackingItem, type PackingTemplate } from "@/data/types";
 
 vi.mock("./template-pull-dialog", () => ({
@@ -1665,5 +1666,31 @@ describe("PackingListView save-as-template", () => {
     await user.click(screen.getByRole("button", { name: "Close save dialog" }));
 
     expect(screen.queryByRole("dialog", { name: "Save as template" })).not.toBeInTheDocument();
+  });
+});
+
+describe("PackingListView — read-only", () => {
+  it("hides the list options menu, new section form and add inputs for a viewer", () => {
+    render(
+      <TripEditAccessProvider canEdit={false}>
+        <PackingListView
+          tripId="trip-1"
+          items={groupedItems}
+          onAddItem={createAddItemHandler()}
+          onRemoveItem={createRemoveItemHandler()}
+          onToggleItem={createToggleItemHandler()}
+          onReorderItems={vi.fn()}
+          onEditItem={vi.fn()}
+          onPullTemplates={vi.fn()}
+          onSaveAsTemplate={vi.fn()}
+        />
+      </TripEditAccessProvider>
+    );
+
+    expect(screen.getByText("Passport")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Add item…")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Reorder /)).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });

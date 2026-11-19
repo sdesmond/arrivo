@@ -1,6 +1,16 @@
 import { expect, type Page } from "@playwright/test";
 import bcrypt from "bcryptjs";
-import { collaborators, days, events, expenses, itineraryNotes, trips, users } from "../../../src/db/schema";
+import {
+  collaborators,
+  days,
+  events,
+  expenses,
+  itineraryNotes,
+  packingItems,
+  tripPackingLists,
+  trips,
+  users,
+} from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { Given, When, Then } from "../fixtures";
 import type { ScenarioFixtureContext, ScenarioTripRecord } from "../scenario-fixture";
@@ -8,6 +18,8 @@ import type { ScenarioFixtureContext, ScenarioTripRecord } from "../scenario-fix
 const PLANNED_EVENT_NAME = "Tea ceremony";
 const PLANNED_TRIP_START = "2026-10-01";
 const PLANNED_TRIP_END = "2026-10-02";
+const PACKING_LIST_NAME = "Carry-On";
+const PACKING_ITEM_NAME = "Passport";
 
 // Materializes a trip owned by a different (freshly created) user, with the current scenario user
 // added as a collaborator at the given role. Mirrors the raw-insert pattern used for pending
@@ -18,7 +30,8 @@ async function seedSharedTrip(
   tripName: string,
   ownerName: string,
   collaboratorRole: "viewer" | "editor" | "manager",
-  withPlannedDay = false
+  withPlannedDay = false,
+  withPackingList = false
 ): Promise<ScenarioTripRecord> {
   const invitee = await scenario.ensureCurrentUser();
   const ownerUsername = scenario.uniqueUsername(`owner-${ownerName}`);
@@ -76,6 +89,16 @@ async function seedSharedTrip(
       await db.insert(itineraryNotes).values({ dayId: dayOne.id, position: 2, content: "Bring cash" });
     }
 
+    if (withPackingList) {
+      const [list] = await db
+        .insert(tripPackingLists)
+        .values({ tripId: tripRow.id, name: PACKING_LIST_NAME, position: 0 })
+        .returning({ id: tripPackingLists.id });
+      await db
+        .insert(packingItems)
+        .values({ tripId: tripRow.id, listId: list.id, name: PACKING_ITEM_NAME, position: 0 });
+    }
+
     await db.insert(collaborators).values([
       {
         tripId: tripRow.id,
@@ -122,6 +145,20 @@ Given(
   "I am an editor on {string} owned by {string} with a planned day",
   async ({ scenario }, tripName: string, ownerName: string) => {
     await seedSharedTrip(scenario, tripName, ownerName, "editor", true);
+  }
+);
+
+Given(
+  "I am a viewer on {string} owned by {string} with a packing list",
+  async ({ scenario }, tripName: string, ownerName: string) => {
+    await seedSharedTrip(scenario, tripName, ownerName, "viewer", false, true);
+  }
+);
+
+Given(
+  "I am an editor on {string} owned by {string} with a packing list",
+  async ({ scenario }, tripName: string, ownerName: string) => {
+    await seedSharedTrip(scenario, tripName, ownerName, "editor", false, true);
   }
 );
 
@@ -227,4 +264,25 @@ Then("I see the itinerary edit controls", async ({ page }) => {
   await expect(page.getByTitle("Delete event").first()).toBeAttached();
   await expect(page.getByRole("button", { name: /add a place/i }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Day" })).toBeVisible();
+});
+
+When("I open the shared packing list", async ({ page }) => {
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.getByRole("button", { name: `Open "${PACKING_LIST_NAME}"` }).click();
+  await expect(page.getByText(PACKING_ITEM_NAME, { exact: true })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("I see no packing edit controls", async ({ page }) => {
+  await expect(page.getByRole("button", { name: `Reorder ${PACKING_ITEM_NAME}` })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: `Pack ${PACKING_ITEM_NAME}` })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `Remove ${PACKING_ITEM_NAME}` })).toHaveCount(0);
+  await expect(page.getByPlaceholder("Add item…")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "List options" })).toHaveCount(0);
+});
+
+Then("I see the packing edit controls", async ({ page }) => {
+  await expect(page.getByRole("button", { name: `Reorder ${PACKING_ITEM_NAME}` })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: `Pack ${PACKING_ITEM_NAME}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Remove ${PACKING_ITEM_NAME}` })).toBeVisible();
+  await expect(page.getByPlaceholder("Add item…")).toBeVisible();
 });

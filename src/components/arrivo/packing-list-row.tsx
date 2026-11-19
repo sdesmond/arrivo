@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { useCanEditTrip } from "./trip-edit-access";
 
 const minimumTouchTargetStyle = { minHeight: "44px", minWidth: "44px" } as const;
 
@@ -44,8 +45,11 @@ export function PackingRow({
   dragHandle,
   onRemove,
   onToggle,
-  onEdit,
+  onEdit: onEditProp,
 }: PackingRowProps): ReactElement {
+  const canEdit = useCanEditTrip();
+  // Viewers get a read-only row: no inline rename, toggle, or remove.
+  const onEdit = canEdit ? onEditProp : undefined;
   const [isEditing, setIsEditing] = useState(false);
   const originalNameRef = useRef(item.name);
 
@@ -113,7 +117,7 @@ export function PackingRow({
           </button>
         </span>
       ) : null}
-      {isLabel || !onToggle ? null : (
+      {isLabel || !onToggle || !canEdit ? null : (
         <span className="flex shrink-0 items-center justify-center" data-packing-toggle style={minimumTouchTargetStyle}>
           <Checkbox
             aria-label={`Pack ${item.name}`}
@@ -199,7 +203,7 @@ export function PackingRow({
           </>
         )}
       </div>
-      {!isEditing ? (
+      {!isEditing && canEdit ? (
         <Button
           aria-label={`Remove ${item.name}`}
           className="min-h-11 min-w-11 rounded-2xl text-fg-3 hover:text-fg"
@@ -220,9 +224,10 @@ export function PackingRow({
 }
 
 export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
-    disabled: props.isLabel,
+    disabled: props.isLabel || !canEdit,
     animateLayoutChanges: () => false,
   });
   const style = {
@@ -240,21 +245,22 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
     prevIsDraggingRef.current = isDragging;
   }, [isDragging]);
 
-  const dragHandle = props.isLabel ? undefined : (
-    <span
-      ref={dragHandleRef}
-      {...attributes}
-      {...listeners}
-      aria-label={`Reorder ${props.item.name}`}
-      className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
-      role="button"
-      tabIndex={0}
-      title={`Reorder ${props.item.name}`}
-      style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)", ...minimumTouchTargetStyle }}
-    >
-      <GripVertical size={14} strokeWidth={1.5} />
-    </span>
-  );
+  const dragHandle =
+    props.isLabel || !canEdit ? undefined : (
+      <span
+        ref={dragHandleRef}
+        {...attributes}
+        {...listeners}
+        aria-label={`Reorder ${props.item.name}`}
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
+        role="button"
+        tabIndex={0}
+        title={`Reorder ${props.item.name}`}
+        style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)", ...minimumTouchTargetStyle }}
+      >
+        <GripVertical size={14} strokeWidth={1.5} />
+      </span>
+    );
 
   return (
     <div ref={setNodeRef} style={style}>
