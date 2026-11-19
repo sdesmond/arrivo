@@ -51,3 +51,11 @@ Feature: Multiple packing lists per trip
     And I select the template "Label Only Kit" from the picker
     Then a checklist titled "Label Only Kit" should appear in day 1
     And after reload the "Label Only Kit" checklist is titled and empty
+
+  Scenario: Reordering items in a named list persists after reload
+    Given I have a seeded packing list named "Order Kit" holding "Item A, Item B, Item C"
+    When I open the Packing tab
+    And I open the packing list "Order Kit"
+    And I keyboard-move the item "Item A" down one position
+    And I reload the trip page
+    Then the packing list order should be "Item B" then "Item A" then "Item C"

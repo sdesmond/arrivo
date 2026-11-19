@@ -247,40 +247,6 @@ async function removePackingSectionImpl(sectionId: string, input: RemovePackingS
   revalidatePath("/trips");
 }
 
-async function reorderPackingItemsImpl(
-  tripId: string,
-  ordered: { id: string; labelId: string | null; position: number }[]
-): Promise<void> {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "editor");
-  if (ordered.length === 0) {
-    return;
-  }
-
-  await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, tripId);
-
-    for (const entry of ordered) {
-      const [currentItem] = await tx
-        .select({ listId: packingItems.listId })
-        .from(packingItems)
-        .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
-      if (!currentItem) {
-        throw new Error("Packing item not found");
-      }
-
-      await validateLabelId(tripId, currentItem.listId ?? null, entry.labelId, tx);
-      await tx
-        .update(packingItems)
-        .set({ position: entry.position, labelId: entry.labelId })
-        .where(and(eq(packingItems.id, entry.id), eq(packingItems.tripId, tripId)));
-    }
-  });
-  recordTripUpdated(user.id!, tripId);
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-}
-
 async function pullTemplatesOntoTripImpl(
   tripId: string,
   templateIds: string[],
@@ -511,7 +477,6 @@ async function saveTripListAsTemplateImpl(
 
 const addPackingItemWithErrorHandling = withErrorHandling(addPackingItemImpl);
 const removePackingSectionWithErrorHandling = withErrorHandling(removePackingSectionImpl);
-const reorderPackingItemsWithErrorHandling = withErrorHandling(reorderPackingItemsImpl);
 const pullTemplatesOntoTripWithErrorHandling = withErrorHandling(pullTemplatesOntoTripImpl);
 const saveTripListAsTemplateWithErrorHandling = withErrorHandling(saveTripListAsTemplateImpl);
 
@@ -521,13 +486,6 @@ export async function addPackingItem(tripId: string, input: AddPackingItemInput)
 
 export async function removePackingSection(sectionId: string, input: RemovePackingSectionInput): Promise<void> {
   return removePackingSectionWithErrorHandling(sectionId, input);
-}
-
-export async function reorderPackingItems(
-  tripId: string,
-  ordered: { id: string; labelId: string | null; position: number }[]
-): Promise<void> {
-  return reorderPackingItemsWithErrorHandling(tripId, ordered);
 }
 
 export async function pullTemplatesOntoTrip(

@@ -1366,6 +1366,46 @@ describe("PackingListView", () => {
     ).toEqual(["Documents", "Phone charger", "Passport"]);
   });
 
+  it("keeps the optimistic order when the parent re-renders with an equal items array until the server order arrives", () => {
+    const stored = (): PackingItem[] => [
+      { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+      { id: "item-1", name: "Passport", done: false, position: 1, labelId: "label-1" },
+      { id: "item-2", name: "Phone charger", done: false, position: 2, labelId: "label-1" },
+    ];
+    const renderView = (items: PackingItem[]) => (
+      <PackingListView
+        tripId="trip-1"
+        items={items}
+        onAddItem={createAddItemHandler()}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+        onEditItem={vi.fn()}
+      />
+    );
+    const { container, rerender } = render(renderView(stored()));
+    const rowNames = () =>
+      Array.from(container.querySelectorAll("[data-packing-name]")).map((node) => node.textContent?.trim());
+
+    act(() => {
+      (
+        dndContextState.props as { onDragEnd?: (event: { active: { id: string }; over: { id: string } }) => void }
+      ).onDragEnd?.({ active: { id: "item-1" }, over: { id: "item-2" } });
+    });
+    // A parent re-render (the PUT starting) hands over a fresh array with the same stored content.
+    rerender(renderView(stored()));
+    expect(rowNames()).toEqual(["Documents", "Phone charger", "Passport"]);
+
+    rerender(
+      renderView([
+        { id: "label-1", name: "Documents", done: false, position: 0, isLabel: true, labelId: null },
+        { id: "item-2", name: "Phone charger", done: false, position: 1, labelId: "label-1" },
+        { id: "item-1", name: "Passport", done: false, position: 2, labelId: "label-1" },
+      ])
+    );
+    expect(rowNames()).toEqual(["Documents", "Phone charger", "Passport"]);
+  });
+
   it("stale optimistic rollback is ignored when a newer reorder has started", () => {
     // Uses cross-section drags so labelId changes are reflected in the DOM
     // (position-based sorting would mask within-section reorders).

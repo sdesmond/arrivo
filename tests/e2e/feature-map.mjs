@@ -67,6 +67,7 @@ export const FEATURE_MAP = [
   entry("api", [
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
+    "src/app/api/v1/trips/*/packing/**",
     "src/lib/services/sharing.ts",
     "src/lib/api/contract/sharing.ts",
     // The contributor batch PATCH applies its changes through the locked in-transaction writer.
@@ -336,6 +337,7 @@ export const FEATURE_MAP = [
   entry("app-activity", [
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
+    "src/app/api/v1/trips/*/packing/**",
     "src/app/api/v1/invitations/**",
     "src/app/api/v1/trips/*/invitations/**",
     "tests/e2e/invite-picker.ts",
@@ -679,6 +681,7 @@ export const FEATURE_MAP = [
   entry("packing-tab", [
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
+    "src/app/api/v1/trips/*/packing/**",
     "src/components/arrivo/packing-*",
     "src/components/arrivo/droppable-packing-section.tsx",
     "src/components/arrivo/delete-packing-section-alert-dialog.tsx",
@@ -694,6 +697,7 @@ export const FEATURE_MAP = [
   entry("packing-lists", [
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
+    "src/app/api/v1/trips/*/packing/**",
     "src/components/arrivo/packing-list*.tsx",
     "src/components/arrivo/packing-lists-view.tsx",
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
@@ -862,6 +866,7 @@ export const FEATURE_MAP = [
   entry("trip-live-refresh", [
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
+    "src/app/api/v1/trips/*/packing/**",
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",

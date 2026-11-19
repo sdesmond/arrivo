@@ -4,9 +4,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import { addPackingItem, pullTemplatesOntoTrip, reorderPackingItems, saveTripListAsTemplate } from "../actions";
+import { addPackingItem, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
 import { removePackingSection, createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
-import { updatePackingItem, deletePackingItem } from "@/lib/api/contract/packing";
+import { updatePackingItem, deletePackingItem, reorderPackingItems } from "@/lib/api/contract/packing";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
@@ -24,10 +24,7 @@ export interface PackingHandlers {
   handleRemovePackingItem: (id: string) => Promise<void>;
   handleRemovePackingSection: (id: string, mode: RemovePackingSectionMode) => Promise<void>;
   handleTogglePackingItem: (id: string, isPacked: boolean) => Promise<void>;
-  handleReorderPackingItems: (
-    ordered: { id: string; labelId: string | null; position: number }[],
-    onError?: () => void
-  ) => void;
+  handleReorderPackingItems: (ordered: { id: string; labelId: string | null }[], onError?: () => void) => void;
   handleUpdatePackingItem: (id: string, name: string) => void;
   handlePullTemplates: (templateIds: string[], listId?: string | null) => Promise<PullTemplatesResult | undefined>;
   handleSaveAsTemplate: (name: string) => Promise<string | undefined>;
@@ -54,6 +51,7 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const insertInFlight = useRef(false);
   const updateMutation = useApiMutation(updatePackingItem);
   const deleteMutation = useApiMutation(deletePackingItem);
+  const reorderMutation = useApiMutation(reorderPackingItems);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -164,19 +162,29 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     return patchItem(id, { isPacked });
   }
 
-  function handleReorderPackingItems(
-    ordered: { id: string; labelId: string | null; position: number }[],
-    onError?: () => void
-  ): void {
-    React.startTransition(async () => {
-      try {
-        await reorderPackingItems(trip.id, ordered);
-        router.refresh();
-      } catch (error) {
-        onError?.();
-        toast.error(error instanceof Error ? error.message : "Failed to reorder packing items. Please try again.");
-      }
-    });
+  function handleReorderPackingItems(ordered: { id: string; labelId: string | null }[], onError?: () => void): void {
+    // The view sends one whole list, so the first item names it; null is the default list.
+    const first = detail.packingItems.find((item) => item.id === ordered[0]?.id);
+    if (!first) {
+      // Nothing can be sent, so undo the optimistic drag and reload the stored order.
+      onError?.();
+      router.refresh();
+      return;
+    }
+    const listId = first.listId ?? null;
+    // Drags of one list share a chain, so rapid drags reach the server in order and the last one wins. The hook
+    // toasts the failure (a stale list is a 409); the caller rolls back and the page reloads the stored order.
+    void queueItemWrite(`order:${listId}`, () =>
+      reorderMutation.mutate(
+        { params: { tripId: trip.id }, body: { listId, items: ordered.map(({ id, labelId }) => ({ id, labelId })) } },
+        {
+          onError: () => {
+            onError?.();
+            router.refresh();
+          },
+        }
+      )
+    );
   }
 
   async function handlePullTemplates(

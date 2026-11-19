@@ -38,7 +38,6 @@ import {
   pullTemplatesOntoTrip,
   removePackingSection,
   renamePackingList,
-  reorderPackingItems,
   saveTripListAsTemplate,
 } from "./packing-actions";
 
@@ -178,34 +177,6 @@ describe("packing actions hardening", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips");
     expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("rejects reorderPackingItems when an entry references an invalid labelId", async () => {
-    const tx = {
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi
-        .fn()
-        .mockReturnValueOnce({
-          from: () => ({
-            where: async () => [{ listId: null }],
-          }),
-        })
-        .mockReturnValueOnce({
-          from: () => ({
-            where: async () => [],
-          }),
-        }),
-      update: vi.fn(),
-    };
-
-    db.transaction.mockImplementation(async (callback: (transaction: typeof tx) => Promise<void>) => callback(tx));
-
-    await expect(reorderPackingItems("trip-1", [{ id: "item-1", labelId: "label-1", position: 0 }])).rejects.toThrow(
-      "Invalid labelId: referenced row is not a label or belongs to a different trip"
-    );
-
-    expect(tx.update).not.toHaveBeenCalled();
-    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("sanitizes unexpected packing action failures", async () => {
@@ -706,25 +677,6 @@ describe("packing activity events", () => {
 
     await removePackingSection("label-1", { mode: "delete-items" });
 
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once after a non-empty reorder", async () => {
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ listId: null }])),
-      update: vi.fn(() => ({ set: () => ({ where: async () => undefined }) })),
-    });
-
-    await reorderPackingItems("trip-1", [{ id: "item-1", labelId: null, position: 0 }]);
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing for an empty reorder", async () => {
-    await reorderPackingItems("trip-1", []);
-
-    expect(db.transaction).not.toHaveBeenCalled();
     expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 

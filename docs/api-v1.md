@@ -403,6 +403,16 @@ The item ID must be a UUID. Accepts a strict partial body with optional `name` (
 
 Body: `{ "tripId": "<uuid>" }`. An absent item still returns 204 after trip authorization; an item on another trip returns 404. Deleting a section label ungroups its child items by clearing their `labelId`; it does not delete them. Invalid UUIDs, unknown fields and invalid names return validation errors. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access before returning a cached response.
 
+### PUT /api/v1/trips/:tripId/packing/order
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `{ listId, items }`
+
+Replaces the complete order of one packing list. Body: `{ "listId": "<uuid>" | null, "items": [{ "id": "<uuid>", "labelId": "<uuid>" | null }] }`. `listId: null` is the default list. `items` must name every item and section label the list holds right now, each once, at most 1000; the position is the array index, and `labelId` places an item in a section (a label row of the same list) or ungroups it with `null`. Section labels themselves are listed with `labelId: null`. Unknown fields are rejected.
+
+The response echoes the saved `listId` and `items`, so clients need no refetch. A list already stored in that order and grouping writes nothing and records no activity.
+
+A stale, partial, extra or foreign list (an `id` that is not currently in that list of this trip) returns 409 `conflict` and writes nothing, so the client reloads instead of overwriting another editor's change. A `labelId` that is not a section of the same list, or a label given a `labelId`, returns 422 `validation_failed`. Invalid UUIDs, duplicate ids, a missing `listId`, oversize lists and unknown fields also return 422. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access before returning a cached response.
+
 ## Trip notes
 
 Notes on the trip's Notes tab.

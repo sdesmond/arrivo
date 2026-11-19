@@ -107,10 +107,11 @@ export function PackingListView({
 
   // Reset double-submit guard when the items prop changes (server revalidation completed).
   // React's "derive state from props" pattern: setState during render triggers an immediate re-render.
-  // ID-based comparison handles same-length re-renders where the array reference stays stable.
-  const itemsKey = items.map((item) => item.id).join(",");
-  const prevItemsKey = prevItems.map((item) => item.id).join(",");
-  if (prevItems !== items || itemsKey !== prevItemsKey) {
+  // The parent hands over a fresh array on every render (it filters per list), and a drag's own API call re-renders it
+  // before the saved order arrives, so compare the stored order and grouping rather than the array identity.
+  const itemsKey = items.map((item) => `${item.id}:${item.position ?? ""}:${item.labelId ?? ""}`).join(",");
+  const prevItemsKey = prevItems.map((item) => `${item.id}:${item.position ?? ""}:${item.labelId ?? ""}`).join(",");
+  if (itemsKey !== prevItemsKey) {
     setPrevItems(items);
     setIsSubmitting(false);
     setLocalItems(null);

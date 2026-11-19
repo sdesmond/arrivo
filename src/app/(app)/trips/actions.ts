@@ -50,7 +50,6 @@ import { recordDeletions } from "@/lib/services/deletion-records";
 import {
   addPackingItem as addPackingItemAction,
   pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
-  reorderPackingItems as reorderPackingItemsAction,
   saveTripListAsTemplate as saveTripListAsTemplateAction,
 } from "./packing-actions";
 
@@ -727,13 +726,6 @@ export async function deleteTrip(tripId: string) {
 
 export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
   return addPackingItemAction(tripId, input);
-}
-
-export async function reorderPackingItems(
-  tripId: string,
-  ordered: { id: string; labelId: string | null; position: number }[]
-): Promise<void> {
-  return reorderPackingItemsAction(tripId, ordered);
 }
 
 export async function pullTemplatesOntoTrip(

@@ -14,7 +14,6 @@ vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
   pullTemplatesOntoTrip: vi.fn(),
   removePackingItem: vi.fn(),
-  reorderPackingItems: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
   togglePackingItem: vi.fn(),
   updatePackingItem: vi.fn(),
