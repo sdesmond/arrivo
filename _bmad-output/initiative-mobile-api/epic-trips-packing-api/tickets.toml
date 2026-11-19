@@ -1,0 +1,158 @@
+# Approved epic 5 breakdown. One lane: trips/actions.ts, packing-actions.ts, feature map, docs/api-v1.md and API E2E are shared.
+# Tests, documentation, metadata and feature-map updates ship with each implementation story.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Pack and edit a packing item through the API"
+description = "Tracer: extract the packing service (requireTripRole, afterTripWrite, lockTripForUpdate), add the contract and PATCH/DELETE /packing-items/:id with absolute isPacked and name, and switch use-packing-handlers toggle, rename and remove callers off togglePackingItem/updatePackingItem/removePackingItem."
+verify = "A user checks, renames and removes an item in the packing tab and sees it persist after reload; colocated service, contract, route and handler tests plus packing-tab and API feature/steps prove replayed isPacked:true stays true, missing delete returns 204, viewers get 403 and non-members 404."
+covers = ["T1","T7","T8"]
+after = ["1.10","4.7"]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Reorder packing items through the API"
+description = "Add PUT /trips/:id/packing/order taking the full ordered [{id, labelId}] list for one packing list, rejecting partial, foreign or stale lists, and switch the drag-reorder caller off reorderPackingItems."
+verify = "Colocated service, contract, route and handler tests plus packing-tab, packing-lists and API feature/steps prove drags within and across sections persist after reload (awaiting the API response), mismatched lists are rejected without writes, and rapid reorders serialize."
+covers = ["T3","T7","T8"]
+after = [1]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Add packing items and sections through the API"
+description = "Add POST /trips/:id/packing-items with client UUID, isLabel and afterItemId/beforeItemId placement inside the list scope, plus section removal with an explicit delete-items or move-to-ungrouped mode, switching addPackingItem and removePackingSection callers."
+verify = "Colocated service, contract, route and handler tests plus packing-tab and API feature/steps prove inline inserts land in the right position after reload, a replayed UUID creates one row, labels must belong to the same list, and both section-removal modes persist."
+covers = ["T2","T7","T8"]
+after = [2]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Manage packing lists through the API"
+description = "Add POST /trips/:id/packing-lists and PATCH/DELETE /packing-lists/:id with client UUID, name limits and item cascade, switching createPackingList, renamePackingList and deletePackingList callers."
+verify = "Colocated service, contract, route and handler tests plus packing-lists and API feature/steps prove create, rename and delete persist after reload, deleting a list removes its items, the name limit is enforced, missing rename returns 404 and missing delete 204."
+covers = ["T4","T7","T8"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Pull templates onto a trip through the API"
+description = "Migrate pullTemplatesOntoTrip to an idempotent POST under /trips/:id/packing that adds only the actor's templates, dedupes names case-insensitively, remaps labels and returns {added, skipped}; with entry 4 this delivers the migrated trip-packing list contracts and callers epic 6 waits on, while saveTripListAsTemplate stays a server action for epic 6."
+verify = "Colocated service, contract, route and handler tests plus pull-templates, save-trip-as-template and API feature/steps prove pulled items appear after reload in the chosen list, foreign templates are skipped, a replay adds nothing, and saving a trip list as a template still works."
+covers = ["T4","T7","T8"]
+after = [4]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Edit trip details through the API"
+description = "Extract the trip service and add partial PATCH /trips/:id for name, destination, tags, budget with currency conversion and transitMode (no coverImageUrl, no date change), switch the trips page, trip detail and travel history callers, and retire unused updateTripTransitMode."
+verify = "Colocated service, contract, route and handler tests plus trips, trip-tabs and API feature/steps prove edits from each caller persist after reload, unsent fields stay unchanged, currency conversion recalculates amounts, viewers get 403, and no updateTripTransitMode references remain."
+covers = ["T5","T7","T8"]
+after = [5]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Change trip dates through the API"
+description = "Extend PATCH /trips/:id with date changes: a confirmation-required 409 preview, delete-events or keep-as-unscheduled resolution, stale-confirmation rejection, and file removal through the crash-safe file-cleanup queue, then retire updateTripMetadata."
+verify = "Colocated service, contract, route and handler tests plus trips, trip-tabs and API feature/steps prove a shrinking date range returns the 409 preview, a confirmed apply deletes or unschedules events and reservations as chosen, a stale confirmation fails without writes, and removed documents are queued for cleanup."
+covers = ["T5","T7","T8"]
+after = [6]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Serve the trip snapshot with an ETag"
+description = "Add GET /trips/:id returning TripDetailPayload from getTripDetail with an ETag hashed from the serialized payload and 304 on matching If-None-Match, while pages keep direct reads; it waits on entry 7 only because both edit the same trips/[tripId] route file."
+verify = "Colocated helper, contract and route tests plus API feature/steps prove an unchanged trip yields a stable ETag, any write changes it, a matching If-None-Match returns 304, viewers get the payload, non-members 404, and trip pages still render without calling the endpoint."
+covers = ["T6","T7","T8"]
+after = [7]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Create and list trips through the API"
+description = "Add POST /trips with client UUID, consuming the existing cover search and tile upload unchanged and generating the cover only on first create, plus API-only GET /trips via listTripsForUser, and switch the createTrip caller."
+verify = "Colocated service, contract, route and handler tests plus create-trip, new-trip and API feature/steps prove the new-trip dialog creates and opens a trip, a replayed UUID returns the same trip without a second cover upload, and the list returns only accessible trips with status derived from getNow."
+covers = ["T5","T7","T8"]
+after = [8]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md", "docs/decisions/adr-api-service-boundaries.md"]
+
+[[entry]]
+id = 10
+type = "story"
+title = "Delete a trip through the API"
+description = "Add manager-only DELETE /trips/:id returning 204 when missing, preserving TripDeleted, collaborator user events and purgeTripTopic after commit, moving document file removal onto the file-cleanup queue, and switching the trips page, trip detail and travel history callers."
+verify = "Colocated service, contract, route and handler tests plus trip-delete, trip-live-refresh and API feature/steps prove a manager delete redirects and updates collaborators' open tabs, editors get 403, a repeated delete returns 204 without repeating events, and document files are queued for cleanup."
+covers = ["T5","T7","T8"]
+after = [9]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 11
+type = "story"
+title = "Refactor sweep"
+description = "Read completed epic plans and deferred findings, then remove only epic-created duplication and emptied trip/packing actions and wrappers with matching tests, without moving deferred functionality into cleanup."
+verify = "Targeted trips and packing tests pass and each cleanup traces to a completed plan or review finding; searches enumerate retired exports and prove no remaining migrated-action callers."
+covers = ["T8"]
+after = [1,2,3,4,5,6,7,8,9,10]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 12
+type = "story"
+title = "Verify trips and packing API end to end"
+description = "Close integrated gaps across trip and packing routes under the production build, auditing access, CSRF, replay, ETag, explicit action retirement, API reference and feature-map completeness, with save-trip-as-template run as a coexistence check, scenario-owned fixtures and affected-only validation."
+verify = "API, trips, create-trip, new-trip, trip-tabs, trip-delete, trip-live-refresh, packing-tab, packing-lists, pull-templates and save-trip-as-template feature/step checks pass against the production server using the pilot 1.10 procedure, every Done when line is evidenced, no migrated callers remain, and the final build-validator result is recorded in the plan."
+covers = ["T1","T2","T3","T4","T5","T6","T7","T8"]
+after = [11]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
