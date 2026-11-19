@@ -666,6 +666,8 @@ export const FEATURE_MAP = [
   entry("viewer-trip-access", [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
     "src/components/arrivo/trip-edit-access.tsx",
+    "src/components/arrivo/packing-list*.tsx",
+    "src/components/arrivo/packing-lists-view.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/day-card-header.tsx",
     "src/components/arrivo/day-card-sortables.tsx",

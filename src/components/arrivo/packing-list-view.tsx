@@ -7,6 +7,7 @@ import {
   type PullTemplatesResult,
   type RemovePackingSectionInput,
 } from "@/data/types";
+import { useCanEditTrip } from "./trip-edit-access";
 import { PackingListSortable } from "./packing-list-sortable";
 import { PackingListToolbar } from "./packing-list-toolbar";
 import { ContextualAddForm } from "./packing-contextual-add-form";
@@ -45,6 +46,7 @@ export function PackingListView({
   onPullTemplates,
   onSaveAsTemplate,
 }: PackingListViewProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewSectionForm, setShowNewSectionForm] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
@@ -216,12 +218,12 @@ export function PackingListView({
       <PackingListToolbar
         itemCount={effectiveItems.filter((item) => !item.isLabel).length}
         packedCount={effectiveItems.filter((item) => !item.isLabel && item.done).length}
-        onOpenPullDialog={onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
-        onOpenSaveDialog={onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
-        onOpenNewSection={() => setShowNewSectionForm(true)}
+        onOpenPullDialog={canEdit && onPullTemplates ? () => dialogsRef.current?.openPullDialog() : undefined}
+        onOpenSaveDialog={canEdit && onSaveAsTemplate ? () => dialogsRef.current?.openSaveDialog() : undefined}
+        onOpenNewSection={canEdit ? () => setShowNewSectionForm(true) : undefined}
       />
 
-      {showNewSectionForm && (
+      {canEdit && showNewSectionForm && (
         <ContextualAddForm
           placeholder="New section…"
           isLabel

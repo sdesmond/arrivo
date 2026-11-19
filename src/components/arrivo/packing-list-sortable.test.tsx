@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core";
 import { PackingListSortable } from "./packing-list-sortable";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import { arrayMove, collisionDetection } from "./packing-sort-utils";
 import type { PackingItem } from "@/data/types";
 
@@ -1214,6 +1215,35 @@ describe("PackingListSortable", () => {
     await user.keyboard("{Enter}");
 
     expect(onEditItem).toHaveBeenCalledWith("item-a", "Item A (edited)");
+  });
+});
+
+describe("PackingListSortable — read-only", () => {
+  it("hides every edit control and the ungroup dropzone for a viewer", () => {
+    const { container } = render(
+      <TripEditAccessProvider canEdit={false}>
+        <PackingListSortable
+          items={reorderItems.filter((item) => item.labelId !== null || item.isLabel)}
+          pendingItemIds={new Set()}
+          collapsedLabels={new Set()}
+          onToggleCollapse={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onToggleItem={vi.fn(async () => undefined)}
+          onOptimisticReorder={vi.fn()}
+          onReorderItems={vi.fn()}
+          onEditItem={vi.fn()}
+          onAddItem={vi.fn(async () => undefined)}
+        />
+      </TripEditAccessProvider>
+    );
+
+    expect(screen.getByText("Item A")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Reorder /)).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Remove /)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/add to|Add item/i)).not.toBeInTheDocument();
+    expect(container.querySelector("[data-packing-empty-dropzone]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toBeInTheDocument();
   });
 });
 

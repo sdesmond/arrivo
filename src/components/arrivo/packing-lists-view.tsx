@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pencil, Trash2, ChevronLeft, Plus, Backpack } from "lucide-react";
 import { PackingListView } from "./packing-list-view";
+import { useCanEditTrip } from "./trip-edit-access";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +84,7 @@ export function PackingListsView({
   onRenameList,
   onDeleteList,
 }: PackingListsViewProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [renameState, setRenameState] = useState<RenameState | null>(null);
@@ -158,15 +160,19 @@ export function PackingListsView({
           />
         ) : (
           <h2
-            onClick={() => {
-              setTitleDraft(activeList.name);
-              setIsEditingTitle(true);
-            }}
+            onClick={
+              canEdit
+                ? () => {
+                    setTitleDraft(activeList.name);
+                    setIsEditingTitle(true);
+                  }
+                : undefined
+            }
             style={{
               fontWeight: 600,
               fontSize: "calc(15px * var(--font-scale))",
               color: "var(--fg)",
-              cursor: "pointer",
+              cursor: canEdit ? "pointer" : "default",
             }}
           >
             {activeList.name}
@@ -240,28 +246,32 @@ export function PackingListsView({
                 <Backpack strokeWidth={1.5} />
               </EmptyMedia>
               <EmptyTitle>No packing lists yet</EmptyTitle>
-              <EmptyDescription>Create a list to start organizing your gear.</EmptyDescription>
+              <EmptyDescription>
+                {canEdit ? "Create a list to start organizing your gear." : "No packing lists have been shared yet."}
+              </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <button
-                onClick={() => setShowNewForm(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-lg px-4 transition-colors hover:bg-surface"
-                style={{
-                  fontSize: "calc(13.5px * var(--font-scale))",
-                  color: "var(--fg)",
-                  border: "1px solid var(--line)",
-                  background: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <Plus size={14} strokeWidth={1.5} />
-                New List
-              </button>
-            </EmptyContent>
+            {canEdit ? (
+              <EmptyContent>
+                <button
+                  onClick={() => setShowNewForm(true)}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg px-4 transition-colors hover:bg-surface"
+                  style={{
+                    fontSize: "calc(13.5px * var(--font-scale))",
+                    color: "var(--fg)",
+                    border: "1px solid var(--line)",
+                    background: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Plus size={14} strokeWidth={1.5} />
+                  New List
+                </button>
+              </EmptyContent>
+            ) : null}
           </Empty>
         )}
 
-        {showNewForm ? (
+        {canEdit && showNewForm ? (
           <div className="flex items-center gap-2">
             <input
               autoFocus
@@ -317,6 +327,7 @@ export function PackingListsView({
             </button>
           </div>
         ) : (
+          canEdit &&
           hasLists && (
             <button
               onClick={() => setShowNewForm(true)}
@@ -410,42 +421,46 @@ export function PackingListsView({
                       {itemCount} items
                     </span>
                   )}
-                  <button
-                    aria-label={`Rename "${list.name}"`}
-                    title={`Rename "${list.name}"`}
-                    onClick={(evt) => {
-                      evt.stopPropagation();
-                      setRenameState({ listId: list.id, value: list.name });
-                    }}
-                    className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
-                    style={{
-                      color: "var(--fg-3)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Pencil size={14} strokeWidth={1.5} />
-                  </button>
-                  <button
-                    aria-label={`Delete "${list.name}"`}
-                    title={`Delete "${list.name}"`}
-                    onClick={(evt) => {
-                      evt.stopPropagation();
-                      handleDeleteRequest(list);
-                    }}
-                    className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
-                    style={{
-                      color: "var(--fg-3)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Trash2 size={14} strokeWidth={1.5} />
-                  </button>
+                  {canEdit ? (
+                    <button
+                      aria-label={`Rename "${list.name}"`}
+                      title={`Rename "${list.name}"`}
+                      onClick={(evt) => {
+                        evt.stopPropagation();
+                        setRenameState({ listId: list.id, value: list.name });
+                      }}
+                      className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
+                      style={{
+                        color: "var(--fg-3)",
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Pencil size={14} strokeWidth={1.5} />
+                    </button>
+                  ) : null}
+                  {canEdit ? (
+                    <button
+                      aria-label={`Delete "${list.name}"`}
+                      title={`Delete "${list.name}"`}
+                      onClick={(evt) => {
+                        evt.stopPropagation();
+                        handleDeleteRequest(list);
+                      }}
+                      className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-2"
+                      style={{
+                        color: "var(--fg-3)",
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Trash2 size={14} strokeWidth={1.5} />
+                    </button>
+                  ) : null}
                 </div>
               );
             })}

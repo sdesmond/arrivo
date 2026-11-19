@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListsView } from "./packing-lists-view";
+import { TripEditAccessProvider } from "./trip-edit-access";
 import type { TripPackingList, PackingItem } from "@/data/types";
 
 vi.mock("./packing-list-view", () => ({
@@ -282,5 +283,39 @@ describe("PackingListsView — rename", () => {
     await user.keyboard("{Escape}");
     expect(onRenameList).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Packing list name")).not.toBeInTheDocument();
+  });
+});
+
+describe("PackingListsView — read-only", () => {
+  function renderViewer(packingLists: TripPackingList[]) {
+    return render(
+      <TripEditAccessProvider canEdit={false}>
+        <PackingListsView {...baseProps} packingLists={packingLists} packingItems={items} />
+      </TripEditAccessProvider>
+    );
+  }
+
+  it("shows a shared-empty message without a create button when no lists exist", () => {
+    renderViewer([]);
+    expect(screen.getByText("No packing lists have been shared yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New List" })).not.toBeInTheDocument();
+  });
+
+  it("hides new, rename and delete controls but still opens lists", async () => {
+    const user = userEvent.setup();
+    renderViewer(lists);
+    expect(screen.queryByRole("button", { name: "New List" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: 'Rename "Carry-On"' })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: 'Delete "Carry-On"' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    expect(screen.getByTestId("packing-list-view")).toBeInTheDocument();
+  });
+
+  it("does not turn the list title into an editor", async () => {
+    const user = userEvent.setup();
+    renderViewer(lists);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    await user.click(screen.getByRole("heading", { name: "Carry-On" }));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });

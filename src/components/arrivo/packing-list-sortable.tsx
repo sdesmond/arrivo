@@ -16,6 +16,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { PackingItem } from "@/data/types";
 import { PackingRow, SortablePackingRow } from "./packing-list-row";
 import { ContextualAddForm } from "./packing-contextual-add-form";
+import { useCanEditTrip } from "./trip-edit-access";
 import { DroppablePackingSection } from "./droppable-packing-section";
 import {
   collisionDetection,
@@ -151,6 +152,7 @@ export function PackingListSortable({
   onAnnounceMove,
   isAdding,
 }: PackingListSortableProps): ReactElement {
+  const canEdit = useCanEditTrip();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<PackingItem[] | null>(null);
   const workingItems = localItems ?? items;
@@ -284,7 +286,8 @@ export function PackingListSortable({
     );
   }
 
-  const showUngrouped = ungroupedItems.length > 0 || sections.length > 0 || !!onAddItem;
+  const canAdd = canEdit && !!onAddItem;
+  const showUngrouped = ungroupedItems.length > 0 || (canEdit && sections.length > 0) || canAdd;
 
   return (
     <DndContext
@@ -307,7 +310,7 @@ export function PackingListSortable({
           onRemoveItem={onRemoveItem}
           onToggleItem={onToggleItem}
           onEditItem={onEditItem}
-          onAddItem={onAddItem}
+          onAddItem={canAdd ? onAddItem : undefined}
           isAdding={isAdding}
         />
 
@@ -316,7 +319,7 @@ export function PackingListSortable({
             containerId={containerDomId(UNGROUPED_KEY)}
             sortableIds={ungroupedItems.map((item) => item.id!)}
           >
-            {ungroupedItems.length === 0 ? (
+            {ungroupedItems.length === 0 && canEdit ? (
               <div
                 data-packing-empty-dropzone
                 className="flex min-h-20 items-center justify-center rounded-xl border border-dashed px-4 py-3 text-sm"
@@ -337,7 +340,7 @@ export function PackingListSortable({
                 onEdit={item.id && onEditItem ? (name) => onEditItem(item.id as string, name) : undefined}
               />
             ))}
-            {onAddItem ? (
+            {canAdd ? (
               <div className="mt-1">
                 <ContextualAddForm
                   placeholder="Add item…"

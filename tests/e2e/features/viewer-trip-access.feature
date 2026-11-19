@@ -45,3 +45,15 @@ Feature: Viewer Trip Access
     When I go to the shared trip
     And I open the first itinerary day
     Then I see the itinerary edit controls
+
+  Scenario: A viewer sees the packing list read-only
+    Given I am a viewer on "Nara Weekend" owned by "Ada Lovelace" with a packing list
+    When I go to the shared trip
+    And I open the shared packing list
+    Then I see no packing edit controls
+
+  Scenario: An editor still sees the packing edit controls
+    Given I am an editor on "Kobe Weekend" owned by "Bo Nilsen" with a packing list
+    When I go to the shared trip
+    And I open the shared packing list
+    Then I see the packing edit controls

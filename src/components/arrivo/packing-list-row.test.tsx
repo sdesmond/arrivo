@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingRow, SortablePackingRow } from "./packing-list-row";
+import { TripEditAccessProvider } from "./trip-edit-access";
 
 const useSortableMock = vi.hoisted(() =>
   vi.fn(() => ({
@@ -350,5 +351,34 @@ describe("SortablePackingRow", () => {
   it("does not render drag handle for labels", () => {
     render(<SortablePackingRow id="label-1" item={labelRow} isLabel onRemove={vi.fn()} />);
     expect(screen.queryByLabelText("Reorder Documents")).not.toBeInTheDocument();
+  });
+});
+
+describe("read-only packing rows", () => {
+  function renderReadOnly(ui: React.ReactElement) {
+    return render(<TripEditAccessProvider canEdit={false}>{ui}</TripEditAccessProvider>);
+  }
+
+  it("hides toggle, remove and drag handle for an item, and blocks inline edit", async () => {
+    const onEdit = vi.fn();
+    renderReadOnly(
+      <SortablePackingRow id="item-1" item={itemRow} onRemove={vi.fn()} onToggle={vi.fn()} onEdit={onEdit} />
+    );
+    expect(screen.queryByLabelText("Reorder Passport")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Remove Passport")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("Passport"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("keeps the collapse button but blocks rename and remove for a section label", async () => {
+    renderReadOnly(
+      <PackingRow item={labelRow} isLabel onRemove={vi.fn()} onToggleCollapse={vi.fn()} onEdit={vi.fn()} />
+    );
+    expect(screen.getByRole("button", { name: "Collapse Documents" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Remove Documents")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("Documents"));
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
