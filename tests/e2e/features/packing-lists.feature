@@ -14,6 +14,28 @@ Feature: Multiple packing lists per trip
     And I create a new packing list named "Carry-On"
     Then the packing list library should show "Carry-On"
 
+  Scenario: A created packing list persists after reload
+    When I open the Packing tab
+    And I create a new packing list named "Persisted Kit"
+    And I reload the trip page
+    Then the packing list library should show "Persisted Kit"
+
+  Scenario: A renamed packing list persists after reload
+    Given I have a seeded packing list named "Old Name"
+    When I open the Packing tab
+    And I rename the packing list "Old Name" to "New Name"
+    And I reload the trip page
+    Then the packing list library should show "New Name"
+    And the packing list library should not show "Old Name"
+
+  Scenario: A deleted packing list and its items stay gone after reload
+    Given I have a seeded packing list named "Doomed Kit" holding "Item A, Item B"
+    When I open the Packing tab
+    And I delete the packing list "Doomed Kit"
+    And I reload the trip page
+    Then the packing list library should not show "Doomed Kit"
+    And the stored packing list "Doomed Kit" and its items are gone
+
   Scenario: User drills into a packing list and adds an item
     Given I have a seeded packing list named "Carry-On"
     When I open the Packing tab

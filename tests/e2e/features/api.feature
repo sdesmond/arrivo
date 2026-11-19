@@ -2541,3 +2541,48 @@ Feature: Absolute checklist checked-state API
     Then the scoped packing order API returns 204
     And the named packing list keeps its seeded order
     And the default-list packing item is untouched
+
+  Scenario: Creating a packing list replays its client ID and appends it last
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I create a packing list through the API twice with the same id
+    Then both packing list creations return 200 for one list at position 2
+    And creating the same id with another name returns 409 and the name is unchanged
+
+  Scenario Outline: A packing list name over the limit is rejected without changes
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I <operation> a packing list named with 31 characters
+    Then the packing list API returns 422 with code "validation_failed"
+    And the packing lists are unchanged
+
+    Examples:
+      | operation |
+      | create    |
+      | rename    |
+
+  Scenario: Renaming a packing list returns it and a missing or foreign list is 404
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I rename the packing list through the API
+    Then the packing list API returns the renamed list
+    And renaming a missing packing list returns 404
+
+  Scenario: Deleting a packing list removes its items and leaves the others
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I delete the packing list through the API twice and a missing list once
+    Then the packing list deletions return 204
+    And only the other list and the default items remain
+
+  Scenario Outline: Packing list writes require editor access
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "<role>"
+    When I attempt every packing list write through the API
+    Then every packing list write returns <status> with code "<code>"
+    And the packing lists are unchanged
+
+    Examples:
+      | role     | status | code      |
+      | viewer   | 403    | forbidden |
+      | stranger | 404    | not_found |
