@@ -11,6 +11,7 @@ import { PackingListSortable } from "./packing-list-sortable";
 import { PackingListToolbar } from "./packing-list-toolbar";
 import { ContextualAddForm } from "./packing-contextual-add-form";
 import { PackingListDialogs, type PackingListDialogsHandle, type PendingSectionRemoval } from "./packing-list-dialogs";
+import { groupPackingItems } from "./packing-sort-utils";
 
 export interface PackingListViewProps {
   tripId: string;
@@ -244,6 +245,7 @@ export function PackingListView({
           placeholder="New section…"
           isLabel
           autoFocus
+          beforeItemId={groupPackingItems(effectiveItems).sections[0]?.label.id}
           isAdding={isSubmitting}
           onAddItem={async (name, isLabel, afterItemId, beforeItemId, labelId) => {
             await handleContextualAdd(name, isLabel, afterItemId, beforeItemId, labelId);

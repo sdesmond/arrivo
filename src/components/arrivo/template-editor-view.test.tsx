@@ -140,6 +140,23 @@ describe("TemplateEditorView", () => {
     expect(onAddItem).toHaveBeenCalledWith("Beach Gear", true, undefined, undefined, undefined);
   });
 
+  it("places a new section before the first existing section by position", async () => {
+    const user = userEvent.setup();
+    const onAddItem = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TemplateEditorView
+        template={template}
+        items={[{ ...labelOnlyItems[0], position: 3 }, ...sectionedItems]}
+        onAddItem={onAddItem}
+        onRemoveItem={vi.fn()}
+        onEditItem={vi.fn()}
+        onReorderItems={vi.fn()}
+      />
+    );
+    await user.type(screen.getByPlaceholderText("New section…"), "Camping{Enter}");
+    expect(onAddItem).toHaveBeenCalledWith("Camping", true, undefined, "label-1", undefined);
+  });
+
   it("renders existing items and forwards remove actions", async () => {
     const user = userEvent.setup();
     const onRemoveItem = vi.fn();

@@ -39,6 +39,14 @@ Feature: Template item and label management
     And I add the template label "Beach Gear"
     Then the template editor should contain a label "Beach Gear"
 
+  Scenario: New template sections appear first and stay there after reload
+    Given the template editor "Editor Template" has a label "Beach Gear"
+    When I open the template editor for "Editor Template"
+    And I add the template label "Clothes"
+    Then the first template section should be "Clothes"
+    When I reload the page
+    Then the first template section should be "Clothes"
+
   Scenario: Rename a template label and keep it after reload
     Given the template editor "Editor Template" has a label "Beach Gear"
     When I open the template editor for "Editor Template"

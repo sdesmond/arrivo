@@ -383,6 +383,10 @@ Then("the packing list should contain {string}", async ({ page }, name: string) 
   await expect(page.locator("[data-packing-kind]").filter({ hasText: name }).first()).toBeVisible();
 });
 
+Then("the first packing section should be {string}", async ({ page }, name: string) => {
+  await expect(page.locator('[data-packing-kind="label"]').first()).toContainText(name);
+});
+
 Then("the packing list should show the label {string}", async ({ page }, name: string) => {
   const labelRow = page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first();
   await expect(labelRow).toBeVisible();

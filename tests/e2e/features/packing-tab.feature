@@ -25,6 +25,14 @@ Feature: Packing tab
     When I reload the trip page
     Then the packing list should not contain "Documents"
 
+  Scenario: New sections appear above existing sections and stay there after reload
+    When I open the Packing tab
+    And I add a packing label named "Documents"
+    And I add a packing label named "Clothes"
+    Then the first packing section should be "Clothes"
+    When I reload the trip page
+    Then the first packing section should be "Clothes"
+
   Scenario: Items added via the general form are ungrouped, not filed under a section
     When I open the Packing tab
     And I add a packing label named "Electronics"

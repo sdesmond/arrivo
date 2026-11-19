@@ -227,6 +227,27 @@ describe("PackingListView", () => {
     expect(screen.queryByPlaceholderText("New section…")).not.toBeInTheDocument();
   });
 
+  it.each([
+    { items: [...groupedItems].reverse(), beforeId: "label-1" },
+    { items: [], beforeId: undefined },
+  ])("places a new section before the first section, if present", async ({ items, beforeId }) => {
+    const onAddItem = createAddItemHandler();
+    const user = userEvent.setup();
+    render(
+      <PackingListView
+        tripId="trip-1"
+        items={items}
+        onAddItem={onAddItem}
+        onRemoveItem={createRemoveItemHandler()}
+        onToggleItem={createToggleItemHandler()}
+        onReorderItems={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "New section" }));
+    await user.type(screen.getByPlaceholderText("New section…"), "Camping{Enter}");
+    expect(onAddItem).toHaveBeenCalledWith("Camping", true, undefined, beforeId, undefined);
+  });
+
   it("renders section labels distinctly and keeps ungrouped items below labeled sections", () => {
     const { container } = render(
       <PackingListView

@@ -13,6 +13,7 @@ import {
 import { PackingListSortable } from "./packing-list-sortable";
 import { DeletePackingSectionAlertDialog } from "./delete-packing-section-alert-dialog";
 import { ContextualAddForm } from "./packing-contextual-add-form";
+import { groupPackingItems } from "./packing-sort-utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface TemplateEditorViewProps {
@@ -237,6 +238,7 @@ export function TemplateEditorView({
       <ContextualAddForm
         placeholder="New section…"
         isLabel
+        beforeItemId={groupPackingItems(packingItems).sections[0]?.label.id}
         isAdding={isAdding}
         onAddItem={(text, labelFlag, afterItemId, beforeItemId, labelId) =>
           onAddItem(text, labelFlag, afterItemId, beforeItemId, labelId)
