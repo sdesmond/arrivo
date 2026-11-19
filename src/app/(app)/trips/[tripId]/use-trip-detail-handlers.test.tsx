@@ -6,10 +6,8 @@ import {
   addPackingItem,
   deleteTrip,
   pullTemplatesOntoTrip,
-  removePackingItem,
   reorderPackingItems,
   saveTripListAsTemplate,
-  updatePackingItem,
 } from "../actions";
 import { removePackingSection } from "../packing-actions";
 import { RemovePackingSectionMode, type TripDetailPayload } from "@/data/types";
@@ -31,10 +29,8 @@ vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
   deleteTrip: vi.fn(),
   pullTemplatesOntoTrip: vi.fn(),
-  removePackingItem: vi.fn(),
   reorderPackingItems: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
-  updatePackingItem: vi.fn(),
   updateTripMetadata: vi.fn(),
 }));
 
@@ -607,43 +603,17 @@ describe("useTripDetailHandlers", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add failed"));
   });
 
-  it("removes packing items by id", async () => {
-    vi.mocked(removePackingItem).mockResolvedValueOnce(undefined);
-
+  it("removes packing items through the trip-scoped API", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce(null);
     const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleRemovePackingItem("pack-1");
+    await act(async () => {
+      await result.current.handleRemovePackingItem("pack-1");
     });
-
-    await waitFor(() => expect(removePackingItem).toHaveBeenCalledWith("pack-1"));
-  });
-
-  it("handleRemovePackingItem resolves the returned promise on success", async () => {
-    vi.mocked(removePackingItem).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let removePromise: Promise<void> | undefined;
-    act(() => {
-      removePromise = result.current.handleRemovePackingItem("pack-1");
+    expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE" }), {
+      params: { itemId: "pack-1" },
+      body: { tripId: "trip-1" },
     });
-
-    await expect(removePromise).resolves.toBeUndefined();
-  });
-
-  it("handleRemovePackingItem rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(removePackingItem).mockRejectedValueOnce(new Error("Remove failed"));
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let removePromise: Promise<void> | undefined;
-    act(() => {
-      removePromise = result.current.handleRemovePackingItem("pack-1");
-    });
-
-    await expect(removePromise).rejects.toThrow("Remove failed");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Remove failed"));
   });
 
   it("removes a packing section with the selected mode", async () => {
@@ -738,28 +708,17 @@ describe("useTripDetailHandlers", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("handleUpdatePackingItem calls updatePackingItem server action with id and name", async () => {
-    vi.mocked(updatePackingItem).mockResolvedValueOnce(undefined);
-
+  it("renames packing items through the API", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({});
     const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleUpdatePackingItem("pack-1", "Passport (renewed)");
-    });
-
-    await waitFor(() => expect(updatePackingItem).toHaveBeenCalledWith("pack-1", { name: "Passport (renewed)" }));
-  });
-
-  it("handleUpdatePackingItem surfaces a toast when the server action fails", async () => {
-    vi.mocked(updatePackingItem).mockRejectedValueOnce(new Error("Update failed"));
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleUpdatePackingItem("pack-1", "Passport (renewed)");
-    });
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update failed"));
+    act(() => result.current.handleUpdatePackingItem("pack-1", "Boots"));
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" }), {
+        params: { itemId: "pack-1" },
+        body: { name: "Boots" },
+      })
+    );
   });
 
   it("handleAddPackingItem passes afterItemId to the server action when provided", async () => {

@@ -24,7 +24,7 @@ export interface PackingListViewProps {
   ) => Promise<void>;
   onRemoveItem: (id: string) => Promise<void>;
   onRemoveSection?: (id: string, input: RemovePackingSectionInput) => Promise<void>;
-  onToggleItem: (id: string) => Promise<void>;
+  onToggleItem: (id: string, isPacked: boolean) => Promise<void>;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
   templates?: PackingTemplate[];
@@ -48,7 +48,19 @@ export function PackingListView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewSectionForm, setShowNewSectionForm] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
-  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
+  const [pendingToggles, setPendingToggles] = useState(new Map<string, { value: boolean; settled: boolean }>());
+  const completedToggleIds = [...pendingToggles]
+    .filter(([id, pending]) => {
+      const item = items.find((candidate) => candidate.id === id);
+      return pending.settled && (!item || item.done === pending.value);
+    })
+    .map(([id]) => id);
+  if (completedToggleIds.length > 0) {
+    const remaining = new Map(pendingToggles);
+    for (const id of completedToggleIds) remaining.delete(id);
+    setPendingToggles(remaining);
+  }
+  const pendingItemIds = new Set(pendingToggles.keys());
   const [pendingSectionRemoval, setPendingSectionRemoval] = useState<PendingSectionRemoval | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [announcementId, setAnnouncementId] = useState(0);
@@ -101,7 +113,6 @@ export function PackingListView({
   if (prevItems !== items || itemsKey !== prevItemsKey) {
     setPrevItems(items);
     setIsSubmitting(false);
-    setPendingItemIds(new Set());
     setLocalItems(null);
   }
 
@@ -155,17 +166,23 @@ export function PackingListView({
   async function handleToggle(item: PackingItem): Promise<void> {
     if (!item.id || pendingItemIds.has(item.id)) return;
 
-    setPendingItemIds((ids) => new Set(ids).add(item.id!));
+    const value = !item.done;
+    setPendingToggles((current) => new Map(current).set(item.id!, { value, settled: false }));
 
     try {
-      await onToggleItem(item.id);
+      await onToggleItem(item.id, value);
+      setPendingToggles((current) => {
+        const next = new Map(current);
+        next.set(item.id!, { value, settled: true });
+        return next;
+      });
       const action = item.done ? "unchecked" : "checked";
       announce(`${item.name} ${action}.`);
     } catch {
-      setPendingItemIds((ids) => {
-        const nextIds = new Set(ids);
-        nextIds.delete(item.id!);
-        return nextIds;
+      setPendingToggles((current) => {
+        const next = new Map(current);
+        next.delete(item.id!);
+        return next;
       });
       announce(`Failed to update ${item.name}.`);
     }

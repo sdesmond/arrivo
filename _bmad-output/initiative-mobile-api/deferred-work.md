@@ -201,3 +201,10 @@
   summary: Move deletion-concurrency accept fixtures from the unused `acceptInvitationWrite` wrapper onto the service/POST path.
   evidence: Production accept now runs lock, recheck and idempotency in `services/sharing.ts`; `deletion-concurrency.steps.ts` still calls the outer writer, so its real-lock interleavings cover a path production no longer uses (same as 4.1/4.2).
   completed: 2026-11-18 on `fix/epic-4-retrospective`. Authenticated POST races cover both invitee-deletion orders and owner deletion against a held membership insert, with scenario-owned rows and observed PostgreSQL blockers. The complete deletion-concurrency feature passed.
+
+- source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
+  summary: Increase existing packing list overview controls to the required interactive target size.
+  evidence: The extracted overview retains pre-existing 32px icon buttons and 36px create and cancel controls.
+- source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
+  summary: Investigate whether a refresh transition can remain unresolved and block the shared refresh queue.
+  evidence: Unverified; demonstrate a reachable transition that never settles or unmounts before adding recovery.

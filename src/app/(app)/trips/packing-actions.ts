@@ -13,7 +13,6 @@ import type {
   PullTemplatesResult,
   RemovePackingSectionInput,
   SaveTripAsTemplateResult,
-  UpdatePackingItemInput,
 } from "@/data/types";
 import { RemovePackingSectionMode } from "@/data/types";
 import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
@@ -193,59 +192,6 @@ async function addPackingItemImpl(tripId: string, input: AddPackingItemInput): P
 
   recordTripUpdated(user.id!, tripId);
   revalidatePath(`/trips/${tripId}`);
-  revalidatePath("/trips");
-}
-
-async function updatePackingItemImpl(itemId: string, input: UpdatePackingItemInput): Promise<void> {
-  const user = await requireUser();
-  const name = normalizePackingItemName(input.name);
-  const [item] = await db.select({ tripId: packingItems.tripId }).from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) {
-    throw new Error("Packing item not found");
-  }
-  await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.update(packingItems).set({ name }).where(eq(packingItems.id, itemId));
-  recordTripUpdated(user.id!, item.tripId);
-  revalidatePath(`/trips/${item.tripId}`);
-  revalidatePath("/trips");
-}
-
-async function togglePackingItemImpl(itemId: string): Promise<void> {
-  const user = await requireUser();
-  const [item] = await db.select({ tripId: packingItems.tripId }).from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) {
-    return;
-  }
-  await assertTripAccess(item.tripId, user.id!, "editor");
-
-  let toggled = false;
-  await db.transaction(async (tx) => {
-    await lockTripForUpdate(tx, item.tripId);
-
-    const [lockedItem] = await tx.select().from(packingItems).where(eq(packingItems.id, itemId));
-    if (!lockedItem) {
-      return;
-    }
-
-    await tx.update(packingItems).set({ done: !lockedItem.done }).where(eq(packingItems.id, itemId));
-    toggled = true;
-  });
-
-  if (toggled) recordTripUpdated(user.id!, item.tripId);
-  revalidatePath(`/trips/${item.tripId}`);
-  revalidatePath("/trips");
-}
-
-async function removePackingItemImpl(itemId: string): Promise<void> {
-  const user = await requireUser();
-  const [item] = await db.select().from(packingItems).where(eq(packingItems.id, itemId));
-  if (!item) {
-    return;
-  }
-  await assertTripAccess(item.tripId, user.id!, "editor");
-  await db.delete(packingItems).where(eq(packingItems.id, itemId));
-  recordTripUpdated(user.id!, item.tripId);
-  revalidatePath(`/trips/${item.tripId}`);
   revalidatePath("/trips");
 }
 
@@ -564,9 +510,6 @@ async function saveTripListAsTemplateImpl(
 }
 
 const addPackingItemWithErrorHandling = withErrorHandling(addPackingItemImpl);
-const updatePackingItemWithErrorHandling = withErrorHandling(updatePackingItemImpl);
-const togglePackingItemWithErrorHandling = withErrorHandling(togglePackingItemImpl);
-const removePackingItemWithErrorHandling = withErrorHandling(removePackingItemImpl);
 const removePackingSectionWithErrorHandling = withErrorHandling(removePackingSectionImpl);
 const reorderPackingItemsWithErrorHandling = withErrorHandling(reorderPackingItemsImpl);
 const pullTemplatesOntoTripWithErrorHandling = withErrorHandling(pullTemplatesOntoTripImpl);
@@ -574,18 +517,6 @@ const saveTripListAsTemplateWithErrorHandling = withErrorHandling(saveTripListAs
 
 export async function addPackingItem(tripId: string, input: AddPackingItemInput): Promise<void> {
   return addPackingItemWithErrorHandling(tripId, input);
-}
-
-export async function updatePackingItem(itemId: string, input: UpdatePackingItemInput): Promise<void> {
-  return updatePackingItemWithErrorHandling(itemId, input);
-}
-
-export async function togglePackingItem(itemId: string): Promise<void> {
-  return togglePackingItemWithErrorHandling(itemId);
-}
-
-export async function removePackingItem(itemId: string): Promise<void> {
-  return removePackingItemWithErrorHandling(itemId);
 }
 
 export async function removePackingSection(sectionId: string, input: RemovePackingSectionInput): Promise<void> {

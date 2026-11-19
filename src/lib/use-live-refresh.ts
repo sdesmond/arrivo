@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SyncConnectionStatus } from "@/data/types";
 import type { LiveSyncEvent } from "@/data/types";
+import { coordinateRefresh } from "./refresh-coordinator";
 import { useLiveSync } from "./use-live-sync";
 
 /**
@@ -40,6 +41,8 @@ export function useLiveRefresh(
 ): void {
   const router = useRouter();
   const generationRef = useRef(0);
+  const [refreshPending, startTransition] = useTransition();
+  const refreshWaiters = useRef(new Set<() => void>());
   const hasConnectedOnceRef = useRef(false);
 
   function triggerRefresh(): void {
@@ -47,7 +50,19 @@ export function useLiveRefresh(
     generationRef.current = generation;
     Promise.resolve().then(() => {
       if (generationRef.current !== generation) return;
-      router.refresh();
+      void coordinateRefresh(() => {
+        if (generationRef.current !== generation) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          refreshWaiters.current.add(resolve);
+          try {
+            startTransition(() => router.refresh());
+          } catch (error) {
+            refreshWaiters.current.delete(resolve);
+            resolve();
+            throw error;
+          }
+        });
+      }).catch((error: unknown) => console.error("Live refresh failed:", error));
     });
   }
 
@@ -57,6 +72,19 @@ export function useLiveRefresh(
   }
 
   const status = useLiveSync(url, handleLiveSyncEvent);
+
+  useEffect(() => {
+    if (refreshPending) return;
+    for (const resolve of refreshWaiters.current) resolve();
+    refreshWaiters.current.clear();
+  }, [refreshPending]);
+  useEffect(() => {
+    const waiters = refreshWaiters.current;
+    return () => {
+      for (const resolve of waiters) resolve();
+      waiters.clear();
+    };
+  }, []);
 
   // A fresh url means a fresh channel: the next Connected transition is an initial connect again,
   // and any trigger still in flight for the previous channel is invalidated.

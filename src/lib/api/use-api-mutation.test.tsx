@@ -297,7 +297,7 @@ it("continues through a middle failure so the final absolute write wins", async 
   expect(error).toHaveBeenCalledWith("Middle write failed");
 });
 
-it("starts B2 when B props commit while A refresh remains pending", async () => {
+it("starts B2 only after B refresh begins and its props commit", async () => {
   let releaseFirstRefresh!: () => void;
   const firstRefresh = new Promise<void>((resolve) => {
     releaseFirstRefresh = resolve;
@@ -323,13 +323,14 @@ it("starts B2 when B props commit while A refresh remains pending", async () => 
     await Promise.resolve();
   });
   expect(api).toHaveBeenCalledTimes(2);
+  expect(api).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    releaseFirstRefresh();
+  });
   await act(async () => {
     commitSecondProps();
   });
   expect(api).toHaveBeenCalledTimes(3);
-  await act(async () => {
-    releaseFirstRefresh();
-  });
   router.refresh.mockReset();
 });
 
@@ -569,4 +570,68 @@ it("does not report a rejecting waitForRefresh as a failed keyed save", async ()
   expect(error).not.toHaveBeenCalled();
   expect(onError).not.toHaveBeenCalled();
   logged.mockRestore();
+});
+
+it("waits for an earlier coordinated refresh before starting its own", async () => {
+  const { coordinateRefresh } = await import("@/lib/refresh-coordinator");
+  let release: () => void = () => {};
+  const prior = coordinateRefresh(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      })
+  );
+  api.mockResolvedValue({ id: "item" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input);
+  });
+  expect(router.refresh).not.toHaveBeenCalled();
+  await act(async () => {
+    release();
+    await prior;
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(router.refresh).toHaveBeenCalledOnce();
+});
+
+it("does not let props observed before a queued refresh starts release its resource queue", async () => {
+  const { coordinateRefresh } = await import("@/lib/refresh-coordinator");
+  let releaseEarlier: () => void = () => {};
+  const earlier = coordinateRefresh(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseEarlier = resolve;
+      })
+  );
+  let resolveProps: () => void = () => {};
+  const props = new Promise<void>((resolve) => {
+    resolveProps = resolve;
+  });
+  const waitForRefresh = vi.fn(() => props);
+  api.mockResolvedValue({ id: "item" });
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  act(() => {
+    void result.current.mutate(input, { key: "item", waitForRefresh });
+    void result.current.mutate({ ...input, body: { isChecked: false } }, { key: "item" });
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(waitForRefresh).not.toHaveBeenCalled();
+  resolveProps();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    releaseEarlier();
+    await earlier;
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(2);
 });

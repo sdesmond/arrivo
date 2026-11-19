@@ -389,6 +389,20 @@ Body: `{ "tripId": "<uuid>" }`. The checklist's items go with it.
 
 Body: `{ "tripId": "<uuid>" }`.
 
+## Packing items
+
+### PATCH /api/v1/packing-items/:itemId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `PackingItem`
+
+The item ID must be a UUID. Accepts a strict partial body with optional `name` (string, trimmed, 1–30 characters) and `isPacked` (boolean). Both fields apply to section labels as well as ordinary items. Returns the mapped item with `id`, `tripId`, `listId`, `name`, `done`, `position`, `isLabel` and `labelId`; `done` reflects `isPacked`. An empty or unchanged patch writes nothing. Repeating an absolute state does not toggle it. Invalid UUIDs, unknown fields and invalid names return validation errors. Viewers receive 403 and non-members receive 404. Keyed replay rechecks current access.
+
+### DELETE /api/v1/packing-items/:itemId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `204`
+
+Body: `{ "tripId": "<uuid>" }`. An absent item still returns 204 after trip authorization; an item on another trip returns 404. Deleting a section label ungroups its child items by clearing their `labelId`; it does not delete them. Invalid UUIDs, unknown fields and invalid names return validation errors. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access before returning a cached response.
+
 ## Trip notes
 
 Notes on the trip's Notes tab.

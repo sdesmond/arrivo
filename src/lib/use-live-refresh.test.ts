@@ -156,3 +156,39 @@ describe("useLiveRefresh", () => {
     expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 });
+
+it("queues a mutation refresh until an in-flight live transition settles", async () => {
+  const { use, useState } = await import("react");
+  const { useApiMutation } = await import("./api/use-api-mutation");
+  const { updateChecklistItem } = await import("./api/contract/checklists");
+  const client = await import("./api/client");
+  const apiSpy = vi.spyOn(client, "api").mockResolvedValue({ id: "item" });
+  let finish: () => void = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const { result } = renderHook(() => {
+    const [pending, setPending] = useState<Promise<void> | null>(null);
+    useLiveRefresh("/channel", () => true);
+    const mutation = useApiMutation(updateChecklistItem);
+    mockRouterRefresh.mockImplementationOnce(() => setPending(blocked));
+    if (pending) use(pending);
+    return mutation;
+  });
+  connect();
+  await flushMicrotasks();
+  act(() => channel.emit(itineraryChanged));
+  await flushMicrotasks();
+  expect(mockRouterRefresh).toHaveBeenCalledOnce();
+  await act(async () => {
+    await result.current.mutate({ params: { itemId: "item" }, body: { isChecked: true } });
+  });
+  expect(mockRouterRefresh).toHaveBeenCalledOnce();
+  await act(async () => {
+    finish();
+    await blocked;
+  });
+  await flushMicrotasks();
+  expect(mockRouterRefresh).toHaveBeenCalledTimes(2);
+  apiSpy.mockRestore();
+});

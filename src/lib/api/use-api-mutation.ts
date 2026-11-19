@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { z } from "zod";
 import type { Endpoint } from "./endpoint";
 import { api, ApiClientError } from "./client";
+import { coordinateRefresh } from "@/lib/refresh-coordinator";
 
 /** Field errors are kept per resource key; a write without a key shares this one. */
 const UNKEYED = "";
@@ -92,26 +93,41 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
           reportAfterCommit(afterCommitError);
         }
         try {
-          if (options.key) {
-            let releaseRefresh!: () => void;
-            const transitionSettled = new Promise<void>((resolve) => {
-              releaseRefresh = resolve;
+          let releaseProps: (() => void) | undefined;
+          const propsSettled =
+            options.key && options.waitForRefresh
+              ? new Promise<void>((resolve) => {
+                  releaseProps = resolve;
+                })
+              : undefined;
+          const transitionSettled = coordinateRefresh(() => {
+            if (!mounted.current || authLost.current) return Promise.resolve();
+            if (releaseProps && options.waitForRefresh) {
+              try {
+                void options.waitForRefresh(result).then(releaseProps, (error: unknown) => {
+                  reportAfterCommit(error);
+                  releaseProps?.();
+                });
+              } catch (afterCommitError) {
+                reportAfterCommit(afterCommitError);
+                releaseProps();
+              }
+            }
+            return new Promise<void>((resolve) => {
               refreshWaiters.current.add(resolve);
+              try {
+                startTransition(() => router.refresh());
+              } catch (error) {
+                refreshWaiters.current.delete(resolve);
+                resolve();
+                reportAfterCommit(error);
+              }
             });
-            let propsSettled: Promise<void> | undefined;
-            try {
-              propsSettled = options.waitForRefresh?.(result);
-            } catch (afterCommitError) {
-              reportAfterCommit(afterCommitError);
-            }
-            try {
-              startTransition(() => router.refresh());
-              await (propsSettled ? Promise.race([propsSettled, transitionSettled]) : transitionSettled);
-            } finally {
-              refreshWaiters.current.delete(releaseRefresh);
-            }
+          });
+          if (options.key) {
+            await (propsSettled ? Promise.race([propsSettled, transitionSettled]) : transitionSettled);
           } else {
-            startTransition(() => router.refresh());
+            void transitionSettled.catch(reportAfterCommit);
           }
         } catch (afterCommitError) {
           reportAfterCommit(afterCommitError);

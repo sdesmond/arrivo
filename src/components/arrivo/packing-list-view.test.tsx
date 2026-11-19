@@ -55,7 +55,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuSeparator: () => <hr />,
 }));
 
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PackingListView } from "./packing-list-view";
 import { RemovePackingSectionMode, type PackingItem, type PackingTemplate } from "@/data/types";
@@ -369,7 +369,7 @@ describe("PackingListView", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
 
-    await waitFor(() => expect(onToggleItem).toHaveBeenCalledWith("ungrouped-1"));
+    await waitFor(() => expect(onToggleItem).toHaveBeenCalledWith("ungrouped-1", true));
   });
 
   it("does not render a checkbox button for section labels", () => {
@@ -1666,4 +1666,53 @@ describe("PackingListView save-as-template", () => {
 
     expect(screen.queryByRole("dialog", { name: "Save as template" })).not.toBeInTheDocument();
   });
+});
+
+it("keeps a toggle disabled when unrelated props refresh before its write settles", async () => {
+  const user = userEvent.setup();
+  let finish: () => void = () => {};
+  const onToggleItem = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      })
+  );
+  const props = {
+    tripId: "trip-1",
+    items: groupedItems,
+    onAddItem: createAddItemHandler(),
+    onRemoveItem: createRemoveItemHandler(),
+    onToggleItem,
+    onReorderItems: vi.fn(),
+  };
+  const { rerender } = render(<PackingListView {...props} />);
+  await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+  rerender(<PackingListView {...props} items={groupedItems.map((item) => ({ ...item }))} />);
+  await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+  expect(onToggleItem).toHaveBeenCalledOnce();
+  finish();
+});
+
+it("forgets completed toggles after matching props so later remote changes do not disable the item", async () => {
+  const user = userEvent.setup();
+  const onToggleItem = vi.fn(async () => {});
+  const props = {
+    tripId: "trip-1",
+    items: groupedItems,
+    onAddItem: createAddItemHandler(),
+    onRemoveItem: createRemoveItemHandler(),
+    onToggleItem,
+    onReorderItems: vi.fn(),
+  };
+  const { rerender } = render(<PackingListView {...props} />);
+  await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+  rerender(
+    <PackingListView
+      {...props}
+      items={groupedItems.map((item) => (item.id === "ungrouped-1" ? { ...item, done: true } : item))}
+    />
+  );
+  rerender(<PackingListView {...props} items={groupedItems.map((item) => ({ ...item }))} />);
+  await user.click(screen.getByRole("checkbox", { name: "Pack Passport" }));
+  expect(onToggleItem).toHaveBeenCalledTimes(2);
 });

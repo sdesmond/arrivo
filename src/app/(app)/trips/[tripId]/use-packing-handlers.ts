@@ -4,16 +4,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import {
-  addPackingItem,
-  pullTemplatesOntoTrip,
-  removePackingItem,
-  reorderPackingItems,
-  saveTripListAsTemplate,
-  togglePackingItem,
-  updatePackingItem,
-} from "../actions";
+import { addPackingItem, pullTemplatesOntoTrip, reorderPackingItems, saveTripListAsTemplate } from "../actions";
 import { removePackingSection, createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
+import { updatePackingItem, deletePackingItem } from "@/lib/api/contract/packing";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
@@ -30,7 +23,7 @@ export interface PackingHandlers {
   ) => Promise<void>;
   handleRemovePackingItem: (id: string) => Promise<void>;
   handleRemovePackingSection: (id: string, mode: RemovePackingSectionMode) => Promise<void>;
-  handleTogglePackingItem: (id: string) => Promise<void>;
+  handleTogglePackingItem: (id: string, isPacked: boolean) => Promise<void>;
   handleReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],
     onError?: () => void
@@ -50,12 +43,17 @@ export interface PackingHandlers {
   newlyCreatedChecklistId: string | null;
 }
 
+// Writes outlive a tab or page remount; the newest promise is retained until it settles.
+const packingItemWrites = new Map<string, Promise<void>>();
+
 export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const { trip, days } = detail;
   const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const insertMutation = useApiMutation(createChecklist);
   const insertInFlight = useRef(false);
+  const updateMutation = useApiMutation(updatePackingItem);
+  const deleteMutation = useApiMutation(deletePackingItem);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -90,28 +88,59 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     });
   }
 
-  function handleUpdatePackingItem(id: string, name: string): void {
-    React.startTransition(async () => {
-      try {
-        await updatePackingItem(id, { name });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update packing item. Please try again.");
+  function queueItemWrite(id: string, write: () => Promise<void>): Promise<void> {
+    const key = `${trip.id}:${id}`;
+    const previous = packingItemWrites.get(key);
+    const pending = previous ? previous.then(write, write) : write();
+    packingItemWrites.set(key, pending);
+    void pending.then(
+      () => {
+        if (packingItemWrites.get(key) === pending) packingItemWrites.delete(key);
+      },
+      () => {
+        if (packingItemWrites.get(key) === pending) packingItemWrites.delete(key);
       }
+    );
+    return pending;
+  }
+
+  function patchItem(id: string, body: { name?: string; isPacked?: boolean }): Promise<void> {
+    return queueItemWrite(id, async () => {
+      let failure: unknown;
+      await updateMutation.mutate(
+        { params: { itemId: id }, body },
+        {
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
+        }
+      );
+      if (failure) throw failure;
     });
   }
 
+  function handleUpdatePackingItem(id: string, name: string): void {
+    void patchItem(id, { name }).catch(() => {});
+  }
+
   function handleRemovePackingItem(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await removePackingItem(id);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to remove packing entry. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    return queueItemWrite(id, async () => {
+      let failure: unknown;
+      await deleteMutation.mutate(
+        { params: { itemId: id }, body: { tripId: trip.id } },
+        {
+          onError: (error) => {
+            failure = error;
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
-      });
+      );
+      if (failure) throw failure;
     });
   }
 
@@ -131,19 +160,8 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     });
   }
 
-  function handleTogglePackingItem(id: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await togglePackingItem(id);
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to update packing item. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
-        }
-      });
-    });
+  function handleTogglePackingItem(id: string, isPacked: boolean): Promise<void> {
+    return patchItem(id, { isPacked });
   }
 
   function handleReorderPackingItems(

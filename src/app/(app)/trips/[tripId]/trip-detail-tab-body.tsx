@@ -86,7 +86,7 @@ export interface TripDetailTabBodyProps {
   ) => Promise<void>;
   onRemovePackingItem: (id: string) => Promise<void>;
   onRemovePackingSection: (id: string, input: RemovePackingSectionInput) => Promise<void>;
-  onTogglePackingItem: (id: string) => Promise<void>;
+  onTogglePackingItem: (id: string, isPacked: boolean) => Promise<void>;
   onReorderPackingItems: (
     ordered: { id: string; labelId: string | null; position: number }[],
     onError?: () => void

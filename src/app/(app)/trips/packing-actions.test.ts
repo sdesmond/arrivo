@@ -36,13 +36,10 @@ import {
   createPackingList,
   deletePackingList,
   pullTemplatesOntoTrip,
-  removePackingItem,
   removePackingSection,
   renamePackingList,
   reorderPackingItems,
   saveTripListAsTemplate,
-  togglePackingItem,
-  updatePackingItem,
 } from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
@@ -688,76 +685,6 @@ describe("packing activity events", () => {
     db.select.mockReset();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("records once when a packing item is renamed", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
-    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
-
-    await updatePackingItem("item-1", { name: "Socks" });
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when renaming a missing packing item", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
-
-    await expect(updatePackingItem("item-1", { name: "Socks" })).rejects.toThrow();
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once when a packing item is toggled", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", done: false }])),
-      update: vi.fn(() => ({ set: () => ({ where: updateWhere }) })),
-    });
-
-    await togglePackingItem("item-1");
-
-    expect(updateWhere).toHaveBeenCalledOnce();
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when the toggled item is gone before the lock", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([])),
-      update: vi.fn(),
-    });
-
-    await togglePackingItem("item-1");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records nothing when toggling a missing item", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
-
-    await togglePackingItem("item-1");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once when a packing item is removed", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "item-1", tripId: "trip-1" }]));
-    db.delete.mockReturnValue({ where: async () => undefined });
-
-    await removePackingItem("item-1");
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when removing a missing item", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
-
-    await removePackingItem("item-1");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("records nothing when the section is gone before the lock", async () => {
