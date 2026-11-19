@@ -50,11 +50,8 @@ import { recordDeletions } from "@/lib/services/deletion-records";
 import {
   addPackingItem as addPackingItemAction,
   pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
-  removePackingItem as removePackingItemAction,
   reorderPackingItems as reorderPackingItemsAction,
   saveTripListAsTemplate as saveTripListAsTemplateAction,
-  togglePackingItem as togglePackingItemAction,
-  updatePackingItem as updatePackingItemAction,
 } from "./packing-actions";
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
@@ -730,21 +727,6 @@ export async function deleteTrip(tripId: string) {
 
 export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
   return addPackingItemAction(tripId, input);
-}
-
-export async function updatePackingItem(
-  itemId: string,
-  input: import("@/data/types").UpdatePackingItemInput
-): Promise<void> {
-  return updatePackingItemAction(itemId, input);
-}
-
-export async function togglePackingItem(itemId: string): Promise<void> {
-  return togglePackingItemAction(itemId);
-}
-
-export async function removePackingItem(itemId: string): Promise<void> {
-  return removePackingItemAction(itemId);
 }
 
 export async function reorderPackingItems(

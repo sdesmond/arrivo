@@ -219,3 +219,76 @@ describe("handleInsertFromPackingSource", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("packing item API writes", () => {
+  it("sends absolute packed state and trip-scoped deletion", async () => {
+    const { result } = renderHook(() => usePackingHandlers(detail));
+    await act(async () => {
+      await result.current.handleTogglePackingItem(sourceId, true);
+    });
+    await act(async () => {
+      await result.current.handleRemovePackingItem(sourceId);
+    });
+    expect(api.mock.calls.map(([, input]) => input)).toEqual([
+      { params: { itemId: sourceId }, body: { isPacked: true } },
+      { params: { itemId: sourceId }, body: { tripId } },
+    ]);
+  });
+  it("rejects failed toggles so optimistic state can roll back", async () => {
+    api.mockRejectedValueOnce(new Error("network"));
+    const { result } = renderHook(() => usePackingHandlers(detail));
+    await act(async () => {
+      await expect(result.current.handleTogglePackingItem(sourceId, false)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledOnce();
+  });
+  it("orders rename and deletion for the same item", async () => {
+    let finish: (value: unknown) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    const { result } = renderHook(() => usePackingHandlers(detail));
+    let removal: Promise<void> = Promise.resolve();
+    await act(async () => {
+      result.current.handleUpdatePackingItem(sourceId, "Boots");
+      removal = result.current.handleRemovePackingItem(sourceId);
+      await Promise.resolve();
+      expect(api).toHaveBeenCalledTimes(1);
+      finish({});
+    });
+    await act(async () => {
+      await removal;
+    });
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(api.mock.calls[0][1].body).toEqual({ name: "Boots" });
+    expect(api.mock.calls[1][1].body).toEqual({ tripId });
+  });
+});
+
+it("keeps same-item writes ordered when the handlers remount", async () => {
+  let finish: (value: unknown) => void = () => {};
+  api.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    })
+  );
+  const first = renderHook(() => usePackingHandlers(detail));
+  act(() => first.result.current.handleUpdatePackingItem(sourceId, "Boots"));
+  first.unmount();
+  const second = renderHook(() => usePackingHandlers(detail));
+  let deletion: Promise<void> = Promise.resolve();
+  act(() => {
+    deletion = second.result.current.handleRemovePackingItem(sourceId);
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    finish({});
+    await deletion;
+  });
+  expect(api.mock.calls.map(([, request]) => request.body)).toEqual([{ name: "Boots" }, { tripId }]);
+});

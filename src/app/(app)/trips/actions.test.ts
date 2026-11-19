@@ -96,23 +96,13 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
-const {
-  addPackingItemAction,
-  pullTemplatesOntoTripAction,
-  removePackingItemAction,
-  reorderPackingItemsAction,
-  saveTripListAsTemplateAction,
-  togglePackingItemAction,
-  updatePackingItemAction,
-} = vi.hoisted(() => ({
-  addPackingItemAction: vi.fn(),
-  pullTemplatesOntoTripAction: vi.fn(),
-  removePackingItemAction: vi.fn(),
-  reorderPackingItemsAction: vi.fn(),
-  saveTripListAsTemplateAction: vi.fn(),
-  togglePackingItemAction: vi.fn(),
-  updatePackingItemAction: vi.fn(),
-}));
+const { addPackingItemAction, pullTemplatesOntoTripAction, reorderPackingItemsAction, saveTripListAsTemplateAction } =
+  vi.hoisted(() => ({
+    addPackingItemAction: vi.fn(),
+    pullTemplatesOntoTripAction: vi.fn(),
+    reorderPackingItemsAction: vi.fn(),
+    saveTripListAsTemplateAction: vi.fn(),
+  }));
 
 vi.mock("@mapbox/search-js-core", () => ({
   // Must use regular functions (not arrows) so `new SearchBoxCore()` works as a constructor
@@ -132,11 +122,8 @@ vi.mock("./packing-actions", async (importOriginal) => {
     ...actual,
     addPackingItem: addPackingItemAction,
     pullTemplatesOntoTrip: pullTemplatesOntoTripAction,
-    removePackingItem: removePackingItemAction,
     reorderPackingItems: reorderPackingItemsAction,
     saveTripListAsTemplate: saveTripListAsTemplateAction,
-    togglePackingItem: togglePackingItemAction,
-    updatePackingItem: updatePackingItemAction,
   };
 });
 
@@ -147,13 +134,10 @@ import {
   deleteTrip,
   pullTemplatesOntoTrip,
   reorderPackingItems,
-  removePackingItem,
   retrieveLocation,
   saveTripListAsTemplate,
   searchAddressLocations,
   searchLocations,
-  togglePackingItem,
-  updatePackingItem,
   updateTripMetadata,
 } from "./actions";
 
@@ -2164,31 +2148,13 @@ describe("packing action delegation", () => {
     vi.resetAllMocks();
     addPackingItemAction.mockResolvedValue(undefined);
     pullTemplatesOntoTripAction.mockResolvedValue({ added: 1, skipped: 0 });
-    removePackingItemAction.mockResolvedValue(undefined);
     reorderPackingItemsAction.mockResolvedValue(undefined);
-    togglePackingItemAction.mockResolvedValue(undefined);
-    updatePackingItemAction.mockResolvedValue(undefined);
     saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
   });
 
   it("delegates addPackingItem with the same arguments", async () => {
     await expect(addPackingItem("trip-1", { name: "Passport" })).resolves.toBeUndefined();
     expect(addPackingItemAction).toHaveBeenCalledWith("trip-1", { name: "Passport" });
-  });
-
-  it("delegates updatePackingItem with the same arguments", async () => {
-    await expect(updatePackingItem("item-1", { name: "Updated" })).resolves.toBeUndefined();
-    expect(updatePackingItemAction).toHaveBeenCalledWith("item-1", { name: "Updated" });
-  });
-
-  it("delegates togglePackingItem with the same arguments", async () => {
-    await expect(togglePackingItem("item-1")).resolves.toBeUndefined();
-    expect(togglePackingItemAction).toHaveBeenCalledWith("item-1");
-  });
-
-  it("delegates removePackingItem with the same arguments", async () => {
-    await expect(removePackingItem("item-1")).resolves.toBeUndefined();
-    expect(removePackingItemAction).toHaveBeenCalledWith("item-1");
   });
 
   it("delegates reorderPackingItems with the same arguments", async () => {

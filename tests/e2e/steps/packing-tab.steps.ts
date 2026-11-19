@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { packingItems, tripPackingLists } from "../../../src/db/schema";
 import { type E2EDb, withE2EDb } from "../e2e-db";
+import { waitForApiResponse } from "../api-response";
 import { waitForServerActionResponse } from "../server-action";
 import {
   E2E_PACKING_CONTEXTUAL_ADD_ITEMS,
@@ -21,6 +22,7 @@ import { reloadPage } from "../page-reload";
 
 async function openPackingTab(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Packing" }).click();
+  await page.waitForURL((url) => url.searchParams.get("tab") === "pack");
   // Wait for packing library to render — "New List" always appears (empty or populated)
   await expect(page.getByRole("button", { name: "New List" })).toBeVisible({ timeout: 10_000 });
 
@@ -350,11 +352,27 @@ Then("the packing list should show the label {string}", async ({ page }, name: s
   await expect(labelRow.getByRole("heading", { name })).toBeVisible();
 });
 
-When("I delete the packing entry named {string}", async ({ page }, name: string) => {
+async function packingItemPath(tripId: string, name: string): Promise<string> {
+  const [item] = await withE2EDb((db) =>
+    db
+      .select({ id: packingItems.id })
+      .from(packingItems)
+      .where(and(eq(packingItems.tripId, tripId), eq(packingItems.name, name)))
+  );
+  if (!item) throw new Error("Packing item missing");
+  return `/api/v1/packing-items/${item.id}`;
+}
+
+When("I delete the packing entry named {string}", async ({ page, scenario }, name: string) => {
+  const response = waitForApiResponse(page, {
+    method: "DELETE",
+    path: await packingItemPath(scenario.currentTrip!.id, name),
+  });
   await page
     .getByRole("button", { name: `Remove ${name}` })
     .first()
     .click();
+  await response;
   await expect(page.locator("[data-packing-kind]").filter({ hasText: name })).toHaveCount(0, { timeout: 10_000 });
 });
 
@@ -421,15 +439,25 @@ Given("the packing item {string} is already checked", async ({ page, scenario },
   await page.waitForURL(/\/trips/);
 });
 
-When("I check the packing item named {string}", async ({ page }, name: string) => {
+When("I check the packing item named {string}", async ({ page, scenario }, name: string) => {
+  const response = waitForApiResponse(page, {
+    method: "PATCH",
+    path: await packingItemPath(scenario.currentTrip!.id, name),
+  });
   await page.getByRole("checkbox", { name: `Pack ${name}` }).click();
+  await response;
   await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "true", {
     timeout: 10_000,
   });
 });
 
-When("I uncheck the packing item named {string}", async ({ page }, name: string) => {
+When("I uncheck the packing item named {string}", async ({ page, scenario }, name: string) => {
+  const response = waitForApiResponse(page, {
+    method: "PATCH",
+    path: await packingItemPath(scenario.currentTrip!.id, name),
+  });
   await page.getByRole("checkbox", { name: `Pack ${name}` }).click();
+  await response;
   await expect(page.getByRole("checkbox", { name: `Pack ${name}` })).toHaveAttribute("aria-checked", "false", {
     timeout: 10_000,
   });
@@ -530,14 +558,17 @@ Given("I have pre-seeded packing items for inline editing", async ({ page, scena
   await page.waitForURL(/\/trips/);
 });
 
-When("I rename the packing item {string} to {string}", async ({ page }, oldName: string, newName: string) => {
+When("I rename the packing item {string} to {string}", async ({ page, scenario }, oldName: string, newName: string) => {
+  const path = await packingItemPath(scenario.currentTrip!.id, oldName);
   const nameEl = page.locator("[data-packing-name]").filter({ hasText: oldName }).first();
   await expect(nameEl).toBeVisible({ timeout: 10_000 });
   await nameEl.click();
   const input = page.locator(`input[value="${oldName}"]`);
   await expect(input).toBeVisible({ timeout: 5_000 });
   await input.fill(newName);
+  const response = waitForApiResponse(page, { method: "PATCH", path });
   await page.keyboard.press("Enter");
+  await response;
   await expect(page.locator("[data-packing-name]").filter({ hasText: newName }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -559,16 +590,22 @@ Given("I have pre-seeded a section label for renaming", async ({ page, scenario 
   await page.waitForURL(/\/trips/);
 });
 
-When("I rename the section label {string} to {string}", async ({ page }, oldName: string, newName: string) => {
-  const heading = page.getByRole("heading", { name: oldName });
-  await expect(heading).toBeVisible({ timeout: 10_000 });
-  await heading.click();
-  const input = page.locator(`input[value="${oldName}"]`);
-  await expect(input).toBeVisible({ timeout: 5_000 });
-  await input.fill(newName);
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { name: newName })).toBeVisible({ timeout: 10_000 });
-});
+When(
+  "I rename the section label {string} to {string}",
+  async ({ page, scenario }, oldName: string, newName: string) => {
+    const path = await packingItemPath(scenario.currentTrip!.id, oldName);
+    const heading = page.getByRole("heading", { name: oldName });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+    await heading.click();
+    const input = page.locator(`input[value="${oldName}"]`);
+    await expect(input).toBeVisible({ timeout: 5_000 });
+    await input.fill(newName);
+    const response = waitForApiResponse(page, { method: "PATCH", path });
+    await page.keyboard.press("Enter");
+    await response;
+    await expect(page.getByRole("heading", { name: newName })).toBeVisible({ timeout: 10_000 });
+  }
+);
 
 Then("the section label {string} should be visible", async ({ page }, name: string) => {
   await expect(page.getByRole("heading", { name })).toBeVisible();

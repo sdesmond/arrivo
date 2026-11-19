@@ -2413,3 +2413,37 @@ Feature: Absolute checklist checked-state API
       | rescind   | pending  | stranger | 404    | not_found |
       | dismiss   | declined | viewer   | 403    | forbidden |
       | dismiss   | declined | stranger | 404    | not_found |
+
+  Scenario: Packing item writes use absolute state and idempotent deletion
+    Given a scenario-owned packing API item
+    When I repeat packing item edits and deletes through the API
+    Then the deleted packing item is absent
+
+  Scenario Outline: Packing item writes deny access after a cached response
+    Given a scenario-owned packing API item
+    When I commit a keyed packing item edit
+    And my checklist API role is "<role>"
+    And I retry the keyed packing item edit and attempt a delete
+    Then the packing API denies both writes with <status> and preserves the item
+
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Keyed packing deletion replays and rejects reuse on another item
+    Given a scenario-owned packing API item
+    When I delete a packing item twice with a key and reuse it on another item
+    Then the keyed packing deletion replays and the other item remains
+
+  Scenario Outline: Cached packing deletion rechecks trip access
+    Given a scenario-owned packing API item
+    When I commit a keyed packing item deletion
+    And my checklist API role is "<role>"
+    And I retry the keyed packing item deletion
+    Then the keyed packing deletion is denied with <status>
+
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
