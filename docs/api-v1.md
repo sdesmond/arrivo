@@ -425,6 +425,28 @@ The response echoes the saved `listId` and `items`, so clients need no refetch. 
 
 A stale, partial, extra or foreign list (an `id` that is not currently in that list of this trip) returns 409 `conflict` and writes nothing, so the client reloads instead of overwriting another editor's change. A `labelId` that is not a section of the same list, or a label given a `labelId`, returns 422 `validation_failed`. Invalid UUIDs, duplicate ids, a missing `listId`, oversize lists and unknown fields also return 422. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access before returning a cached response.
 
+## Packing lists
+
+Named packing lists on a trip. The default list is not a row and has no endpoint.
+
+### POST /api/v1/trips/:tripId/packing-lists
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `TripPackingList`
+
+Body: `{ "id": "<uuid>", "name": "Carry-on" }`. `name` is trimmed and must contain 1–30 characters after trimming. The list is appended after the last list of the trip. Repeating the same `id` with the same trip and name returns the existing list without writing, recording activity or publishing an event; the same `id` with another name or trip returns 409 `conflict`. A blank or over-length name returns 422. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access.
+
+### PATCH /api/v1/packing-lists/:listId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `TripPackingList`
+
+Body: `{ "tripId": "<uuid>", "name": "Checked bag" }`, with the same name rules as create. An unchanged name writes nothing. A missing list, or a list on another trip, returns 404. Viewers receive 403 and non-members receive 404.
+
+### DELETE /api/v1/packing-lists/:listId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `204`
+
+Body: `{ "tripId": "<uuid>" }`. Deletes the list and every item and section in it; other lists and the default list are untouched. An absent list still returns 204 after trip authorization; a list on another trip returns 404. Viewers receive 403 and non-members receive 404.
+
 ## Trip notes
 
 Notes on the trip's Notes tab.

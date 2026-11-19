@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { idempotencyKeys, packingItems } from "@/db/schema";
+import { idempotencyKeys, packingItems, tripPackingLists } from "@/db/schema";
+import { FIELD_LIMITS } from "@/lib/validation-limits";
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
@@ -429,4 +430,115 @@ it("replays a created item even after its original anchor and section disappear 
   expect(mocks.insert).not.toHaveBeenCalled();
   expect(mocks.update).not.toHaveBeenCalled();
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+const listRow = () => ({ id: listId, tripId, name: "Beach", position: 2, createdAt: new Date(0) });
+const otherTrip = "123e4567-e89b-12d3-a456-426614174098";
+function listStore(list: ReturnType<typeof listRow> | undefined, extra: unknown[][] = []) {
+  const queue = [...extra];
+  mocks.select.mockReturnValue({
+    from: (table: unknown) => ({
+      where: async () => (table === tripPackingLists ? (list ? [list] : []) : (queue.shift() ?? [])),
+    }),
+  });
+}
+it("creates a list at the end and replays the same ID and name without effects", async () => {
+  const { createPackingList } = await import("./packing");
+  const queue: unknown[][] = [[], [], [{ maxPosition: 4 }]];
+  mocks.select.mockReturnValue({
+    from: (table: unknown) => ({ where: async () => (table === tripPackingLists ? (queue.shift() ?? []) : []) }),
+  });
+  const values = vi.fn(() => ({ returning: async () => [{ ...listRow(), position: 5 }] }));
+  mocks.insert.mockReturnValue({ values });
+  await expect(createPackingList(actor, tripId, { id: listId, name: " Beach " })).resolves.toMatchObject({
+    id: listId,
+    position: 5,
+  });
+  expect(values).toHaveBeenCalledWith({ id: listId, tripId, name: "Beach", position: 5 });
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+  vi.clearAllMocks();
+  listStore(listRow());
+  await expect(createPackingList(actor, tripId, { id: listId, name: "Beach" })).resolves.toMatchObject({ id: listId });
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("starts the first list at position 0", async () => {
+  const { createPackingList } = await import("./packing");
+  const queue: unknown[][] = [[], [], [{ maxPosition: null }]];
+  mocks.select.mockReturnValue({
+    from: (table: unknown) => ({ where: async () => (table === tripPackingLists ? (queue.shift() ?? []) : []) }),
+  });
+  const values = vi.fn(() => ({ returning: async () => [{ ...listRow(), position: 0 }] }));
+  mocks.insert.mockReturnValue({ values });
+  await createPackingList(actor, tripId, { id: listId, name: "Beach" });
+  expect(values).toHaveBeenCalledWith(expect.objectContaining({ position: 0 }));
+});
+it("conflicts on a reused ID with another name or trip, after a viewer check on the other trip", async () => {
+  const { createPackingList } = await import("./packing");
+  listStore(listRow());
+  await expect(createPackingList(actor, tripId, { id: listId, name: "Other" })).rejects.toBeInstanceOf(ConflictError);
+  listStore({ ...listRow(), tripId: otherTrip });
+  await expect(createPackingList(actor, tripId, { id: listId, name: "Beach" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.requireTripRole).toHaveBeenCalledWith(otherTrip, actor.userId, "viewer", mocks);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("rejects blank or over-limit names without writing", async () => {
+  const { createPackingList, renamePackingList } = await import("./packing");
+  await expect(createPackingList(actor, tripId, { id: listId, name: " " })).rejects.toThrow();
+  await expect(
+    renamePackingList(actor, listId, { tripId, name: "x".repeat(FIELD_LIMITS.packingListName + 1) })
+  ).rejects.toThrow();
+  expect(mocks.transaction).not.toHaveBeenCalled();
+});
+it("renames a list, skips an unchanged name, and hides missing or foreign lists", async () => {
+  const { renamePackingList } = await import("./packing");
+  listStore(listRow());
+  const returning = vi.fn(async () => [{ ...listRow(), name: "Day" }]);
+  set.mockImplementation(() => ({ where: () => ({ returning }) }));
+  await expect(renamePackingList(actor, listId, { tripId, name: "Day" })).resolves.toMatchObject({ name: "Day" });
+  expect(set).toHaveBeenCalledWith({ name: "Day" });
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+  vi.clearAllMocks();
+  listStore(listRow());
+  await renamePackingList(actor, listId, { tripId, name: "Beach" });
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  listStore(undefined);
+  await expect(renamePackingList(actor, listId, { tripId, name: "Day" })).rejects.toBeInstanceOf(TripNotFoundError);
+  listStore({ ...listRow(), tripId: otherTrip });
+  await expect(renamePackingList(actor, listId, { tripId, name: "Day" })).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+it("fails a rename whose update returns no row", async () => {
+  const { renamePackingList } = await import("./packing");
+  listStore(listRow());
+  set.mockImplementation(() => ({ where: () => ({ returning: async () => [] }) }));
+  await expect(renamePackingList(actor, listId, { tripId, name: "Day" })).rejects.toBeInstanceOf(TripNotFoundError);
+});
+it("deletes a list with its items, then emits effects", async () => {
+  const { deletePackingList } = await import("./packing");
+  listStore(listRow());
+  await expect(deletePackingList(actor, listId, { tripId })).resolves.toBeNull();
+  expect(mocks.delete.mock.calls.map((call) => call[0])).toEqual([packingItems, tripPackingLists]);
+  expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
+  expect(mocks.afterTripWrite).toHaveBeenCalledWith(actor, tripId, ["/trips"]);
+});
+it("treats an absent list as a quiet delete and hides a foreign one", async () => {
+  const { deletePackingList } = await import("./packing");
+  listStore(undefined);
+  await expect(deletePackingList(actor, listId, { tripId })).resolves.toBeNull();
+  expect(mocks.delete).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+  listStore({ ...listRow(), tripId: otherTrip });
+  await expect(deletePackingList(actor, listId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.delete).not.toHaveBeenCalled();
+});
+it("denies list writes to a caller without editor access", async () => {
+  const { createPackingList, renamePackingList, deletePackingList } = await import("./packing");
+  mocks.requireTripRole.mockRejectedValue(new TripNotFoundError());
+  await expect(createPackingList(actor, tripId, { id: listId, name: "a" })).rejects.toBeInstanceOf(TripNotFoundError);
+  await expect(renamePackingList(actor, listId, { tripId, name: "a" })).rejects.toBeInstanceOf(TripNotFoundError);
+  await expect(deletePackingList(actor, listId, { tripId })).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.transaction).not.toHaveBeenCalled();
+  mocks.requireTripRole.mockReset();
 });
