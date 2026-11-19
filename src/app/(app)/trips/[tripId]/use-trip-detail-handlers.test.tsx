@@ -2,8 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { addPackingItem, deleteTrip, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
-import { removePackingSection } from "../packing-actions";
+import { deleteTrip, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
 import { RemovePackingSectionMode, type TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -568,45 +567,6 @@ describe("useTripDetailHandlers", () => {
     );
   });
 
-  it("adds packing items against the current trip", async () => {
-    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleAddPackingItem("Passport", true);
-    });
-
-    await waitFor(() => expect(addPackingItem).toHaveBeenCalledWith("trip-1", { name: "Passport", isLabel: true }));
-  });
-
-  it("handleAddPackingItem resolves the returned promise on success", async () => {
-    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let addPromise: Promise<void> | undefined;
-    act(() => {
-      addPromise = result.current.handleAddPackingItem("Passport");
-    });
-
-    await expect(addPromise).resolves.toBeUndefined();
-  });
-
-  it("handleAddPackingItem rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(addPackingItem).mockRejectedValueOnce(new Error("Add failed"));
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let addPromise: Promise<void> | undefined;
-    act(() => {
-      addPromise = result.current.handleAddPackingItem("Passport");
-    });
-
-    await expect(addPromise).rejects.toThrow("Add failed");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Add failed"));
-  });
-
   it("removes packing items through the trip-scoped API", async () => {
     const { api } = await import("@/lib/api/client");
     vi.mocked(api).mockResolvedValueOnce(null);
@@ -618,39 +578,6 @@ describe("useTripDetailHandlers", () => {
       params: { itemId: "pack-1" },
       body: { tripId: "trip-1" },
     });
-  });
-
-  it("removes a packing section with the selected mode", async () => {
-    vi.mocked(removePackingSection).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let removePromise: Promise<void> | undefined;
-    act(() => {
-      removePromise = result.current.handleRemovePackingSection("label-1", RemovePackingSectionMode.DeleteItems);
-    });
-
-    await expect(removePromise).resolves.toBeUndefined();
-    await waitFor(() =>
-      expect(removePackingSection).toHaveBeenCalledWith("label-1", { mode: RemovePackingSectionMode.DeleteItems })
-    );
-  });
-
-  it("handleRemovePackingSection rejects the returned promise and shows a toast on failure", async () => {
-    vi.mocked(removePackingSection).mockRejectedValueOnce(new Error("Section remove failed"));
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    let removePromise: Promise<void> | undefined;
-    act(() => {
-      removePromise = result.current.handleRemovePackingSection(
-        "label-1",
-        RemovePackingSectionMode.MoveItemsToUngrouped
-      );
-    });
-
-    await expect(removePromise).rejects.toThrow("Section remove failed");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Section remove failed"));
   });
 
   it("sends a packing reorder through the API for the dragged list and refreshes once", async () => {
@@ -788,43 +715,6 @@ describe("useTripDetailHandlers", () => {
       expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" }), {
         params: { itemId: "pack-1" },
         body: { name: "Boots" },
-      })
-    );
-  });
-
-  it("handleAddPackingItem passes afterItemId to the server action when provided", async () => {
-    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleAddPackingItem("Visa", false, "label-1");
-    });
-
-    await waitFor(() =>
-      expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
-        name: "Visa",
-        isLabel: false,
-        afterItemId: "label-1",
-      })
-    );
-  });
-
-  it("handleAddPackingItem passes beforeItemId to the server action when provided", async () => {
-    vi.mocked(addPackingItem).mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
-
-    act(() => {
-      result.current.handleAddPackingItem("Travel adapter", false, undefined, "label-1");
-    });
-
-    await waitFor(() =>
-      expect(addPackingItem).toHaveBeenCalledWith("trip-1", {
-        name: "Travel adapter",
-        isLabel: false,
-        afterItemId: undefined,
-        beforeItemId: "label-1",
       })
     );
   });

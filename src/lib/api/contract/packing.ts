@@ -38,3 +38,27 @@ export const reorderPackingItems = defineEndpoint<PackingItemOrder>()({
       }),
   }),
 });
+export const createPackingItem = defineEndpoint<PackingItem>()({
+  method: "POST",
+  path: "/api/v1/trips/:tripId/packing-items",
+  params: z.object({ tripId: uuid }),
+  body: z
+    .strictObject({
+      id: uuid,
+      name,
+      listId: uuid.nullable(),
+      isLabel: z.boolean().optional(),
+      labelId: uuid.nullable().optional(),
+      beforeItemId: uuid.optional(),
+      afterItemId: uuid.optional(),
+    })
+    .refine((body) => !(body.beforeItemId && body.afterItemId), { message: "Choose one placement anchor." })
+    .refine((body) => !(body.isLabel && body.labelId), { message: "Sections cannot have a parent section." }),
+});
+export const removePackingSection = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/packing-items/:itemId/section",
+  params,
+  body: z.strictObject({ tripId: uuid, mode: z.enum(["delete-items", "move-items-to-ungrouped"]) }),
+  status: 204,
+});

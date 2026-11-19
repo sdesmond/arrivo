@@ -135,8 +135,14 @@ When("I add the template item {string}", async ({ page }, name: string) => {
 
 When("I add the template label {string}", async ({ page }, name: string) => {
   await page.getByPlaceholder("New section…").fill(name);
+  const response = waitForServerActionResponse(page, { pathIncludes: "/packing/" });
   await page.keyboard.press("Enter");
+  await response;
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the first template section should be {string}", async ({ page }, name: string) => {
+  await expect(page.locator('[data-packing-kind="label"]').first()).toContainText(name);
 });
 
 When("I edit the template item {string} to {string}", async ({ page }, currentName: string, nextName: string) => {

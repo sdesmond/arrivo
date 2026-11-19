@@ -2493,3 +2493,51 @@ Feature: Absolute checklist checked-state API
     Then the scoped packing order API returns 200
     And the named packing list is stored reversed
     And the default-list packing item is untouched
+
+  Scenario: Packing creation retries a client ID without shifting the list twice
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I create and retry an inline packing item
+    Then the packing creation replay preserves the scoped order
+    And the default-list packing item is untouched
+
+  Scenario Outline: Packing creation requires editor access
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "<role>"
+    When I attempt a packing creation
+    Then the scoped packing order API returns <status>
+    And the named packing list keeps its seeded order
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Packing creation rejects a section from another list
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I create a packing item with a foreign list section
+    Then the scoped packing order API returns 422
+    And the named packing list keeps its seeded order
+    And the default-list packing item is untouched
+
+  Scenario Outline: Keyed packing creation and section removal recheck access on replay
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I commit a keyed packing "<operation>" request
+    And my checklist API role is "<role>"
+    And I replay the keyed packing request
+    Then the scoped packing order API returns <status>
+    Examples:
+      | operation | role     | status |
+      | create    | viewer   | 403    |
+      | create    | stranger | 404    |
+      | section   | viewer   | 403    |
+      | section   | stranger | 404    |
+
+  Scenario: Authorized deletion of a missing packing section succeeds
+    Given scenario-owned default-list and named-list packing items for the packing order API
+    And my checklist API role is "editor"
+    When I delete a missing packing section
+    Then the scoped packing order API returns 204
+    And the named packing list keeps its seeded order
+    And the default-list packing item is untouched

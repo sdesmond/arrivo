@@ -1,3 +1,4 @@
+import { use, useState } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -53,6 +54,26 @@ function withChecklist(id: string): TripDetailPayload {
   return payload([{ ...day, checklists: [{ id, tripDayId: dayId, position: 0, items: [] }] }]);
 }
 
+/** Renders the hook with a router whose refresh starts a real transition, as Next's does, so keyed writes can settle. */
+function renderPackingHandlers(data: TripDetailPayload, refreshed: Promise<void> = Promise.resolve()) {
+  return renderHook(() => {
+    const [pendingRefresh, setPendingRefresh] = useState<Promise<void> | null>(null);
+    refresh.mockImplementation(() => setPendingRefresh(refreshed));
+    const handlers = usePackingHandlers(data);
+    if (pendingRefresh) use(pendingRefresh);
+    return handlers;
+  });
+}
+
+/** Awaits a successful write outside act, so the refresh transition it waits for can commit meanwhile. */
+async function settled(write: Promise<void>): Promise<void> {
+  let done = false;
+  void write.then(() => {
+    done = true;
+  });
+  await waitFor(() => expect(done).toBe(true));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   api.mockReset();
@@ -62,7 +83,7 @@ beforeEach(() => {
 
 describe("handleInsertFromPackingSource", () => {
   it.each(["packing-list", "template"] as const)("creates from a %s through the checklist API", async (type) => {
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 3, type, sourceId);
@@ -81,7 +102,7 @@ describe("handleInsertFromPackingSource", () => {
     vi.mocked(crypto.randomUUID)
       .mockReturnValueOnce("55555555-5555-4555-8555-555555555555")
       .mockReturnValueOnce("66666666-6666-4666-8666-666666666666");
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -97,7 +118,7 @@ describe("handleInsertFromPackingSource", () => {
   it("sends one request when the same insert is selected twice before the first settles", async () => {
     let finish: (value: { id: string }) => void = () => {};
     api.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       const first = result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -114,7 +135,7 @@ describe("handleInsertFromPackingSource", () => {
       .mockReturnValueOnce("55555555-5555-4555-8555-555555555555")
       .mockReturnValueOnce("66666666-6666-4666-8666-666666666666");
     api.mockRejectedValueOnce(new ApiClientError(500, "internal", "boom"));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -134,7 +155,7 @@ describe("handleInsertFromPackingSource", () => {
     vi.spyOn(crypto, "randomUUID").mockRestore();
     vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
     try {
-      const { result } = renderHook(() => usePackingHandlers(detail));
+      const { result } = renderPackingHandlers(detail);
 
       await act(async () => {
         await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -181,7 +202,7 @@ describe("handleInsertFromPackingSource", () => {
 
   it("shows the API error once and never sets the marker or refreshes on failure", async () => {
     api.mockRejectedValue(new ApiClientError(404, "not_found", "Resource not found."));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -194,7 +215,7 @@ describe("handleInsertFromPackingSource", () => {
 
   it("shows a generic error once for a network failure", async () => {
     api.mockRejectedValue(new Error("network"));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -206,7 +227,7 @@ describe("handleInsertFromPackingSource", () => {
 
   it("sends the user to sign in without a toast or marker when the session is gone", async () => {
     api.mockRejectedValue(new ApiClientError(401, "unauthenticated", "Sign in"));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
 
     await act(async () => {
       await result.current.handleInsertFromPackingSource(1, 0, "template", sourceId);
@@ -221,7 +242,7 @@ describe("handleInsertFromPackingSource", () => {
 
 describe("packing item API writes", () => {
   it("sends absolute packed state and trip-scoped deletion", async () => {
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
     await act(async () => {
       await result.current.handleTogglePackingItem(sourceId, true);
     });
@@ -235,7 +256,7 @@ describe("packing item API writes", () => {
   });
   it("rejects failed toggles so optimistic state can roll back", async () => {
     api.mockRejectedValueOnce(new Error("network"));
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
     await act(async () => {
       await expect(result.current.handleTogglePackingItem(sourceId, false)).rejects.toThrow();
     });
@@ -248,7 +269,7 @@ describe("packing item API writes", () => {
         finish = resolve;
       })
     );
-    const { result } = renderHook(() => usePackingHandlers(detail));
+    const { result } = renderPackingHandlers(detail);
     let removal: Promise<void> = Promise.resolve();
     await act(async () => {
       result.current.handleUpdatePackingItem(sourceId, "Boots");
@@ -273,10 +294,10 @@ it("keeps same-item writes ordered when the handlers remount", async () => {
       finish = resolve;
     })
   );
-  const first = renderHook(() => usePackingHandlers(detail));
+  const first = renderPackingHandlers(detail);
   act(() => first.result.current.handleUpdatePackingItem(sourceId, "Boots"));
   first.unmount();
-  const second = renderHook(() => usePackingHandlers(detail));
+  const second = renderPackingHandlers(detail);
   let deletion: Promise<void> = Promise.resolve();
   act(() => {
     deletion = second.result.current.handleRemovePackingItem(sourceId);
@@ -290,4 +311,121 @@ it("keeps same-item writes ordered when the handlers remount", async () => {
     await deletion;
   });
   expect(api.mock.calls.map(([, request]) => request.body)).toEqual([{ name: "Boots" }, { tripId }]);
+});
+
+it("creates packing entries with a client ID and scoped placement", async () => {
+  const { createPackingItem } = await import("@/lib/api/contract/packing");
+  const { result } = renderPackingHandlers(detail);
+  await settled(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null));
+  expect(api).toHaveBeenCalledWith(
+    createPackingItem,
+    expect.objectContaining({
+      params: { tripId },
+      body: expect.objectContaining({ id: checklistId, name: "Boots", afterItemId: sourceId, listId: null }),
+    })
+  );
+});
+it("holds a created entry's promise until the refreshed list arrives", async () => {
+  let releaseRefresh: () => void = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const { result } = renderPackingHandlers(detail, blocked);
+  let done = false;
+  const creation = result.current.handleAddPackingItem("Toiletries", true).then(() => {
+    done = true;
+  });
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(done).toBe(false);
+  releaseRefresh();
+  await creation;
+  expect(done).toBe(true);
+});
+it.each(["delete-items", "move-items-to-ungrouped"] as const)("removes a packing section using %s", async (mode) => {
+  const { removePackingSection } = await import("@/lib/api/contract/packing");
+  const { result } = renderPackingHandlers(detail);
+  await settled(result.current.handleRemovePackingSection(sourceId, mode));
+  expect(api).toHaveBeenCalledWith(removePackingSection, { params: { itemId: sourceId }, body: { tripId, mode } });
+});
+it("rejects creation and refreshes when the API fails", async () => {
+  api.mockRejectedValueOnce(new ApiClientError(409, "conflict", "Conflict"));
+  const { result } = renderPackingHandlers(detail);
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots")).rejects.toThrow("Conflict");
+  });
+  expect(refresh).toHaveBeenCalled();
+  expect(toast.error).toHaveBeenCalledWith("Conflict");
+});
+
+it.each(["delete-items", "move-items-to-ungrouped"] as const)(
+  "rejects a failed section removal using %s and refreshes",
+  async (mode) => {
+    api.mockRejectedValueOnce(new ApiClientError(409, "conflict", "Section changed"));
+    const { result } = renderPackingHandlers(detail);
+    await act(async () => {
+      await expect(result.current.handleRemovePackingSection(sourceId, mode)).rejects.toThrow("Section changed");
+    });
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("Section changed");
+    expect(refresh).toHaveBeenCalled();
+  }
+);
+
+it("reuses the create UUID after a failed submission and clears it after success", async () => {
+  const nextId = "55555555-5555-4555-8555-555555555555";
+  vi.mocked(crypto.randomUUID).mockReturnValueOnce(checklistId).mockReturnValueOnce(nextId);
+  api.mockRejectedValueOnce(new ApiClientError(0, "network_error", "Lost response"));
+  const { result } = renderPackingHandlers(detail);
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null)).rejects.toThrow(
+      "Lost response"
+    );
+  });
+  await settled(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null));
+  await settled(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null));
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, checklistId, nextId]);
+});
+it.each([
+  ["name", ["Hat", false, sourceId, undefined, null, null]],
+  ["section flag", ["Boots", true, sourceId, undefined, null, null]],
+  ["after anchor", ["Boots", false, checklistId, undefined, null, null]],
+  ["before anchor", ["Boots", false, undefined, sourceId, null, null]],
+  ["section", ["Boots", false, sourceId, undefined, checklistId, null]],
+  ["list", ["Boots", false, sourceId, undefined, null, checklistId]],
+] as const)("uses a fresh create UUID when %s changes after failure", async (_field, changed) => {
+  const nextId = "55555555-5555-4555-8555-555555555555";
+  vi.mocked(crypto.randomUUID).mockReturnValueOnce(checklistId).mockReturnValueOnce(nextId);
+  api.mockRejectedValueOnce(new ApiClientError(0, "network_error", "Lost response"));
+  const { result } = renderPackingHandlers(detail);
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null)).rejects.toThrow(
+      "Lost response"
+    );
+  });
+  await settled(
+    result.current.handleAddPackingItem(changed[0], changed[1], changed[2], changed[3], changed[4], changed[5])
+  );
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, nextId]);
+});
+
+it("does not retain an older failure after a newer submission succeeds", async () => {
+  const secondId = "55555555-5555-4555-8555-555555555555";
+  const thirdId = "66666666-6666-4666-8666-666666666666";
+  vi.mocked(crypto.randomUUID)
+    .mockReturnValueOnce(checklistId)
+    .mockReturnValueOnce(secondId)
+    .mockReturnValueOnce(thirdId);
+  let rejectFirst: (error: Error) => void = () => {};
+  api.mockReturnValueOnce(
+    new Promise((_resolve, reject) => {
+      rejectFirst = reject;
+    })
+  );
+  const { result } = renderPackingHandlers(detail);
+  const first = result.current.handleAddPackingItem("Boots");
+  const firstOutcome = expect(first).rejects.toThrow("Lost response");
+  await settled(result.current.handleAddPackingItem("Hat"));
+  rejectFirst(new Error("Lost response"));
+  await firstOutcome;
+  await settled(result.current.handleAddPackingItem("Boots"));
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, secondId, thirdId]);
 });

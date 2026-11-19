@@ -48,7 +48,6 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
 import { searchCoverImages } from "@/lib/services/cover-search";
 import { recordDeletions } from "@/lib/services/deletion-records";
 import {
-  addPackingItem as addPackingItemAction,
   pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
   saveTripListAsTemplate as saveTripListAsTemplateAction,
 } from "./packing-actions";
@@ -722,10 +721,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-export async function addPackingItem(tripId: string, input: import("@/data/types").AddPackingItemInput): Promise<void> {
-  return addPackingItemAction(tripId, input);
 }
 
 export async function pullTemplatesOntoTrip(
