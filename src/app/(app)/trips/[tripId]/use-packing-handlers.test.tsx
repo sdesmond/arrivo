@@ -291,3 +291,118 @@ it("keeps same-item writes ordered when the handlers remount", async () => {
   });
   expect(api.mock.calls.map(([, request]) => request.body)).toEqual([{ name: "Boots" }, { tripId }]);
 });
+
+it("creates packing entries with a client ID and scoped placement", async () => {
+  const { createPackingItem } = await import("@/lib/api/contract/packing");
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  await act(async () => {
+    await result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null);
+  });
+  expect(api).toHaveBeenCalledWith(
+    createPackingItem,
+    expect.objectContaining({
+      params: { tripId },
+      body: expect.objectContaining({ id: checklistId, name: "Boots", afterItemId: sourceId, listId: null }),
+    })
+  );
+});
+it.each(["delete-items", "move-items-to-ungrouped"] as const)("removes a packing section using %s", async (mode) => {
+  const { removePackingSection } = await import("@/lib/api/contract/packing");
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  await act(async () => {
+    await result.current.handleRemovePackingSection(sourceId, mode);
+  });
+  expect(api).toHaveBeenCalledWith(removePackingSection, { params: { itemId: sourceId }, body: { tripId, mode } });
+});
+it("rejects creation and refreshes when the API fails", async () => {
+  api.mockRejectedValueOnce(new ApiClientError(409, "conflict", "Conflict"));
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots")).rejects.toThrow("Conflict");
+  });
+  expect(refresh).toHaveBeenCalled();
+  expect(toast.error).toHaveBeenCalledWith("Conflict");
+});
+
+it.each(["delete-items", "move-items-to-ungrouped"] as const)(
+  "rejects a failed section removal using %s and refreshes",
+  async (mode) => {
+    api.mockRejectedValueOnce(new ApiClientError(409, "conflict", "Section changed"));
+    const { result } = renderHook(() => usePackingHandlers(detail));
+    await act(async () => {
+      await expect(result.current.handleRemovePackingSection(sourceId, mode)).rejects.toThrow("Section changed");
+    });
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("Section changed");
+    expect(refresh).toHaveBeenCalled();
+  }
+);
+
+it("reuses the create UUID after a failed submission and clears it after success", async () => {
+  const nextId = "55555555-5555-4555-8555-555555555555";
+  vi.mocked(crypto.randomUUID).mockReturnValueOnce(checklistId).mockReturnValueOnce(nextId);
+  api.mockRejectedValueOnce(new ApiClientError(0, "network_error", "Lost response"));
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null)).rejects.toThrow(
+      "Lost response"
+    );
+  });
+  await act(async () => {
+    await result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null);
+  });
+  await act(async () => {
+    await result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null);
+  });
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, checklistId, nextId]);
+});
+it.each([
+  ["name", ["Hat", false, sourceId, undefined, null, null]],
+  ["section flag", ["Boots", true, sourceId, undefined, null, null]],
+  ["after anchor", ["Boots", false, checklistId, undefined, null, null]],
+  ["before anchor", ["Boots", false, undefined, sourceId, null, null]],
+  ["section", ["Boots", false, sourceId, undefined, checklistId, null]],
+  ["list", ["Boots", false, sourceId, undefined, null, checklistId]],
+] as const)("uses a fresh create UUID when %s changes after failure", async (_field, changed) => {
+  const nextId = "55555555-5555-4555-8555-555555555555";
+  vi.mocked(crypto.randomUUID).mockReturnValueOnce(checklistId).mockReturnValueOnce(nextId);
+  api.mockRejectedValueOnce(new ApiClientError(0, "network_error", "Lost response"));
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  await act(async () => {
+    await expect(result.current.handleAddPackingItem("Boots", false, sourceId, undefined, null, null)).rejects.toThrow(
+      "Lost response"
+    );
+  });
+  await act(async () => {
+    await result.current.handleAddPackingItem(changed[0], changed[1], changed[2], changed[3], changed[4], changed[5]);
+  });
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, nextId]);
+});
+
+it("does not retain an older failure after a newer submission succeeds", async () => {
+  const secondId = "55555555-5555-4555-8555-555555555555";
+  const thirdId = "66666666-6666-4666-8666-666666666666";
+  vi.mocked(crypto.randomUUID)
+    .mockReturnValueOnce(checklistId)
+    .mockReturnValueOnce(secondId)
+    .mockReturnValueOnce(thirdId);
+  let rejectFirst: (error: Error) => void = () => {};
+  api.mockReturnValueOnce(
+    new Promise((_resolve, reject) => {
+      rejectFirst = reject;
+    })
+  );
+  const { result } = renderHook(() => usePackingHandlers(detail));
+  let first: Promise<void> = Promise.resolve();
+  await act(async () => {
+    first = result.current.handleAddPackingItem("Boots");
+    await result.current.handleAddPackingItem("Hat");
+  });
+  await act(async () => {
+    rejectFirst(new Error("Lost response"));
+    await expect(first).rejects.toThrow("Lost response");
+  });
+  await act(async () => {
+    await result.current.handleAddPackingItem("Boots");
+  });
+  expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, secondId, thirdId]);
+});

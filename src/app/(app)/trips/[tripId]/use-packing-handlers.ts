@@ -1,12 +1,18 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import { addPackingItem, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
-import { removePackingSection, createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
-import { updatePackingItem, deletePackingItem, reorderPackingItems } from "@/lib/api/contract/packing";
+import { pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
+import { createPackingList, renamePackingList, deletePackingList } from "../packing-actions";
+import {
+  createPackingItem,
+  removePackingSection,
+  updatePackingItem,
+  deletePackingItem,
+  reorderPackingItems,
+} from "@/lib/api/contract/packing";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
@@ -49,6 +55,10 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
   const insertMutation = useApiMutation(createChecklist);
   const insertInFlight = useRef(false);
+  const createMutation = useApiMutation(createPackingItem);
+  const createRetry = useRef<{ details: string; id: string } | null>(null);
+  const createAttempt = useRef(0);
+  const sectionMutation = useApiMutation(removePackingSection);
   const updateMutation = useApiMutation(updatePackingItem);
   const deleteMutation = useApiMutation(deletePackingItem);
   const reorderMutation = useApiMutation(reorderPackingItems);
@@ -72,18 +82,40 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     labelId?: string | null,
     listId?: string | null
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await addPackingItem(trip.id, { name, isLabel, afterItemId, beforeItemId, labelId, listId });
-          resolve();
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to add packing entry. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    return (async () => {
+      const details = JSON.stringify([
+        trip.id,
+        name,
+        isLabel ?? false,
+        afterItemId ?? null,
+        beforeItemId ?? null,
+        labelId ?? null,
+        listId ?? null,
+      ]);
+      const id = createRetry.current?.details === details ? createRetry.current.id : createRandomId();
+      createRetry.current = null;
+      const attempt = ++createAttempt.current;
+      let failure: unknown;
+      await createMutation.mutate(
+        {
+          params: { tripId: trip.id },
+          body: { id, name, isLabel, afterItemId, beforeItemId, labelId, listId: listId ?? null },
+        },
+        {
+          onError: (error) => {
+            failure = error;
+            router.refresh();
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
-      });
-    });
+      );
+      if (failure) {
+        if (createAttempt.current === attempt) createRetry.current = { details, id };
+        throw failure;
+      }
+    })();
   }
 
   function queueItemWrite(id: string, write: () => Promise<void>): Promise<void> {
@@ -143,18 +175,21 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   }
 
   function handleRemovePackingSection(id: string, mode: RemovePackingSectionMode): Promise<void> {
-    return new Promise((resolve, reject) => {
-      React.startTransition(async () => {
-        try {
-          await removePackingSection(id, { mode });
-          resolve();
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Failed to remove packing section. Please try again.";
-          toast.error(message);
-          reject(error instanceof Error ? error : new Error(message));
+    return queueItemWrite(id, async () => {
+      let failure: unknown;
+      await sectionMutation.mutate(
+        { params: { itemId: id }, body: { tripId: trip.id, mode } },
+        {
+          onError: (error) => {
+            failure = error;
+            router.refresh();
+          },
+          onAuthLost: () => {
+            failure = new Error("Your session has expired.");
+          },
         }
-      });
+      );
+      if (failure) throw failure;
     });
   }
 

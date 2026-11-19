@@ -104,6 +104,8 @@ Feature: Packing tab
     And I add an item "Travel adapter" under the section "Documents"
     Then the packing list should contain "Travel adapter"
     And "Travel adapter" should appear after "Documents" in the list
+    When I reload the trip page
+    Then "Travel adapter" should appear after "Documents" in the list
 
   Scenario: User adds an ungrouped item when the trip only has sections
     Given I have pre-seeded packing items for contextual add
@@ -132,13 +134,15 @@ Feature: Packing tab
     Given I have pre-seeded a section label with items beneath it
     When I open the Packing tab
     And I delete the section label "Documents" and move its items to Ungrouped
+    When I reload the trip page
     Then the section label "Documents" should not be visible
-    And the packing item "Passport" should be visible
+    And the packing item "Passport" should be in the Ungrouped section
 
   Scenario: User deletes a section label and removes its items with it
     Given I have pre-seeded a section label with items beneath it
     When I open the Packing tab
     And I delete the section label "Documents" and its items
+    When I reload the trip page
     Then the section label "Documents" should not be visible
     And the packing list should not contain "Passport"
 
@@ -179,3 +183,11 @@ Feature: Packing tab
     And I pointer-drag the packing item "Toothbrush" onto the packing item "Pants"
     And I reload the trip page
     Then the packing item "Toothbrush" should be in the "Clothes" section
+
+  Scenario: Failed section removal keeps its confirmation open
+    Given I have pre-seeded a section label with items beneath it
+    When I open the Packing tab
+    And the section removal API rejects the request
+    And I attempt to delete the section label "Documents" and keep its items
+    Then the section removal dialog remains open with an error
+    And the packing item "Passport" should be visible

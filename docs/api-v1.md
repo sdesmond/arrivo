@@ -391,6 +391,18 @@ Body: `{ "tripId": "<uuid>" }`.
 
 ## Packing items
 
+### POST /api/v1/trips/:tripId/packing-items
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `PackingItem`
+
+Editor access required. Body: `{ "id": "<uuid>", "name": "Boots", "listId": null, "isLabel": false, "labelId": null, "beforeItemId": "<uuid>" }`. `name` is trimmed and must contain 1–30 characters after trimming. A named list uses its UUID; null selects the default list. `isLabel`, `labelId`, and one of `beforeItemId` or `afterItemId` are optional. Labels cannot have a parent, and the list, section, and anchor must belong to the same trip and list. Without an anchor the item is appended. Returns the created item (200). A compatible client UUID replay returns the existing item without changing order; conflicting content returns 409. Invalid input or scope returns 422.
+
+### DELETE /api/v1/packing-items/:itemId/section
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `204`
+
+Editor access required. Body: `{ "tripId": "<uuid>", "mode": "delete-items" | "move-items-to-ungrouped" }`. Deletes the section and either deletes its items or moves them to ungrouped. Returns 204, including for a missing section after authorization. Foreign or non-section items return 404. Both endpoints support `Idempotency-Key` and recheck access on replay.
+
 ### PATCH /api/v1/packing-items/:itemId
 
 **Role** editor · **`Idempotency-Key`** yes · **Success** `200` `PackingItem`

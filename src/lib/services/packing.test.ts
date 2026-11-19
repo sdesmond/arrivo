@@ -277,3 +277,156 @@ it("hands the replay request and the validated payload to the trip write", async
     expect.any(Function)
   );
 });
+
+it("replays a compatible client ID without changing order or emitting effects", async () => {
+  const { createPackingItem } = await import("./packing");
+  await expect(createPackingItem(actor, tripId, { id: itemId, name: "Socks", listId: null })).resolves.toMatchObject({
+    id: itemId,
+  });
+  expect(mocks.execute).toHaveBeenCalled();
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it("rejects conflicting client ID content", async () => {
+  const { createPackingItem } = await import("./packing");
+  await expect(createPackingItem(actor, tripId, { id: itemId, name: "Boots", listId: null })).rejects.toBeInstanceOf(
+    ConflictError
+  );
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it.each(["delete-items", "move-items-to-ungrouped"] as const)("removes a section with %s", async (mode) => {
+  const { removePackingSection } = await import("./packing");
+  if (row) row.isLabel = true;
+  set.mockReturnValue({ where: async () => [] });
+  await expect(removePackingSection(actor, itemId, { tripId, mode })).resolves.toBeNull();
+  expect(mocks.delete).toHaveBeenCalledWith(packingItems);
+  expect(mocks.update).toHaveBeenCalledTimes(mode === "delete-items" ? 0 : 1);
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+});
+
+it("inserts before an anchor and shifts only the selected list", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  const queue = [[], [], [stored(first, 2)]];
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => queue.shift() ?? [] }) });
+  set.mockReturnValue({ where: async () => [] });
+  const values = vi.fn(() => ({ returning: async () => [stored(newId, 2, { name: "Boots" })] }));
+  mocks.insert.mockReturnValue({ values });
+  await expect(
+    createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null, beforeItemId: first })
+  ).resolves.toMatchObject({ id: newId });
+  expect(values).toHaveBeenCalledWith(expect.objectContaining({ id: newId, position: 2, listId: null }));
+  expect(mocks.update).toHaveBeenCalledOnce();
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+});
+it("rejects an anchor in another list without writes", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  const queue = [[], [], [stored(first, 2, { listId })]];
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => queue.shift() ?? [] }) });
+  await expect(
+    createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null, afterItemId: first })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("rejects a label in another list without writes", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  const queue = [[], [], [stored(section, 0, { listId, isLabel: true })]];
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => queue.shift() ?? [] }) });
+  await expect(
+    createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null, labelId: section })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+
+it("appends to a named list after validating it belongs to the trip", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  const queue = [[], [], [{ id: listId }], [{ position: 4 }]];
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => queue.shift() ?? [] }) });
+  const values = vi.fn(() => ({ returning: async () => [stored(newId, 5, { name: "Boots", listId })] }));
+  mocks.insert.mockReturnValue({ values });
+  await createPackingItem(actor, tripId, { id: newId, name: "Boots", listId });
+  expect(values).toHaveBeenCalledWith(expect.objectContaining({ listId, position: 5 }));
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+it("rejects an invalid named list before writing", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+  await expect(createPackingItem(actor, tripId, { id: newId, name: "Boots", listId })).rejects.toBeInstanceOf(
+    ValidationFailedError
+  );
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("checks access to a foreign collision before returning a conflict", async () => {
+  const { createPackingItem } = await import("./packing");
+  if (row) row.tripId = "123e4567-e89b-12d3-a456-426614174098";
+  await expect(createPackingItem(actor, tripId, { id: itemId, name: "Socks", listId: null })).rejects.toBeInstanceOf(
+    ConflictError
+  );
+  expect(mocks.requireTripRole).toHaveBeenLastCalledWith(row!.tripId, actor.userId, "viewer", mocks);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("rechecks removal access and rejects non-sections or foreign sections", async () => {
+  const { removePackingSection } = await import("./packing");
+  await expect(removePackingSection(actor, itemId, { tripId, mode: "delete-items" })).rejects.toBeInstanceOf(
+    TripNotFoundError
+  );
+  if (row) {
+    row.isLabel = true;
+    row.tripId = "123e4567-e89b-12d3-a456-426614174098";
+  }
+  await expect(removePackingSection(actor, itemId, { tripId, mode: "delete-items" })).rejects.toBeInstanceOf(
+    TripNotFoundError
+  );
+  row = undefined;
+  await expect(removePackingSection(actor, itemId, { tripId, mode: "delete-items" })).resolves.toBeNull();
+  expect(mocks.delete).not.toHaveBeenCalled();
+});
+
+it.each(["beforeItemId", "afterItemId"] as const)("rejects a missing %s without writes", async (field) => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+  await expect(
+    createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null, [field]: first })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+it.each([
+  undefined,
+  stored(first, 0),
+  stored(first, 0, { isLabel: true, tripId: "123e4567-e89b-12d3-a456-426614174098" }),
+])("rejects missing, non-section, and foreign section references", async (label) => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  const queue = [[], [], label ? [label] : []];
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => queue.shift() ?? [] }) });
+  await expect(
+    createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null, labelId: first })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+
+it("replays a created item even after its original anchor and section disappear and its placement changes", async () => {
+  const { createPackingItem } = await import("./packing");
+  if (row) row.position = 9;
+  const result = await createPackingItem(actor, tripId, {
+    id: itemId,
+    name: "Socks",
+    listId: null,
+    labelId: section,
+    afterItemId: first,
+  });
+  expect(result).toMatchObject({ id: itemId, position: 9, labelId: null });
+  expect(mocks.select).toHaveBeenCalledTimes(2);
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});

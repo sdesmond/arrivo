@@ -209,3 +209,7 @@
 - source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
   summary: Investigate whether a refresh transition can remain unresolved and block the shared refresh queue.
   evidence: Unverified; demonstrate a reachable transition that never settles or unmounts before adding recovery.
+
+- source_plan: `epic-trips-packing-api/story-add-packing-items-and-sections-through-the-api-plan.md`
+  summary: Investigate whether deleted packing UUIDs need tombstones to prevent delayed creation retries from recreating deleted sections or items.
+  evidence: Unverified medium risk; establish the intended retry window and whether existing deletion and idempotency conventions already prevent recreation.

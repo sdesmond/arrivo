@@ -53,3 +53,22 @@ it("rejects duplicate ids, bad shapes, extra fields and oversize lists", () => {
     expect(reorderPackingItems.body.safeParse(body).success).toBe(false);
   expect(reorderPackingItems.params.safeParse({ tripId: "bad" }).success).toBe(false);
 });
+
+it("validates packing creation and section removal", async () => {
+  const { createPackingItem, removePackingSection } = await import("./packing");
+  expect(createPackingItem.body.parse({ id: uuid, name: " Boots ", listId: null })).toMatchObject({
+    id: uuid,
+    name: "Boots",
+    listId: null,
+  });
+  expect(
+    createPackingItem.body.safeParse({ id: uuid, name: "Boots", listId: null, beforeItemId: uuid, afterItemId: uuid })
+      .success
+  ).toBe(false);
+  expect(
+    createPackingItem.body.safeParse({ id: uuid, name: "Section", listId: null, isLabel: true, labelId: uuid }).success
+  ).toBe(false);
+  expect(removePackingSection.body.safeParse({ tripId: uuid, mode: "delete-items" }).success).toBe(true);
+  expect(removePackingSection.body.safeParse({ tripId: uuid, mode: "move-items-to-ungrouped" }).success).toBe(true);
+  expect(removePackingSection.body.safeParse({ tripId: uuid, mode: "other" }).success).toBe(false);
+});

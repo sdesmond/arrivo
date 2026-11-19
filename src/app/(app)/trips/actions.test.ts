@@ -126,7 +126,6 @@ vi.mock("./packing-actions", async (importOriginal) => {
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import {
-  addPackingItem,
   createTrip,
   deleteTrip,
   pullTemplatesOntoTrip,
@@ -2145,11 +2144,6 @@ describe("packing action delegation", () => {
     addPackingItemAction.mockResolvedValue(undefined);
     pullTemplatesOntoTripAction.mockResolvedValue({ added: 1, skipped: 0 });
     saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
-  });
-
-  it("delegates addPackingItem with the same arguments", async () => {
-    await expect(addPackingItem("trip-1", { name: "Passport" })).resolves.toBeUndefined();
-    expect(addPackingItemAction).toHaveBeenCalledWith("trip-1", { name: "Passport" });
   });
 
   it("delegates pullTemplatesOntoTrip with the same arguments", async () => {

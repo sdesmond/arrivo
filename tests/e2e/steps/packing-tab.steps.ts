@@ -350,7 +350,13 @@ async function ensureInsidePackingList(page: Page): Promise<void> {
 When("I add a packing item named {string}", async ({ page }, name: string) => {
   await ensureInsidePackingList(page);
   await page.getByPlaceholder("Add item…").fill(name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      /\/api\/v1\/trips\/[^/]+\/packing-items$/.test(new URL(candidate.url()).pathname)
+  );
   await page.keyboard.press("Enter");
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: name }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -361,7 +367,13 @@ When("I add a packing label named {string}", async ({ page }, name: string) => {
   await page.getByRole("button", { name: "List options" }).click();
   await page.getByText("New section").click();
   await page.getByPlaceholder("New section…").fill(name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      /\/api\/v1\/trips\/[^/]+\/packing-items$/.test(new URL(candidate.url()).pathname)
+  );
   await page.keyboard.press("Enter");
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -544,7 +556,13 @@ When("I add an item {string} under the section {string}", async ({ page }, itemN
   const input = page.getByPlaceholder(`add to ${sectionName}`);
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill(itemName);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      /\/api\/v1\/trips\/[^/]+\/packing-items$/.test(new URL(candidate.url()).pathname)
+  );
   await page.keyboard.press("Enter");
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: itemName }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -554,7 +572,13 @@ When("I add an ungrouped item named {string}", async ({ page }, itemName: string
   const input = page.getByPlaceholder("Add item…");
   await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill(itemName);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      /\/api\/v1\/trips\/[^/]+\/packing-items$/.test(new URL(candidate.url()).pathname)
+  );
   await page.keyboard.press("Enter");
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="item"]').filter({ hasText: itemName }).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -660,7 +684,13 @@ async function openSectionDeleteDialog(page: Page, name: string): Promise<void> 
 
 When("I delete the section label {string} and move its items to Ungrouped", async ({ page }, name: string) => {
   await openSectionDeleteDialog(page, name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "DELETE" &&
+      /\/api\/v1\/packing-items\/[^/]+\/section$/.test(new URL(candidate.url()).pathname)
+  );
   await page.getByRole("button", { name: "Keep Items" }).click();
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
     timeout: 10_000,
   });
@@ -668,7 +698,13 @@ When("I delete the section label {string} and move its items to Ungrouped", asyn
 
 When("I delete the section label {string} and its items", async ({ page }, name: string) => {
   await openSectionDeleteDialog(page, name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "DELETE" &&
+      /\/api\/v1\/packing-items\/[^/]+\/section$/.test(new URL(candidate.url()).pathname)
+  );
   await page.getByRole("button", { name: "Delete Items" }).click();
+  expect((await response).ok()).toBe(true);
   await expect(page.locator('[data-packing-kind="label"]').filter({ hasText: name })).toHaveCount(0, {
     timeout: 10_000,
   });
@@ -744,4 +780,29 @@ When("I open the trip and go to the Packing tab", async ({ page, scenario }) => 
 When("I return to the trips list", async ({ page }) => {
   await page.locator("#main-content").getByRole("link", { name: "Trips" }).click();
   await page.waitForURL("/trips");
+});
+
+When("the section removal API rejects the request", async ({ page }) => {
+  await page.route("**/api/v1/packing-items/*/section", async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "conflict", message: "Section changed" } }),
+    });
+  });
+});
+When("I attempt to delete the section label {string} and keep its items", async ({ page }, name: string) => {
+  await openSectionDeleteDialog(page, name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "DELETE" &&
+      /\/api\/v1\/packing-items\/[^/]+\/section$/.test(new URL(candidate.url()).pathname)
+  );
+  await page.getByRole("button", { name: "Keep Items" }).click();
+  expect((await response).status()).toBe(409);
+});
+Then("the section removal dialog remains open with an error", async ({ page }) => {
+  await expect(page.getByText("Delete Documents?")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep Items" })).toBeEnabled();
+  await expect(page.getByText("Section changed")).toBeVisible();
 });
