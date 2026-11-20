@@ -8,6 +8,7 @@ import {
   acceptInvitationInTransaction,
   acceptInvitationWrite,
   ContributorChangeGuardError,
+  createTripInTransaction,
   createTripWrite,
   declineInvitationInTransaction,
   deleteOwnMembership,
@@ -70,6 +71,28 @@ describe("createTripWrite", () => {
     }));
 
     expect(inserts[2].values).toEqual({ tripId: "trip-1", dayNumber: 1, label: "Day 1" });
+  });
+
+  it("keeps a client-chosen trip id and runs inside the caller's transaction", async () => {
+    const inserts: Array<{ table: unknown; values: unknown }> = [];
+    const transaction = {
+      select: () => ({ from: () => ({ where: () => ({ for: async () => [owner] }) }) }),
+      insert: (table: unknown) => ({
+        values: (values: unknown) => {
+          inserts.push({ table, values });
+          return table === trips ? { returning: async () => [{ id: "client-id" }] } : Promise.resolve();
+        },
+      }),
+    };
+
+    const result = await createTripInTransaction(transaction as never, "owner-1", () => ({
+      tripValues: { id: "client-id", name: "Trip" },
+      collaboratorName: "Owner",
+      buildDayRows: (tripId) => ({ tripId, dayNumber: 1, label: "Day 1" }),
+    }));
+
+    expect(result.tripId).toBe("client-id");
+    expect(inserts[0].values).toEqual({ id: "client-id", name: "Trip", ownerId: "owner-1" });
   });
 
   it("fails without inserting when the owner row is gone", async () => {

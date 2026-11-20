@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { Trip, TripDetailPayload } from "@/data/types";
+import type { Trip, TripDetailPayload, TripListEntry } from "@/data/types";
 import { ReservationType, TransitMode, TripDateConflictResolution } from "@/data/types";
 import { isSupportedCurrencyCode } from "@/lib/currencies";
-import { updateTripSchema } from "@/lib/validation-schemas";
+import { createTripSchema, updateTripSchema } from "@/lib/validation-schemas";
 import { defineEndpoint } from "../endpoint";
 
 const isoDay = z.string().max(10);
@@ -63,4 +63,29 @@ export const updateTrip = defineEndpoint<Trip>()({
     resolution: z.enum(TripDateConflictResolution).optional(),
     confirmation: dateChangeConfirmation.optional(),
   }),
+});
+
+const budgetCurrency = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine(isSupportedCurrencyCode, "Invalid budget currency.")
+  .optional();
+
+export const createTrip = defineEndpoint<Trip>()({
+  method: "POST",
+  path: "/api/v1/trips",
+  params: z.object({}),
+  body: z.strictObject({
+    id: z.uuid().toLowerCase(),
+    ...createTripSchema.omit({ coverImageUrl: true }).shape,
+    budgetCurrency,
+    transitMode: z.enum(TransitMode).nullable().optional(),
+  }),
+});
+export const listTrips = defineEndpoint<{ trips: TripListEntry[] }>()({
+  method: "GET",
+  path: "/api/v1/trips",
+  params: z.object({}),
+  body: z.strictObject({}),
 });

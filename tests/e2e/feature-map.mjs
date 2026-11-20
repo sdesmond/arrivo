@@ -71,6 +71,9 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/create-trip-days.ts",
     "tests/e2e/steps/api-trip-dates.steps.ts",
     "tests/e2e/steps/api-trip-snapshot.steps.ts",
+    "tests/e2e/steps/api-create-trip.steps.ts",
+    "src/lib/services/trip-cover-generation.ts",
+    "src/app/api/v1/trips/route.ts",
     "tests/e2e/trip-patch-response.ts",
     "src/lib/api/contract/trips.ts",
     "src/lib/trip-metadata-save.ts",
@@ -532,6 +535,11 @@ export const FEATURE_MAP = [
     "src/components/arrivo/new-trip-dialog.tsx",
     "src/components/arrivo/trip-confetti.tsx",
     "src/app/(app)/trips/create-trip-days.ts",
+    // The new-trip dialog creates through POST /api/v1/trips.
+    "src/app/(app)/trips/use-trips-page-handlers.ts",
+    "src/app/api/v1/trips/route.ts",
+    "src/lib/services/trips.ts",
+    "src/lib/services/trip-cover-generation.ts",
   ]),
   entry("new-trip", ["src/components/arrivo/new-trip-dialog.tsx", "src/components/arrivo/new-trip-card.tsx"]),
   // Maps only the contributor batch PATCH path its scenarios save through. The dashboard hooks

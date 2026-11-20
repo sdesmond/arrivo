@@ -219,6 +219,24 @@ The one public endpoint, so a client can discover the API before signing in. It 
 { "apiVersion": 1, "capabilities": ["idempotency-key", "sharing-invitations"] }
 ```
 
+## Trips
+
+### POST /api/v1/trips
+
+**Auth** signed in · **`Idempotency-Key`** yes · **Success** `200` `Trip`
+
+Creates a trip owned by the caller, who becomes its manager and creator. Body (strict): `id` (a client-chosen UUID, required), `name` (required), and optionally `startDate`, `endDate`, `destinationName`, `destinationCountry`, `destinationCountryCode`, `destinationCenter` (`[longitude, latitude]`, used only to pick the cover), `notes`, `budgetTotal`, `budgetCurrency`, `tags` and `transitMode`. Field limits match the web trip form. `coverImageUrl` and other cover fields are rejected: the server picks the cover (see below). A missing `budgetCurrency` defaults to the account's currency, then to one derived from `Accept-Language`; a missing `transitMode` defaults to the account's, then `drive`. Dates are `YYYY-MM-DD`; a trip gets one day per date, or a single dateless Day 1 without a `startDate`. A range over 45 days or an `endDate` before the `startDate` returns 422 `validation_failed` and writes nothing.
+
+Repeating the same `id` with the same content returns the current trip without writing, recording activity or touching the cover, whatever `Idempotency-Key` it carries. Content means every field sent, plus the dates, destination, notes, budget and tags being absent when not sent; currency and transit mode count only when sent, tags compare in order, and `destinationCenter` and the cover never count. The same `id` with different content returns 409 `conflict`, and an `id` that belongs to a trip the caller cannot see returns 404 `not_found`. A keyed replay returns the stored response, which is the trip as it was when created, before its cover was set; a retry by `id` returns the current row, cover included.
+
+**Cover.** After the trip commits, the server sets a cover the way the account's default cover type asks: a built-in graphic (always, when no destination is given), a Mapbox map tile saved to storage, or the first photo search result with its photographer credit. This runs once, when the row is first created. A failed lookup is logged and the trip keeps no cover; it never fails the create. Change it later with `PUT /api/v1/trips/:tripId/cover`.
+
+### GET /api/v1/trips
+
+**Auth** signed in · **`Idempotency-Key`** no · **Success** `200` `{ trips: TripListEntry[] }`
+
+No query fields. Returns every trip the caller owns or is a member of, ordered by start date (dateless trips first) then name. Each entry is `{ trip, todayEvents, summaryEvents }`, the shape the trips page reads, with `trip.status` (`active`, `upcoming` or `past`) computed from the server clock at read time. Trips the caller is not on never appear.
+
 ## Days
 
 ### POST /api/v1/trips/:tripId/days

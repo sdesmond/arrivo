@@ -55,48 +55,55 @@ export interface PreparedTrip {
 /**
  * Creates a trip owned by `ownerId` under the owner's account lock, so account deletion (which locks the same
  * user row before reading owned trips) either sees the new trip or makes creation fail. `prepare` runs inside
- * the transaction once the owner row is locked.
+ * the transaction once the owner row is locked; its `tripValues` may carry a client-chosen `id`.
  */
 export async function createTripWrite(
   database: MembershipDatabase,
   ownerId: string,
   prepare: (owner: CreateTripOwner) => PreparedTrip | Promise<PreparedTrip>
 ): Promise<{ tripId: string; ownerId: string; ownerUsername: string }> {
-  return database.transaction(async (tx) => {
-    const [user] = await tx
-      .select({
-        id: users.id,
-        username: users.username,
-        name: users.name,
-        currency: users.currency,
-        transitMode: users.transitMode,
-      })
-      .from(users)
-      .where(eq(users.id, ownerId))
-      .for("update");
+  return database.transaction((tx) => createTripInTransaction(tx, ownerId, prepare));
+}
 
-    if (!user?.id) {
-      throw new Error("Signed-in user could not be resolved before trip creation.");
-    }
-    const prepared = await prepare(user);
+/** `createTripWrite` for a caller that already owns the transaction (for example one holding an idempotency lock). */
+export async function createTripInTransaction(
+  tx: Pick<DbTransaction, "select" | "insert">,
+  ownerId: string,
+  prepare: (owner: CreateTripOwner) => PreparedTrip | Promise<PreparedTrip>
+): Promise<{ tripId: string; ownerId: string; ownerUsername: string }> {
+  const [user] = await tx
+    .select({
+      id: users.id,
+      username: users.username,
+      name: users.name,
+      currency: users.currency,
+      transitMode: users.transitMode,
+    })
+    .from(users)
+    .where(eq(users.id, ownerId))
+    .for("update");
 
-    const [trip] = await tx
-      .insert(trips)
-      .values({ ...prepared.tripValues, ownerId: user.id })
-      .returning();
-    await tx.insert(collaborators).values({
-      tripId: trip.id,
-      userId: user.id,
-      name: prepared.collaboratorName,
-      initials: prepared.collaboratorName.slice(0, 2).toUpperCase(),
-      role: "manager",
-      isCreator: true,
-    });
-    const dayRows = prepared.buildDayRows(trip.id);
-    // drizzle's insert accepts one row or many at runtime; the union only trips its overload typing.
-    await tx.insert(days).values(dayRows as DayInsert[]);
-    return { tripId: trip.id, ownerId: user.id, ownerUsername: user.username };
+  if (!user?.id) {
+    throw new Error("Signed-in user could not be resolved before trip creation.");
+  }
+  const prepared = await prepare(user);
+
+  const [trip] = await tx
+    .insert(trips)
+    .values({ ...prepared.tripValues, ownerId: user.id })
+    .returning();
+  await tx.insert(collaborators).values({
+    tripId: trip.id,
+    userId: user.id,
+    name: prepared.collaboratorName,
+    initials: prepared.collaboratorName.slice(0, 2).toUpperCase(),
+    role: "manager",
+    isCreator: true,
   });
+  const dayRows = prepared.buildDayRows(trip.id);
+  // drizzle's insert accepts one row or many at runtime; the union only trips its overload typing.
+  await tx.insert(days).values(dayRows as DayInsert[]);
+  return { tripId: trip.id, ownerId: user.id, ownerUsername: user.username };
 }
 
 export type InviteContributorWriteResult = InviteContributorResult | { status: "gone" };
