@@ -2,8 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { deleteTrip, pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
-import { RemovePackingSectionMode, type TripDetailPayload } from "@/data/types";
+import { deleteTrip, saveTripListAsTemplate } from "../actions";
+import { type TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -720,7 +720,8 @@ describe("useTripDetailHandlers", () => {
   });
 
   it("handlePullTemplates calls pullTemplatesOntoTrip with the trip id and template ids", async () => {
-    vi.mocked(pullTemplatesOntoTrip).mockResolvedValueOnce({ added: 3, skipped: 1 });
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ added: 3, skipped: 1 });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -729,13 +730,17 @@ describe("useTripDetailHandlers", () => {
       pullResult = await result.current.handlePullTemplates(["t1", "t2"]);
     });
 
-    expect(pullTemplatesOntoTrip).toHaveBeenCalledWith("trip-1", ["t1", "t2"], undefined);
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/trips/:tripId/packing/pull-templates" }),
+      { params: { tripId: "trip-1" }, body: { templateIds: ["t1", "t2"], listId: undefined } }
+    );
     await waitFor(() => expect(pullResult).toEqual({ added: 3, skipped: 1 }));
     expect(mockRefresh).toHaveBeenCalled();
   });
 
   it("handlePullTemplates shows toast.error and resolves undefined when action throws", async () => {
-    vi.mocked(pullTemplatesOntoTrip).mockRejectedValueOnce(new Error("Pull failed"));
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new Error("Pull failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -744,7 +749,7 @@ describe("useTripDetailHandlers", () => {
       pullResult = await result.current.handlePullTemplates(["t1"]);
     });
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Pull failed"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save changes. Try again."));
     expect(pullResult).toBeUndefined();
   });
 

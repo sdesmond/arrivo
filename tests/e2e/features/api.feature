@@ -2586,3 +2586,38 @@ Feature: Absolute checklist checked-state API
       | role     | status | code      |
       | viewer   | 403    | forbidden |
       | stranger | 404    | not_found |
+
+  Scenario: Template pull ignores foreign templates and replays safely
+    Given a scenario-owned packing list API fixture
+    And owned and foreign templates for the packing pull API
+    And my checklist API role is "editor"
+    When I pull those templates twice with the same key and once with a fresh key
+    Then the packing pull API replays counts and ignores the foreign template
+
+  Scenario Outline: Template pull requires editor access
+    Given a scenario-owned packing list API fixture
+    And owned and foreign templates for the packing pull API
+    And my checklist API role is "<role>"
+    When I attempt the packing template pull API
+    Then the packing pull API denies access with <status>
+
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Template pull replay rechecks access
+    Given a scenario-owned packing list API fixture
+    And owned and foreign templates for the packing pull API
+    And my checklist API role is "editor"
+    When I commit a keyed template pull
+    And my checklist API role is "viewer"
+    And I replay the keyed template pull
+    Then the packing pull replay is forbidden
+
+  Scenario: Template pull scopes names and sections to the selected list
+    Given a scenario-owned packing list API fixture
+    And a sectioned template and matching item in another list for the packing pull API
+    And my checklist API role is "editor"
+    When I pull that sectioned template into the selected list
+    Then the packing pull stores the item under its section in that list

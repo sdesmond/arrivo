@@ -31,7 +31,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
-import { pullTemplatesOntoTrip, saveTripListAsTemplate } from "./packing-actions";
+import { saveTripListAsTemplate } from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
   return {
@@ -56,44 +56,6 @@ describe("packing actions hardening", () => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
     assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("stores pulled template items on requested packing list", async () => {
-    db.select.mockReset();
-    db.select.mockReturnValue(mockSimpleSelect([{ id: "tmpl-1" }]));
-
-    const returning = vi.fn().mockResolvedValue([{ id: "new-1" }]);
-    const insertValues = vi.fn(() => ({ returning }));
-    const transaction = {
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      insert: vi.fn(() => ({
-        values: insertValues,
-      })),
-      select: vi
-        .fn()
-        .mockReturnValueOnce(mockSimpleSelect([{ id: "list-1" }]))
-        .mockReturnValueOnce(mockSimpleSelect([]))
-        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: null }]))
-        .mockReturnValueOnce(
-          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
-        ),
-    };
-
-    db.transaction.mockImplementation(async (callback: (tx: typeof transaction) => Promise<void>) =>
-      callback(transaction)
-    );
-
-    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"], "list-1")).resolves.toEqual({ added: 1, skipped: 0 });
-
-    expect(transaction.execute).toHaveBeenCalledOnce();
-    expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tripId: "trip-1",
-        listId: "list-1",
-        name: "Passport",
-      })
-    );
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
   });
 
   it("returns the cached template result when the same idempotency key is reused within 24 hours", async () => {
@@ -425,43 +387,5 @@ describe("saveTripListAsTemplate behavior", () => {
     await saveTripListAsTemplate("trip-1", "  Beach  ");
 
     expect(insertValues).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: "Beach" }));
-  });
-});
-
-describe("packing activity events", () => {
-  function mockTransactionOnce<Tx>(tx: Tx): void {
-    db.transaction.mockImplementation(async (callback: (transaction: Tx) => Promise<unknown>) => callback(tx));
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    db.select.mockReset();
-    requireUser.mockResolvedValue({ id: "user-1" });
-    assertTripAccess.mockResolvedValue(undefined);
-  });
-
-  it("records nothing when a template pull adds zero items", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ id: "tmpl-1" }]));
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi
-        .fn()
-        .mockReturnValueOnce(mockSimpleSelect([{ name: "Passport", id: "item-1", isLabel: false }]))
-        .mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }]))
-        .mockReturnValueOnce(
-          mockOrderedSelect([{ id: "tmpl-item-1", text: "Passport", isLabel: false, position: 0, labelId: null }])
-        ),
-      insert: vi.fn(),
-    });
-
-    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"])).resolves.toEqual({ added: 0, skipped: 1 });
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records nothing when no templates are requested", async () => {
-    await expect(pullTemplatesOntoTrip("trip-1", [])).resolves.toEqual({ added: 0, skipped: 0 });
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 });

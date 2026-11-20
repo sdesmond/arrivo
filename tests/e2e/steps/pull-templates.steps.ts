@@ -11,6 +11,7 @@ import {
   E2E_TEMPLATE_PULL_ITEMS,
 } from "../e2e-seed-data";
 import { Given, Then, When } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -129,7 +130,12 @@ When("I pull the template onto the trip", async ({ page }) => {
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
   await checkTemplate(dialog, E2E_TEMPLATE_PULL.name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" && new URL(candidate.url()).pathname.endsWith("/packing/pull-templates")
+  );
   await page.getByRole("button", { name: /Pull selected/ }).click();
+  expect((await response).ok()).toBe(true);
   await expect(dialog).toBeHidden({ timeout: 10_000 });
 });
 
@@ -141,7 +147,12 @@ When("I pull both templates onto the trip", async ({ page }) => {
   await expect(dialog.getByRole("checkbox").first()).toBeVisible({ timeout: 5_000 });
   await checkTemplate(dialog, E2E_TEMPLATE_PULL.name);
   await checkTemplate(dialog, E2E_TEMPLATE_PULL_2.name);
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" && new URL(candidate.url()).pathname.endsWith("/packing/pull-templates")
+  );
   await page.getByRole("button", { name: /Pull selected/ }).click();
+  expect((await response).ok()).toBe(true);
   await expect(dialog).toBeHidden({ timeout: 10_000 });
 });
 
@@ -158,4 +169,83 @@ Then("the packing list should contain {string} exactly once", async ({ page }, n
 
 Then("I should see a duplicate notice", async ({ page }) => {
   await expect(page.getByText(/duplicate items? skipped/)).toBeVisible({ timeout: 10_000 });
+});
+
+Then("the pulled packing list persists after reload", async ({ page }) => {
+  await reloadPage(page);
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.getByText("Main", { exact: true }).first().click();
+  await expect(page.locator("[data-packing-kind]").filter({ hasText: "Passport" })).toBeVisible();
+});
+
+Given("I have a trip with two packing lists for pull", async ({ scenario }) => {
+  await scenario.ensureCurrentTrip("threeDayTrip", {
+    packingLists: [
+      { name: "Main", position: 0, items: [] },
+      { name: "Carry-on", position: 1, items: [] },
+    ],
+  });
+});
+Given("I have a sectioned packing template available for pull", async ({ scenario }) => {
+  await scenario.materialize({
+    template: {
+      mother: "emptyTemplate",
+      setCurrent: false,
+      overrides: {
+        template: { name: "Sectioned travel" },
+        items: [
+          { text: "Essentials", isLabel: true, position: 0 },
+          { text: "Travel adapter", isLabel: false, position: 1, under: "Essentials" },
+        ],
+      },
+    },
+  });
+});
+When("I select the second packing list for pull", async ({ page, scenario }) => {
+  await scenario.gotoCurrentTrip(page);
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.getByText("Carry-on", { exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "List options" })).toBeVisible();
+});
+When("I pull the sectioned template onto the trip", async ({ page }) => {
+  await page.getByRole("button", { name: "List options" }).click();
+  await page.getByText("Pull templates").click();
+  const dialog = page.getByRole("dialog");
+  await checkTemplate(dialog, "Sectioned travel");
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" && new URL(candidate.url()).pathname.endsWith("/packing/pull-templates")
+  );
+  await page.getByRole("button", { name: /Pull selected/ }).click();
+  expect((await response).ok()).toBe(true);
+  await expect(dialog).toBeHidden();
+});
+Then("the selected list and its section persist after reload", async ({ page, scenario }) => {
+  await reloadPage(page);
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.getByText("Carry-on", { exact: true }).first().click();
+  await expect(page.getByText("Essentials", { exact: true })).toBeVisible();
+  await expect(page.getByText("Travel adapter", { exact: true })).toBeVisible();
+  const rows = await withE2EDb((database) =>
+    database
+      .select({
+        id: packingItems.id,
+        name: packingItems.name,
+        labelId: packingItems.labelId,
+        listId: packingItems.listId,
+      })
+      .from(packingItems)
+      .where(eq(packingItems.tripId, scenario.currentTrip!.id))
+  );
+  const [list] = await withE2EDb((database) =>
+    database
+      .select()
+      .from(tripPackingLists)
+      .where(eq(tripPackingLists.id, rows.find((item) => item.name === "Essentials")!.listId!))
+  );
+  expect(list.name).toBe("Carry-on");
+  expect(rows.find((item) => item.name === "Travel adapter")?.labelId).toBe(
+    rows.find((item) => item.name === "Essentials")?.id
+  );
+  expect(rows.find((item) => item.name === "Travel adapter")?.listId).toBe(list.id);
 });

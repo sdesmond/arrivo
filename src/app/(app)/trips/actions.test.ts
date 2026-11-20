@@ -96,9 +96,8 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
-const { addPackingItemAction, pullTemplatesOntoTripAction, saveTripListAsTemplateAction } = vi.hoisted(() => ({
+const { addPackingItemAction, saveTripListAsTemplateAction } = vi.hoisted(() => ({
   addPackingItemAction: vi.fn(),
-  pullTemplatesOntoTripAction: vi.fn(),
   saveTripListAsTemplateAction: vi.fn(),
 }));
 
@@ -119,7 +118,6 @@ vi.mock("./packing-actions", async (importOriginal) => {
   return {
     ...actual,
     addPackingItem: addPackingItemAction,
-    pullTemplatesOntoTrip: pullTemplatesOntoTripAction,
     saveTripListAsTemplate: saveTripListAsTemplateAction,
   };
 });
@@ -128,7 +126,6 @@ import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDate
 import {
   createTrip,
   deleteTrip,
-  pullTemplatesOntoTrip,
   retrieveLocation,
   saveTripListAsTemplate,
   searchAddressLocations,
@@ -2142,19 +2139,6 @@ describe("packing action delegation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     addPackingItemAction.mockResolvedValue(undefined);
-    pullTemplatesOntoTripAction.mockResolvedValue({ added: 1, skipped: 0 });
-    saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
-  });
-
-  it("delegates pullTemplatesOntoTrip with the same arguments", async () => {
-    await expect(pullTemplatesOntoTrip("trip-1", ["tmpl-1"], "list-1")).resolves.toEqual({ added: 1, skipped: 0 });
-    expect(pullTemplatesOntoTripAction).toHaveBeenCalledWith("trip-1", ["tmpl-1"], "list-1");
-  });
-});
-
-describe("saveTripListAsTemplate", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
     saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
   });
 
