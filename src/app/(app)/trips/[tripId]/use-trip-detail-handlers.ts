@@ -15,7 +15,8 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { deleteTrip } from "../actions";
+import { deleteTrip as deleteTripEndpoint } from "@/lib/api/contract/trips";
+import { api } from "@/lib/api/client";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import {
@@ -324,8 +325,9 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   function handleDeleteTrip(): void {
     startDeleteTripTransition(async () => {
       try {
-        await deleteTrip(trip.id);
+        await api(deleteTripEndpoint, { params: { tripId: trip.id }, body: {} });
         router.push("/trips");
+        router.refresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to delete trip. Please try again.");
       }

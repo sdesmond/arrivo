@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
-import { deleteTrip, saveTripListAsTemplate } from "../actions";
+import { api } from "@/lib/api/client";
+import { saveTripListAsTemplate } from "../actions";
 import { type TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
-  deleteTrip: vi.fn(),
+
   pullTemplatesOntoTrip: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
 }));
@@ -167,7 +168,7 @@ describe("useTripDetailHandlers", () => {
   });
 
   it("deletes the trip and returns to the trips list", async () => {
-    vi.mocked(deleteTrip).mockResolvedValueOnce(undefined);
+    vi.mocked(api).mockResolvedValueOnce(null);
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -175,8 +176,15 @@ describe("useTripDetailHandlers", () => {
       result.current.handleDeleteTrip();
     });
 
-    await waitFor(() => expect(deleteTrip).toHaveBeenCalledWith("trip-1"));
+    await waitFor(() =>
+      expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE" }), {
+        params: { tripId: "trip-1" },
+        body: {},
+      })
+    );
     expect(mockPush).toHaveBeenCalledWith("/trips");
+    expect(mockRefresh).toHaveBeenCalledOnce();
+    expect(mockPush.mock.invocationCallOrder[0]).toBeLessThan(mockRefresh.mock.invocationCallOrder[0]);
   });
 
   it("handleAddEvent creates through the API with the draft id and the reference event", async () => {
@@ -693,7 +701,7 @@ describe("useTripDetailHandlers", () => {
   });
 
   it("surfaces a toast when trip deletion fails", async () => {
-    vi.mocked(deleteTrip).mockRejectedValueOnce(new Error("Delete failed"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Delete failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
@@ -703,6 +711,7 @@ describe("useTripDetailHandlers", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Delete failed"));
     expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("renames packing items through the API", async () => {

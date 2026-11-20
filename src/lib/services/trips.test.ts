@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { trips, expenses } from "@/db/schema";
+import { collaborators, documents, trips, expenses } from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(),
   lock: vi.fn(),
@@ -23,6 +23,10 @@ const mocks = vi.hoisted(() => ({
   revalidate: vi.fn(),
   listForUser: vi.fn(),
   now: vi.fn(),
+  remove: vi.fn(),
+  publishTrip: vi.fn(),
+  publishUser: vi.fn(),
+  purge: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: { transaction: mocks.transaction, update: mocks.dbUpdate } }));
 vi.mock("@/lib/api/idempotency", () => ({ withIdempotency: mocks.idempotent }));
@@ -46,12 +50,17 @@ vi.mock("@/lib/file-cleanup", () => ({
   removeQueuedFiles: mocks.removeFiles,
 }));
 vi.mock("@/lib/queries", () => ({ getTripDetail: mocks.detail, listTripsForUser: mocks.listForUser }));
+vi.mock("@/lib/trip-events", () => ({
+  publishTripEvent: mocks.publishTrip,
+  publishUserEvent: mocks.publishUser,
+  purgeTripTopic: mocks.purge,
+}));
 vi.mock("@/lib/currency", () => ({ recalculateAll: mocks.recalculate }));
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
-import { TripNotFoundError } from "./trip-access";
-import { createTrip, getTrip, listTrips, updateTrip } from "./trips";
+import { TripForbiddenError, TripNotFoundError } from "./trip-access";
+import { createTrip, deleteTrip, getTrip, listTrips, updateTrip } from "./trips";
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "user" };
 const row = {
@@ -569,4 +578,134 @@ it("lists the caller's trips with status computed from the server clock", async 
   expect(mocks.listForUser).toHaveBeenCalledWith("user", now);
   await expect(listTrips(actor)).resolves.toEqual({ trips: entries });
   await expect(listTrips(actor, { status: "past" })).rejects.toThrow();
+});
+
+it("deletes under a lock, queues files, then publishes and cleans up after commit", async () => {
+  stubCreate();
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () =>
+          table === documents
+            ? [{ url: "/file" }, { url: null }]
+            : table === collaborators
+              ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
+              : [],
+      }),
+    }),
+    delete: mocks.remove,
+  };
+  mocks.remove.mockReturnValue({ where: async () => undefined });
+  mocks.transaction.mockImplementation(async (work) => {
+    const result = await work(transaction);
+    expect(mocks.publishTrip).not.toHaveBeenCalled();
+    expect(mocks.removeFiles).not.toHaveBeenCalled();
+    return result;
+  });
+  mocks.queueDeletions.mockResolvedValue([{ id: "queued", url: "/file" }]);
+  await expect(deleteTrip(actor, tripId, {})).resolves.toBeNull();
+  expect(mocks.lock).toHaveBeenCalledWith(transaction, tripId);
+  expect(mocks.requireRole).toHaveBeenCalledWith(tripId, "user", "manager", transaction);
+  expect(mocks.queueDeletions).toHaveBeenCalledWith(transaction, expect.arrayContaining(["/file"]));
+  expect(mocks.remove).toHaveBeenCalledWith(trips);
+  expect(mocks.publishTrip).toHaveBeenCalledOnce();
+  expect(mocks.publishUser).toHaveBeenCalledExactlyOnceWith("other", { type: "trip-deleted", tripId });
+  expect(mocks.purge).toHaveBeenCalledOnce();
+  expect(mocks.publishTrip.mock.invocationCallOrder[0]).toBeLessThan(mocks.purge.mock.invocationCallOrder[0]);
+  expect(mocks.removeFiles).toHaveBeenCalledWith([{ id: "queued", url: "/file" }]);
+});
+
+it("returns success for a missing trip without effects", async () => {
+  stubCreate();
+  mocks.lock.mockRejectedValueOnce(new TripNotFoundError());
+  await expect(deleteTrip(actor, tripId, {})).resolves.toBeNull();
+  expect(mocks.requireRole).not.toHaveBeenCalled();
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+  expect(mocks.queueDeletions).not.toHaveBeenCalled();
+});
+
+it("does not delete or publish when access is denied under the lock", async () => {
+  stubCreate();
+  mocks.requireRole.mockRejectedValueOnce(new Error("denied"));
+  await expect(deleteTrip(actor, tripId, {})).rejects.toThrow("denied");
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+  expect(mocks.queueDeletions).not.toHaveBeenCalled();
+});
+it("publishes nothing when the deletion transaction rolls back", async () => {
+  stubCreate();
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () =>
+          table === documents
+            ? [{ url: "/file" }, { url: null }]
+            : table === collaborators
+              ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
+              : [],
+      }),
+    }),
+    delete: mocks.remove,
+  };
+  mocks.remove.mockReturnValue({ where: async () => undefined });
+  mocks.transaction.mockImplementationOnce(async (work) => {
+    await work(transaction);
+    throw new Error("commit failed");
+  });
+  await expect(deleteTrip(actor, tripId, {})).rejects.toThrow("commit failed");
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+  expect(mocks.purge).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+});
+
+it("does not publish, queue or purge on a replay", async () => {
+  stubCreate();
+  mocks.idempotent.mockResolvedValueOnce({ value: null, replayed: true });
+  await expect(deleteTrip(actor, tripId, {}, { key: "k", method: "DELETE", path: "/trip" })).resolves.toBeNull();
+  expect(mocks.queueDeletions).not.toHaveBeenCalled();
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+  expect(mocks.purge).not.toHaveBeenCalled();
+});
+
+it("propagates lock failures instead of treating them as missing rows", async () => {
+  stubCreate();
+  mocks.lock.mockRejectedValueOnce(new Error("database unavailable"));
+  await expect(deleteTrip(actor, tripId, {})).rejects.toThrow("database unavailable");
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["demoted", () => new TripForbiddenError("manager")],
+  ["removed", () => new TripNotFoundError()],
+])("rechecks authorization after waiting for the lock when the manager is %s", async (_change, errorForChangedRole) => {
+  stubCreate();
+  let releaseLock!: () => void;
+  let notifyWaiting!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    notifyWaiting = resolve;
+  });
+  const lockReleased = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  let roleChanged = false;
+  mocks.lock.mockImplementationOnce(async () => {
+    notifyWaiting();
+    await lockReleased;
+  });
+  mocks.requireRole.mockImplementationOnce(async () => {
+    if (roleChanged) throw errorForChangedRole();
+    return "manager";
+  });
+  const deletion = deleteTrip(actor, tripId, {});
+  await waiting;
+  expect(mocks.requireRole).not.toHaveBeenCalled();
+  roleChanged = true;
+  releaseLock();
+  await expect(deletion).rejects.toBeInstanceOf(errorForChangedRole().constructor);
+  expect(mocks.requireRole).toHaveBeenCalledWith(tripId, actor.userId, "manager", expect.anything());
+  expect(mocks.queueDeletions).not.toHaveBeenCalled();
+  expect(mocks.remove).not.toHaveBeenCalled();
+  expect(mocks.publishTrip).not.toHaveBeenCalled();
+  expect(mocks.publishUser).not.toHaveBeenCalled();
+  expect(mocks.purge).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
 });

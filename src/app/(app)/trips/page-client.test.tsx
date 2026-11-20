@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
-import { deleteTrip } from "./actions";
 import { api, ApiClientError } from "@/lib/api/client";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
@@ -17,10 +16,6 @@ function needsConfirmation(confirmation: unknown): ApiClientError {
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
-}));
-
-vi.mock("./actions", () => ({
-  deleteTrip: vi.fn(),
 }));
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
@@ -183,7 +178,7 @@ describe("useTripsPageHandlers", () => {
   });
 
   it("deletes the selected trip and clears delete state", async () => {
-    vi.mocked(deleteTrip).mockResolvedValueOnce(undefined);
+    vi.mocked(api).mockResolvedValueOnce(null);
 
     const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
 
@@ -195,12 +190,15 @@ describe("useTripsPageHandlers", () => {
       await result.current.handleConfirmDeleteTrip();
     });
 
-    expect(deleteTrip).toHaveBeenCalledWith("trip-upcoming");
+    expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE" }), {
+      params: { tripId: "trip-upcoming" },
+      body: {},
+    });
     expect(result.current.deletingTrip).toBeNull();
   });
 
   it("shows a toast when trip deletion fails", async () => {
-    vi.mocked(deleteTrip).mockRejectedValueOnce(new Error("Delete failed"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Delete failed"));
 
     const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
 

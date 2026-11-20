@@ -89,3 +89,11 @@ export const listTrips = defineEndpoint<{ trips: TripListEntry[] }>()({
   params: z.object({}),
   body: z.strictObject({}),
 });
+
+export const deleteTrip = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/trips/:tripId",
+  params: z.object({ tripId: z.uuid().toLowerCase() }),
+  body: z.strictObject({}),
+  status: 204,
+});

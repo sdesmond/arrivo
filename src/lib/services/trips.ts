@@ -1,12 +1,13 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { trips, expenses } from "@/db/schema";
+import { collaborators, days, documents, events, reservations, trips, expenses } from "@/db/schema";
 import type { Actor, IdempotentRequest, Trip, TripDetailPayload, TripListEntry } from "@/data/types";
-import { TransitMode } from "@/data/types";
+import { LiveSyncEventType, TransitMode } from "@/data/types";
 import {
   createTrip as createContract,
+  deleteTrip as deleteContract,
   getTrip as readContract,
   listTrips as listContract,
   updateTrip as contract,
@@ -21,6 +22,7 @@ import { getTripDetail, listTripsForUser } from "@/lib/queries";
 import { guardTransactionDeadline } from "@/lib/request-deadline";
 import { recordTripCreated } from "@/lib/trip-activity";
 import { detectPreferredCurrency } from "@/lib/utils";
+import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { buildDatelessDayRow, buildDayRows } from "@/app/(app)/trips/create-trip-days";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
@@ -259,4 +261,85 @@ export async function createTrip(
 export async function listTrips(actor: Actor, input: unknown = {}): Promise<{ trips: TripListEntry[] }> {
   listContract.body.parse(input);
   return { trips: await listTripsForUser(actor.userId, getNow()) };
+}
+
+/** Deletes under the trip lock; missing rows are successful retries, while existing rows require a manager. */
+export async function deleteTrip(
+  actor: Actor,
+  tripId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<null> {
+  tripId = deleteContract.params.parse({ tripId }).tripId;
+  const body = deleteContract.body.parse(input);
+  let deleted = false;
+  let queued: QueuedFileDeletion[] = [];
+  let recipientIds: string[] = [];
+  const { value, replayed } = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<null>(
+        transaction,
+        { actor, request: replay, payload: body },
+        {
+          authorize: async () => {
+            await lockClientIds(transaction, [`trip:${tripId}`]);
+            try {
+              await lockTrip(transaction, tripId);
+            } catch (error) {
+              if (error instanceof TripNotFoundError) return;
+              throw error;
+            }
+            await requireTripRole(tripId, actor.userId, "manager", transaction);
+            deleted = true;
+          },
+          mutate: async () => {
+            if (!deleted) return null;
+            const eventIds = transaction
+              .select({ id: events.id })
+              .from(events)
+              .where(
+                or(
+                  eq(events.tripId, tripId),
+                  inArray(events.dayId, transaction.select({ id: days.id }).from(days).where(eq(days.tripId, tripId)))
+                )
+              );
+            const reservationIds = transaction
+              .select({ id: reservations.id })
+              .from(reservations)
+              .where(eq(reservations.tripId, tripId));
+            const files = await transaction
+              .select({ url: documents.url })
+              .from(documents)
+              .where(
+                or(
+                  eq(documents.tripId, tripId),
+                  inArray(documents.eventId, eventIds),
+                  inArray(documents.reservationId, reservationIds)
+                )
+              );
+            const members = await transaction
+              .select({ userId: collaborators.userId })
+              .from(collaborators)
+              .where(eq(collaborators.tripId, tripId));
+            recipientIds = members.flatMap(({ userId }) => (userId && userId !== actor.userId ? [userId] : []));
+            queued = await queueFileDeletions(
+              transaction,
+              files.flatMap(({ url }) => (url ? [url] : []))
+            );
+            await transaction.delete(trips).where(eq(trips.id, tripId));
+            return null;
+          },
+        }
+      )
+    )
+  );
+  if (deleted && !replayed) {
+    const event = { type: LiveSyncEventType.TripDeleted, tripId } as const;
+    publishTripEvent(tripId, event);
+    for (const userId of recipientIds) publishUserEvent(userId, event);
+    purgeTripTopic(tripId);
+    revalidatePath("/trips");
+    await removeQueuedFiles(queued);
+  }
+  return value;
 }

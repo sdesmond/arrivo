@@ -16,7 +16,8 @@ import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { createRandomId, getTripStatus, getTripDays } from "@/lib/utils";
 import { createTrip as createTripEndpoint } from "@/lib/api/contract/trips";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
-import { deleteTrip } from "./actions";
+import { deleteTrip as deleteTripEndpoint } from "@/lib/api/contract/trips";
+import { api } from "@/lib/api/client";
 
 export type MobileTab = "Unscheduled" | "Active" | "Upcoming";
 
@@ -172,7 +173,8 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
 
       startTripDelete(async () => {
         try {
-          await deleteTrip(tripId);
+          await api(deleteTripEndpoint, { params: { tripId }, body: {} });
+          router.refresh();
           if (editingTrip === tripId) {
             closeTripEditSheet();
           } else {

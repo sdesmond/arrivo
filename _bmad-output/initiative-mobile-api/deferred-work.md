@@ -223,3 +223,10 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Unsupported stored account currency makes every create 422 on a field the client never sent.
   evidence: `resolveBudgetCurrency` throws for the account default; behavior carried over from the old action.
+
+- source_plan: story-delete-a-trip-through-the-api-plan.md
+  summary: Prevent deletion notifications from reaching a newly created trip that reuses the deleted trip ID.
+  evidence: The previous action and current service publish after the deleting transaction commits, allowing UUID reuse before publication.
+- source_plan: story-delete-a-trip-through-the-api-plan.md
+  summary: Clean up owned trip cover files when deleting a trip.
+  evidence: The previous delete action removed document files but did not remove stored trip covers.

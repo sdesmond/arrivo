@@ -14,7 +14,8 @@ import {
 } from "@/data/types";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { getTripStatus } from "@/lib/utils";
-import { deleteTrip } from "@/app/(app)/trips/actions";
+import { deleteTrip as deleteTripEndpoint } from "@/lib/api/contract/trips";
+import { api } from "@/lib/api/client";
 
 export type TravelHistoryView = "trips" | "spending";
 
@@ -91,7 +92,8 @@ export function useTravelHistoryPageHandlers(initialEntries: TripListEntry[], no
 
       startTripDelete(async () => {
         try {
-          await deleteTrip(tripId);
+          await api(deleteTripEndpoint, { params: { tripId }, body: {} });
+          router.refresh();
           if (editingTrip === tripId) {
             closeTripEditSheet();
           } else {
