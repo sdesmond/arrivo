@@ -1319,3 +1319,21 @@ describe("day handlers", () => {
     await waitFor(() => expect(result.current.removingDay).toBe(false));
   });
 });
+
+it("sends metadata through the API with the chosen currency conversion", async () => {
+  const { api } = await import("@/lib/api/client");
+  const { TripCurrencyChangeMode } = await import("@/data/types");
+  vi.mocked(api).mockResolvedValueOnce({});
+  const { result } = renderHook(() => useTripDetailHandlers(detail));
+  await act(async () => {
+    await result.current.handleTripSave(
+      { name: "New", startDate: null, endDate: null, budgetCurrency: "EUR" },
+      TripCurrencyChangeMode.Convert
+    );
+  });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH", path: "/api/v1/trips/:tripId" }), {
+    params: { tripId: detail.trip.id },
+    body: { name: "New", budgetCurrency: "EUR", convertCurrency: true },
+  });
+  expect(mockRefresh).toHaveBeenCalled();
+});

@@ -155,6 +155,7 @@ describe("useTripsPageHandlers", () => {
 
     await act(async () => {
       await result.current.handleTripSave("trip-upcoming", {
+        name: "Mixed edit",
         startDate: "2026-06-01",
         endDate: "2026-06-09",
       });
@@ -166,7 +167,7 @@ describe("useTripsPageHandlers", () => {
 
     expect(updateTripMetadata).toHaveBeenLastCalledWith(
       "trip-upcoming",
-      { startDate: "2026-06-01", endDate: "2026-06-09" },
+      { name: "Mixed edit", startDate: "2026-06-01", endDate: "2026-06-09" },
       TripDateConflictResolution.DeleteEvents,
       confirmation
     );

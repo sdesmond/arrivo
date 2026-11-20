@@ -507,7 +507,7 @@ describe("updateTripMetadata", () => {
     expect(tripUpdate?.values).toEqual(expect.objectContaining({ transitMode: null }));
   });
 
-  it("returns confirmation-required before mutating when removed days contain events", async () => {
+  it("returns confirmation-required before mutating mixed metadata and dates when removed days contain events", async () => {
     const { operations, transaction } = createTransactionMock({
       existingDays: [
         { id: "day-1", tripId: "trip-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" },
@@ -520,6 +520,7 @@ describe("updateTripMetadata", () => {
     );
 
     const result = await updateTripMetadata("trip-1", {
+      name: "Mixed edit",
       startDate: "2026-08-01",
       endDate: "2026-08-01",
     });
