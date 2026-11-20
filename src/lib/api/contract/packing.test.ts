@@ -72,3 +72,29 @@ it("validates packing creation and section removal", async () => {
   expect(removePackingSection.body.safeParse({ tripId: uuid, mode: "move-items-to-ungrouped" }).success).toBe(true);
   expect(removePackingSection.body.safeParse({ tripId: uuid, mode: "other" }).success).toBe(false);
 });
+it("validates packing list create, rename and delete", async () => {
+  const { createPackingList, renamePackingList, deletePackingList } = await import("./packing");
+  expect(createPackingList.body.parse({ id: uuid.toUpperCase(), name: " Beach " })).toEqual({
+    id: uuid,
+    name: "Beach",
+  });
+  expect(renamePackingList.body.parse({ tripId: uuid, name: " Day " })).toEqual({ tripId: uuid, name: "Day" });
+  expect(renamePackingList.params.parse({ listId: uuid.toUpperCase() })).toEqual({ listId: uuid });
+  expect(deletePackingList.status).toBe(204);
+  expect(deletePackingList.body.parse({ tripId: uuid })).toEqual({ tripId: uuid });
+  const long = "x".repeat(FIELD_LIMITS.packingListName + 1);
+  for (const body of [{ id: uuid, name: "  " }, { id: uuid, name: long }, { id: "bad", name: "a" }, { name: "a" }])
+    expect(createPackingList.body.safeParse(body).success).toBe(false);
+  for (const body of [
+    { tripId: uuid, name: "" },
+    { tripId: uuid, name: long },
+    { name: "a" },
+    { tripId: uuid, name: "a", x: 1 },
+  ])
+    expect(renamePackingList.body.safeParse(body).success).toBe(false);
+  expect(deletePackingList.body.safeParse({}).success).toBe(false);
+  const overLimit = createPackingList.body.safeParse({ id: uuid, name: long });
+  expect(overLimit.error?.issues[0].message).toBe(
+    `List name must be ${FIELD_LIMITS.packingListName} characters or fewer.`
+  );
+});

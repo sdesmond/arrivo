@@ -90,10 +90,16 @@ Then("I should see the packing lists empty state", async ({ page }) => {
   await expect(page.getByText("No packing lists yet")).toBeVisible({ timeout: 10_000 });
 });
 
-When("I create a new packing list named {string}", async ({ page }, name: string) => {
+When("I create a new packing list named {string}", async ({ page, scenario }, name: string) => {
   await page.getByRole("button", { name: "New List" }).click();
   await page.getByLabel("Packing list name").fill(name);
+  // Arm the exact creation POST before the gesture and await it, so a later reload cannot outrun the commit.
+  const created = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/packing-lists`,
+  });
   await page.getByRole("button", { name: "Create" }).click();
+  await created;
   // List name appears either in drill-down heading or library card
   await expect(page.getByText(name).first()).toBeVisible({ timeout: 10_000 });
   // Return to library if currently in drill-down
@@ -104,7 +110,14 @@ When("I create a new packing list named {string}", async ({ page }, name: string
   await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 });
 
+/** A reload reopens the Packing tab inside the first list, so return to the library before asserting on it. */
+async function showLibrary(page: Page): Promise<void> {
+  const allLists = page.getByRole("button", { name: "All lists" });
+  if (await allLists.isVisible({ timeout: 1_000 }).catch(() => false)) await allLists.click();
+}
+
 Then("the packing list library should show {string}", async ({ page }, name: string) => {
+  await showLibrary(page);
   await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 });
 
@@ -232,3 +245,50 @@ Given(
     await reloadTrip(page);
   }
 );
+
+async function storedListId(tripId: string, name: string): Promise<string | undefined> {
+  const [list] = await withE2EDb((db) =>
+    db
+      .select({ id: tripPackingLists.id })
+      .from(tripPackingLists)
+      .where(and(eq(tripPackingLists.tripId, tripId), eq(tripPackingLists.name, name)))
+  );
+  return list?.id;
+}
+
+Then("the packing list library should not show {string}", async ({ page }, name: string) => {
+  await showLibrary(page);
+  await expect(page.getByRole("button", { name: `Open "${name}"` })).toHaveCount(0);
+  await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+});
+
+When("I rename the packing list {string} to {string}", async ({ page, scenario }, from: string, to: string) => {
+  const listId = await storedListId(scenario.currentTrip!.id, from);
+  if (!listId) throw new Error(`Packing list ${from} was not seeded`);
+  await showLibrary(page);
+  await page.getByRole("button", { name: `Rename "${from}"` }).click();
+  const input = page.getByLabel("Packing list name");
+  await input.fill(to);
+  const renamed = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/packing-lists/${listId}` });
+  await input.press("Enter");
+  await renamed;
+});
+
+When("I delete the packing list {string}", async ({ page, scenario }, name: string) => {
+  const listId = await storedListId(scenario.currentTrip!.id, name);
+  if (!listId) throw new Error(`Packing list ${name} was not seeded`);
+  await showLibrary(page);
+  await page.getByRole("button", { name: `Delete "${name}"` }).click();
+  const deleted = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/packing-lists/${listId}` });
+  await page.getByRole("button", { name: "Delete List" }).click();
+  await deleted;
+});
+
+Then("the stored packing list {string} and its items are gone", async ({ scenario }, name: string) => {
+  const tripId = scenario.currentTrip!.id;
+  expect(await storedListId(tripId, name)).toBeUndefined();
+  const items = await withE2EDb((db) =>
+    db.select({ id: packingItems.id }).from(packingItems).where(eq(packingItems.tripId, tripId))
+  );
+  expect(items).toHaveLength(0);
+});

@@ -63,3 +63,48 @@ it("gives the empty-state create button a 44px target", () => {
   );
   expect(screen.getByRole("button", { name: "New List" })).toHaveClass("h-11");
 });
+
+it("shows a committed rename immediately while the save is still in flight", async () => {
+  const onRenameList = vi.fn(() => new Promise<void>(() => {}));
+  render(
+    <PackingListOverview
+      packingLists={[{ id: "list", tripId: "trip", name: "Bag", position: 0 }]}
+      packingItems={[]}
+      onOpen={vi.fn()}
+      onCreated={vi.fn()}
+      onCreateList={vi.fn()}
+      onRenameList={onRenameList}
+      onDeleteList={vi.fn()}
+    />
+  );
+  await userEvent.click(screen.getByRole("button", { name: 'Rename "Bag"' }));
+  const input = screen.getByRole("textbox", { name: "Packing list name" });
+  await userEvent.clear(input);
+  await userEvent.type(input, "Carry-On{Enter}");
+  expect(onRenameList).toHaveBeenCalledWith("list", "Carry-On");
+  expect(screen.getByRole("button", { name: 'Open "Carry-On"' })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: 'Open "Bag"' })).not.toBeInTheDocument();
+});
+
+it("ends the rename override when the stored name changes", async () => {
+  const props = {
+    packingItems: [],
+    onOpen: vi.fn(),
+    onCreated: vi.fn(),
+    onCreateList: vi.fn(),
+    onRenameList: vi.fn(() => new Promise<void>(() => {})),
+    onDeleteList: vi.fn(),
+  };
+  const { rerender } = render(
+    <PackingListOverview {...props} packingLists={[{ id: "list", tripId: "trip", name: "Bag", position: 0 }]} />
+  );
+  await userEvent.click(screen.getByRole("button", { name: 'Rename "Bag"' }));
+  const input = screen.getByRole("textbox", { name: "Packing list name" });
+  await userEvent.clear(input);
+  await userEvent.type(input, "Mine{Enter}");
+  expect(screen.getByRole("button", { name: 'Open "Mine"' })).toBeInTheDocument();
+  rerender(
+    <PackingListOverview {...props} packingLists={[{ id: "list", tripId: "trip", name: "Theirs", position: 0 }]} />
+  );
+  expect(screen.getByRole("button", { name: 'Open "Theirs"' })).toBeInTheDocument();
+});

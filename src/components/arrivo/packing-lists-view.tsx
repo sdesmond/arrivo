@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { ChevronLeft } from "lucide-react";
 import { PackingListOverview } from "./packing-list-overview";
@@ -65,6 +65,14 @@ export function PackingListsView({
   const [pendingCreatedList, setPendingCreatedList] = useState<PendingCreatedList | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  // Shows a committed title while the stored name is still the one it replaced; the timer ends it if the save failed.
+  const [pendingTitle, setPendingTitle] = useState<{
+    listId: string;
+    name: string;
+    from: string;
+    token: number;
+  } | null>(null);
+  const titleToken = useRef(0);
   const persistedActiveList =
     activeListId === null ? null : packingLists.find((candidate) => candidate.id === activeListId);
   const pendingActiveList =
@@ -112,7 +120,11 @@ export function PackingListsView({
                 const trimmed = titleDraft.trim();
                 setIsEditingTitle(false);
                 if (trimmed && trimmed !== activeList.name) {
-                  void onRenameList(activeListId, trimmed);
+                  const token = ++titleToken.current;
+                  setPendingTitle({ listId: activeListId, name: trimmed, from: activeList.name, token });
+                  void Promise.resolve(onRenameList(activeListId, trimmed)).finally(() => {
+                    setTimeout(() => setPendingTitle((current) => (current?.token === token ? null : current)), 4000);
+                  });
                 }
               }
               if (event.key === "Escape") {
@@ -142,7 +154,9 @@ export function PackingListsView({
               cursor: "pointer",
             }}
           >
-            {activeList.name}
+            {pendingTitle?.listId === activeListId && pendingTitle.from === activeList.name
+              ? pendingTitle.name
+              : activeList.name}
           </h2>
         )}
         <PackingListView

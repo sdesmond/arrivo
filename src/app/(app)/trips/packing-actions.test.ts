@@ -31,13 +31,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
 
-import {
-  createPackingList,
-  deletePackingList,
-  pullTemplatesOntoTrip,
-  renamePackingList,
-  saveTripListAsTemplate,
-} from "./packing-actions";
+import { pullTemplatesOntoTrip, saveTripListAsTemplate } from "./packing-actions";
 
 function mockSimpleSelect(rows: unknown[]) {
   return {
@@ -467,72 +461,6 @@ describe("packing activity events", () => {
 
   it("records nothing when no templates are requested", async () => {
     await expect(pullTemplatesOntoTrip("trip-1", [])).resolves.toEqual({ added: 0, skipped: 0 });
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once when a packing list is created", async () => {
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      select: vi.fn().mockReturnValueOnce(mockSimpleSelect([{ maxPos: 0 }])),
-      insert: vi.fn(() => ({ values: () => ({ returning: async () => [{ id: "list-1" }] }) })),
-    });
-
-    await expect(createPackingList("trip-1", "Carry-on")).resolves.toBe("list-1");
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("rejects an over-length list name on create and rename", async () => {
-    await expect(createPackingList("trip-1", "x".repeat(31))).rejects.toThrow(
-      "List name must be 30 characters or fewer."
-    );
-    await expect(renamePackingList("list-1", "x".repeat(31))).rejects.toThrow(
-      "List name must be 30 characters or fewer."
-    );
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records nothing when list creation fails validation", async () => {
-    await expect(createPackingList("trip-1", "  ")).rejects.toThrow("List name is required");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once when a packing list is renamed", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
-    db.update.mockReturnValue({ set: () => ({ where: async () => undefined }) });
-
-    await renamePackingList("list-1", "Checked bag");
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when renaming a missing list", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
-
-    await expect(renamePackingList("list-1", "Checked bag")).rejects.toThrow("Packing list not found");
-
-    expect(recordTripUpdated).not.toHaveBeenCalled();
-  });
-
-  it("records once when a packing list is deleted", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([{ tripId: "trip-1" }]));
-    mockTransactionOnce({
-      execute: vi.fn().mockResolvedValue([{ id: "trip-1" }]),
-      delete: vi.fn(() => ({ where: async () => undefined })),
-    });
-
-    await deletePackingList("list-1");
-
-    expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
-  });
-
-  it("records nothing when deleting a missing list", async () => {
-    db.select.mockReturnValueOnce(mockSimpleSelect([]));
-
-    await deletePackingList("list-1");
 
     expect(recordTripUpdated).not.toHaveBeenCalled();
   });

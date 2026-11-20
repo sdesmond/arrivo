@@ -2,14 +2,17 @@ import "server-only";
 import { and, eq, gte, isNull, max, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { packingItems, tripPackingLists } from "@/db/schema";
-import type { Actor, IdempotentRequest, PackingItem, PackingItemOrder } from "@/data/types";
-import { dbPackingItemToType } from "@/lib/db-mappers";
+import type { Actor, IdempotentRequest, PackingItem, PackingItemOrder, TripPackingList } from "@/data/types";
+import { dbPackingItemToType, dbPackingListToType } from "@/lib/db-mappers";
 import {
   updatePackingItem as updateContract,
   deletePackingItem as deleteContract,
   reorderPackingItems as reorderContract,
   createPackingItem as createContract,
   removePackingSection as sectionContract,
+  createPackingList as createListContract,
+  renamePackingList as renameListContract,
+  deletePackingList as deleteListContract,
 } from "@/lib/api/contract/packing";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { lockClientIds } from "./client-ids";
@@ -288,6 +291,131 @@ export async function removePackingSection(
         else await transaction.update(packingItems).set({ labelId: null }).where(scope);
         await transaction.delete(packingItems).where(eq(packingItems.id, itemId));
         markChanged();
+        return null;
+      },
+    })
+  );
+}
+
+async function readList(executor: ReadExecutor, listId: string) {
+  const [list] = await executor.select().from(tripPackingLists).where(eq(tripPackingLists.id, listId));
+  return list;
+}
+
+export async function createPackingList(
+  actor: Actor,
+  tripId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<TripPackingList> {
+  tripId = createListContract.params.parse({ tripId }).tripId;
+  const body = createListContract.body.parse(input);
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<TripPackingList>(
+    actor,
+    tripId,
+    { replay, payload: body, revalidate: ["/trips"] },
+    (transaction, markChanged) => ({
+      authorize: async () => {
+        await lockClientIds(transaction, [`packing-list:${body.id}`]);
+        await lockTrip(transaction, tripId);
+        await requireTripRole(tripId, actor.userId, "editor", transaction);
+        const existing = await readList(transaction, body.id);
+        if (existing && existing.tripId !== tripId)
+          await requireTripRole(existing.tripId, actor.userId, "viewer", transaction);
+      },
+      mutate: async () => {
+        const existing = await readList(transaction, body.id);
+        if (existing) {
+          if (existing.tripId !== tripId || existing.name !== body.name)
+            throw new ConflictError("This ID was already used for a different packing list.");
+          return dbPackingListToType(existing);
+        }
+        const [{ maxPosition }] = await transaction
+          .select({ maxPosition: max(tripPackingLists.position) })
+          .from(tripPackingLists)
+          .where(eq(tripPackingLists.tripId, tripId));
+        const [created] = await transaction
+          .insert(tripPackingLists)
+          .values({ id: body.id, tripId, name: body.name, position: (maxPosition ?? -1) + 1 })
+          .returning();
+        markChanged();
+        return dbPackingListToType(created);
+      },
+    })
+  );
+}
+
+export async function renamePackingList(
+  actor: Actor,
+  listId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<TripPackingList> {
+  listId = renameListContract.params.parse({ listId }).listId;
+  const body = renameListContract.body.parse(input);
+  const { tripId } = body;
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<TripPackingList>(
+    actor,
+    tripId,
+    { replay, payload: body, revalidate: ["/trips"] },
+    (transaction, markChanged) => {
+      async function current() {
+        const list = await readList(transaction, listId);
+        if (!list || list.tripId !== tripId) throw new TripNotFoundError();
+        return list;
+      }
+      return {
+        authorize: async () => {
+          await lockTrip(transaction, tripId);
+          await requireTripRole(tripId, actor.userId, "editor", transaction);
+          await current();
+        },
+        mutate: async () => {
+          const list = await current();
+          if (list.name === body.name) return dbPackingListToType(list);
+          const [updated] = await transaction
+            .update(tripPackingLists)
+            .set({ name: body.name })
+            .where(eq(tripPackingLists.id, listId))
+            .returning();
+          if (!updated) throw new TripNotFoundError();
+          markChanged();
+          return dbPackingListToType(updated);
+        },
+      };
+    }
+  );
+}
+
+export async function deletePackingList(
+  actor: Actor,
+  listId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<null> {
+  listId = deleteListContract.params.parse({ listId }).listId;
+  const body = deleteListContract.body.parse(input);
+  const { tripId } = body;
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<null>(
+    actor,
+    tripId,
+    { replay, payload: body, revalidate: ["/trips"] },
+    (transaction, markChanged) => ({
+      authorize: async () => {
+        await lockTrip(transaction, tripId);
+        await requireTripRole(tripId, actor.userId, "editor", transaction);
+        const list = await readList(transaction, listId);
+        if (list && list.tripId !== tripId) throw new TripNotFoundError();
+      },
+      mutate: async () => {
+        if (await readList(transaction, listId)) {
+          await transaction.delete(packingItems).where(eq(packingItems.listId, listId));
+          await transaction.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
+          markChanged();
+        }
         return null;
       },
     })

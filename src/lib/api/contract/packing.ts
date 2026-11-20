@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { PackingItem, PackingItemOrder } from "@/data/types";
-import { FIELD_LIMITS } from "@/lib/validation-limits";
+import type { PackingItem, PackingItemOrder, TripPackingList } from "@/data/types";
+import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 import { defineEndpoint } from "../endpoint";
 const uuid = z.uuid().toLowerCase();
 const params = z.object({ itemId: uuid });
@@ -60,5 +60,33 @@ export const removePackingSection = defineEndpoint<null>()({
   path: "/api/v1/packing-items/:itemId/section",
   params,
   body: z.strictObject({ tripId: uuid, mode: z.enum(["delete-items", "move-items-to-ungrouped"]) }),
+  status: 204,
+});
+
+const listName = z
+  .string()
+  .trim()
+  .min(1, "List name is required")
+  .max(FIELD_LIMITS.packingListName, overLimitMessage("List name", FIELD_LIMITS.packingListName));
+const listParams = z.object({ listId: uuid });
+/** The client mints the list ID, so a retried create returns the same list instead of adding another. */
+export const createPackingList = defineEndpoint<TripPackingList>()({
+  method: "POST",
+  path: "/api/v1/trips/:tripId/packing-lists",
+  params: z.object({ tripId: uuid }),
+  body: z.strictObject({ id: uuid, name: listName }),
+});
+export const renamePackingList = defineEndpoint<TripPackingList>()({
+  method: "PATCH",
+  path: "/api/v1/packing-lists/:listId",
+  params: listParams,
+  body: z.strictObject({ tripId: uuid, name: listName }),
+});
+/** Deletes the list and every item in it. An already-absent list is a quiet 204. */
+export const deletePackingList = defineEndpoint<null>()({
+  method: "DELETE",
+  path: "/api/v1/packing-lists/:listId",
+  params: listParams,
+  body: z.strictObject({ tripId: uuid }),
   status: 204,
 });
