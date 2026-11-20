@@ -14,7 +14,7 @@ import {
 } from "@/data/types";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { getTripStatus, getTripDays } from "@/lib/utils";
-import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
+import { createTrip, deleteTrip } from "./actions";
 
 export type MobileTab = "Unscheduled" | "Active" | "Upcoming";
 
@@ -120,7 +120,7 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
         try {
           const trip = initialEntries.find((entry) => entry.trip.id === tripId)?.trip;
           if (!trip) throw new Error("Trip not found.");
-          const result = await saveTripMetadata(trip, patch, updateTripMetadata, resolution, confirmation);
+          const result = await saveTripMetadata(trip, patch, resolution, confirmation);
           if (result.status === "saved") router.refresh();
           if (result.status === "saved") {
             closeTripEditSheet();

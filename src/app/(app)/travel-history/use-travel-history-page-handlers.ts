@@ -14,7 +14,7 @@ import {
 } from "@/data/types";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { getTripStatus } from "@/lib/utils";
-import { deleteTrip, updateTripMetadata } from "@/app/(app)/trips/actions";
+import { deleteTrip } from "@/app/(app)/trips/actions";
 
 export type TravelHistoryView = "trips" | "spending";
 
@@ -53,7 +53,7 @@ export function useTravelHistoryPageHandlers(initialEntries: TripListEntry[], no
         try {
           const trip = initialEntries.find((entry) => entry.trip.id === tripId)?.trip;
           if (!trip) throw new Error("Trip not found.");
-          const result = await saveTripMetadata(trip, patch, updateTripMetadata, resolution, confirmation);
+          const result = await saveTripMetadata(trip, patch, resolution, confirmation);
           if (result.status === "saved") router.refresh();
           if (result.status === "saved") {
             closeTripEditSheet();

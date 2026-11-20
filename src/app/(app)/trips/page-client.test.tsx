@@ -2,8 +2,18 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
-import { deleteTrip, updateTripMetadata } from "./actions";
+import { deleteTrip } from "./actions";
+import { api, ApiClientError } from "@/lib/api/client";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
+
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
+}));
+
+function needsConfirmation(confirmation: unknown): ApiClientError {
+  return new ApiClientError(409, "confirmation_required", "Confirm.", undefined, undefined, confirmation);
+}
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -12,7 +22,6 @@ vi.mock("sonner", () => ({
 vi.mock("./actions", () => ({
   createTrip: vi.fn(),
   deleteTrip: vi.fn(),
-  updateTripMetadata: vi.fn(),
 }));
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
@@ -100,16 +109,15 @@ describe("useTripsPageHandlers", () => {
   });
 
   it("keeps the sheet open and stores confirmation state when a date edit needs review", async () => {
-    vi.mocked(updateTripMetadata).mockResolvedValueOnce({
-      status: "confirmation-required",
-      confirmation: {
+    vi.mocked(api).mockRejectedValueOnce(
+      needsConfirmation({
         removedDates: ["2026-06-10"],
         events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-06-10", docCount: 0 }],
         noteCount: 0,
         checklistCount: 0,
         eventDocumentCount: 0,
-      },
-    });
+      })
+    );
 
     const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
 
@@ -140,12 +148,9 @@ describe("useTripsPageHandlers", () => {
       checklistCount: 0,
       eventDocumentCount: 0,
     };
-    vi.mocked(updateTripMetadata)
-      .mockResolvedValueOnce({
-        status: "confirmation-required",
-        confirmation,
-      })
-      .mockResolvedValueOnce({ status: "saved" });
+    vi.mocked(api)
+      .mockRejectedValueOnce(needsConfirmation(confirmation))
+      .mockResolvedValueOnce({} as never);
 
     const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
 
@@ -165,12 +170,14 @@ describe("useTripsPageHandlers", () => {
       await result.current.handleTripSaveResolution(TripDateConflictResolution.DeleteEvents);
     });
 
-    expect(updateTripMetadata).toHaveBeenLastCalledWith(
-      "trip-upcoming",
-      { name: "Mixed edit", startDate: "2026-06-01", endDate: "2026-06-09" },
-      TripDateConflictResolution.DeleteEvents,
-      confirmation
-    );
+    expect(api).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/v1/trips/:tripId" }), {
+      params: { tripId: "trip-upcoming" },
+      body: {
+        ...{ name: "Mixed edit", startDate: "2026-06-01", endDate: "2026-06-09" },
+        resolution: TripDateConflictResolution.DeleteEvents,
+        confirmation,
+      },
+    });
     expect(result.current.editingTrip).toBeNull();
     expect(result.current.tripDateConfirmation).toBeNull();
     expect(result.current.pendingTripPatch).toBeNull();

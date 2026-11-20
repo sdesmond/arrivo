@@ -15,7 +15,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { deleteTrip, updateTripMetadata } from "../actions";
+import { deleteTrip } from "../actions";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import {
@@ -303,7 +303,6 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
           const result = await saveTripMetadata(
             trip,
             patch,
-            updateTripMetadata,
             resolution,
             confirmation,
             currencyChangeMode === TripCurrencyChangeMode.Convert

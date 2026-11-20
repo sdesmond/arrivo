@@ -5,7 +5,7 @@ import type {
   UpdateTripMetadataResult,
   UpdateTripPatch,
 } from "@/data/types";
-import { api } from "@/lib/api/client";
+import { api, ApiClientError } from "@/lib/api/client";
 import { updateTrip } from "@/lib/api/contract/trips";
 
 export function hasTripDateChanges(trip: Pick<Trip, "startDate" | "endDate">, patch: UpdateTripPatch): boolean {
@@ -15,32 +15,33 @@ export function hasTripDateChanges(trip: Pick<Trip, "startDate" | "endDate">, pa
   );
 }
 
+/**
+ * Saves a trip's metadata and dates through the API. A date change that would remove planned content comes back as a
+ * `confirmation-required` result; send the same patch again with a resolution and that confirmation to apply it.
+ */
 export async function saveTripMetadata(
   trip: Trip,
   patch: UpdateTripPatch,
-  legacy: (
-    tripId: string,
-    patch: UpdateTripPatch,
-    resolution?: TripDateConflictResolution,
-    confirmation?: TripDateChangeConfirmation,
-    convertCurrency?: boolean
-  ) => Promise<UpdateTripMetadataResult>,
   resolution?: TripDateConflictResolution,
   confirmation?: TripDateChangeConfirmation,
   convertCurrency?: boolean
 ): Promise<UpdateTripMetadataResult> {
-  if (hasTripDateChanges(trip, patch) || patch.coverImageUrl !== undefined || resolution) {
-    return convertCurrency === undefined
-      ? legacy(trip.id, patch, resolution, confirmation)
-      : legacy(trip.id, patch, resolution, confirmation, convertCurrency);
+  // Covers have their own endpoint, and unchanged dates need no day sync.
+  const { coverImageUrl: _coverImageUrl, startDate, endDate, ...rest } = patch;
+  void _coverImageUrl;
+  const body = {
+    ...rest,
+    ...(hasTripDateChanges(trip, patch) ? { startDate, endDate } : {}),
+    ...(resolution && confirmation ? { resolution, confirmation } : {}),
+    ...(convertCurrency ? { convertCurrency: true } : {}),
+  };
+  try {
+    await api(updateTrip, { params: { tripId: trip.id }, body });
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 409 && error.code === "confirmation_required") {
+      return { status: "confirmation-required", confirmation: error.confirmation as TripDateChangeConfirmation };
+    }
+    throw error;
   }
-  const body = { ...patch };
-  delete body.startDate;
-  delete body.endDate;
-  delete body.coverImageUrl;
-  await api(updateTrip, {
-    params: { tripId: trip.id },
-    body: { ...body, ...(convertCurrency ? { convertCurrency: true } : {}) },
-  });
   return { status: "saved" };
 }
