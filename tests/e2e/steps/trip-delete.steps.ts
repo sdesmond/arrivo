@@ -79,3 +79,7 @@ When("I open that trip and delete it from its detail page", async ({ page, scena
 Then("I return to the trips list after deletion", async ({ page }) => {
   await expect(page).toHaveURL(/\/trips\/?$/);
 });
+
+Then("the trip deletion dialog is closed", async ({ page }) => {
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+});

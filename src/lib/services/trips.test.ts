@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   publishTrip: vi.fn(),
   publishUser: vi.fn(),
   purge: vi.fn(),
+  after: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: { transaction: mocks.transaction, update: mocks.dbUpdate } }));
 vi.mock("@/lib/api/idempotency", () => ({ withIdempotency: mocks.idempotent }));
@@ -38,6 +39,7 @@ vi.mock("@/lib/membership-writes", () => ({ createTripInTransaction: mocks.creat
 vi.mock("./trip-cover-generation", () => ({ generateTripCover: mocks.generateCover }));
 vi.mock("@/lib/trip-activity", () => ({ recordTripCreated: mocks.recordCreated }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("@/lib/mock-date", () => ({ getNow: mocks.now }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
@@ -612,9 +614,30 @@ it("deletes under a lock, queues files, then publishes and cleans up after commi
   expect(mocks.publishUser).toHaveBeenCalledExactlyOnceWith("other", { type: "trip-deleted", tripId });
   expect(mocks.purge).toHaveBeenCalledOnce();
   expect(mocks.publishTrip.mock.invocationCallOrder[0]).toBeLessThan(mocks.purge.mock.invocationCallOrder[0]);
+  expect(mocks.after).toHaveBeenCalledOnce();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+  await mocks.after.mock.calls[0][0]();
   expect(mocks.removeFiles).toHaveBeenCalledWith([{ id: "queued", url: "/file" }]);
 });
 
+it("keeps committed deletion successful when cleanup cannot be scheduled", async () => {
+  stubCreate();
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const transaction = {
+    select: () => ({ from: () => ({ where: async () => [] }) }),
+    delete: mocks.remove,
+  };
+  mocks.remove.mockReturnValue({ where: async () => undefined });
+  mocks.transaction.mockImplementationOnce(async (work) => work(transaction));
+  mocks.queueDeletions.mockResolvedValueOnce([{ id: "queued", url: "/file" }]);
+  mocks.after.mockImplementationOnce(() => {
+    throw new Error("no request context");
+  });
+  await expect(deleteTrip(actor, tripId, {})).resolves.toBeNull();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+  expect(warning).toHaveBeenCalledOnce();
+  warning.mockRestore();
+});
 it("returns success for a missing trip without effects", async () => {
   stubCreate();
   mocks.lock.mockRejectedValueOnce(new TripNotFoundError());

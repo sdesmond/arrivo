@@ -1,6 +1,7 @@
 import "server-only";
 import { eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "@/db";
 import { collaborators, days, documents, events, reservations, trips, expenses } from "@/db/schema";
 import type { Actor, IdempotentRequest, Trip, TripDetailPayload, TripListEntry } from "@/data/types";
@@ -339,7 +340,13 @@ export async function deleteTrip(
     for (const userId of recipientIds) publishUserEvent(userId, event);
     purgeTripTopic(tripId);
     revalidatePath("/trips");
-    await removeQueuedFiles(queued);
+    if (queued.length > 0) {
+      try {
+        after(() => removeQueuedFiles(queued));
+      } catch (error) {
+        console.warn("Could not schedule queued file cleanup", error);
+      }
+    }
   }
   return value;
 }

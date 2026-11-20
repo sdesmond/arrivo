@@ -109,7 +109,18 @@ Then("the delete API trip and its legacy documents are removed", async ({ page }
   }));
   expect(rows.trips).toHaveLength(0);
   expect(rows.documents.flat()).toHaveLength(0);
-  expect(rows.queued.flat()).toHaveLength(0);
+  await expect
+    .poll(async () => {
+      const queued = await withE2EDb((database) =>
+        Promise.all(
+          current.urls.map((url) =>
+            database.select().from(pendingFileDeletions).where(eq(pendingFileDeletions.url, url))
+          )
+        )
+      );
+      return queued.flat().length;
+    })
+    .toBe(0);
   for (const url of current.urls)
     await expect(access(join(resolve(E2E_STORAGE_DIRECTORY), url.slice("/api/storage/".length)))).rejects.toThrow();
 });

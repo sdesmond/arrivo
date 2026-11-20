@@ -230,3 +230,7 @@
 - source_plan: story-delete-a-trip-through-the-api-plan.md
   summary: Clean up owned trip cover files when deleting a trip.
   evidence: The previous delete action removed document files but did not remove stored trip covers.
+
+- source_plan: plan-dismiss-trip-deletion-dialog.md
+  summary: Exercise trip deletion with a controllably slow storage adapter in an integration test.
+  evidence: Service tests verify deferred scheduling, but the browser scenarios do not hold real file cleanup open.
