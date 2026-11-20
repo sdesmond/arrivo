@@ -23,7 +23,6 @@ vi.mock("../actions", () => ({
   deleteTrip: vi.fn(),
   pullTemplatesOntoTrip: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
-  updateTripMetadata: vi.fn(),
 }));
 
 vi.mock("../packing-actions", () => ({

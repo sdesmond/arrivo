@@ -2655,3 +2655,60 @@ Feature: Absolute checklist checked-state API
     And the checklist API replay record write is set to fail
     When I PATCH trip currency to EUR with conversion using the failing key
     Then trip currency conversion is rolled back
+
+  Scenario: Trip date PATCH previews removed content without writing
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    Then the trip date API asks for confirmation naming the final-day event
+    And the trip still has its original dates, name, event and file
+
+  Scenario: Trip date PATCH deletes removed events and queues their documents
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 1 and a new name
+    And I PATCH the trip to end on day 1 resolving with "delete-events"
+    Then the trip date API returns 200
+    And the final-day event and its stored file are deleted and the trip ends on its first day
+
+  Scenario: Trip date PATCH keeps removed events as unscheduled
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    And I PATCH the trip to end on day 2 resolving with "keep-as-unscheduled"
+    Then the trip date API returns 200
+    And the final-day event is kept unscheduled with its file
+
+  Scenario: Trip date PATCH rejects a stale confirmation
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    And the final-day event is renamed before the confirmation is applied
+    And I PATCH the trip to end on day 2 resolving with "delete-events"
+    Then the trip date API returns 409 with code "conflict"
+    And the trip still has its original dates, name, event and file
+
+  Scenario: Trip date PATCH rejects a resolution without its confirmation
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 with a resolution but no confirmation
+    Then the trip date API returns 422 with code "validation_failed"
+    And the trip still has its original dates, name, event and file
+
+  Scenario: Trip date PATCH clears the dates and keeps the days
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I clear the trip dates through the API
+    Then the trip date API returns 200
+    And the trip has no dates and still has its three days
+
+  Scenario Outline: Trip date PATCH enforces access
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "<role>"
+    When I PATCH the trip to end on day 2 and a new name
+    Then the trip date API returns <status>
+    And the trip still has its original dates, name, event and file
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |

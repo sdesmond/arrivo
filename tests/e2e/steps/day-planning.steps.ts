@@ -1,4 +1,4 @@
-import { waitForServerActionSettled } from "../server-action";
+import { waitForTripPatchResponse } from "../trip-patch-response";
 import { expect, type Locator, type Page } from "@playwright/test";
 import { and, desc, eq } from "drizzle-orm";
 import { days, events, itineraryNotes, trips } from "../../../src/db/schema";
@@ -1371,7 +1371,9 @@ When("I shift the trip date range one day later", async ({ page }) => {
 });
 
 When("I save the trip date change", async ({ page }) => {
+  const saved = waitForTripPatchResponse(page);
   await page.getByRole("button", { name: "Save changes" }).click();
+  await saved;
 });
 
 Then("the edited trip includes the appended scheduled days", async ({ page, scenario }) => {
@@ -1426,7 +1428,9 @@ Then("the trip edit warning explains the removed trip dates", async ({ page }) =
 });
 
 When("I keep the displaced events as unscheduled", async ({ page }) => {
+  const saved = waitForTripPatchResponse(page);
   await page.getByRole("button", { name: "Keep Events" }).click();
+  await saved;
   await expect(page.getByRole("alertdialog")).not.toBeVisible({ timeout: 10_000 });
 });
 
@@ -1886,7 +1890,7 @@ When("I cancel the trip date warning", async ({ page }) => {
 });
 When("I confirm the mixed trip edit", async ({ page }) => {
   await expect(page.getByRole("alertdialog")).toBeVisible();
-  const saved = waitForServerActionSettled(page, { pathIncludes: "" });
+  const saved = waitForTripPatchResponse(page);
   await page.getByRole("alertdialog").getByRole("button", { name: "Keep Events" }).click();
   await saved;
 });

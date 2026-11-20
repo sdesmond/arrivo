@@ -66,6 +66,20 @@ it("preserves status, field errors, and required role", async () => {
     requiredRole: "editor",
   });
 });
+it("preserves the confirmation payload of a confirmation_required failure", async () => {
+  const confirmation = { removedDates: ["2026-08-02"], events: [], noteCount: 0 };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ error: { code: "confirmation_required", message: "Confirm", confirmation } }, { status: 409 })
+      )
+  );
+  await expect(
+    api(updateChecklistItem, { params: { itemId: "item" }, body: { isChecked: true } })
+  ).rejects.toMatchObject({ status: 409, code: "confirmation_required", confirmation });
+});
 it("normalizes network and non-JSON failures", async () => {
   const fetch = vi
     .fn()

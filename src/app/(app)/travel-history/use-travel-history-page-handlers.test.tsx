@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
-import { deleteTrip, updateTripMetadata } from "@/app/(app)/trips/actions";
-import { api } from "@/lib/api/client";
+import { deleteTrip } from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
 import { useTravelHistoryPageHandlers } from "./use-travel-history-page-handlers";
 import { SpendingDateRange, TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
@@ -18,7 +18,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush, refresh: vi.fn() }),
 }));
 
-vi.mock("@/lib/api/client", () => ({ api: vi.fn() }));
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
+}));
+
+function needsConfirmation(confirmation: unknown): ApiClientError {
+  return new ApiClientError(409, "confirmation_required", "Confirm.", undefined, undefined, confirmation);
+}
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -26,7 +33,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/app/(app)/trips/actions", () => ({
   deleteTrip: vi.fn(),
-  updateTripMetadata: vi.fn(),
 }));
 
 const NOW = new Date("2026-05-13T12:00:00.000Z");
@@ -117,16 +123,15 @@ describe("useTravelHistoryPageHandlers", () => {
   });
 
   it("keeps the sheet open and stores confirmation state when a date edit needs review", async () => {
-    vi.mocked(updateTripMetadata).mockResolvedValueOnce({
-      status: "confirmation-required",
-      confirmation: {
+    vi.mocked(api).mockRejectedValueOnce(
+      needsConfirmation({
         removedDates: ["2026-01-05"],
         events: [{ id: "event-1", name: "Dinner", displacedDate: "2026-01-05", docCount: 0 }],
         noteCount: 0,
         checklistCount: 0,
         eventDocumentCount: 0,
-      },
-    });
+      })
+    );
 
     const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
 
@@ -153,9 +158,9 @@ describe("useTravelHistoryPageHandlers", () => {
       checklistCount: 0,
       eventDocumentCount: 0,
     };
-    vi.mocked(updateTripMetadata)
-      .mockResolvedValueOnce({ status: "confirmation-required", confirmation })
-      .mockResolvedValueOnce({ status: "saved" });
+    vi.mocked(api)
+      .mockRejectedValueOnce(needsConfirmation(confirmation))
+      .mockResolvedValueOnce({} as never);
 
     const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
 
@@ -174,27 +179,28 @@ describe("useTravelHistoryPageHandlers", () => {
       await result.current.handleTripSaveResolution(TripDateConflictResolution.DeleteEvents);
     });
 
-    expect(updateTripMetadata).toHaveBeenLastCalledWith(
-      "trip-past-newer",
-      { startDate: "2026-01-01", endDate: "2026-01-09" },
-      TripDateConflictResolution.DeleteEvents,
-      confirmation
-    );
+    expect(api).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/v1/trips/:tripId" }), {
+      params: { tripId: "trip-past-newer" },
+      body: {
+        ...{ startDate: "2026-01-01", endDate: "2026-01-09" },
+        resolution: TripDateConflictResolution.DeleteEvents,
+        confirmation,
+      },
+    });
     expect(result.current.editingTrip).toBeNull();
     expect(result.current.tripDateConfirmation).toBeNull();
   });
 
   it("clears the pending date confirmation when cancelled", async () => {
-    vi.mocked(updateTripMetadata).mockResolvedValueOnce({
-      status: "confirmation-required",
-      confirmation: {
+    vi.mocked(api).mockRejectedValueOnce(
+      needsConfirmation({
         removedDates: ["2026-01-05"],
         events: [],
         noteCount: 0,
         checklistCount: 0,
         eventDocumentCount: 0,
-      },
-    });
+      })
+    );
 
     const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
 
@@ -278,5 +284,4 @@ it("saves history metadata through the API", async () => {
     params: { tripId: "trip-past-newer" },
     body: { name: "New" },
   });
-  expect(updateTripMetadata).not.toHaveBeenCalled();
 });

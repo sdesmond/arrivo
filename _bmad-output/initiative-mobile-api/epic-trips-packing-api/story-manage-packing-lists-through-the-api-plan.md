@@ -80,17 +80,17 @@ deferred: []
 
 ## Review Triage Log
 
-### 2026-11-19 — Review pass
+### 2026-11-19 â€” Review pass
 
-- verdicts: 7 findings — high 0, medium 1, low 3, false 2, maybe-false 0 (1 low rejected as unlikely)
+- verdicts: 7 findings â€” high 0, medium 1, low 3, false 2, maybe-false 0 (1 low rejected as unlikely)
 - findings:
-  - `[medium]` `[patch]` Optimistic rename override kept a rejected name 4 s, a second rename's entry was deleted by the first timer, a remote rename was masked — override now applies only while the stored name equals the replaced name, and timers carry a token; test added.
-  - `[low]` `[patch]` Over-limit list name lost its "List name must be 30 characters or fewer." toast text — contract schema now uses `overLimitMessage`; assertion added.
-  - `[low]` `[reject]` Create returns no id when the component unmounted mid-request — caller is gone, nothing visible is lost.
-  - `[low]` `[reject]` Non-member of the other trip gets 404 on a reused UUID — matches createPackingItem convention and avoids leaking trip existence.
-  - `[low]` `[reject]` Foreign-trip rename/delete 404 not in E2E — covered by service tests; unlikely to regress separately.
-  - `[false]` `[reject]` Lock order untested — code locks client IDs before the trip lock in createPackingList.
-  - `[false]` `[reject]` Docs omit 409 on rename — rename has no replay-conflict path.
+  - `[medium]` `[patch]` Optimistic rename override kept a rejected name 4 s, a second rename's entry was deleted by the first timer, a remote rename was masked â€” override now applies only while the stored name equals the replaced name, and timers carry a token; test added.
+  - `[low]` `[patch]` Over-limit list name lost its "List name must be 30 characters or fewer." toast text â€” contract schema now uses `overLimitMessage`; assertion added.
+  - `[low]` `[reject]` Create returns no id when the component unmounted mid-request â€” caller is gone, nothing visible is lost.
+  - `[low]` `[reject]` Non-member of the other trip gets 404 on a reused UUID â€” matches createPackingItem convention and avoids leaking trip existence.
+  - `[low]` `[reject]` Foreign-trip rename/delete 404 not in E2E â€” covered by service tests; unlikely to regress separately.
+  - `[false]` `[reject]` Lock order untested â€” code locks client IDs before the trip lock in createPackingList.
+  - `[false]` `[reject]` Docs omit 409 on rename â€” rename has no replay-conflict path.
 
 ## Auto Run Result
 
