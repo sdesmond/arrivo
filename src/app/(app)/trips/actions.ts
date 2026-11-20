@@ -3,141 +3,16 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { trips, collaborators, documents, users } from "@/db/schema";
+import { trips, collaborators, documents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import type { CreateTripInput } from "@/data/types";
-import { TransitMode } from "@/data/types";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { deriveGraphicCover, detectPreferredCurrency } from "@/lib/utils";
-import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
-import { isTransitMode } from "@/lib/db-mappers";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
-import { createUploadStorageName } from "@/lib/upload-policy";
-import { assertValidCoverImageUrl } from "@/lib/url-policy";
-import { createTripWrite } from "@/lib/membership-writes";
-import { recordTripCreated } from "@/lib/trip-activity";
-import { createTripSchema, parseInput } from "@/lib/validation-schemas";
-import { CoverType, LiveSyncEventType } from "@/data/types";
+import { LiveSyncEventType } from "@/data/types";
 import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
-import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
-import { searchCoverImages } from "@/lib/services/cover-search";
 import { saveTripListAsTemplate as saveTripListAsTemplateAction } from "./packing-actions";
-
-const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
-
-function resolveBudgetCurrency(code?: string): string | undefined {
-  const normalizedCode = normalizeCurrencyCode(code);
-  if (!normalizedCode) {
-    return undefined;
-  }
-
-  if (!isSupportedCurrencyCode(normalizedCode)) {
-    throw new Error(`Invalid budget currency: ${normalizedCode}`);
-  }
-
-  return normalizedCode;
-}
-
-export async function createTrip(rawInput: CreateTripInput): Promise<{ tripId: string }> {
-  const sessionUser = await requireUser();
-  const input = parseInput(createTripSchema, rawInput);
-  const acceptLanguage = (await headers()).get("accept-language") ?? "";
-
-  // No upload can exist before the trip does, so only external links and built-in graphics are valid here.
-  if (input.coverImageUrl) assertValidCoverImageUrl(input.coverImageUrl);
-
-  const created = await createTripWrite(db, sessionUser.id!, (user) => {
-    const userName = user.name ?? user.username;
-    const preferredCurrency = user.currency ?? detectPreferredCurrency(acceptLanguage);
-    const budgetCurrency = resolveBudgetCurrency(input.budgetCurrency ?? preferredCurrency);
-    const resolvedTransitMode = input.transitMode ?? user.transitMode ?? TransitMode.Drive;
-    const transitMode = isTransitMode(resolvedTransitMode) ? resolvedTransitMode : TransitMode.Drive;
-
-    return {
-      tripValues: {
-        name: input.name,
-        startDate: input.startDate ?? null,
-        endDate: input.endDate ?? null,
-        coverImageUrl: input.coverImageUrl ?? null,
-        destinationName: input.destinationName ?? null,
-        destinationCountry: input.destinationCountry ?? null,
-        destinationCountryCode: input.destinationCountryCode ?? null,
-        notes: input.notes ?? null,
-        budgetCurrency: budgetCurrency ?? null,
-        transitMode,
-        budgetTotal: input.budgetTotal?.toString(),
-        tags: input.tags ?? [],
-      },
-      collaboratorName: userName,
-      buildDayRows: (newTripId) => {
-        const dayRows = buildDayRows(newTripId, input.startDate, input.endDate);
-        return dayRows.length > 0 ? dayRows : buildDatelessDayRow(newTripId);
-      },
-    };
-  });
-  const { tripId, ownerId: userId, ownerUsername: actorUsername } = created;
-
-  recordTripCreated({ id: userId, username: actorUsername }, tripId);
-
-  const hasDestination = !!input.destinationName || !!input.destinationCenter;
-  let coverUrl: string | null = null;
-  let coverPhotographer: string | null = null;
-  let coverPhotographerUrl: string | null = null;
-  try {
-    if (!hasDestination) {
-      coverUrl = deriveGraphicCover(input.name);
-    } else {
-      const [userRow] = await db
-        .select({ defaultCoverType: users.defaultCoverType })
-        .from(users)
-        .where(eq(users.id, userId));
-      const storedCoverType = userRow?.defaultCoverType;
-      const coverType =
-        (storedCoverType && VALID_COVER_TYPES.has(storedCoverType) ? (storedCoverType as CoverType) : null) ??
-        CoverType.Photo;
-
-      if (coverType === CoverType.Graphic) {
-        coverUrl = deriveGraphicCover(input.name);
-      } else if (coverType === CoverType.Map && input.destinationCenter) {
-        const [lng, lat] = input.destinationCenter;
-        const token = process.env.MAPBOX_ACCESS_TOKEN ?? "";
-        const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${lng},${lat},10/600x400@2x?access_token=${token}`;
-        const tileRes = await fetch(tileUrl);
-        if (!tileRes.ok) throw new Error(`Mapbox tile fetch failed: ${tileRes.status}`);
-        const tileBlob = await tileRes.blob();
-        const storageName = createUploadStorageName("trip-cover", tripId, "image/jpeg");
-        const tileFile = new File([tileBlob], storageName, { type: "image/jpeg" });
-        coverUrl = await getStorageAdapter().put(storageName, tileFile);
-      } else if (coverType === CoverType.Photo && input.destinationName) {
-        const images = await searchCoverImages({ userId: sessionUser.id! }, input.destinationName);
-        const firstImage = images[0];
-        coverUrl = firstImage?.url ?? null;
-        coverPhotographer = firstImage?.photographer ?? null;
-        coverPhotographerUrl = firstImage?.photographerUrl ?? null;
-      }
-    }
-  } catch (error) {
-    console.error("Cover image fetch failed:", error);
-  }
-
-  if (coverUrl) {
-    await db
-      .update(trips)
-      .set({
-        coverImageUrl: coverUrl,
-        ...(coverPhotographer && { coverPhotographer }),
-        ...(coverPhotographerUrl && { coverPhotographerUrl }),
-      })
-      .where(eq(trips.id, tripId));
-  }
-
-  revalidatePath("/trips");
-  return { tripId };
-}
 
 export async function deleteTrip(tripId: string) {
   const user = await requireUser();

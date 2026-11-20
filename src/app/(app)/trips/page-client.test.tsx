@@ -20,7 +20,6 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("./actions", () => ({
-  createTrip: vi.fn(),
   deleteTrip: vi.fn(),
 }));
 

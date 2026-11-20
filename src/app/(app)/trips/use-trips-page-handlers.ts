@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -13,8 +13,10 @@ import {
   type UpdateTripPatch,
 } from "@/data/types";
 import { saveTripMetadata } from "@/lib/trip-metadata-save";
-import { getTripStatus, getTripDays } from "@/lib/utils";
-import { createTrip, deleteTrip } from "./actions";
+import { createRandomId, getTripStatus, getTripDays } from "@/lib/utils";
+import { createTrip as createTripEndpoint } from "@/lib/api/contract/trips";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { deleteTrip } from "./actions";
 
 export type MobileTab = "Unscheduled" | "Active" | "Upcoming";
 
@@ -23,7 +25,10 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
   const [editingTrip, setEditingTrip] = useState<string | null>(null);
   const [deletingTrip, setDeletingTrip] = useState<Trip | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
-  const [isCreating, startCreation] = useTransition();
+  const creation = useApiMutation(createTripEndpoint);
+  const isCreating = creation.isPending;
+  // A retry of the same draft reuses its id, so the server sees one trip however many times it is sent.
+  const draftId = useRef<{ fingerprint: string; id: string } | null>(null);
   const [savingTrip, startTripSave] = useTransition();
   const [isDeleting, startTripDelete] = useTransition();
   const [pendingDraft, setPendingDraft] = useState<{ draft: NewTripDraft; dayCount: number } | null>(null);
@@ -82,10 +87,16 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     submitCreateTrip(draft);
   }
 
-  async function submitCreateTrip(draft: NewTripDraft) {
-    startCreation(async () => {
-      try {
-        const { tripId } = await createTrip({
+  function submitCreateTrip(draft: NewTripDraft): Promise<void> {
+    const fingerprint = JSON.stringify(draft);
+    if (draftId.current?.fingerprint !== fingerprint) {
+      draftId.current = { fingerprint, id: createRandomId() };
+    }
+    return creation.mutate(
+      {
+        params: {},
+        body: {
+          id: draftId.current.id,
           name: draft.title,
           startDate: draft.startDate,
           endDate: draft.endDate,
@@ -94,12 +105,15 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
           destinationCountry: draft.destinationCountry,
           destinationCountryCode: draft.destinationCountryCode,
           destinationCenter: draft.destinationCenter,
-        });
-        router.push(`/trips/${tripId}?new=1`);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to create trip. Please try again.");
+        },
+      },
+      {
+        onSuccess: (trip) => {
+          draftId.current = null;
+          router.push(`/trips/${trip.id}?new=1`);
+        },
       }
-    });
+    );
   }
 
   function closeTripEditSheet(): void {
