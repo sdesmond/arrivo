@@ -2621,3 +2621,37 @@ Feature: Absolute checklist checked-state API
     And my checklist API role is "editor"
     When I pull that sectioned template into the selected list
     Then the packing pull stores the item under its section in that list
+
+  Scenario Outline: Trip metadata PATCH enforces access
+    Given my checklist API role is "<role>"
+    When I PATCH trip metadata to "API renamed"
+    Then the trip metadata API returns <status> and stores "<stored>"
+    Examples:
+      | role     | status | stored      |
+      | editor   | 200    | API renamed |
+      | viewer   | 403    | original    |
+      | stranger | 404    | original    |
+
+  Scenario Outline: Trip metadata replay rechecks access
+    Given my checklist API role is "editor"
+    When I commit keyed trip metadata
+    And my checklist API role is "<role>"
+    And I replay keyed trip metadata
+    Then the trip metadata API returns <status> and stores "Keyed name"
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Trip currency conversion persists with metadata
+    Given my checklist API role is "editor"
+    And a USD expense exists for trip currency conversion
+    When I PATCH trip currency to EUR with conversion
+    Then trip currency conversion is committed
+
+  Scenario: Trip currency conversion rolls back when the transaction fails
+    Given my checklist API role is "editor"
+    And a USD expense exists for trip currency conversion
+    And the checklist API replay record write is set to fail
+    When I PATCH trip currency to EUR with conversion using the failing key
+    Then trip currency conversion is rolled back

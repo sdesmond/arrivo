@@ -89,3 +89,8 @@ Then("the trip URL has no tab deep link", async ({ page }) => {
   const currentUrl = new URL(page.url());
   expect(currentUrl.searchParams.has("tab")).toBe(false);
 });
+
+Then("the edited trip title persists after reload as {string}", async ({ page }, name: string) => {
+  await reloadPage(page);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(name);
+});

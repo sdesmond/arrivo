@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { format, parseISO } from "date-fns";
 import { Given, When, Then } from "../fixtures";
-import { waitForServerActionSettled } from "../server-action";
+import { waitForApiResponse } from "../api-response";
 
 Given("I have an existing trip", async ({ page, scenario }) => {
   await scenario.signIn(page);
@@ -56,14 +56,13 @@ When("I type {string} in the budget field", async ({ page }, budget: string) => 
   await page.getByRole("dialog").getByRole("textbox", { name: "Budget" }).fill(budget);
 });
 
-When("I save", async ({ page }) => {
-  // The sheet is used from the trip page and from Travel History, so any page's server action counts.
-  const saved = waitForServerActionSettled(page, { pathIncludes: "" });
+When("I save", async ({ page, scenario }) => {
+  const saved = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/trips/${scenario.currentTrip!.id}` });
   await page.getByRole("button", { name: "Save changes" }).click();
   // Count, not visibility: the drawer and any popover inside it run their exit animations together.
   await expect(page.getByRole("dialog")).toHaveCount(0);
   // The sheet seeds its draft from the trip prop only while closed, so reopening before the revalidated trip
-  // lands (the dialog closes first) shows the old values. Wait for the action's payload, then two frames for React.
+  // lands (the dialog closes first) shows the old values. Wait for the API response, then two frames for React.
   await saved;
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });

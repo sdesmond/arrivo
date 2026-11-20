@@ -4546,3 +4546,99 @@ Then("the packing pull stores the item under its section in that list", async ({
       .sort()
   ).toEqual([current.doomedId, current.keptId].sort());
 });
+
+When("I PATCH trip metadata to {string}", async ({ page, scenario }, name: string) => {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/trips/${scenario.currentTrip!.id}`, {
+    headers: headers(page),
+    data: { name, budgetTotal: 0 },
+  });
+});
+Then(
+  "the trip metadata API returns {int} and stores {string}",
+  async ({ page, scenario }, status: number, stored: string) => {
+    expect(state(page).response?.status()).toBe(status);
+    const [trip] = await withE2EDb((database) =>
+      database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+    );
+    expect(trip.name).toBe(stored === "original" ? scenario.currentTrip!.name : stored);
+    if (status === 200) expect(Number(trip.budgetTotal)).toBe(0);
+    expect(trip.startDate).toBe(scenario.currentTrip!.startDate ?? null);
+    expect(trip.endDate).toBe(scenario.currentTrip!.endDate ?? null);
+  }
+);
+
+When("I commit keyed trip metadata", async ({ page, scenario }) => {
+  const response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/trips/${scenario.currentTrip!.id}`, {
+    headers: { ...headers(page), "Idempotency-Key": state(page).key },
+    data: { name: "Keyed name" },
+  });
+  expect(response.status()).toBe(200);
+});
+When("I replay keyed trip metadata", async ({ page, scenario }) => {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/trips/${scenario.currentTrip!.id}`, {
+    headers: { ...headers(page), "Idempotency-Key": state(page).key },
+    data: { name: "Keyed name" },
+  });
+});
+
+Given("a USD expense exists for trip currency conversion", async ({ scenario }) => {
+  await withE2EDb(async (database) => {
+    await database.update(trips).set({ budgetCurrency: "USD" }).where(eq(trips.id, scenario.currentTrip!.id));
+    await database.insert(expenses).values({
+      tripId: scenario.currentTrip!.id,
+      category: "Food",
+      amount: "100",
+      currency: "USD",
+      date: "2025-01-01",
+      convertedAmountTrip: "100",
+      conversionRateTrip: "1",
+      convertedCurrencyTrip: "USD",
+    });
+  });
+});
+When("I PATCH trip currency to EUR with conversion", async ({ page, scenario }) => {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/trips/${scenario.currentTrip!.id}`, {
+    headers: headers(page),
+    data: { budgetCurrency: "EUR", convertCurrency: true },
+  });
+});
+When("I PATCH trip currency to EUR with conversion using the failing key", async ({ page, scenario }) => {
+  state(page).response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/trips/${scenario.currentTrip!.id}`, {
+    headers: { ...headers(page), "Idempotency-Key": state(page).key },
+    data: { budgetCurrency: "EUR", convertCurrency: true },
+  });
+});
+Then("trip currency conversion is committed", async ({ page, scenario }) => {
+  expect(state(page).response?.status()).toBe(200);
+  const [trip] = await withE2EDb((database) =>
+    database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  const [expense] = await withE2EDb((database) =>
+    database.select().from(expenses).where(eq(expenses.tripId, scenario.currentTrip!.id))
+  );
+  expect(trip.budgetCurrency).toBe("EUR");
+  expect(expense.convertedCurrencyTrip).toBe("EUR");
+  expect(Number(expense.convertedAmountTrip)).toBe(92);
+});
+Then("trip currency conversion is rolled back", async ({ page, scenario }) => {
+  expect(state(page).response?.status()).toBe(500);
+  const [trip] = await withE2EDb((database) =>
+    database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  const [expense] = await withE2EDb((database) =>
+    database.select().from(expenses).where(eq(expenses.tripId, scenario.currentTrip!.id))
+  );
+  expect(trip.budgetCurrency).toBe("USD");
+  expect(expense.convertedCurrencyTrip).toBe("USD");
+  expect(Number(expense.convertedAmountTrip)).toBe(100);
+});

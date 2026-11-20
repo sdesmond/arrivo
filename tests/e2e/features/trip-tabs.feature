@@ -26,3 +26,11 @@ Feature: Trip detail tab deep links
     When I go forward in the browser
     Then the "Itinerary" tab content is visible
     And the trip URL has no tab deep link
+
+  Scenario: Editing trip details from a deep-linked tab persists
+    Given I have an existing trip
+    When I reopen the trip with the "Documents" tab deep link
+    And I open the trip edit sheet
+    And I change the trip name to "Deep link edit"
+    And I save
+    Then the edited trip title persists after reload as "Deep link edit"
