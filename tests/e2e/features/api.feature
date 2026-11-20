@@ -2738,3 +2738,47 @@ Feature: Absolute checklist checked-state API
     Given my checklist API role is "stranger"
     When I fetch the trip snapshot
     Then the trip snapshot answers 404 with code "not_found"
+
+  Scenario: A reused trip UUID returns one trip with one cover
+    Given a new trip id and name for the create trip API
+    When I create the trip through the API with keys "first" and "second"
+    Then both create trip API responses return the same trip
+    And the create trip API stored one trip with three days
+    And the created trip has one graphic cover
+    When I list my trips through the API
+    Then the created trip is listed once
+
+  Scenario: A replayed Idempotency-Key returns one trip
+    Given a new trip id and name for the create trip API
+    When I create the trip through the API with keys "same" and "same"
+    Then both create trip API responses return the same trip
+    And the create trip API stored one trip with three days
+
+  Scenario: Reusing a trip UUID for another name conflicts
+    Given a new trip id and name for the create trip API
+    When I create the trip through the API under another name
+    Then the create trip API answers 409 with code "conflict"
+    And the create trip API wrote nothing new
+
+  Scenario: A trip UUID owned by someone else is hidden
+    Given a new trip id and name for the create trip API
+    And a trip owned by someone else that I cannot see
+    When I create a trip through the API with that id
+    Then the create trip API answers 404 with code "not_found"
+    And the create trip API wrote nothing new
+
+  Scenario Outline: A bad date range creates nothing
+    Given a new trip id and name for the create trip API
+    When <request>
+    Then the create trip API answers 422 with code "validation_failed"
+    And the create trip API wrote nothing new
+
+    Examples:
+      | request                                           |
+      | I create a trip through the API spanning 46 days  |
+      | I create a trip through the API ending before it starts |
+
+  Scenario: Listing trips returns only owned and shared trips
+    Given a trip owned by someone else that is shared with me and one that is not
+    When I list my trips through the API
+    Then my trip list holds my trip and the shared trip but not the other one
