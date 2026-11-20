@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
-import { createTrip, deleteTrip } from "./actions";
+import { deleteTrip } from "./actions";
 import { api, ApiClientError } from "@/lib/api/client";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
@@ -26,7 +26,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("./actions", () => ({
-  createTrip: vi.fn(),
   deleteTrip: vi.fn(),
 }));
 
@@ -61,8 +60,8 @@ describe("useTripsPageHandlers", () => {
     vi.clearAllMocks();
   });
 
-  it("creates a trip and navigates to its detail page", async () => {
-    vi.mocked(createTrip).mockResolvedValueOnce({ tripId: "trip-new" });
+  it("creates a trip through the API and navigates to its detail page", async () => {
+    vi.mocked(api).mockResolvedValueOnce({ id: "trip-new" } as never);
 
     const { result } = renderHook(() => useTripsPageHandlers([...datedEntries, unscheduledEntry], NOW));
 
@@ -71,20 +70,83 @@ describe("useTripsPageHandlers", () => {
         title: "Fresh Trip",
         startDate: "2026-08-01",
         endDate: "2026-08-03",
+        budgetAmount: "1500",
+        destinationCenter: [2.35, 48.85],
       });
     });
 
-    expect(createTrip).toHaveBeenCalledWith({
-      name: "Fresh Trip",
-      startDate: "2026-08-01",
-      endDate: "2026-08-03",
-      budgetTotal: undefined,
-      destinationName: undefined,
-      destinationCountry: undefined,
-      destinationCountryCode: undefined,
-      destinationCenter: undefined,
-    });
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/api/v1/trips", method: "POST" }),
+      expect.objectContaining({
+        params: {},
+        body: expect.objectContaining({
+          id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+          name: "Fresh Trip",
+          startDate: "2026-08-01",
+          endDate: "2026-08-03",
+          budgetTotal: 1500,
+          destinationCenter: [2.35, 48.85],
+        }),
+      })
+    );
     expect(mockPush).toHaveBeenCalledWith("/trips/trip-new?new=1");
+  });
+
+  it("still creates a trip where crypto.randomUUID is unavailable (plain-HTTP self-hosting)", async () => {
+    vi.mocked(api).mockResolvedValueOnce({ id: "trip-new" } as never);
+    const { result } = renderHook(() => useTripsPageHandlers(datedEntries, NOW));
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+
+    try {
+      await act(async () => {
+        await result.current.submitCreateTrip({ title: "LAN Trip" });
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const sentId = (vi.mocked(api).mock.calls[0][1].body as { id: string }).id;
+    expect(sentId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(mockPush).toHaveBeenCalledWith("/trips/trip-new?new=1");
+  });
+
+  it("retries a failed draft under the same id and gives an edited draft a new one", async () => {
+    vi.mocked(api)
+      .mockRejectedValueOnce(new ApiClientError(0, "network_error", "Could not reach the server. Try again."))
+      .mockResolvedValue({ id: "trip-new" } as never);
+    const { result } = renderHook(() => useTripsPageHandlers(datedEntries, NOW));
+    const sentIds = () => vi.mocked(api).mock.calls.map((call) => (call[1].body as { id: string }).id);
+
+    await act(async () => {
+      await result.current.submitCreateTrip({ title: "Retry Trip" });
+    });
+    expect(toast.error).toHaveBeenCalledWith("Could not reach the server. Try again.");
+    expect(mockPush).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.submitCreateTrip({ title: "Retry Trip" });
+    });
+    expect(sentIds()[1]).toBe(sentIds()[0]);
+    expect(mockPush).toHaveBeenCalledWith("/trips/trip-new?new=1");
+
+    await act(async () => {
+      await result.current.submitCreateTrip({ title: "Retry Trip" });
+    });
+    expect(sentIds()[2]).not.toBe(sentIds()[0]);
+  });
+
+  it("uses a new id for an edited draft after a failure", async () => {
+    vi.mocked(api).mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Check the submitted fields."));
+    vi.mocked(api).mockResolvedValue({ id: "trip-new" } as never);
+    const { result } = renderHook(() => useTripsPageHandlers(datedEntries, NOW));
+    await act(async () => {
+      await result.current.submitCreateTrip({ title: "One" });
+    });
+    await act(async () => {
+      await result.current.submitCreateTrip({ title: "Two" });
+    });
+    const [first, second] = vi.mocked(api).mock.calls.map((call) => (call[1].body as { id: string }).id);
+    expect(second).not.toBe(first);
   });
 
   it("separates unscheduled entries from dated entries", () => {

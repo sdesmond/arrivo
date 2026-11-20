@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { getTrip, updateTrip } from "./trips";
+import { createTrip, getTrip, listTrips, updateTrip } from "./trips";
 
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 it("validates strict partial metadata and normalizes currency", () => {
@@ -46,4 +46,38 @@ it("defines the trip snapshot as a bodiless GET", () => {
   expect(getTrip.params.safeParse({ tripId: "nope" }).success).toBe(false);
   expect(getTrip.body.safeParse({}).success).toBe(true);
   expect(getTrip.body.safeParse({ extra: "x" }).success).toBe(false);
+});
+
+it("defines trip creation with a client UUID and the web form fields", () => {
+  expect(createTrip.method).toBe("POST");
+  expect(createTrip.path).toBe("/api/v1/trips");
+  const parsed = createTrip.body.parse({
+    id: tripId.toUpperCase(),
+    name: "Paris",
+    startDate: "2026-08-01",
+    destinationCenter: [2.35, 48.85],
+    budgetCurrency: " eur ",
+    transitMode: null,
+  });
+  expect(parsed).toMatchObject({ id: tripId, name: "Paris", budgetCurrency: "EUR", transitMode: null });
+  expect(parsed.destinationCenter).toEqual([2.35, 48.85]);
+  for (const body of [
+    { name: "No id" },
+    { id: "nope", name: "Bad id" },
+    { id: tripId },
+    { id: tripId, name: "Cover", coverImageUrl: "https://example.com/x.jpg" },
+    { id: tripId, name: "Extra", extra: true },
+    { id: tripId, name: "Currency", budgetCurrency: "ZZZ" },
+    { id: tripId, name: "Transit", transitMode: "teleport" },
+    { id: tripId, name: "Date", startDate: "2026-13-01" },
+  ])
+    expect(createTrip.body.safeParse(body).success).toBe(false);
+});
+
+it("defines the trip list as a bodiless GET on the collection", () => {
+  expect(listTrips.method).toBe("GET");
+  expect(listTrips.path).toBe("/api/v1/trips");
+  expect(listTrips.params.parse({})).toEqual({});
+  expect(listTrips.body.safeParse({}).success).toBe(true);
+  expect(listTrips.body.safeParse({ status: "past" }).success).toBe(false);
 });

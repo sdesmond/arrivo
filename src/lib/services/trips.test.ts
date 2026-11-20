@@ -13,7 +13,28 @@ const mocks = vi.hoisted(() => ({
   queueDeletions: vi.fn(),
   removeFiles: vi.fn(),
   detail: vi.fn(),
+  transaction: vi.fn(),
+  dbUpdate: vi.fn(),
+  idempotent: vi.fn(),
+  lockIds: vi.fn(),
+  createInTransaction: vi.fn(),
+  generateCover: vi.fn(),
+  recordCreated: vi.fn(),
+  revalidate: vi.fn(),
+  listForUser: vi.fn(),
+  now: vi.fn(),
 }));
+vi.mock("@/db", () => ({ db: { transaction: mocks.transaction, update: mocks.dbUpdate } }));
+vi.mock("@/lib/api/idempotency", () => ({ withIdempotency: mocks.idempotent }));
+vi.mock("@/lib/request-deadline", () => ({
+  guardTransactionDeadline: (_transaction: unknown, work: () => Promise<unknown>) => work(),
+}));
+vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockIds }));
+vi.mock("@/lib/membership-writes", () => ({ createTripInTransaction: mocks.createInTransaction }));
+vi.mock("./trip-cover-generation", () => ({ generateTripCover: mocks.generateCover }));
+vi.mock("@/lib/trip-activity", () => ({ recordTripCreated: mocks.recordCreated }));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+vi.mock("@/lib/mock-date", () => ({ getNow: mocks.now }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
   requireTripRole: mocks.requireRole,
@@ -24,13 +45,13 @@ vi.mock("@/lib/file-cleanup", () => ({
   queueFileDeletions: mocks.queueDeletions,
   removeQueuedFiles: mocks.removeFiles,
 }));
-vi.mock("@/lib/queries", () => ({ getTripDetail: mocks.detail }));
+vi.mock("@/lib/queries", () => ({ getTripDetail: mocks.detail, listTripsForUser: mocks.listForUser }));
 vi.mock("@/lib/currency", () => ({ recalculateAll: mocks.recalculate }));
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
 import { TripNotFoundError } from "./trip-access";
-import { getTrip, updateTrip } from "./trips";
+import { createTrip, getTrip, listTrips, updateTrip } from "./trips";
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "user" };
 const row = {
@@ -273,4 +294,279 @@ it("answers 404 when access is lost between the role check and the read", async 
 it("rethrows other snapshot read failures", async () => {
   mocks.detail.mockRejectedValue(new Error("db down"));
   await expect(getTrip(actor, tripId)).rejects.toThrow("db down");
+});
+
+const newId = "223e4567-e89b-12d3-a456-426614174111";
+const created = { ownerId: "user", ownerUsername: "traveler" };
+let selectResults: unknown[][];
+
+function stubCreate(): void {
+  mocks.now.mockReturnValue(new Date("2026-05-13T12:00:00.000Z"));
+  const transaction = {
+    select: () => ({ from: () => ({ where: async () => selectResults.shift() ?? [] }) }),
+  };
+  mocks.transaction.mockImplementation(async (work: (tx: unknown) => unknown) => work(transaction));
+  mocks.idempotent.mockImplementation(
+    async (
+      _transaction: unknown,
+      _input: unknown,
+      steps: { authorize: () => Promise<void>; mutate: () => Promise<unknown> }
+    ) => {
+      await steps.authorize();
+      return { value: await steps.mutate(), replayed: false };
+    }
+  );
+  mocks.createInTransaction.mockImplementation(
+    async (_transaction: unknown, _owner: string, prepare: (owner: unknown) => unknown) => {
+      const prepared = (await prepare({
+        id: "user",
+        username: "traveler",
+        name: null,
+        currency: "USD",
+        transitMode: null,
+      })) as { buildDayRows: (id: string) => unknown };
+      prepared.buildDayRows(newId);
+      return { tripId: newId, ...created };
+    }
+  );
+  mocks.generateCover.mockResolvedValue(null);
+  mocks.dbUpdate.mockReturnValue({ set: mocks.set });
+  mocks.set.mockReturnValue({ where: async () => undefined });
+}
+
+const storedRow = { ...row, id: newId, name: "Paris", tags: [], budgetTotal: null, budgetCurrency: "USD" };
+
+function preparedValues(): { tripValues: Record<string, unknown>; days: unknown } {
+  const prepare = mocks.createInTransaction.mock.calls[0][2] as (owner: unknown) => {
+    tripValues: Record<string, unknown>;
+    buildDayRows: (id: string) => unknown;
+  };
+  const prepared = prepare({ id: "user", username: "traveler", name: "Traveler", currency: null, transitMode: "walk" });
+  return { tripValues: prepared.tripValues, days: prepared.buildDayRows(newId) };
+}
+
+it("creates the trip under the client id, then records, covers and revalidates after commit", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  mocks.generateCover.mockResolvedValue({ coverImageUrl: "https://images.example/a.jpg", coverPhotographer: "Ann" });
+  const result = await createTrip(
+    actor,
+    { id: newId.toUpperCase(), name: "Paris", destinationName: "Paris", destinationCenter: [2.35, 48.85] },
+    undefined,
+    { acceptLanguage: "en-GB" }
+  );
+  expect(result).toMatchObject({ id: newId, name: "Paris" });
+  expect(mocks.lockIds).toHaveBeenCalledWith(expect.anything(), [`trip:${newId}`]);
+  expect(mocks.requireRole).not.toHaveBeenCalled();
+  const { tripValues, days } = preparedValues();
+  expect(tripValues).toMatchObject({
+    id: newId,
+    name: "Paris",
+    destinationName: "Paris",
+    budgetCurrency: "GBP",
+    transitMode: "walk",
+    tags: [],
+  });
+  expect(days).toEqual({ tripId: newId, dayNumber: 1, date: null, label: "Day 1" });
+  expect(mocks.recordCreated).toHaveBeenCalledWith({ id: "user", username: "traveler" }, newId);
+  expect(mocks.generateCover).toHaveBeenCalledWith({
+    userId: "user",
+    tripId: newId,
+    name: "Paris",
+    destinationName: "Paris",
+    destinationCenter: [2.35, 48.85],
+  });
+  expect(mocks.dbUpdate).toHaveBeenCalledWith(trips);
+  expect(mocks.set).toHaveBeenCalledWith({ coverImageUrl: "https://images.example/a.jpg", coverPhotographer: "Ann" });
+  expect(mocks.revalidate).toHaveBeenCalledWith("/trips");
+});
+
+it("builds one day per date and writes budgets as strings", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  await createTrip(actor, { id: newId, name: "Paris", startDate: "2026-08-01", endDate: "2026-08-03", budgetTotal: 0 });
+  const { tripValues, days } = preparedValues();
+  expect(tripValues.budgetTotal).toBe("0");
+  expect(days).toHaveLength(3);
+});
+
+it("keeps a failed cover save from failing the create", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  mocks.generateCover.mockResolvedValue({ coverImageUrl: "https://images.example/a.jpg" });
+  mocks.set.mockReturnValue({
+    where: async () => {
+      throw new Error("write failed");
+    },
+  });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
+  expect(error).toHaveBeenCalledWith("Cover image save failed:", expect.any(Error));
+  expect(mocks.revalidate).toHaveBeenCalledWith("/trips");
+  error.mockRestore();
+});
+
+it("skips the cover save when none is generated", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  await createTrip(actor, { id: newId, name: "Paris" });
+  expect(mocks.dbUpdate).not.toHaveBeenCalled();
+});
+
+it("returns the stored response of a replay without effects", async () => {
+  stubCreate();
+  selectResults = [[]];
+  mocks.idempotent.mockResolvedValueOnce({ value: { id: newId, name: "Paris" }, replayed: true });
+  await expect(
+    createTrip(actor, { id: newId, name: "Paris" }, { key: "k", method: "POST", path: "/p" })
+  ).resolves.toEqual({ id: newId, name: "Paris" });
+  expect(mocks.recordCreated).not.toHaveBeenCalled();
+  expect(mocks.generateCover).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
+});
+
+it("returns the current row for the same id and content with no write and no cover work", async () => {
+  stubCreate();
+  selectResults = [[{ id: newId }], [storedRow]];
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId, name: "Paris" });
+  expect(mocks.requireRole).toHaveBeenCalledWith(newId, "user", "viewer", expect.anything());
+  expect(mocks.createInTransaction).not.toHaveBeenCalled();
+  expect(mocks.generateCover).not.toHaveBeenCalled();
+  expect(mocks.recordCreated).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
+});
+
+it("counts currency and transit mode as content only when the request names them", async () => {
+  stubCreate();
+  const full = {
+    ...storedRow,
+    startDate: "2026-08-01",
+    endDate: "2026-08-02",
+    destinationName: "Paris",
+    destinationCountry: "France",
+    destinationCountryCode: "FR",
+    notes: "Notes",
+    budgetTotal: "1500.00",
+    tags: ["a"],
+    transitMode: "walk",
+    budgetCurrency: "EUR",
+  };
+  const body = {
+    id: newId,
+    name: "Paris",
+    startDate: "2026-08-01",
+    endDate: "2026-08-02",
+    destinationName: "Paris",
+    destinationCountry: "France",
+    destinationCountryCode: "FR",
+    notes: "Notes",
+    budgetTotal: 1500,
+    tags: ["a"],
+  };
+  selectResults = [[{ id: newId }], [full]];
+  await expect(createTrip(actor, body)).resolves.toMatchObject({ id: newId });
+  selectResults = [[{ id: newId }], [full]];
+  await expect(createTrip(actor, { ...body, budgetCurrency: "eur", transitMode: "walk" })).resolves.toMatchObject({
+    id: newId,
+  });
+  selectResults = [[{ id: newId }], [full]];
+  await expect(createTrip(actor, { ...body, budgetCurrency: "usd" })).rejects.toBeInstanceOf(ConflictError);
+  selectResults = [[{ id: newId }], [full]];
+  await expect(createTrip(actor, { ...body, transitMode: "drive" })).rejects.toBeInstanceOf(ConflictError);
+});
+
+it.each([
+  ["name", { name: "Other" }],
+  ["start date", { startDate: "2026-08-02" }],
+  ["end date", { endDate: "2026-08-09" }],
+  ["destination", { destinationName: "Rome" }],
+  ["country", { destinationCountry: "Italy" }],
+  ["country code", { destinationCountryCode: "IT" }],
+  ["notes", { notes: "Other" }],
+  ["budget", { budgetTotal: 5 }],
+  ["tags", { tags: ["x"] }],
+])("rejects reusing an id with a different %s as a conflict, writing nothing", async (_label, change) => {
+  stubCreate();
+  selectResults = [[{ id: newId }], [storedRow]];
+  await expect(createTrip(actor, { id: newId, name: "Paris", ...change })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.createInTransaction).not.toHaveBeenCalled();
+  expect(mocks.generateCover).not.toHaveBeenCalled();
+});
+
+it("answers an id owned by a trip the caller cannot see as not found", async () => {
+  stubCreate();
+  selectResults = [[{ id: newId }]];
+  mocks.requireRole.mockRejectedValueOnce(new TripNotFoundError());
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.createInTransaction).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["over 45 days", { startDate: "2026-01-01", endDate: "2026-03-01" }],
+  ["end before start", { startDate: "2026-02-01", endDate: "2026-01-01" }],
+])("rejects a range that is %s before opening a transaction", async (_label, range) => {
+  stubCreate();
+  await expect(createTrip(actor, { id: newId, name: "Paris", ...range })).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.transaction).not.toHaveBeenCalled();
+});
+
+it("accepts an end date with no start date as a dateless trip", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  await expect(createTrip(actor, { id: newId, name: "Paris", endDate: "2026-02-01" })).resolves.toBeDefined();
+  expect(preparedValues().days).toMatchObject({ date: null });
+});
+
+it("rejects an unsupported account currency inside the transaction", async () => {
+  stubCreate();
+  selectResults = [[], []];
+  mocks.createInTransaction.mockImplementationOnce(
+    async (_transaction: unknown, _owner: string, prepare: (owner: unknown) => unknown) => {
+      await prepare({ id: "user", username: "traveler", name: null, currency: "ZZZ", transitMode: null });
+      return { tripId: newId, ...created };
+    }
+  );
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.recordCreated).not.toHaveBeenCalled();
+});
+
+it("falls back to drive for an unknown stored transit mode and to the username for the seat name", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  let collaboratorName = "";
+  mocks.createInTransaction.mockImplementationOnce(
+    async (_transaction: unknown, _owner: string, prepare: (owner: unknown) => unknown) => {
+      const prepared = (await prepare({
+        id: "user",
+        username: "traveler",
+        name: null,
+        currency: "USD",
+        transitMode: "bicycle",
+      })) as { tripValues: { transitMode: string }; collaboratorName: string };
+      collaboratorName = prepared.collaboratorName;
+      expect(prepared.tripValues.transitMode).toBe("drive");
+      return { tripId: newId, ...created };
+    }
+  );
+  await createTrip(actor, { id: newId, name: "Paris" });
+  expect(collaboratorName).toBe("traveler");
+});
+
+it("rejects unknown fields and a cover URL before any write", async () => {
+  stubCreate();
+  await expect(
+    createTrip(actor, { id: newId, name: "Paris", coverImageUrl: "https://x.example/a.jpg" })
+  ).rejects.toThrow();
+  expect(mocks.transaction).not.toHaveBeenCalled();
+});
+
+it("lists the caller's trips with status computed from the server clock", async () => {
+  const now = new Date("2026-05-13T12:00:00.000Z");
+  const entries = [{ trip: { id: "owned" }, todayEvents: [], summaryEvents: [] }];
+  mocks.now.mockReturnValue(now);
+  mocks.listForUser.mockResolvedValue(entries);
+  await expect(listTrips(actor, {})).resolves.toEqual({ trips: entries });
+  expect(mocks.listForUser).toHaveBeenCalledWith("user", now);
+  await expect(listTrips(actor)).resolves.toEqual({ trips: entries });
+  await expect(listTrips(actor, { status: "past" })).rejects.toThrow();
 });

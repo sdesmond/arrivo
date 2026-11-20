@@ -213,3 +213,13 @@
 - source_plan: `epic-trips-packing-api/story-add-packing-items-and-sections-through-the-api-plan.md`
   summary: Investigate whether deleted packing UUIDs need tombstones to prevent delayed creation retries from recreating deleted sections or items.
   evidence: Unverified medium risk; establish the intended retry window and whether existing deletion and idempotency conventions already prevent recreation.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
+  summary: Tighten the create-trip e2e "wrote nothing new" step so a 422 asserts zero rows for the id.
+  evidence: Step accepts one same-name row, so a committed-then-422 regression would pass (verification-gap lens).
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
+  summary: Trip cover generation needs a fetch timeout, orphaned-tile cleanup and a guarded cover update.
+  evidence: Mapbox fetch has no abort; tile stays in storage if the cover save fails; update ignores a newer cover. All pre-existing from the old action.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
+  summary: Unsupported stored account currency makes every create 422 on a field the client never sent.
+  evidence: `resolveBudgetCurrency` throws for the account default; behavior carried over from the old action.
