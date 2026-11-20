@@ -26,7 +26,7 @@ Every endpoint under `/api/v1`, what it takes, what it returns and how it fails.
 
 ### Responses
 
-Every response carries `Cache-Control: no-store`. Success is `200` with the JSON body named under each endpoint, or `204` with no body. Optional fields are omitted when empty rather than sent as `null`.
+Every response carries `Cache-Control: no-store`, except `GET /api/v1/trips/:tripId` (see its `ETag`). Success is `200` with the JSON body named under each endpoint, or `204` with no body. Optional fields are omitted when empty rather than sent as `null`.
 
 A failure is always this envelope:
 
@@ -729,6 +729,14 @@ Body: `{}`. Removes the caller's own editor or viewer membership and leaves the 
 A creator or manager is refused with 422 `validation_failed` ("The trip creator can't leave this trip." or "Managers can't leave a trip.") and keeps their membership; a manager must be demoted first. A reused `Idempotency-Key` with a different request returns 409 while the membership exists; 503 `deadline_exceeded` rolls back the removal and its saved replay together.
 
 The trip row is locked, then the caller's membership and role are rechecked, then any saved response is read, all in one transaction. A keyed retry returns `204` without repeating effects, and cannot remove a membership the caller regained later: leave again with a fresh key. After commit the caller receives a membership-left event on their personal channel and loses their trip-channel subscriptions, then the trip channel receives a membership-changed event; the trip and trips list are revalidated. No-op, rolled-back and replayed requests publish nothing. No schema migration or new configuration is required.
+
+### GET /api/v1/trips/:tripId
+
+**Role** viewer · **`Idempotency-Key`** no · **Success** `200` `TripDetailPayload`, or `304`
+
+No query fields. Returns the whole trip the way the trip page reads it: `trip`, `days`, `unscheduledEvents`, `docs`, `collaborators` (without the caller), `packingItems`, `packingLists`, `reservations`, `expenses`, `notes` and `accessRole`. A viewer gets no expenses. Nonmembers and unknown trips receive 404.
+
+The response carries a strong `ETag` (a quoted SHA-256 of the serialized payload) and `Cache-Control: private, no-cache`. The tag is stable while the trip, the caller's role and the collaborators are unchanged, and differs after any write that changes the payload. Send it back as `If-None-Match` (a list, a `W/` prefix and `*` are accepted); a match returns `304` with the same headers and no body. The tag is per caller, because the payload depends on the caller's role.
 
 ### PATCH /api/v1/trips/:tripId
 
