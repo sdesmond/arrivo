@@ -114,6 +114,18 @@ describe("PackingListsView — drill-down", () => {
     expect(onRenameList).toHaveBeenCalledWith("list-1", "Hand Luggage");
   });
 
+  it("shows the new title at once while the rename is still saving", async () => {
+    const onRenameList = vi.fn(() => new Promise<void>(() => {}));
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} onRenameList={onRenameList} />);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    await user.click(screen.getByRole("heading", { name: "Carry-On" }));
+    const input = screen.getByDisplayValue("Carry-On");
+    await user.clear(input);
+    await user.type(input, "Hand Luggage{Enter}");
+    expect(screen.getByRole("heading", { name: "Hand Luggage" })).toBeInTheDocument();
+  });
+
   it("pressing Escape on the title input cancels without calling onRenameList", async () => {
     const onRenameList = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
