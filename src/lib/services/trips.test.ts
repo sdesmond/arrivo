@@ -9,13 +9,24 @@ const mocks = vi.hoisted(() => ({
   set: vi.fn(),
   recalculate: vi.fn(),
   markChanged: vi.fn(),
+  applyDateChange: vi.fn(),
+  queueDeletions: vi.fn(),
+  removeFiles: vi.fn(),
 }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
   requireTripRole: mocks.requireRole,
 }));
 vi.mock("./trip-write", () => ({ lockTrip: mocks.lock, runTripWrite: mocks.run }));
+vi.mock("./trip-date-change", () => ({ applyTripDateChange: mocks.applyDateChange }));
+vi.mock("@/lib/file-cleanup", () => ({
+  queueFileDeletions: mocks.queueDeletions,
+  removeQueuedFiles: mocks.removeFiles,
+}));
 vi.mock("@/lib/currency", () => ({ recalculateAll: mocks.recalculate }));
+import { ConfirmationRequiredError } from "./confirmation-required-error";
+import { ConflictError } from "./conflict-error";
+import { ValidationFailedError } from "./validation-failed-error";
 import { updateTrip } from "./trips";
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "user" };
@@ -40,6 +51,8 @@ beforeEach(() => {
     return work.mutate();
   });
   mocks.recalculate.mockResolvedValue([]);
+  mocks.applyDateChange.mockResolvedValue({ startDate: "2026-08-01", endDate: "2026-08-01", documentUrls: [] });
+  mocks.queueDeletions.mockResolvedValue([]);
 });
 it("locks and rechecks editor access, preserving omitted metadata", async () => {
   await updateTrip(actor, tripId, { name: "New", budgetTotal: 0 });
@@ -129,4 +142,105 @@ it("changes currency without touching expenses when conversion is not requested"
   expect(mocks.recalculate).not.toHaveBeenCalled();
   expect(mocks.update).not.toHaveBeenCalledWith(expenses);
   expect(mocks.update).toHaveBeenCalledWith(trips);
+});
+
+const confirmation = {
+  removedDates: ["2026-08-02"],
+  events: [],
+  noteCount: 1,
+  checklistCount: 0,
+  eventDocumentCount: 0,
+};
+it("writes the new dates with metadata in one update after moving the days", async () => {
+  mocks.set.mockReturnValue({ where: () => ({ returning: async () => [{ ...row, startDate: "2026-08-01" }] }) });
+  await updateTrip(actor, tripId, { name: "New", startDate: "2026-08-01", endDate: "2026-08-01" });
+  expect(mocks.applyDateChange).toHaveBeenCalledWith(
+    expect.anything(),
+    tripId,
+    row,
+    { startDate: "2026-08-01", endDate: "2026-08-01", resolution: undefined, confirmation: undefined },
+    "user"
+  );
+  expect(mocks.set).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "New", startDate: "2026-08-01", endDate: "2026-08-01" })
+  );
+  expect(mocks.markChanged).toHaveBeenCalledOnce();
+});
+it("writes cleared dates even when no metadata is sent", async () => {
+  mocks.applyDateChange.mockResolvedValue({ startDate: null, endDate: null, documentUrls: [] });
+  await updateTrip(actor, tripId, { startDate: null });
+  expect(mocks.set).toHaveBeenCalledWith(expect.objectContaining({ startDate: null, endDate: null }));
+  expect(mocks.markChanged).toHaveBeenCalledOnce();
+});
+it("passes the resolution and confirmation through and queues removed documents before the files go", async () => {
+  const queued = [{ id: "queue-1", url: "/api/storage/doc.pdf" }];
+  mocks.applyDateChange.mockResolvedValue({
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    documentUrls: ["/api/storage/doc.pdf"],
+  });
+  mocks.queueDeletions.mockResolvedValue(queued);
+  await updateTrip(actor, tripId, {
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    resolution: "delete-events",
+    confirmation,
+  });
+  expect(mocks.applyDateChange).toHaveBeenCalledWith(
+    expect.anything(),
+    tripId,
+    row,
+    expect.objectContaining({ resolution: "delete-events", confirmation }),
+    "user"
+  );
+  expect(mocks.queueDeletions).toHaveBeenCalledWith(expect.anything(), ["/api/storage/doc.pdf"]);
+  expect(mocks.removeFiles).toHaveBeenCalledWith(queued);
+  expect(mocks.queueDeletions.mock.invocationCallOrder[0]).toBeLessThan(mocks.removeFiles.mock.invocationCallOrder[0]);
+});
+it("writes and removes nothing when the preview asks for confirmation", async () => {
+  mocks.applyDateChange.mockRejectedValue(new ConfirmationRequiredError("Confirm.", confirmation));
+  await expect(
+    updateTrip(actor, tripId, { name: "New", startDate: "2026-08-01", endDate: "2026-08-01" })
+  ).rejects.toMatchObject({ confirmation });
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.queueDeletions).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+  expect(mocks.markChanged).not.toHaveBeenCalled();
+});
+it("rejects a stale confirmation without writing or removing files", async () => {
+  mocks.applyDateChange.mockRejectedValue(new ConflictError("Trip dates changed."));
+  await expect(
+    updateTrip(actor, tripId, {
+      startDate: "2026-08-01",
+      endDate: "2026-08-01",
+      resolution: "keep-as-unscheduled",
+      confirmation,
+    })
+  ).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+});
+it("rejects a resolution without its confirmation before starting the write", async () => {
+  await expect(
+    updateTrip(actor, tripId, { startDate: "2026-08-01", endDate: "2026-08-01", resolution: "delete-events" })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.run).not.toHaveBeenCalled();
+});
+it("aborts the date change when the atomic currency conversion fails", async () => {
+  mocks.recalculate.mockRejectedValueOnce(new Error("conversion failed"));
+  await expect(
+    updateTrip(actor, tripId, {
+      budgetCurrency: "EUR",
+      convertCurrency: true,
+      startDate: "2026-08-01",
+      endDate: "2026-08-01",
+    })
+  ).rejects.toThrow("conversion failed");
+  expect(mocks.update).not.toHaveBeenCalledWith(trips);
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+});
+it("does not run the date change for a metadata-only edit", async () => {
+  await updateTrip(actor, tripId, { name: "New" });
+  expect(mocks.applyDateChange).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).toHaveBeenCalledWith([]);
 });

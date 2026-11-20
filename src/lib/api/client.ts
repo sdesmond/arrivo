@@ -7,7 +7,8 @@ export class ApiClientError extends Error {
     readonly code: string,
     message: string,
     readonly fields?: Record<string, string[]>,
-    readonly requiredRole?: CollaboratorRole
+    readonly requiredRole?: CollaboratorRole,
+    readonly confirmation?: unknown
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -74,7 +75,13 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
     }
     if (!response.ok) {
       let failure: {
-        error?: { code?: string; message?: string; fields?: Record<string, string[]>; requiredRole?: CollaboratorRole };
+        error?: {
+          code?: string;
+          message?: string;
+          fields?: Record<string, string[]>;
+          requiredRole?: CollaboratorRole;
+          confirmation?: unknown;
+        };
       } = {};
       try {
         const envelope: unknown = await response.json();
@@ -93,7 +100,8 @@ export async function api<Result, Params extends z.ZodType, Body extends z.ZodTy
         failure.error?.code ?? "server_error",
         failure.error?.message ?? "Could not save changes. Try again.",
         failure.error?.fields,
-        failure.error?.requiredRole
+        failure.error?.requiredRole,
+        failure.error?.confirmation
       );
     }
     if (endpoint.status === 204) return null as Result;

@@ -13,7 +13,8 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly fields?: Record<string, string[]>,
-    readonly requiredRole?: CollaboratorRole
+    readonly requiredRole?: CollaboratorRole,
+    readonly confirmation?: unknown
   ) {
     super(message);
     this.name = "ApiError";
@@ -26,7 +27,7 @@ export function errorResponse(error: unknown): Response {
   else if (error instanceof TripNotFoundError) failure = new ApiError(404, "not_found", error.message);
   else if (error instanceof ConflictError) failure = new ApiError(409, "conflict", error.message);
   else if (error instanceof ConfirmationRequiredError)
-    failure = new ApiError(409, "confirmation_required", error.message);
+    failure = new ApiError(409, "confirmation_required", error.message, undefined, undefined, error.confirmation);
   else if (error instanceof ValidationFailedError)
     failure = new ApiError(422, "validation_failed", error.message, error.fields);
   else if (error instanceof UploadTooLargeError) failure = new ApiError(413, "payload_too_large", error.message);
@@ -68,6 +69,7 @@ export function errorResponse(error: unknown): Response {
         message: failure.message,
         ...(failure.fields ? { fields: failure.fields } : {}),
         ...(failure.requiredRole ? { requiredRole: failure.requiredRole } : {}),
+        ...(failure.confirmation === undefined ? {} : { confirmation: failure.confirmation }),
       },
     },
     {

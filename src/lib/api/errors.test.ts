@@ -49,6 +49,14 @@ it("returns validation fields", async () => {
 it("keeps the message of the transport-neutral errors and the optional fields", async () => {
   const confirmation = await errorResponse(new ConfirmationRequiredError("Confirm first.")).json();
   expect(confirmation.error).toEqual({ code: "confirmation_required", message: "Confirm first." });
+  const withPayload = await errorResponse(
+    new ConfirmationRequiredError("Confirm first.", { removedDates: ["2026-08-02"] })
+  ).json();
+  expect(withPayload.error).toEqual({
+    code: "confirmation_required",
+    message: "Confirm first.",
+    confirmation: { removedDates: ["2026-08-02"] },
+  });
   const plain = await errorResponse(new ValidationFailedError("Max trip length is 45 days.")).json();
   expect(plain.error).toEqual({ code: "validation_failed", message: "Max trip length is 45 days." });
   const withFields = await errorResponse(new ValidationFailedError("Bad.", { days: ["Too many."] })).json();
