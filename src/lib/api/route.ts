@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { z } from "zod";
 import type { Actor, IdempotentRequest } from "@/data/types";
 import { MULTIPART_OVERHEAD_BYTES, type Endpoint } from "./endpoint";
@@ -11,6 +12,15 @@ import { REQUEST_DEADLINE_MS, UPLOAD_DEADLINE_MS, runWithRequestDeadline } from 
 interface ApiRouteOptions {
   /** Opt in to `Idempotency-Key` replay; a keyed request to any other handler is rejected. */
   idempotent?: { expiryMs?: number };
+  /** GET only: send a strong `ETag` hashed from the serialized result and answer 304 on a matching `If-None-Match`. */
+  etag?: boolean;
+}
+function matchesEtag(header: string | null, etag: string): boolean {
+  if (header === null) return false;
+  return header.split(",").some((candidate) => {
+    const value = candidate.trim();
+    return value === "*" || value.replace(/^W\//, "") === etag;
+  });
 }
 /**
  * Reads one `file` part and the named string fields. Next buffers a proxied body only up to its limit and truncates
@@ -107,6 +117,14 @@ export function apiRoute<Result, Params extends z.ZodType, Body extends z.ZodTyp
         ...(replay ? { replay } : {}),
       });
       if (endpoint.status === 204) return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+      if (options.etag && endpoint.method === "GET") {
+        const serialized = JSON.stringify(result);
+        const etag = `"${createHash("sha256").update(serialized).digest("hex")}"`;
+        const headers = { ETag: etag, "Cache-Control": "private, no-cache" };
+        if (matchesEtag(request.headers.get("if-none-match"), etag))
+          return new Response(null, { status: 304, headers });
+        return new Response(serialized, { headers: { ...headers, "Content-Type": "application/json" } });
+      }
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       return errorResponse(error);

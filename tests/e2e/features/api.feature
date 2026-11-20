@@ -2712,3 +2712,29 @@ Feature: Absolute checklist checked-state API
       | role     | status |
       | viewer   | 403    |
       | stranger | 404    |
+
+  Scenario: Trip snapshot ETag is stable, changes with a write and answers 304
+    Given my checklist API role is "editor"
+    When I fetch the trip snapshot
+    And I fetch the trip snapshot again
+    Then both trip snapshots share one ETag
+    When I fetch the trip snapshot with the earlier ETag
+    Then the trip snapshot answers 304 without a body
+    When the trip is renamed through the snapshot API
+    And I fetch the trip snapshot
+    Then the trip snapshot ETag differs from the earlier one
+
+  Scenario Outline: Trip snapshot access by role
+    Given my checklist API role is "<role>"
+    When I fetch the trip snapshot
+    Then the trip snapshot returns the trip with access role "<role>"
+
+    Examples:
+      | role   |
+      | viewer |
+      | editor |
+
+  Scenario: Trip snapshot hides the trip from a non-member
+    Given my checklist API role is "stranger"
+    When I fetch the trip snapshot
+    Then the trip snapshot answers 404 with code "not_found"

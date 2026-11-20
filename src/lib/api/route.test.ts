@@ -374,3 +374,44 @@ it("accepts static GET routes whose Next context has no params", async () => {
   expect((await getRoute(getRequest(), staticContext)).status).toBe(200);
   expect(handler).toHaveBeenCalledWith({ actor: { userId: "user" }, params: {}, body: { query: "Paris", page: 2 } });
 });
+
+const etagRoute = apiRoute(getEndpoint, handler, { etag: true });
+function etagRequest(headers: Record<string, string> = {}) {
+  return getRequest("query=Paris", headers);
+}
+it("sends no ETag unless the route opts in", async () => {
+  const response = await getRoute(getRequest(), context);
+  expect(response.headers.get("etag")).toBeNull();
+  expect(response.headers.get("cache-control")).toBe("no-store");
+});
+it("sends a stable strong ETag that changes with the payload", async () => {
+  const first = await etagRoute(etagRequest(), context);
+  const second = await etagRoute(etagRequest(), context);
+  const tag = first.headers.get("etag");
+  expect(tag).toMatch(/^"[0-9a-f]{64}"$/);
+  expect(second.headers.get("etag")).toBe(tag);
+  expect(first.headers.get("cache-control")).toBe("private, no-cache");
+  handler.mockResolvedValueOnce({ done: false });
+  expect((await etagRoute(etagRequest(), context)).headers.get("etag")).not.toBe(tag);
+});
+it("answers 304 without a body when If-None-Match matches", async () => {
+  const tag = (await etagRoute(etagRequest(), context)).headers.get("etag")!;
+  for (const header of [tag, `W/${tag}`, `"other", ${tag}`, "*"]) {
+    const response = await etagRoute(etagRequest({ "if-none-match": header }), context);
+    expect(response.status).toBe(304);
+    expect(await response.text()).toBe("");
+    expect(response.headers.get("etag")).toBe(tag);
+    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+  }
+});
+it("answers 200 with the payload when If-None-Match does not match", async () => {
+  const response = await etagRoute(etagRequest({ "if-none-match": '"stale"' }), context);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ done: true });
+});
+it("keeps errors uncached and unconditional on an ETag route", async () => {
+  handler.mockRejectedValueOnce(new ApiError(404, "not_found", "Not found."));
+  const response = await etagRoute(etagRequest({ "if-none-match": "*" }), context);
+  expect(response.status).toBe(404);
+  expect(response.headers.get("etag")).toBeNull();
+});

@@ -70,6 +70,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/date-sync.ts",
     "src/app/(app)/trips/create-trip-days.ts",
     "tests/e2e/steps/api-trip-dates.steps.ts",
+    "tests/e2e/steps/api-trip-snapshot.steps.ts",
     "tests/e2e/trip-patch-response.ts",
     "src/lib/api/contract/trips.ts",
     "src/lib/trip-metadata-save.ts",

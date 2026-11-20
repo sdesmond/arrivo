@@ -1,15 +1,28 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { trips, expenses } from "@/db/schema";
-import type { Actor, IdempotentRequest, Trip } from "@/data/types";
-import { updateTrip as contract } from "@/lib/api/contract/trips";
+import type { Actor, IdempotentRequest, Trip, TripDetailPayload } from "@/data/types";
+import { getTrip as readContract, updateTrip as contract } from "@/lib/api/contract/trips";
 import { dbExpenseToType, dbTripToType } from "@/lib/db-mappers";
 import { recalculateAll } from "@/lib/currency";
+import { getTripDetail } from "@/lib/queries";
 import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { applyTripDateChange } from "./trip-date-change";
 import { lockTrip, runTripWrite } from "./trip-write";
 import { ValidationFailedError } from "./validation-failed-error";
+
+export async function getTrip(actor: Actor, tripId: string): Promise<TripDetailPayload> {
+  tripId = readContract.params.parse({ tripId }).tripId;
+  await requireTripRole(tripId, actor.userId, "viewer");
+  // getTripDetail turns access lost since the check above into Next's notFound(); answer it as a plain 404.
+  const detail = await getTripDetail(tripId, actor.userId).catch((error: unknown) => {
+    if (String((error as { digest?: unknown })?.digest).includes("NEXT_HTTP_ERROR_FALLBACK;404")) return null;
+    throw error;
+  });
+  if (!detail) throw new TripNotFoundError();
+  return detail;
+}
 
 export async function updateTrip(
   actor: Actor,

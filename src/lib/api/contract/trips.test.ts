@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { updateTrip } from "./trips";
+import { getTrip, updateTrip } from "./trips";
 
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 it("validates strict partial metadata and normalizes currency", () => {
@@ -35,4 +35,15 @@ it("validates strict partial metadata and normalizes currency", () => {
     { transitMode: "invalid" },
   ])
     expect(updateTrip.body.safeParse(body).success).toBe(false);
+});
+
+it("defines the trip snapshot as a bodiless GET", () => {
+  expect(getTrip.method).toBe("GET");
+  expect(getTrip.path).toBe("/api/v1/trips/:tripId");
+  expect(getTrip.params.parse({ tripId: "123E4567-E89B-12D3-A456-426614174000" }).tripId).toBe(
+    "123e4567-e89b-12d3-a456-426614174000"
+  );
+  expect(getTrip.params.safeParse({ tripId: "nope" }).success).toBe(false);
+  expect(getTrip.body.safeParse({}).success).toBe(true);
+  expect(getTrip.body.safeParse({ extra: "x" }).success).toBe(false);
 });
