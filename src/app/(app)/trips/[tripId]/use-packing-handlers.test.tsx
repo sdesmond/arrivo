@@ -13,7 +13,6 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 vi.mock("@/lib/api/client", async (original) => ({ ...(await original<typeof import("@/lib/api/client")>()), api }));
 vi.mock("../actions", () => ({
   addPackingItem: vi.fn(),
-  pullTemplatesOntoTrip: vi.fn(),
   removePackingItem: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
   togglePackingItem: vi.fn(),
@@ -479,4 +478,19 @@ describe("packing list API writes", () => {
     expect(toast.error).toHaveBeenNthCalledWith(1, "Gone");
     expect(toast.error).toHaveBeenNthCalledWith(2, "Denied");
   });
+});
+
+it("pulls templates into the selected list through the API", async () => {
+  api.mockResolvedValueOnce({ added: 2, skipped: 1 });
+  const { result } = renderPackingHandlers(detail);
+  let value: unknown;
+  await act(async () => {
+    value = await result.current.handlePullTemplates([sourceId], checklistId);
+  });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ path: "/api/v1/trips/:tripId/packing/pull-templates" }), {
+    params: { tripId },
+    body: { templateIds: [sourceId], listId: checklistId },
+  });
+  expect(value).toEqual({ added: 2, skipped: 1 });
+  expect(refresh).toHaveBeenCalled();
 });

@@ -542,3 +542,148 @@ it("denies list writes to a caller without editor access", async () => {
   expect(mocks.transaction).not.toHaveBeenCalled();
   mocks.requireTripRole.mockReset();
 });
+
+it("authorizes empty template pulls without effects", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [] })).resolves.toEqual({ added: 0, skipped: 0 });
+  expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+it("pulls owned templates into the chosen list and maps duplicate sections across templates", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  const templateOne = first;
+  const templateTwo = second;
+  const foreign = section;
+  const queries: unknown[][] = [
+    [{ id: listId }],
+    [{ id: templateOne }, { id: templateTwo }],
+    [{ id: itemId, name: " socks ", isLabel: false, position: 4 }],
+    [
+      { id: "label-one", text: " Gear ", isLabel: true, labelId: null },
+      { id: "item-one", text: "Socks", isLabel: false, labelId: "label-one" },
+    ],
+    [
+      { id: "label-two", text: "gear", isLabel: true, labelId: null },
+      { id: "item-two", text: " Boots ", isLabel: false, labelId: "label-two" },
+    ],
+  ];
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => {
+        const rows = queries.shift() ?? [];
+        return Object.assign(Promise.resolve(rows), { orderBy: async () => rows });
+      },
+    }),
+  });
+  const values = vi.fn().mockImplementation(() => ({
+    returning: async () => [{ id: values.mock.calls.length === 1 ? "new-label" : "new-item" }],
+  }));
+  mocks.insert.mockReturnValue({ values });
+  await expect(
+    pullTemplatesOntoTrip(actor, tripId, { templateIds: [templateOne, templateOne, foreign, templateTwo], listId })
+  ).resolves.toEqual({ added: 2, skipped: 2 });
+  expect(values).toHaveBeenNthCalledWith(1, expect.objectContaining({ listId, name: "Gear", position: 5 }));
+  expect(values).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({ listId, name: "Boots", labelId: "new-label", position: 6 })
+  );
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+});
+
+it("rejects invalid lists and revoked access without writing", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first], listId })).rejects.toBeInstanceOf(
+    ValidationFailedError
+  );
+  mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new Error("revoked"));
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first] })).rejects.toThrow("revoked");
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+it("maps a child that precedes its section without changing item order", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  const queries: unknown[][] = [
+    [{ id: first }],
+    [],
+    [
+      { id: "child", text: "Boots", isLabel: false, labelId: "template-label" },
+      { id: "template-label", text: "Gear", isLabel: true, labelId: null },
+    ],
+  ];
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => {
+        const rows = queries.shift() ?? [];
+        return Object.assign(Promise.resolve(rows), { orderBy: async () => rows });
+      },
+    }),
+  });
+  const values = vi.fn().mockImplementation(() => ({
+    returning: async () => [{ id: values.mock.calls.length === 1 ? "new-child" : "new-label" }],
+  }));
+  mocks.insert.mockReturnValue({ values });
+  set.mockReturnValue({ where: async () => [] });
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first] })).resolves.toEqual({
+    added: 2,
+    skipped: 0,
+  });
+  expect(values).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: "Boots", position: 0 }));
+  expect(values).toHaveBeenNthCalledWith(2, expect.objectContaining({ name: "Gear", position: 1 }));
+  expect(set).toHaveBeenCalledWith({ labelId: "new-label" });
+});
+
+it("maps a child onto an existing destination section", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  const queries: unknown[][] = [
+    [{ id: first }],
+    [{ id: "existing-label", name: " GEAR ", isLabel: true, position: 2 }],
+    [
+      { id: "label", text: "gear", isLabel: true, labelId: null },
+      { id: "child", text: "Boots", isLabel: false, labelId: "label" },
+    ],
+  ];
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => {
+        const rows = queries.shift() ?? [];
+        return Object.assign(Promise.resolve(rows), { orderBy: async () => rows });
+      },
+    }),
+  });
+  const values = vi.fn(() => ({ returning: async () => [{ id: "new-child" }] }));
+  mocks.insert.mockReturnValue({ values });
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first] })).resolves.toEqual({
+    added: 1,
+    skipped: 1,
+  });
+  expect(values).toHaveBeenCalledWith(expect.objectContaining({ name: "Boots", labelId: "existing-label" }));
+  expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+});
+
+it("does not write or emit effects for a duplicate-only pull", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  const queries: unknown[][] = [
+    [{ id: first }],
+    [{ id: "existing", name: "boots", isLabel: false, position: 0 }],
+    [{ id: "child", text: " Boots ", isLabel: false, labelId: null }],
+  ];
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => {
+        const rows = queries.shift() ?? [];
+        return Object.assign(Promise.resolve(rows), { orderBy: async () => rows });
+      },
+    }),
+  });
+  await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first] })).resolves.toEqual({
+    added: 0,
+    skipped: 1,
+  });
+  expect(mocks.insert).not.toHaveBeenCalled();
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});

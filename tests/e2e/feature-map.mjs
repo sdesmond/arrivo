@@ -736,7 +736,13 @@ export const FEATURE_MAP = [
     "src/lib/membership-writes.ts",
     "src/app/api/v1/invitations/**",
   ]),
-  entry("pull-templates", ["src/components/arrivo/template-pull-dialog.tsx"]),
+  entry("pull-templates", [
+    "src/components/arrivo/template-pull-dialog.tsx",
+    "src/lib/services/packing.ts",
+    "src/lib/api/contract/packing.ts",
+    "src/app/api/v1/trips/*/packing/pull-templates/**",
+    "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
+  ]),
   entry("preferences-cover-type", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("preferences-date-format", ["src/app/(app)/profile/preferences-section.tsx"]),
   entry("profile", [
@@ -794,7 +800,11 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
     ...STORAGE,
   ]),
-  entry("save-trip-as-template", ["src/components/arrivo/save-as-template-dialog.tsx"]),
+  entry("save-trip-as-template", [
+    "src/components/arrivo/save-as-template-dialog.tsx",
+    "src/app/(app)/trips/packing-actions.ts",
+    "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
+  ]),
   entry("schedule-conflict", [
     "src/components/arrivo/day-card-body.tsx",
     "src/components/arrivo/use-schedule-conflicts.ts",

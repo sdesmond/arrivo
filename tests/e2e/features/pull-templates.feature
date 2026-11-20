@@ -18,6 +18,7 @@ Feature: Pull templates onto a trip packing list
     Then the packing list should contain "Passport"
     And the packing list should contain "Phone Charger"
     And the packing list should contain "Toothbrush"
+    And the pulled packing list persists after reload
 
   Scenario: Deduplication skips matching items across two templates on a populated trip
     Given I have a trip with a pre-seeded packing item for pull
@@ -35,3 +36,10 @@ Feature: Pull templates onto a trip packing list
     Then the packing list should contain "Laptop"
     And the packing list should contain "Passport"
     And the packing list should contain "Phone Charger"
+
+  Scenario: Pull into a selected second list preserves its section after reload
+    Given I have a trip with two packing lists for pull
+    And I have a sectioned packing template available for pull
+    When I select the second packing list for pull
+    And I pull the sectioned template onto the trip
+    Then the selected list and its section persist after reload

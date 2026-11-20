@@ -415,6 +415,12 @@ The item ID must be a UUID. Accepts a strict partial body with optional `name` (
 
 Body: `{ "tripId": "<uuid>" }`. An absent item still returns 204 after trip authorization; an item on another trip returns 404. Deleting a section label ungroups its child items by clearing their `labelId`; it does not delete them. Invalid UUIDs, unknown fields and invalid names return validation errors. Viewers receive 403 and non-members receive 404. Keyed replays recheck current access before returning a cached response.
 
+### POST /api/v1/trips/:tripId/packing/pull-templates
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `{ added, skipped }`
+
+Requires editor access. Body: `{ "templateIds": ["<uuid>"], "listId": "<uuid>" }`; `listId` may be omitted or null for the default list. Only templates owned by the caller are considered; missing and foreign IDs are ignored. Repeated IDs are processed once. Names are trimmed and compared case-insensitively within the destination list; duplicate items and sections count as skipped, and children map to matching sections. Returns `{ "added": 0, "skipped": 0 }` counts. An invalid list returns a validation error; inaccessible trips follow the standard 403/404 rules. An `Idempotency-Key` replays the original result after access is rechecked and does not repeat writes or effects; a fresh repeat counts existing names as skipped.
+
 ### PUT /api/v1/trips/:tripId/packing/order
 
 **Role** editor · **`Idempotency-Key`** yes · **Success** `200` `{ listId, items }`

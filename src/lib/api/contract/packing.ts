@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackingItem, PackingItemOrder, TripPackingList } from "@/data/types";
+import type { PackingItem, PackingItemOrder, TripPackingList, PullTemplatesResult } from "@/data/types";
 import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 import { defineEndpoint } from "../endpoint";
 const uuid = z.uuid().toLowerCase();
@@ -89,4 +89,11 @@ export const deletePackingList = defineEndpoint<null>()({
   params: listParams,
   body: z.strictObject({ tripId: uuid }),
   status: 204,
+});
+
+export const pullTemplatesOntoTrip = defineEndpoint<PullTemplatesResult>()({
+  method: "POST",
+  path: "/api/v1/trips/:tripId/packing/pull-templates",
+  params: z.object({ tripId: uuid }),
+  body: z.strictObject({ templateIds: z.array(uuid), listId: uuid.nullable().optional() }),
 });

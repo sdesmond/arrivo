@@ -1,8 +1,15 @@
 import "server-only";
-import { and, eq, gte, isNull, max, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, max, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { packingItems, tripPackingLists } from "@/db/schema";
-import type { Actor, IdempotentRequest, PackingItem, PackingItemOrder, TripPackingList } from "@/data/types";
+import { packingItems, packingTemplateItems, packingTemplates, tripPackingLists } from "@/db/schema";
+import type {
+  Actor,
+  IdempotentRequest,
+  PackingItem,
+  PackingItemOrder,
+  TripPackingList,
+  PullTemplatesResult,
+} from "@/data/types";
 import { dbPackingItemToType, dbPackingListToType } from "@/lib/db-mappers";
 import {
   updatePackingItem as updateContract,
@@ -13,6 +20,7 @@ import {
   createPackingList as createListContract,
   renamePackingList as renameListContract,
   deletePackingList as deleteListContract,
+  pullTemplatesOntoTrip as pullContract,
 } from "@/lib/api/contract/packing";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { lockClientIds } from "./client-ids";
@@ -417,6 +425,106 @@ export async function deletePackingList(
           markChanged();
         }
         return null;
+      },
+    })
+  );
+}
+
+export async function pullTemplatesOntoTrip(
+  actor: Actor,
+  tripId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<PullTemplatesResult> {
+  tripId = pullContract.params.parse({ tripId }).tripId;
+  const body = pullContract.body.parse(input);
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<PullTemplatesResult>(
+    actor,
+    tripId,
+    { replay, payload: body, revalidate: ["/trips"] },
+    (transaction, markChanged) => ({
+      authorize: async () => {
+        await lockTrip(transaction, tripId);
+        await requireTripRole(tripId, actor.userId, "editor", transaction);
+      },
+      mutate: async () => {
+        const listId = body.listId ?? null;
+        if (listId) {
+          const [list] = await transaction
+            .select()
+            .from(tripPackingLists)
+            .where(and(eq(tripPackingLists.id, listId), eq(tripPackingLists.tripId, tripId)));
+          if (!list) throw new ValidationFailedError("Invalid packing list.", { listId: ["Invalid packing list."] });
+        }
+        const ids = [...new Set(body.templateIds)];
+        if (!ids.length) return { added: 0, skipped: 0 };
+        const owned = await transaction
+          .select({ id: packingTemplates.id })
+          .from(packingTemplates)
+          .where(and(inArray(packingTemplates.id, ids), eq(packingTemplates.userId, actor.userId)));
+        const ownedIds = new Set(owned.map((template) => template.id));
+        const scope = and(
+          eq(packingItems.tripId, tripId),
+          listId === null ? isNull(packingItems.listId) : eq(packingItems.listId, listId)
+        );
+        const existing = await transaction.select().from(packingItems).where(scope);
+        const names = new Set(existing.map((item) => item.name.trim().toLowerCase()));
+        const labels = new Map(
+          existing.filter((item) => item.isLabel).map((item) => [item.name.trim().toLowerCase(), item.id])
+        );
+        const mapped = new Map<string, string>();
+        let position = Math.max(-1, ...existing.map((item) => item.position)) + 1;
+        let added = 0;
+        let skipped = 0;
+        for (const templateId of ids) {
+          if (!ownedIds.has(templateId)) continue;
+          const items = await transaction
+            .select()
+            .from(packingTemplateItems)
+            .where(eq(packingTemplateItems.templateId, templateId))
+            .orderBy(asc(packingTemplateItems.position));
+          const pendingLabels: { itemId: string; templateLabelId: string }[] = [];
+          for (const item of items) {
+            const normalized = item.text.trim().toLowerCase();
+            if (names.has(normalized)) {
+              const existingId = labels.get(normalized);
+              if (item.isLabel && existingId) mapped.set(item.id, existingId);
+              skipped++;
+              continue;
+            }
+            const [inserted] = await transaction
+              .insert(packingItems)
+              .values({
+                tripId,
+                listId,
+                name: item.text.trim(),
+                done: false,
+                isLabel: item.isLabel,
+                position: position++,
+                labelId: item.isLabel ? null : item.labelId ? (mapped.get(item.labelId) ?? null) : null,
+              })
+              .returning({ id: packingItems.id });
+            if (!inserted) throw new Error("Failed to insert packing item during template pull");
+            if (!item.isLabel && item.labelId && !mapped.has(item.labelId)) {
+              pendingLabels.push({ itemId: inserted.id, templateLabelId: item.labelId });
+            }
+            if (item.isLabel) {
+              mapped.set(item.id, inserted.id);
+              labels.set(normalized, inserted.id);
+            }
+            names.add(normalized);
+            added++;
+          }
+          for (const pending of pendingLabels) {
+            const labelId = mapped.get(pending.templateLabelId);
+            if (labelId) {
+              await transaction.update(packingItems).set({ labelId }).where(eq(packingItems.id, pending.itemId));
+            }
+          }
+        }
+        if (added) markChanged();
+        return { added, skipped };
       },
     })
   );

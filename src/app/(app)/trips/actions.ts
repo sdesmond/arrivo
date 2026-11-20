@@ -47,10 +47,7 @@ import { buildDayRows, buildDatelessDayRow } from "./create-trip-days";
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
 import { searchCoverImages } from "@/lib/services/cover-search";
 import { recordDeletions } from "@/lib/services/deletion-records";
-import {
-  pullTemplatesOntoTrip as pullTemplatesOntoTripAction,
-  saveTripListAsTemplate as saveTripListAsTemplateAction,
-} from "./packing-actions";
+import { saveTripListAsTemplate as saveTripListAsTemplateAction } from "./packing-actions";
 
 const DAY_NUMBER_TEMP_OFFSET = 1000;
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
@@ -721,14 +718,6 @@ export async function deleteTrip(tripId: string) {
   }
 
   revalidatePath("/trips");
-}
-
-export async function pullTemplatesOntoTrip(
-  tripId: string,
-  templateIds: string[],
-  listId?: string | null
-): Promise<import("@/data/types").PullTemplatesResult> {
-  return pullTemplatesOntoTripAction(tripId, templateIds, listId);
 }
 
 export async function saveTripListAsTemplate(

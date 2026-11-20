@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import { pullTemplatesOntoTrip, saveTripListAsTemplate } from "../actions";
+import { saveTripListAsTemplate } from "../actions";
 import {
   createPackingItem,
   removePackingSection,
@@ -14,6 +14,7 @@ import {
   createPackingList,
   renamePackingList,
   deletePackingList,
+  pullTemplatesOntoTrip,
 } from "@/lib/api/contract/packing";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
@@ -55,6 +56,7 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const { trip, days } = detail;
   const router = useRouter();
   const [newlyCreatedChecklistId, setNewlyCreatedChecklistId] = useState<string | null>(null);
+  const pullMutation = useApiMutation(pullTemplatesOntoTrip);
   const insertMutation = useApiMutation(createChecklist);
   const insertInFlight = useRef(false);
   const createMutation = useApiMutation(createPackingItem);
@@ -233,14 +235,16 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     templateIds: string[],
     listId?: string | null
   ): Promise<PullTemplatesResult | undefined> {
-    try {
-      const result = await pullTemplatesOntoTrip(trip.id, templateIds, listId);
-      router.refresh();
-      return result;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to pull templates. Please try again.");
-      return undefined;
-    }
+    let result: PullTemplatesResult | undefined;
+    await pullMutation.mutate(
+      { params: { tripId: trip.id }, body: { templateIds, listId } },
+      {
+        onSuccess: (value) => {
+          result = value;
+        },
+      }
+    );
+    return result;
   }
 
   async function handleSaveAsTemplate(name: string): Promise<string | undefined> {

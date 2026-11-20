@@ -98,3 +98,19 @@ it("validates packing list create, rename and delete", async () => {
     `List name must be ${FIELD_LIMITS.packingListName} characters or fewer.`
   );
 });
+
+it("validates strict template pulls and normalizes IDs", async () => {
+  const { pullTemplatesOntoTrip } = await import("./packing");
+  expect(pullTemplatesOntoTrip.body.parse({ templateIds: [uuid.toUpperCase()], listId: null })).toEqual({
+    templateIds: [uuid],
+    listId: null,
+  });
+  expect(pullTemplatesOntoTrip.body.parse({ templateIds: [] })).toEqual({ templateIds: [] });
+  for (const body of [
+    {},
+    { templateIds: ["bad"] },
+    { templateIds: [], listId: "bad" },
+    { templateIds: [], extra: true },
+  ])
+    expect(pullTemplatesOntoTrip.body.safeParse(body).success).toBe(false);
+});
