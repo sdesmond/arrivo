@@ -1,12 +1,13 @@
 import { expect, it, vi } from "vitest";
-const { update, apiRoute } = vi.hoisted(() => ({
+const { update, read, apiRoute } = vi.hoisted(() => ({
   update: vi.fn(),
+  read: vi.fn(),
   apiRoute: vi.fn((...args: [unknown, (input: unknown) => unknown, unknown?]) => args[1]),
 }));
-vi.mock("@/lib/services/trips", () => ({ updateTrip: update }));
+vi.mock("@/lib/services/trips", () => ({ updateTrip: update, getTrip: read }));
 vi.mock("@/lib/api/route", () => ({ apiRoute }));
-import { PATCH } from "./route";
-import { updateTrip } from "@/lib/api/contract/trips";
+import { GET, PATCH } from "./route";
+import { getTrip, updateTrip } from "@/lib/api/contract/trips";
 it("registers the idempotent route and forwards the request", async () => {
   expect(apiRoute.mock.calls.find((call) => call[0] === updateTrip)?.[2]).toEqual({ idempotent: {} });
   const actor = { userId: "user" };
@@ -14,4 +15,11 @@ it("registers the idempotent route and forwards the request", async () => {
   const body = { name: "Trip" };
   await (PATCH as unknown as (input: unknown) => Promise<unknown>)({ actor, params: { tripId: "trip" }, body, replay });
   expect(update).toHaveBeenCalledWith(actor, "trip", body, replay);
+});
+
+it("registers the snapshot route with an ETag and forwards the request", async () => {
+  expect(apiRoute.mock.calls.find((call) => call[0] === getTrip)?.[2]).toEqual({ etag: true });
+  const actor = { userId: "user" };
+  await (GET as unknown as (input: unknown) => Promise<unknown>)({ actor, params: { tripId: "trip" } });
+  expect(read).toHaveBeenCalledWith(actor, "trip");
 });

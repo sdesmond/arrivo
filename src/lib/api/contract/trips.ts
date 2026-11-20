@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Trip } from "@/data/types";
+import type { Trip, TripDetailPayload } from "@/data/types";
 import { ReservationType, TransitMode, TripDateConflictResolution } from "@/data/types";
 import { isSupportedCurrencyCode } from "@/lib/currencies";
 import { updateTripSchema } from "@/lib/validation-schemas";
@@ -30,6 +30,12 @@ const dateChangeConfirmation = z.object({
   eventDocumentCount: z.number().int().nonnegative(),
 });
 
+export const getTrip = defineEndpoint<TripDetailPayload>()({
+  method: "GET",
+  path: "/api/v1/trips/:tripId",
+  params: z.object({ tripId: z.uuid().toLowerCase() }),
+  body: z.strictObject({}),
+});
 export const updateTrip = defineEndpoint<Trip>()({
   method: "PATCH",
   path: "/api/v1/trips/:tripId",

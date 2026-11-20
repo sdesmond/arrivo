@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   applyDateChange: vi.fn(),
   queueDeletions: vi.fn(),
   removeFiles: vi.fn(),
+  detail: vi.fn(),
 }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
@@ -23,11 +24,13 @@ vi.mock("@/lib/file-cleanup", () => ({
   queueFileDeletions: mocks.queueDeletions,
   removeQueuedFiles: mocks.removeFiles,
 }));
+vi.mock("@/lib/queries", () => ({ getTripDetail: mocks.detail }));
 vi.mock("@/lib/currency", () => ({ recalculateAll: mocks.recalculate }));
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
-import { updateTrip } from "./trips";
+import { TripNotFoundError } from "./trip-access";
+import { getTrip, updateTrip } from "./trips";
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "user" };
 const row = {
@@ -243,4 +246,31 @@ it("does not run the date change for a metadata-only edit", async () => {
   await updateTrip(actor, tripId, { name: "New" });
   expect(mocks.applyDateChange).not.toHaveBeenCalled();
   expect(mocks.removeFiles).toHaveBeenCalledWith([]);
+});
+
+it("returns the trip snapshot for a viewer after checking the role", async () => {
+  const payload = { trip: { id: tripId }, accessRole: "viewer" };
+  mocks.detail.mockResolvedValue(payload);
+  await expect(getTrip(actor, tripId.toUpperCase())).resolves.toBe(payload);
+  expect(mocks.requireRole).toHaveBeenCalledWith(tripId, "user", "viewer");
+  expect(mocks.detail).toHaveBeenCalledWith(tripId, "user");
+});
+it("does not read the snapshot when access is denied", async () => {
+  mocks.requireRole.mockRejectedValueOnce(new TripNotFoundError());
+  await expect(getTrip(actor, tripId)).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.detail).not.toHaveBeenCalled();
+});
+it("answers not found when the trip vanished after the access check", async () => {
+  mocks.detail.mockResolvedValue(null);
+  await expect(getTrip(actor, tripId)).rejects.toBeInstanceOf(TripNotFoundError);
+});
+it("answers 404 when access is lost between the role check and the read", async () => {
+  mocks.detail.mockRejectedValue(
+    Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" })
+  );
+  await expect(getTrip(actor, tripId)).rejects.toBeInstanceOf(TripNotFoundError);
+});
+it("rethrows other snapshot read failures", async () => {
+  mocks.detail.mockRejectedValue(new Error("db down"));
+  await expect(getTrip(actor, tripId)).rejects.toThrow("db down");
 });
