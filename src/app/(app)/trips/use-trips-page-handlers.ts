@@ -12,6 +12,7 @@ import {
   type UpdateTripMetadataResult,
   type UpdateTripPatch,
 } from "@/data/types";
+import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { getTripStatus, getTripDays } from "@/lib/utils";
 import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
 
@@ -117,7 +118,10 @@ export function useTripsPageHandlers(initialEntries: TripListEntry[], now: Date)
     return new Promise((resolve) => {
       startTripSave(async () => {
         try {
-          const result = await updateTripMetadata(tripId, patch, resolution, confirmation);
+          const trip = initialEntries.find((entry) => entry.trip.id === tripId)?.trip;
+          if (!trip) throw new Error("Trip not found.");
+          const result = await saveTripMetadata(trip, patch, updateTripMetadata, resolution, confirmation);
+          if (result.status === "saved") router.refresh();
           if (result.status === "saved") {
             closeTripEditSheet();
           } else {

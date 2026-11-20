@@ -1,3 +1,4 @@
+import { waitForServerActionSettled } from "../server-action";
 import { expect, type Locator, type Page } from "@playwright/test";
 import { and, desc, eq } from "drizzle-orm";
 import { days, events, itineraryNotes, trips } from "../../../src/db/schema";
@@ -1870,4 +1871,30 @@ Then("a failed checklist item edit and delete roll back and their retries persis
       .locator("[data-checklist-item-id]")
       .evaluateAll((elements) => elements.map((element) => element.textContent?.trim()))
   ).toEqual(["Keep item"]);
+});
+
+Then("mixed trip changes have not been stored", async ({ scenario }) => {
+  const [trip] = await withE2EDb((database) =>
+    database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  expect(trip.name).toBe("Keep Unscheduled Edit Trip");
+  expect(trip.endDate).toBe(E2E_TRIP_SECOND_DATE);
+});
+When("I cancel the trip date warning", async ({ page }) => {
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("alertdialog")).not.toBeVisible();
+});
+When("I confirm the mixed trip edit", async ({ page }) => {
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  const saved = waitForServerActionSettled(page, { pathIncludes: "" });
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep Events" }).click();
+  await saved;
+});
+Then("mixed trip changes are stored together", async ({ page, scenario }) => {
+  await reloadPage(page);
+  const [trip] = await withE2EDb((database) =>
+    database.select().from(trips).where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  expect(trip.name).toBe("Mixed edit");
+  expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
 });

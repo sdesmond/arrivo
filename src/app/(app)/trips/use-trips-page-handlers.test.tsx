@@ -2,17 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
 import { createTrip, deleteTrip, updateTripMetadata } from "./actions";
+import { api } from "@/lib/api/client";
 import { useTripsPageHandlers } from "./use-trips-page-handlers";
 import { TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
 const mockPush = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/api/client", () => ({ api: vi.fn() }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
 }));
 
 vi.mock("./actions", () => ({
@@ -244,4 +247,21 @@ describe("useTripsPageHandlers", () => {
     expect(toast.error).toHaveBeenCalledWith("Delete failed");
     expect(result.current.deletingTrip?.id).toBe("trip-past");
   });
+});
+
+it("saves metadata with unchanged dates through the API", async () => {
+  vi.mocked(api).mockResolvedValueOnce({} as never);
+  const { result } = renderHook(() => useTripsPageHandlers(datedEntries, NOW));
+  await act(async () => {
+    await result.current.handleTripSave("trip-upcoming", {
+      name: "New",
+      startDate: "2026-06-01",
+      endDate: "2026-06-10",
+    });
+  });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ path: "/api/v1/trips/:tripId" }), {
+    params: { tripId: "trip-upcoming" },
+    body: { name: "New" },
+  });
+  expect(updateTripMetadata).not.toHaveBeenCalled();
 });

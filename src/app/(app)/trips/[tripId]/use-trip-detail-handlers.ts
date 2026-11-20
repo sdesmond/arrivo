@@ -16,6 +16,7 @@ import type {
   UpdateTripPatch,
 } from "@/data/types";
 import { deleteTrip, updateTripMetadata } from "../actions";
+import { saveTripMetadata } from "@/lib/trip-metadata-save";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import {
   createEvent as createEventEndpoint,
@@ -299,13 +300,15 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     return new Promise((resolve) => {
       startSaveTripTransition(async () => {
         try {
-          const result = await updateTripMetadata(
-            trip.id,
+          const result = await saveTripMetadata(
+            trip,
             patch,
+            updateTripMetadata,
             resolution,
             confirmation,
             currencyChangeMode === TripCurrencyChangeMode.Convert
           );
+          if (result.status === "saved") router.refresh();
           resolve(result);
         } catch (error) {
           if (currencyChangeMode) {

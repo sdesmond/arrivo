@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { toast } from "sonner";
 import { deleteTrip, updateTripMetadata } from "@/app/(app)/trips/actions";
+import { api } from "@/lib/api/client";
 import { useTravelHistoryPageHandlers } from "./use-travel-history-page-handlers";
 import { SpendingDateRange, TripDateConflictResolution, type TripListEntry } from "@/data/types";
 
@@ -14,8 +15,10 @@ const { mockPathname, mockSearchParams, mockRouterPush } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname(),
   useSearchParams: () => mockSearchParams(),
-  useRouter: () => ({ push: mockRouterPush }),
+  useRouter: () => ({ push: mockRouterPush, refresh: vi.fn() }),
 }));
+
+vi.mock("@/lib/api/client", () => ({ api: vi.fn() }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -211,7 +214,7 @@ describe("useTravelHistoryPageHandlers", () => {
   });
 
   it("shows a toast when saving trip changes fails", async () => {
-    vi.mocked(updateTripMetadata).mockRejectedValueOnce(new Error("Save failed"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Save failed"));
 
     const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
 
@@ -259,4 +262,21 @@ describe("useTravelHistoryPageHandlers", () => {
     expect(toast.error).toHaveBeenCalledWith("Delete failed");
     expect(result.current.deletingTrip?.id).toBe("trip-past-older");
   });
+});
+
+it("saves history metadata through the API", async () => {
+  vi.mocked(api).mockResolvedValueOnce({} as never);
+  const { result } = renderHook(() => useTravelHistoryPageHandlers(entries, NOW));
+  await act(async () => {
+    await result.current.handleTripSave("trip-past-newer", {
+      name: "New",
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+    });
+  });
+  expect(api).toHaveBeenCalledWith(expect.objectContaining({ path: "/api/v1/trips/:tripId" }), {
+    params: { tripId: "trip-past-newer" },
+    body: { name: "New" },
+  });
+  expect(updateTripMetadata).not.toHaveBeenCalled();
 });

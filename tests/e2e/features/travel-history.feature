@@ -28,6 +28,8 @@ Feature: Travel History
     And I change the trip name to "Renamed Past Trip"
     And I save
     Then I see "Renamed Past Trip" in the travel history list
+    When I reload the browser page
+    Then I see "Renamed Past Trip" in the travel history list
 
   Scenario: Deleting a past trip from Travel History
     Given I have a past trip available in my travel history
@@ -43,3 +45,4 @@ Feature: Travel History
     Then I do not see "Berlin Wrap" on the trips page
     And the trips page has no Past section
     And I see an "Upcoming" section with "E2E Test Trip"
+

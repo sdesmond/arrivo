@@ -65,6 +65,10 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/lib/services/trips.ts",
+    "src/lib/api/contract/trips.ts",
+    "src/lib/trip-metadata-save.ts",
+    "src/app/api/v1/trips/*/route.ts",
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
     "src/app/api/v1/trips/*/packing/**",
@@ -365,7 +369,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/days/**",
     "src/app/api/v1/itinerary-notes/**",
     "tests/e2e/api-response.ts",
-    "src/app/(app)/trips/[tripId]/transit-actions.ts",
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
     "src/app/(app)/trips/[tripId]/reservations/actions.ts",
     "src/app/(app)/trips/packing-actions.ts",
@@ -537,6 +540,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("day-planning", [
+    "src/lib/trip-metadata-save.ts",
     "src/lib/api/**",
     "src/lib/services/checklists.ts",
     "src/lib/services/conflict-error.ts",
@@ -854,6 +858,10 @@ export const FEATURE_MAP = [
     "src/lib/error-utils.ts",
   ]),
   entry("travel-history", [
+    "src/lib/services/trips.ts",
+    "src/lib/api/contract/trips.ts",
+    "src/lib/trip-metadata-save.ts",
+    "src/app/api/v1/trips/*/route.ts",
     "src/components/arrivo/travel-history-list.tsx",
     "src/components/arrivo/trips-past-list.tsx",
     "src/components/arrivo/mobile-past-tab.tsx",
@@ -950,6 +958,10 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
   ]),
   entry("trip-tabs", [
+    "src/lib/services/trips.ts",
+    "src/lib/api/contract/trips.ts",
+    "src/lib/trip-metadata-save.ts",
+    "src/app/api/v1/trips/*/route.ts",
     "src/components/arrivo/active-trip-summary-events.ts",
     "src/components/arrivo/active-trip-summary-time.ts",
     "src/components/arrivo/mobile-active-tab.tsx",
@@ -977,6 +989,10 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
   ]),
   entry("trips", [
+    "src/lib/services/trips.ts",
+    "src/lib/api/contract/trips.ts",
+    "src/lib/trip-metadata-save.ts",
+    "src/app/api/v1/trips/*/route.ts",
     "src/components/arrivo/currency-picker.tsx",
     "src/components/arrivo/trip-budget-tab.tsx",
     "src/components/arrivo/trip-add-expense-modal.tsx",
@@ -988,7 +1004,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/trip-card.tsx",
     "src/components/arrivo/trip-edit-*.tsx",
     "src/components/arrivo/getting-around-section.tsx",
-    "src/app/(app)/trips/[tripId]/transit-actions.ts",
     "src/components/arrivo/trip-hero.tsx",
     "src/components/arrivo/trip-date-change-confirmation-dialog.tsx",
     "src/components/arrivo/trip-currency-change-dialog.tsx",

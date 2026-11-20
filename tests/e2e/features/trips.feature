@@ -9,6 +9,18 @@ Feature: Trip Management
     And I change the trip name to "Renamed Trip"
     And I save
     Then the trip should display "Renamed Trip"
+    When I reload the browser page
+    Then the trip should display "Renamed Trip"
+
+  Scenario: Editing a trip from the trips list persists
+    Given I have an existing trip
+    When I navigate to the trips list
+    And I open the trip options menu for "E2E Test Trip"
+    And I choose "Edit trip" from the trip options menu
+    And I change the trip name to "List Edit"
+    And I save
+    And I reload the browser page
+    Then I see "List Edit" in the travel history list
 
   Scenario: A blank trip name cannot be saved
     Given I have an existing trip
@@ -76,3 +88,4 @@ Feature: Trip Management
     And I save
     And I open the trip edit sheet
     Then the trip edit sheet shows "Walk" as the selected transit mode
+

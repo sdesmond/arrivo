@@ -182,6 +182,19 @@ Feature: Day Planning
     When I keep the displaced events as unscheduled
     Then the removed day's events are persisted as unscheduled
 
+  @date-edit-keep-unscheduled
+  Scenario: Mixed metadata and date edits commit only after confirmation
+    When I open the trip edit sheet
+    And I change the trip name to "Mixed edit"
+    And I shorten the trip date range to the first future trip day
+    And I save the trip date change
+    Then the trip edit warning explains the removed trip dates
+    And mixed trip changes have not been stored
+    When I cancel the trip date warning
+    Then mixed trip changes have not been stored
+    When I save the trip date change
+    And I confirm the mixed trip edit
+    Then mixed trip changes are stored together
   @date-edit-delete-events
   Scenario: User shortens a populated date range and deletes displaced events
     When I open the trip edit sheet
@@ -269,3 +282,4 @@ Feature: Day Planning
     When I add a checklist with item "Recover item"
     And I add a second checklist item "Keep item"
     Then a failed checklist item edit and delete roll back and their retries persist
+
