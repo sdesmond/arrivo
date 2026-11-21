@@ -1,7 +1,17 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { checklistItems, days, events, itineraryChecklists, itineraryNotes, notes } from "../../../src/db/schema";
+import {
+  checklistItems,
+  days,
+  events,
+  itineraryChecklists,
+  itineraryNotes,
+  notes,
+  packingItems,
+  trips,
+  tripPackingLists,
+} from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { apiClient } from "../anonymous-api";
 import { When, Then } from "../fixtures";
@@ -10,6 +20,8 @@ import { When, Then } from "../fixtures";
 interface ClientIdResource {
   create: (context: ResourceContext, id: string) => { url: string; body: Record<string, unknown> };
   deleteUrl: (id: string) => string;
+  /** DELETE body; most deletes name the trip. */
+  deleteBody?: (context: ResourceContext) => Record<string, unknown>;
   /** Rows stored under the id, so a refused retry can be shown to store nothing. */
   count: (id: string) => Promise<number>;
 }
@@ -18,6 +30,8 @@ interface ResourceContext {
   tripId: string;
   dayId: string;
   checklistId: string;
+  /** Scenario-unique name for resources that live outside the scenario trip (a created trip). */
+  uniqueName: string;
 }
 
 interface DeletedClientIdState {
@@ -81,6 +95,48 @@ const RESOURCES: Record<string, ClientIdResource> = {
       )
     ),
   },
+  "packing item": {
+    create: ({ tripId }, id) => ({
+      url: `/api/v1/trips/${tripId}/packing-items`,
+      body: { id, name: "Deleted retry socks", listId: null },
+    }),
+    deleteUrl: (id) => `/api/v1/packing-items/${id}`,
+    count: countRows((id) =>
+      withE2EDb((database) =>
+        database.select({ id: packingItems.id }).from(packingItems).where(eq(packingItems.id, id))
+      )
+    ),
+  },
+  "packing section": {
+    create: ({ tripId }, id) => ({
+      url: `/api/v1/trips/${tripId}/packing-items`,
+      body: { id, name: "Deleted retry section", listId: null, isLabel: true },
+    }),
+    deleteUrl: (id) => `/api/v1/packing-items/${id}/section`,
+    deleteBody: ({ tripId }) => ({ tripId, mode: "delete-items" }),
+    count: countRows((id) =>
+      withE2EDb((database) =>
+        database.select({ id: packingItems.id }).from(packingItems).where(eq(packingItems.id, id))
+      )
+    ),
+  },
+  "packing list": {
+    create: ({ tripId }, id) => ({ url: `/api/v1/trips/${tripId}/packing-lists`, body: { id, name: "Deleted retry" } }),
+    deleteUrl: (id) => `/api/v1/packing-lists/${id}`,
+    count: countRows((id) =>
+      withE2EDb((database) =>
+        database.select({ id: tripPackingLists.id }).from(tripPackingLists).where(eq(tripPackingLists.id, id))
+      )
+    ),
+  },
+  trip: {
+    create: ({ uniqueName }, id) => ({ url: "/api/v1/trips", body: { id, name: uniqueName } }),
+    deleteUrl: (id) => `/api/v1/trips/${id}`,
+    deleteBody: () => ({}),
+    count: countRows((id) =>
+      withE2EDb((database) => database.select({ id: trips.id }).from(trips).where(eq(trips.id, id)))
+    ),
+  },
   day: {
     create: ({ tripId }, id) => ({ url: `/api/v1/trips/${tripId}/days`, body: { id } }),
     deleteUrl: (id) => `/api/v1/days/${id}`,
@@ -120,7 +176,7 @@ When("I create a {string} with a client id through the API", async ({ page, scen
       .select({ id: itineraryChecklists.id })
       .from(itineraryChecklists)
       .where(eq(itineraryChecklists.dayId, firstDay.id));
-    return { tripId, dayId: firstDay.id, checklistId: checklist.id };
+    return { tripId, dayId: firstDay.id, checklistId: checklist.id, uniqueName: scenario.uniqueName("Deleted retry") };
   });
   const current: DeletedClientIdState = { context, resource, clientId: randomUUID() };
   deletedClientIdStates.set(page, current);
@@ -135,7 +191,7 @@ When("I delete that resource through the API", async ({ page }) => {
     await apiClient(page)
   ).delete(current.resource.deleteUrl(current.clientId), {
     headers: requestHeaders(page),
-    data: { tripId: current.context.tripId },
+    data: current.resource.deleteBody?.(current.context) ?? { tripId: current.context.tripId },
   });
   expect(response.status()).toBe(204);
   expect(await current.resource.count(current.clientId)).toBe(0);

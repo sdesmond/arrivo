@@ -1406,13 +1406,17 @@ Feature: Absolute checklist checked-state API
     Then the client-id create returns 200 and stores it once
 
     Examples:
-      | resource       |
-      | event          |
-      | day note       |
-      | trip note      |
-      | checklist      |
-      | checklist item |
-      | day            |
+      | resource        |
+      | event           |
+      | day note        |
+      | trip note       |
+      | checklist       |
+      | packing item    |
+      | packing section |
+      | packing list    |
+      | trip            |
+      | checklist item  |
+      | day             |
 
   Scenario: Reusing a document id for a different file conflicts and stores nothing more
     Given my checklist API role is "editor"
@@ -2702,6 +2706,41 @@ Feature: Absolute checklist checked-state API
     Then the trip date API returns 200
     And the trip has no dates and still has its three days
 
+  Scenario: Trip date PATCH counts the reservation files it removes and deletes them on confirmation
+    Given a final-day event with a stored document for the trip date API
+    And a final-day reservation with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    Then the trip date API confirmation counts 1 reservation file
+    When I PATCH the trip to end on day 2 resolving with "delete-events"
+    Then the trip date API returns 200
+    And the final-day reservation and its stored file are deleted
+
+  Scenario: Trip date PATCH rejects an end date before the start date
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip dates in reverse order
+    Then the trip date API returns 422 with code "validation_failed"
+    And the trip still has its original dates, name, event and file
+
+  Scenario: A note removed by a trip date change cannot be recreated by a late retry
+    Given a final-day event with a stored document for the trip date API
+    And a final-day note for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    And I PATCH the trip to end on day 2 resolving with "delete-events"
+    Then the trip date API returns 200
+    And recreating the removed final-day note returns 409 and stores nothing
+
+  Scenario: Dating a dateless trip confirms and removes its overflow days by label
+    Given a dateless trip with an event on day 2 for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the dateless trip to a single date
+    Then the trip date API asks for confirmation naming removed days "Day 2, Day 3"
+    When I PATCH the dateless trip to a single date resolving with "delete-events"
+    Then the trip date API returns 200
+    And the dateless trip now has one dated day and no day 2 event
+
   Scenario Outline: Trip date PATCH enforces access
     Given a final-day event with a stored document for the trip date API
     And my checklist API role is "<role>"
@@ -2723,6 +2762,15 @@ Feature: Absolute checklist checked-state API
     When the trip is renamed through the snapshot API
     And I fetch the trip snapshot
     Then the trip snapshot ETag differs from the earlier one
+
+  Scenario: Trip snapshot ETag stays stable when rows tie on position
+    Given my checklist API role is "editor"
+    And the trip has packing items and events sharing positions plus several reservations and expenses
+    When I fetch the trip snapshot
+    And I fetch the trip snapshot again
+    Then both trip snapshots share one ETag
+    When I fetch the trip snapshot with the earlier ETag
+    Then the trip snapshot answers 304 without a body
 
   Scenario Outline: Trip snapshot access by role
     Given my checklist API role is "<role>"

@@ -1,6 +1,8 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
+import { events, expenses, packingItems, reservations } from "../../../src/db/schema";
 import { apiClient } from "../anonymous-api";
-import { When, Then } from "../fixtures";
+import { withE2EDb } from "../e2e-db";
+import { Given, When, Then } from "../fixtures";
 
 interface SnapshotState {
   responses: APIResponse[];
@@ -32,6 +34,34 @@ function lastResponse(page: Page): APIResponse {
   if (!response) throw new Error("No trip snapshot response");
   return response;
 }
+
+// Ties and unordered tables are where an unordered read can return identical state in a different order.
+Given(
+  "the trip has packing items and events sharing positions plus several reservations and expenses",
+  async ({ scenario }) => {
+    const tripId = scenario.currentTrip!.id;
+    await withE2EDb(async (database) => {
+      await database
+        .insert(packingItems)
+        .values(["Socks", "Charger", "Passport", "Sunscreen"].map((name) => ({ tripId, name, position: 0 })));
+      await database
+        .insert(events)
+        .values(["Museum", "Lunch", "Walk"].map((name) => ({ tripId, name, position: 0, dayId: null })));
+      await database
+        .insert(reservations)
+        .values(["Acme Air", "Hotel Uno", "Rail Co"].map((provider) => ({ tripId, provider, type: "flight" })));
+      await database.insert(expenses).values(
+        ["12.00", "30.50", "7.25"].map((amount) => ({
+          tripId,
+          category: "food",
+          amount,
+          currency: "USD",
+          date: scenario.currentTrip!.startDate ?? "2026-08-01",
+        }))
+      );
+    });
+  }
+);
 
 When("I fetch the trip snapshot", async ({ page, scenario }) => {
   await getSnapshot(page, scenario.currentTrip!.id);
