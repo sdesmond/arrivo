@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { waitForApiResponse } from "../api-response";
 import { Given, Then, When } from "../fixtures";
 
 interface TemplateTable {
@@ -39,7 +40,10 @@ Given("I have packing templates:", async ({ scenario }, table: TemplateTable) =>
 When("I create a packing template named {string}", async ({ page }, name: string) => {
   await page.getByRole("button", { name: "New template" }).click();
   await page.getByLabel("Template name").fill(name);
+  // Arm before the click: the scenario reloads next, which would abort a still-in-flight create.
+  const created = waitForApiResponse(page, { method: "POST", path: "/api/v1/packing-templates", timeoutMs: 10_000 });
   await page.getByRole("button", { name: "Create template" }).click();
+  await created;
   await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 });
 
