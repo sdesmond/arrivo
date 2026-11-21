@@ -1,16 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PackingTemplate } from "@/data/types";
 
-const { mockCreateTemplate, mockDeleteTemplate, mockRenameTemplate } = vi.hoisted(() => ({
-  mockCreateTemplate: vi.fn(),
+const { mockCreateMutate, mockDeleteTemplate, mockRenameTemplate } = vi.hoisted(() => ({
+  mockCreateMutate: vi.fn(),
   mockDeleteTemplate: vi.fn(),
   mockRenameTemplate: vi.fn(),
 }));
 
+vi.mock("@/lib/api/use-api-mutation", () => ({
+  useApiMutation: () => ({ mutate: mockCreateMutate, isPending: false, fields: {} }),
+}));
+
 vi.mock("./actions", () => ({
-  createTemplate: mockCreateTemplate,
   deleteTemplate: mockDeleteTemplate,
   renameTemplate: mockRenameTemplate,
 }));
@@ -56,6 +59,8 @@ vi.mock("@/components/arrivo/template-form-dialog", () => ({
         <button onClick={() => void onSubmit(mode === "create" ? "Created Template" : "Renamed Template")}>
           submit-{mode}
         </button>
+        {mode === "create" ? <button onClick={() => void onSubmit("Edited Template")}>submit-edited</button> : null}
+        {mode === "create" ? <button onClick={() => void onSubmit("Created Template ")}>submit-padded</button> : null}
         <button onClick={() => onOpenChange(false)}>close-{mode}</button>
       </div>
     ) : null,
@@ -85,17 +90,70 @@ import { TemplatesPageClient } from "./page-client";
 const templates: PackingTemplate[] = [{ id: "template-1", name: "Beach Weekend" }];
 
 describe("TemplatesPageClient", () => {
-  it("creates a template and closes the create dialog on success", async () => {
+  beforeEach(() => {
+    mockCreateMutate.mockReset();
+  });
+
+  it("creates a template through the endpoint and closes the dialog on success", async () => {
     const user = userEvent.setup();
-    mockCreateTemplate.mockResolvedValueOnce({ id: "template-2" });
+    mockCreateMutate.mockImplementationOnce(async (_input, options) => options.onSuccess({ id: "x" }));
 
     render(<TemplatesPageClient templates={templates} />);
 
     await user.click(screen.getByRole("button", { name: "open-create" }));
     await user.click(screen.getByRole("button", { name: "submit-create" }));
 
-    expect(mockCreateTemplate).toHaveBeenCalledWith({ name: "Created Template" });
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      { params: {}, body: { id: expect.any(String), name: "Created Template" } },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
     expect(screen.queryByRole("button", { name: "submit-create" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the id across a failed retry and mints a new one after a name edit", async () => {
+    const user = userEvent.setup();
+    mockCreateMutate.mockResolvedValue(undefined);
+
+    render(<TemplatesPageClient templates={templates} />);
+
+    await user.click(screen.getByRole("button", { name: "open-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-edited" }));
+
+    const ids = mockCreateMutate.mock.calls.map((call) => call[0].body.id);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
+    expect(screen.getByRole("button", { name: "submit-create" })).toBeInTheDocument();
+  });
+
+  it("keeps the id when a retry differs only by surrounding whitespace", async () => {
+    const user = userEvent.setup();
+    mockCreateMutate.mockResolvedValue(undefined);
+
+    render(<TemplatesPageClient templates={templates} />);
+
+    await user.click(screen.getByRole("button", { name: "open-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-padded" }));
+
+    const ids = mockCreateMutate.mock.calls.map((call) => call[0].body.id);
+    expect(ids[1]).toBe(ids[0]);
+  });
+
+  it("uses a fresh id for the next create after a success", async () => {
+    const user = userEvent.setup();
+    mockCreateMutate.mockImplementation(async (_input, options) => options.onSuccess({ id: "x" }));
+
+    render(<TemplatesPageClient templates={templates} />);
+
+    await user.click(screen.getByRole("button", { name: "open-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-create" }));
+    await user.click(screen.getByRole("button", { name: "open-create" }));
+    await user.click(screen.getByRole("button", { name: "submit-create" }));
+
+    const ids = mockCreateMutate.mock.calls.map((call) => call[0].body.id);
+    expect(ids[1]).not.toBe(ids[0]);
   });
 
   it("renames a template and clears rename state on success", async () => {

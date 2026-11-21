@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createTemplate, deleteTemplate, renameTemplate } from "./actions";
+import { deleteTemplate, renameTemplate } from "./actions";
 import { DeleteTemplateAlertDialog } from "@/components/arrivo/delete-template-alert-dialog";
 import { TemplateFormDialog } from "@/components/arrivo/template-form-dialog";
 import { TemplateLibrary } from "@/components/arrivo/template-library";
 import type { PackingTemplate } from "@/data/types";
+import { createPackingTemplate } from "@/lib/api/contract/packing-templates";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
+import { createRandomId } from "@/lib/utils";
 
 export interface TemplatesPageClientProps {
   templates: PackingTemplate[];
@@ -20,17 +23,24 @@ export function TemplatesPageClient({ templates }: TemplatesPageClientProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renamingTemplate, setRenamingTemplate] = useState<PackingTemplate | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<PackingTemplate | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isActionPending, startTransition] = useTransition();
+  const creation = useApiMutation(createPackingTemplate);
+  const isPending = isActionPending || creation.isPending;
+  // A retry of the same draft reuses its id, so the server sees one template however many times it is sent.
+  const draftId = useRef<{ name: string; id: string } | null>(null);
 
   function handleCreate(name: string) {
-    startTransition(async () => {
-      try {
-        await createTemplate({ name });
-        setCreateDialogOpen(false);
-      } catch (error) {
-        toast.error(getActionErrorMessage(error, "Could not create template"));
+    const draftName = name.trim();
+    if (draftId.current?.name !== draftName) draftId.current = { name: draftName, id: createRandomId() };
+    return creation.mutate(
+      { params: {}, body: { id: draftId.current.id, name } },
+      {
+        onSuccess: () => {
+          draftId.current = null;
+          setCreateDialogOpen(false);
+        },
       }
-    });
+    );
   }
 
   function handleRename(name: string) {
