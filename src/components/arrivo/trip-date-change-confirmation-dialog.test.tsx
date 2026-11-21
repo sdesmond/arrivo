@@ -221,6 +221,36 @@ describe("TripDateChangeConfirmationDialog", () => {
     expect(screen.getByRole("button", { name: /remove all/i })).toBeInTheDocument();
   });
 
+  it.each([
+    [1, "Removing them also deletes 1 attached file."],
+    [3, "Removing them also deletes 3 attached files."],
+  ])("states how many reservation files removing deletes (%i)", (reservationDocumentCount, message) => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-06-03" }],
+          reservationDocumentCount,
+        }}
+      />
+    );
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("mentions no reservation files when the removed reservations have none", () => {
+    render(
+      <TripDateChangeConfirmationDialog
+        {...defaultProps}
+        dateChangeConfirmation={{
+          ...defaultConfirmation,
+          reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-06-03" }],
+        }}
+      />
+    );
+    expect(screen.queryByText(/attached file/i)).not.toBeInTheDocument();
+  });
+
   it("omits the reservations section when none are affected", () => {
     render(<TripDateChangeConfirmationDialog {...defaultProps} />);
     expect(screen.queryByText(/Reservations tab/i)).not.toBeInTheDocument();

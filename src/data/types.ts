@@ -1310,6 +1310,8 @@ export interface TripDateChangeConfirmation {
   noteCount: number;
   checklistCount: number;
   eventDocumentCount: number;
+  /** Files of the removed reservations, deleted with them; absent when there are none. */
+  reservationDocumentCount?: number;
 }
 
 export type UpdateTripMetadataResult =

@@ -1,18 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Pencil, Trash2, Plus, Backpack } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Pencil, Trash2 } from "lucide-react";
+import { PackingListCreateForm } from "@/components/arrivo/packing-list-create-form";
+import { PackingListDeleteDialog, type PendingPackingListDelete } from "@/components/arrivo/packing-list-delete-dialog";
 import type { PackingItem, TripPackingList } from "@/data/types";
 import { cn } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
@@ -25,12 +16,6 @@ interface PackingListOverviewProps {
   onCreateList: (name: string) => Promise<string | undefined>;
   onRenameList: (id: string, name: string) => Promise<void>;
   onDeleteList: (id: string) => Promise<void>;
-}
-
-interface PendingDelete {
-  listId: string;
-  listName: string;
-  itemCount: number;
 }
 
 interface RenameState {
@@ -47,32 +32,13 @@ export function PackingListOverview({
   onRenameList,
   onDeleteList,
 }: PackingListOverviewProps) {
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingPackingListDelete | null>(null);
   const [renameState, setRenameState] = useState<RenameState | null>(null);
   // Shows a committed rename while the stored name is still the one it replaced. A refresh (or another editor's
   // rename) changes the stored name and ends the override; the timer ends it when a save was rejected.
   const [pendingNames, setPendingNames] = useState<Record<string, { name: string; from: string; token: number }>>({});
   const renameToken = useRef(0);
-  const [newListName, setNewListName] = useState("");
-  const [showNewForm, setShowNewForm] = useState(false);
-  const [creating, setCreating] = useState(false);
   const hasLists = packingLists.length > 0;
-
-  async function handleCreateList(): Promise<void> {
-    const trimmed = newListName.trim();
-    if (!trimmed || creating) return;
-    setCreating(true);
-    try {
-      const newId = await onCreateList(trimmed);
-      setNewListName("");
-      setShowNewForm(false);
-      if (newId) {
-        onCreated(newId, trimmed);
-      }
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function handleRenameCommit(): Promise<void> {
     if (!renameState) return;
@@ -113,107 +79,7 @@ export function PackingListOverview({
   return (
     <>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-        {!hasLists && !showNewForm && (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Backpack strokeWidth={1.5} />
-              </EmptyMedia>
-              <EmptyTitle>No packing lists yet</EmptyTitle>
-              <EmptyDescription>Create a list to start organizing your gear.</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <button
-                onClick={() => setShowNewForm(true)}
-                className="inline-flex h-11 items-center gap-2 rounded-lg px-4 transition-colors hover:bg-surface"
-                style={{
-                  fontSize: "calc(13.5px * var(--font-scale))",
-                  color: "var(--fg)",
-                  border: "1px solid var(--line)",
-                  background: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <Plus size={14} strokeWidth={1.5} />
-                New List
-              </button>
-            </EmptyContent>
-          </Empty>
-        )}
-
-        {showNewForm ? (
-          <div className="flex items-center gap-2">
-            <input
-              autoFocus
-              aria-label="Packing list name"
-              maxLength={FIELD_LIMITS.packingListName}
-              placeholder="List name…"
-              value={newListName}
-              onChange={(evt) => setNewListName(evt.target.value)}
-              onKeyDown={(evt) => {
-                if (evt.key === "Enter") void handleCreateList();
-                if (evt.key === "Escape") {
-                  setShowNewForm(false);
-                  setNewListName("");
-                }
-              }}
-              className="h-11 min-w-0 flex-1 rounded-lg px-3 outline-none"
-              style={{
-                fontSize: "calc(13.5px * var(--font-scale))",
-                color: "var(--fg)",
-                background: "var(--surface)",
-                border: "1px solid var(--accent-brand)",
-              }}
-            />
-            <button
-              onClick={() => void handleCreateList()}
-              disabled={!newListName.trim() || creating}
-              className="h-11 rounded-lg px-3 transition-colors hover:bg-surface-2 disabled:opacity-40"
-              style={{
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg)",
-                border: "1px solid var(--line)",
-                background: "none",
-                cursor: "pointer",
-              }}
-            >
-              Create
-            </button>
-            <button
-              onClick={() => {
-                setShowNewForm(false);
-                setNewListName("");
-              }}
-              className="h-11 rounded-lg px-3 transition-colors hover:bg-surface"
-              style={{
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg-3)",
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          hasLists && (
-            <button
-              onClick={() => setShowNewForm(true)}
-              className="inline-flex h-11 items-center gap-2 self-end rounded-lg px-3 transition-colors hover:bg-surface"
-              style={{
-                fontSize: "calc(13px * var(--font-scale))",
-                color: "var(--fg-3)",
-                border: "1px solid var(--line)",
-                background: "none",
-                cursor: "pointer",
-              }}
-            >
-              <Plus size={13} strokeWidth={1.5} />
-              New List
-            </button>
-          )
-        )}
+        <PackingListCreateForm hasLists={hasLists} onCreateList={onCreateList} onCreated={onCreated} />
 
         {hasLists && (
           <div className="flex flex-col gap-1">
@@ -336,35 +202,14 @@ export function PackingListOverview({
         )}
       </div>
 
-      <AlertDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
+      <PackingListDeleteDialog
+        pendingDelete={pendingDelete}
+        onConfirm={(listId) => {
+          void onDeleteList(listId);
+          setPendingDelete(null);
         }}
-      >
-        <AlertDialogContent size="sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete &ldquo;{pendingDelete?.listName}&rdquo;?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This list contains {pendingDelete?.itemCount} {pendingDelete?.itemCount === 1 ? "item" : "items"}.
-              Deleting it will permanently remove all items in the list.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (!pendingDelete) return;
-                void onDeleteList(pendingDelete.listId);
-                setPendingDelete(null);
-              }}
-            >
-              Delete List
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onDismiss={() => setPendingDelete(null)}
+      />
     </>
   );
 }

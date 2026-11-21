@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { days, documents, events, itineraryChecklists, itineraryNotes, reservations } from "@/db/schema";
+import {
+  checklistItems,
+  days,
+  documents,
+  events,
+  itineraryChecklists,
+  itineraryNotes,
+  reservations,
+} from "@/db/schema";
 import { TripDateConflictResolution, type TripDateChangeConfirmation } from "@/data/types";
 
 const { recordDeletions } = vi.hoisted(() => ({ recordDeletions: vi.fn() }));
@@ -14,16 +22,18 @@ import { applyTripDateChange } from "./trip-date-change";
 type DayRow = { id: string; tripId: string; dayNumber: number; date: string | null; label: string };
 
 interface Fixture {
+  checklistItemRows?: Array<{ id: string }>;
   checklistRows?: Array<{ id: string }>;
-  eventDocs?: Array<{ eventId: string | null; url: string | null }>;
+  eventDocs?: Array<{ id?: string; eventId: string | null; url: string | null }>;
   existingDays: DayRow[];
   noteRows?: Array<{ id: string }>;
-  reservationDocs?: Array<{ eventId: string | null; url: string | null }>;
+  reservationDocs?: Array<{ id?: string; eventId: string | null; url: string | null }>;
   reservationRows?: Array<{ id: string; provider: string; type: string; startAt: Date | null; endAt: Date | null }>;
   removedEvents?: Array<{ id: string; name: string; dayId: string | null; position: number }>;
 }
 
 function createTransaction({
+  checklistItemRows = [],
   checklistRows = [],
   eventDocs = [],
   existingDays,
@@ -54,6 +64,7 @@ function createTransaction({
         }
         if (table === itineraryNotes) return { where: async () => noteRows };
         if (table === itineraryChecklists) return { where: async () => checklistRows };
+        if (table === checklistItems) return { where: async () => checklistItemRows };
         if (table === reservations) return { where: async () => reservationRows };
         throw new Error("Unexpected table read in test fixture.");
       },
@@ -169,8 +180,8 @@ describe("applyTripDateChange", () => {
       {
         existingDays: twoDays,
         removedEvents: [dinner],
-        eventDocs: [{ eventId: "event-1", url: "/api/storage/event.pdf" }],
-        reservationDocs: [{ eventId: null, url: "/api/storage/reservation.pdf" }],
+        eventDocs: [{ id: "doc-event", eventId: "event-1", url: "/api/storage/event.pdf" }],
+        reservationDocs: [{ id: "doc-reservation", eventId: null, url: "/api/storage/reservation.pdf" }],
         reservationRows: [
           {
             id: "res-1",
@@ -187,6 +198,7 @@ describe("applyTripDateChange", () => {
         confirmation: {
           ...dinnerConfirmation,
           reservations: [{ id: "res-1", provider: "Delta", type: "flight", date: "2026-08-02" }],
+          reservationDocumentCount: 1,
         },
       }
     );
@@ -198,6 +210,84 @@ describe("applyTripDateChange", () => {
     expect(operations.deletes).toEqual([events, reservations, days]);
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "event", ["event-1"], "user-1");
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "day", ["day-2"], "user-1");
+    // Event and reservation documents go with their rows; both kinds take client ids.
+    expect(recordDeletions).toHaveBeenCalledWith(
+      expect.anything(),
+      "document",
+      ["doc-event", "doc-reservation"],
+      "user-1"
+    );
+  });
+
+  it("counts the files of removed reservations in the preview, and leaves the count out when there are none", async () => {
+    const reservationRows = [
+      {
+        id: "res-1",
+        provider: "Delta",
+        type: "flight",
+        startAt: new Date("2026-08-02T10:00:00.000Z"),
+        endAt: null,
+      },
+    ];
+    const withFiles = await applyChange(
+      {
+        existingDays: twoDays,
+        reservationRows,
+        reservationDocs: [
+          { id: "doc-1", eventId: null, url: "/api/storage/a.pdf" },
+          { id: "doc-2", eventId: null, url: "/api/storage/b.pdf" },
+        ],
+      },
+      shrink
+    );
+    expect((withFiles.error as ConfirmationRequiredError).confirmation).toEqual(
+      expect.objectContaining({ reservationDocumentCount: 2 })
+    );
+    const withoutFiles = await applyChange({ existingDays: twoDays, reservationRows }, shrink);
+    expect((withoutFiles.error as ConfirmationRequiredError).confirmation).not.toHaveProperty(
+      "reservationDocumentCount"
+    );
+  });
+
+  it.each([TripDateConflictResolution.DeleteEvents, TripDateConflictResolution.KeepAsUnscheduled])(
+    "records the notes, checklists and checklist items that go with removed days (%s)",
+    async (resolution) => {
+      const { error } = await applyChange(
+        {
+          existingDays: twoDays,
+          noteRows: [{ id: "note-1" }],
+          checklistRows: [{ id: "checklist-1" }],
+          checklistItemRows: [{ id: "item-1" }],
+        },
+        {
+          ...shrink,
+          resolution,
+          confirmation: {
+            removedDates: ["2026-08-02"],
+            events: [],
+            noteCount: 1,
+            checklistCount: 1,
+            eventDocumentCount: 0,
+          },
+        }
+      );
+      expect(error).toBeUndefined();
+      expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "itinerary-note", ["note-1"], "user-1");
+      expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "checklist", ["checklist-1"], "user-1");
+      expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "checklist-item", ["item-1"], "user-1");
+    }
+  );
+
+  it.each([
+    ["both dates reversed", { startDate: "2026-08-03", endDate: "2026-08-01" }],
+    ["a start after the stored end", { startDate: "2026-08-05" }],
+    ["an end before the stored start", { endDate: "2026-07-30" }],
+  ])("rejects %s without writing instead of swapping the range", async (_label, input) => {
+    const { operations, error } = await applyChange({ existingDays: twoDays }, input);
+    expect(error).toBeInstanceOf(ValidationFailedError);
+    expect(operations.deletes).toEqual([]);
+    expect(operations.updates).toEqual([]);
+    expect(operations.inserts).toEqual([]);
   });
 
   it("keeps events as unscheduled with their displaced date and keeps their documents", async () => {

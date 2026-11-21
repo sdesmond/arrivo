@@ -113,6 +113,9 @@ it.each([
   ["checklist-item", "This item was deleted. Add it again to create a new item."],
   ["itinerary-note", "This note was deleted. Save again to add it as a new note."],
   ["trip-note", "This note was deleted. Save again to add it as a new note."],
+  ["trip", "This trip was deleted. Create it again to start a new trip."],
+  ["packing-item", "This packing item was deleted. Add it again to create a new one."],
+  ["packing-list", "This packing list was deleted. Create it again to start a new list."],
 ] as const)("refuses a recently deleted %s id as a conflict", async (resource, message) => {
   const { transaction, calls } = fakeTransaction([{ key: "any" }]);
   const refusal = refuseRecentlyDeleted(transaction, resource, documentId);

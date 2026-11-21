@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
   runTripWrite: vi.fn(),
+  recordDeletions: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
 vi.mock("@/lib/server-action-locks", () => ({
@@ -27,6 +29,10 @@ vi.mock("./trip-write", async (original) => {
   return { ...actual, runTripWrite: mocks.runTripWrite.mockImplementation(actual.runTripWrite) };
 });
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
+vi.mock("./deletion-records", () => ({
+  recordDeletions: mocks.recordDeletions,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 import { updatePackingItem, deletePackingItem, reorderPackingItems } from "./packing";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
@@ -47,6 +53,7 @@ let row:
     }
   | undefined;
 let updated: typeof row;
+let deletedChildren: { id: string }[] = [];
 const set = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,7 +64,10 @@ beforeEach(() => {
   });
   set.mockImplementation(() => ({ where: () => ({ returning: async () => (updated ? [updated] : []) }) }));
   mocks.update.mockReturnValue({ set });
-  mocks.delete.mockReturnValue({ where: async () => [] });
+  deletedChildren = [];
+  mocks.delete.mockReturnValue({
+    where: () => Object.assign(Promise.resolve([]), { returning: async () => deletedChildren }),
+  });
   mocks.transaction.mockImplementation(async (callback) => callback(mocks));
 });
 it("writes absolute packed state and normalized name after a locked role recheck", async () => {
@@ -686,4 +696,57 @@ it("does not write or emit effects for a duplicate-only pull", async () => {
   expect(mocks.insert).not.toHaveBeenCalled();
   expect(mocks.update).not.toHaveBeenCalled();
   expect(mocks.afterTripWrite).not.toHaveBeenCalled();
+});
+
+// Packing rows take client UUIDs, so a delete leaves a record that stops a late create retry from bringing it back.
+it("records a deleted item in the deleting transaction, and nothing for an absent one", async () => {
+  await deletePackingItem(actor, itemId, { tripId });
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "packing-item", [itemId], actor.userId);
+  vi.clearAllMocks();
+  row = undefined;
+  await deletePackingItem(actor, itemId, { tripId });
+  expect(mocks.recordDeletions).not.toHaveBeenCalled();
+});
+it("records the section and, in delete-items mode only, the items it removed", async () => {
+  const { removePackingSection } = await import("./packing");
+  const child = "123e4567-e89b-12d3-a456-426614174055";
+  if (row) row.isLabel = true;
+  deletedChildren = [{ id: child }];
+  await removePackingSection(actor, itemId, { tripId, mode: "delete-items" });
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "packing-item", [child, itemId], actor.userId);
+  vi.clearAllMocks();
+  set.mockReturnValue({ where: async () => [] });
+  await removePackingSection(actor, itemId, { tripId, mode: "move-items-to-ungrouped" });
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "packing-item", [itemId], actor.userId);
+});
+it("records a deleted list", async () => {
+  const { deletePackingList } = await import("./packing");
+  listStore(listRow());
+  await deletePackingList(actor, listId, { tripId });
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "packing-list", [listId], actor.userId);
+});
+it("refuses a recently deleted id on a new item or section, but not on a replay of a live row", async () => {
+  const { createPackingItem } = await import("./packing");
+  const newId = "123e4567-e89b-12d3-a456-426614174099";
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This packing item was deleted."));
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => [] }) });
+  await expect(createPackingItem(actor, tripId, { id: newId, name: "Boots", listId: null })).rejects.toBeInstanceOf(
+    ConflictError
+  );
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(mocks, "packing-item", newId);
+  expect(mocks.insert).not.toHaveBeenCalled();
+  vi.clearAllMocks();
+  mocks.select.mockReturnValue({
+    from: (table: unknown) => ({ where: async () => (table === idempotencyKeys ? [] : row ? [row] : []) }),
+  });
+  await createPackingItem(actor, tripId, { id: itemId, name: "Socks", listId: null });
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+});
+it("refuses a recently deleted id on a new list", async () => {
+  const { createPackingList } = await import("./packing");
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This packing list was deleted."));
+  listStore(undefined);
+  await expect(createPackingList(actor, tripId, { id: listId, name: "Beach" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(mocks, "packing-list", listId);
+  expect(mocks.insert).not.toHaveBeenCalled();
 });

@@ -1,6 +1,15 @@
 import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { days, documents, events, itineraryChecklists, itineraryNotes, reservations, trips } from "@/db/schema";
+import {
+  checklistItems,
+  days,
+  documents,
+  events,
+  itineraryChecklists,
+  itineraryNotes,
+  reservations,
+  trips,
+} from "@/db/schema";
 import type { ReservationType, TripDateChangeConfirmation, TripDateChangePreviewReservation } from "@/data/types";
 import { TripDateConflictResolution } from "@/data/types";
 import type { DbTransaction } from "@/lib/server-action-locks";
@@ -38,8 +47,14 @@ interface RemovedDayContentSummary {
   confirmation: TripDateChangeConfirmation;
   events: { id: string; displacedDate?: string; position: number; dayId: string }[];
   eventDocumentUrls: string[];
+  eventDocumentIds: string[];
   reservationIds: string[];
   reservationDocumentUrls: string[];
+  reservationDocumentIds: string[];
+  /** Day children that cascade with the removed days, recorded so a late create retry cannot recreate them. */
+  noteIds: string[];
+  checklistIds: string[];
+  checklistItemIds: string[];
   requiresConfirmation: boolean;
 }
 
@@ -65,7 +80,7 @@ async function summarizeRemovedDayContent(
     eventIds.length === 0
       ? []
       : await transaction
-          .select({ eventId: documents.eventId, url: documents.url })
+          .select({ id: documents.id, eventId: documents.eventId, url: documents.url })
           .from(documents)
           .where(inArray(documents.eventId, eventIds));
 
@@ -84,6 +99,18 @@ async function summarizeRemovedDayContent(
           .select({ id: itineraryChecklists.id })
           .from(itineraryChecklists)
           .where(inArray(itineraryChecklists.dayId, removedDayIds));
+  const dayChecklistItems =
+    dayChecklists.length === 0
+      ? []
+      : await transaction
+          .select({ id: checklistItems.id })
+          .from(checklistItems)
+          .where(
+            inArray(
+              checklistItems.checklistId,
+              dayChecklists.map((checklist) => checklist.id)
+            )
+          );
 
   const removedDateSet = new Set(removedDays.map((day) => day.date).filter((date): date is string => !!date));
   const tripReservations =
@@ -125,7 +152,7 @@ async function summarizeRemovedDayContent(
     affectedReservationIds.length === 0
       ? []
       : await transaction
-          .select({ eventId: documents.eventId, url: documents.url })
+          .select({ id: documents.id, eventId: documents.eventId, url: documents.url })
           .from(documents)
           .where(inArray(documents.reservationId, affectedReservationIds));
   affectedReservations.sort((first, second) => first.date.localeCompare(second.date));
@@ -159,7 +186,8 @@ async function summarizeRemovedDayContent(
       dayNotes.length,
       dayChecklists.length,
       eventDocs.length,
-      affectedReservations
+      affectedReservations,
+      reservationDocs.length
     ),
     events: removedEvents
       .filter((event): event is { id: string; name: string; dayId: string; position: number } => !!event.dayId)
@@ -176,8 +204,13 @@ async function summarizeRemovedDayContent(
         return first.position - second.position;
       }),
     eventDocumentUrls: eventDocs.map((eventDoc) => eventDoc.url).filter((url): url is string => !!url),
+    eventDocumentIds: eventDocs.map((eventDoc) => eventDoc.id),
     reservationIds: affectedReservationIds,
     reservationDocumentUrls: reservationDocs.map((doc) => doc.url).filter((url): url is string => !!url),
+    reservationDocumentIds: reservationDocs.map((doc) => doc.id),
+    noteIds: dayNotes.map((note) => note.id),
+    checklistIds: dayChecklists.map((checklist) => checklist.id),
+    checklistItemIds: dayChecklistItems.map((item) => item.id),
     requiresConfirmation:
       removedEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0 || affectedReservations.length > 0,
   };
@@ -219,6 +252,11 @@ export async function applyTripDateChange(
     { startDate: trip.startDate ?? undefined, endDate: trip.endDate ?? undefined },
     input
   );
+  // buildDayRows swaps a reversed range; reject it so a PATCH cannot silently move the trip (create rejects it too).
+  if (desiredRange.startDate && desiredRange.endDate && desiredRange.endDate < desiredRange.startDate) {
+    const message = "End date must not be before the start date.";
+    throw new ValidationFailedError(message, { endDate: [message] });
+  }
   const desiredDayRows = buildRows(tripId, desiredRange.startDate, desiredRange.endDate);
 
   // ── dated → dateless: null out day dates, preserve rows ──────────────────
@@ -297,11 +335,20 @@ export async function applyTripDateChange(
         .delete(reservations)
         .where(and(eq(reservations.tripId, tripId), inArray(reservations.id, removedContent.reservationIds)));
     }
+    await recordDeletions(
+      transaction,
+      "document",
+      [...removedContent.eventDocumentIds, ...removedContent.reservationDocumentIds],
+      userId
+    );
   }
   if (removedDays.length > 0) {
     const removedIds = removedDays.map((day) => day.id);
     await transaction.delete(days).where(inArray(days.id, removedIds));
     await recordDeletions(transaction, "day", removedIds, userId);
+    await recordDeletions(transaction, "itinerary-note", removedContent.noteIds, userId);
+    await recordDeletions(transaction, "checklist", removedContent.checklistIds, userId);
+    await recordDeletions(transaction, "checklist-item", removedContent.checklistItemIds, userId);
   }
 
   if (syncPlan) {

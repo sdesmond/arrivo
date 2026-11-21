@@ -25,6 +25,7 @@ import {
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { ValidationFailedError } from "./validation-failed-error";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
@@ -103,6 +104,7 @@ export async function deletePackingItem(
       mutate: async () => {
         if (await readItem(transaction, itemId)) {
           await transaction.delete(packingItems).where(eq(packingItems.id, itemId));
+          await recordDeletions(transaction, "packing-item", [itemId], actor.userId);
           markChanged();
         }
         return null;
@@ -212,6 +214,7 @@ export async function createPackingItem(
             throw new ConflictError("This ID was already used for different packing content.");
           return dbPackingItemToType(existing);
         }
+        await refuseRecentlyDeleted(transaction, "packing-item", body.id);
         const invalid = (): never => {
           throw new ValidationFailedError("Invalid packing list, section or placement.", {});
         };
@@ -295,9 +298,15 @@ export async function removePackingSection(
           eq(packingItems.labelId, itemId),
           section.listId === null ? isNull(packingItems.listId) : eq(packingItems.listId, section.listId)
         );
-        if (body.mode === "delete-items") await transaction.delete(packingItems).where(scope);
-        else await transaction.update(packingItems).set({ labelId: null }).where(scope);
+        const removedChildIds =
+          body.mode === "delete-items"
+            ? (await transaction.delete(packingItems).where(scope).returning({ id: packingItems.id })).map(
+                (child) => child.id
+              )
+            : [];
+        if (body.mode !== "delete-items") await transaction.update(packingItems).set({ labelId: null }).where(scope);
         await transaction.delete(packingItems).where(eq(packingItems.id, itemId));
+        await recordDeletions(transaction, "packing-item", [...removedChildIds, itemId], actor.userId);
         markChanged();
         return null;
       },
@@ -339,6 +348,7 @@ export async function createPackingList(
             throw new ConflictError("This ID was already used for a different packing list.");
           return dbPackingListToType(existing);
         }
+        await refuseRecentlyDeleted(transaction, "packing-list", body.id);
         const [{ maxPosition }] = await transaction
           .select({ maxPosition: max(tripPackingLists.position) })
           .from(tripPackingLists)
@@ -422,6 +432,8 @@ export async function deletePackingList(
         if (await readList(transaction, listId)) {
           await transaction.delete(packingItems).where(eq(packingItems.listId, listId));
           await transaction.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
+          // Items go with the list; an item create aimed at the missing list already fails, so the list suffices.
+          await recordDeletions(transaction, "packing-list", [listId], actor.userId);
           markChanged();
         }
         return null;

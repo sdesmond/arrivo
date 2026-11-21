@@ -3,9 +3,17 @@ import { and, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { days, documents, events, pendingFileDeletions, trips } from "../../../src/db/schema";
+import {
+  days,
+  documents,
+  events,
+  itineraryNotes,
+  pendingFileDeletions,
+  reservations,
+  trips,
+} from "../../../src/db/schema";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
-import { E2E_TRIP_SECOND_DATE, E2E_TRIP_START_DATE } from "../e2e-seed-data";
+import { E2E_TRIP_SECOND_DATE, E2E_TRIP_START_DATE, E2E_TRIP_THIRD_DATE } from "../e2e-seed-data";
 import { withE2EDb } from "../e2e-db";
 import { apiClient } from "../anonymous-api";
 import { Given, When, Then, After } from "../fixtures";
@@ -14,6 +22,9 @@ interface DateState {
   tripId: string;
   eventId: string;
   file: string;
+  reservationId?: string;
+  reservationFile?: string;
+  noteId?: string;
   confirmation?: unknown;
   response?: APIResponse;
 }
@@ -80,7 +91,72 @@ Given("a final-day event with a stored document for the trip date API", async ({
 });
 After(async ({ page }) => {
   const current = states.get(page);
-  if (current) await rm(join(resolve(E2E_STORAGE_DIRECTORY), current.file), { force: true });
+  if (!current) return;
+  for (const file of [current.file, current.reservationFile]) {
+    if (file) await rm(join(resolve(E2E_STORAGE_DIRECTORY), file), { force: true });
+  }
+});
+
+Given("a final-day reservation with a stored document for the trip date API", async ({ page }) => {
+  const current = state(page);
+  const storageRoot = resolve(E2E_STORAGE_DIRECTORY);
+  const fixture = await withE2EDb(async (database) => {
+    const [reservation] = await database
+      .insert(reservations)
+      .values({
+        tripId: current.tripId,
+        type: "flight",
+        provider: "Date API Air",
+        startAt: new Date(`${E2E_TRIP_THIRD_DATE}T12:00:00.000Z`),
+      })
+      .returning({ id: reservations.id });
+    const file = `reservation-documents/${reservation.id}/${randomUUID()}.pdf`;
+    await mkdir(join(storageRoot, "reservation-documents", reservation.id), { recursive: true });
+    await writeFile(join(storageRoot, file), "date api reservation");
+    await database.insert(documents).values({
+      tripId: current.tripId,
+      reservationId: reservation.id,
+      name: "Boarding pass",
+      kind: "pdf",
+      size: "1",
+      url: `/api/storage/${file}`,
+    });
+    return { reservationId: reservation.id, reservationFile: file };
+  });
+  Object.assign(current, fixture);
+});
+
+Given("a final-day note for the trip date API", async ({ page }) => {
+  const current = state(page);
+  const noteId = randomUUID();
+  await withE2EDb(async (database) => {
+    const [finalDay] = await database
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, current.tripId), eq(days.dayNumber, 3)));
+    await database
+      .insert(itineraryNotes)
+      .values({ id: noteId, dayId: finalDay.id, content: "Pack early", position: 1 });
+  });
+  current.noteId = noteId;
+});
+
+Given("a dateless trip with an event on day 2 for the trip date API", async ({ page, scenario }) => {
+  const tripId = scenario.currentTrip!.id;
+  const eventId = await withE2EDb(async (database) => {
+    await database.update(trips).set({ startDate: null, endDate: null }).where(eq(trips.id, tripId));
+    await database.update(days).set({ date: null }).where(eq(days.tripId, tripId));
+    const [secondDay] = await database
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, tripId), eq(days.dayNumber, 2)));
+    const [event] = await database
+      .insert(events)
+      .values({ tripId, dayId: secondDay.id, name: "Dateless day 2 hike", position: 0 })
+      .returning({ id: events.id });
+    return event.id;
+  });
+  states.set(page, { tripId, eventId, file: "" });
 });
 
 When("I PATCH the trip to end on day {int} and a new name", async ({ page }, day: number) => {
@@ -107,6 +183,21 @@ When("the final-day event is renamed before the confirmation is applied", async 
     database.update(events).set({ name: "Date API farewell renamed" }).where(eq(events.id, current.eventId))
   );
 });
+When("I PATCH the trip dates in reverse order", async ({ page }) => {
+  await patchTrip(page, { startDate: E2E_TRIP_SECOND_DATE, endDate: E2E_TRIP_START_DATE });
+});
+When("I PATCH the dateless trip to a single date", async ({ page }) => {
+  const response = await patchTrip(page, { startDate: E2E_TRIP_START_DATE, endDate: E2E_TRIP_START_DATE });
+  if (response.status() === 409) state(page).confirmation = (await response.json()).error.confirmation;
+});
+When("I PATCH the dateless trip to a single date resolving with {string}", async ({ page }, resolution: string) => {
+  await patchTrip(page, {
+    startDate: E2E_TRIP_START_DATE,
+    endDate: E2E_TRIP_START_DATE,
+    resolution,
+    confirmation: state(page).confirmation,
+  });
+});
 When("I clear the trip dates through the API", async ({ page }) => {
   await patchTrip(page, { startDate: null, endDate: null });
 });
@@ -118,6 +209,66 @@ Then("the trip date API returns {int} with code {string}", async ({ page }, stat
   const response = state(page).response!;
   expect(response.status()).toBe(status);
   expect((await response.json()).error.code).toBe(code);
+});
+Then("the trip date API confirmation counts {int} reservation file(s)", async ({ page }, count: number) => {
+  const response = state(page).response!;
+  expect(response.status()).toBe(409);
+  const { error } = await response.json();
+  expect(error.code).toBe("confirmation_required");
+  expect(error.confirmation.reservations).toEqual([expect.objectContaining({ provider: "Date API Air" })]);
+  expect(error.confirmation.reservationDocumentCount).toBe(count);
+});
+Then("the final-day reservation and its stored file are deleted", async ({ page }) => {
+  const current = state(page);
+  const rows = await withE2EDb((database) =>
+    database.select().from(reservations).where(eq(reservations.id, current.reservationId!))
+  );
+  expect(rows).toEqual([]);
+  await expect
+    .poll(() => fileExists(join(resolve(E2E_STORAGE_DIRECTORY), current.reservationFile!)), { timeout: 15_000 })
+    .toBe(false);
+});
+Then("recreating the removed final-day note returns 409 and stores nothing", async ({ page }) => {
+  const current = state(page);
+  const [firstDay] = await withE2EDb((database) =>
+    database
+      .select({ id: days.id })
+      .from(days)
+      .where(and(eq(days.tripId, current.tripId), eq(days.dayNumber, 1)))
+  );
+  const response = await (
+    await apiClient(page)
+  ).post(`/api/v1/days/${firstDay.id}/notes`, {
+    headers: { ...headers(page), "content-type": "application/json" },
+    data: { id: current.noteId, content: "Pack early" },
+  });
+  expect(response.status()).toBe(409);
+  expect((await response.json()).error.code).toBe("conflict");
+  const notes = await withE2EDb((database) =>
+    database.select().from(itineraryNotes).where(eq(itineraryNotes.id, current.noteId!))
+  );
+  expect(notes).toEqual([]);
+});
+Then("the trip date API asks for confirmation naming removed days {string}", async ({ page }, labels: string) => {
+  const response = state(page).response!;
+  expect(response.status()).toBe(409);
+  const { error } = await response.json();
+  expect(error.code).toBe("confirmation_required");
+  expect(error.confirmation.removedDates).toEqual([]);
+  expect(error.confirmation.removedDayLabels).toEqual(labels.split(", "));
+  // The seeded trip already holds "API untouched event" on day 2, so both day-2 events are removed.
+  expect(error.confirmation.events).toEqual(
+    expect.arrayContaining([expect.objectContaining({ name: "Dateless day 2 hike" })])
+  );
+});
+Then("the dateless trip now has one dated day and no day 2 event", async ({ page }) => {
+  const current = state(page);
+  const trip = await readTrip(current.tripId);
+  expect(trip.startDate).toBe(E2E_TRIP_START_DATE);
+  const remaining = await withE2EDb((database) => database.select().from(days).where(eq(days.tripId, current.tripId)));
+  expect(remaining.map((day) => [day.dayNumber, day.date])).toEqual([[1, E2E_TRIP_START_DATE]]);
+  const rows = await withE2EDb((database) => database.select().from(events).where(eq(events.id, current.eventId)));
+  expect(rows).toEqual([]);
 });
 Then("the trip date API asks for confirmation naming the final-day event", async ({ page }) => {
   const response = state(page).response!;

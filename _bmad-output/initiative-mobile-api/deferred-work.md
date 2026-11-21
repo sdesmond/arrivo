@@ -238,3 +238,47 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-verify-trips-and-packing-api-end-to-end-plan.md`
   summary: packing-tab scenario "New sections appear above existing sections and stay there after reload" timed out once under full 11-feature load on the step "I add a packing label named" (`getByPlaceholder('New section…')` never appeared on the second add).
   evidence: 735 of 736 passed in the combined production-build run; the same feature passed 25/25 twice in isolation. Likely the List options menu click racing a re-render after the first label POST; unreproduced, so unverified.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F8: Trip-create replay compares editable fields, so a retry after a collaborator's edit gets 409 instead of the trip.
+  evidence: `isSameTrip` (`src/lib/services/trips.ts`) compares name, dates, tags and similar fields; packing list create compares name the same way. A fix needs a stored creation fingerprint; the scenario "Reusing a trip UUID for another name conflicts" relies on the field comparison, and no mobile outbox exists yet.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F9: A trip PATCH whose dates equal the stored dates still renumbers days and changes `updatedAt`, the live event and the ETag; `resolution`/`confirmation` without a date change is silently ignored.
+  evidence: `updateTrip` date branch (`src/lib/services/trips.ts`). Skip the date path when the effective range is unchanged.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F12: Cover generation is awaited in the create response with no timeout, can orphan the tile, and is skipped by trip delete.
+  evidence: Already tracked by the 5.9 and 5.10 entries above; listed so the epic 5 retrospective's deferral points here.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F13: Pull-templates is unbounded: `templateIds` has no max, inserts run per item under the trip lock, and lists can grow past the 1000-item reorder cap.
+  evidence: `src/lib/api/contract/packing.ts` (pull-templates and order schemas). Add a `.max()` that matches downstream caps, and refuse a pull that would push a list over 1000 rows.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F14: Pull-templates compares section and item names in one namespace, so a template section matching a plain item is skipped and its children land ungrouped.
+  evidence: `pullTemplates` name matching in `src/lib/services/packing.ts`. Plausible, not reproduced.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F15: Currency conversion runs its FX lookup inside the trip lock; `convertCurrency` without `budgetCurrency` is silently ignored.
+  evidence: `updateTrip` calls `recalculateAll` under `lockTrip` (`src/lib/services/trips.ts`). Fetch rates before taking the lock.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F16: Packing reorder and delete use separate client queues, so a reorder can race a just-sent delete and roll back on a spurious 409.
+  evidence: `use-packing-handlers.ts` reorder queue vs delete handler. Plausible, not reproduced.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F17: The trip snapshot ETag is cache-only; PATCH and DELETE ignore `If-Match`, and `docs/api-v1.md` does not say so.
+  evidence: Document cache-only, last-write-wins semantics, or add `If-Match` support when the mobile client needs it.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: F19: Minor items: a stale `packing-actions.ts` comment in `src/lib/api/idempotency.ts`; the `deleted` flag in `deleteTrip`'s authorize is not reset per call (theoretical); the refresh queue can stall on a never-settling transition (already deferred under 5.1).
+  evidence: Clean up when next touching those files.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: AV1: Services import route-folder code: `src/lib/services/trips.ts` and `trip-date-change.ts` import `@/app/(app)/trips/create-trip-days` and `date-sync`.
+  evidence: First `src/lib` to `src/app` imports, introduced in epic 5. Move both modules under `src/lib/` and add an ESLint `no-restricted-imports` rule blocking `@/app/**` from `src/lib/**`.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
+  summary: AV2: `tests/e2e/steps/api.steps.ts` is about 4,600 lines (+817 in epic 5); packing API steps went into the shared file.
+  evidence: Split packing and trip steps into `api-<domain>.steps.ts` files, and adopt one steps file per migrated domain.

@@ -24,6 +24,23 @@ it("validates strict partial metadata and normalizes currency", () => {
     eventDocumentCount: 1,
   };
   expect(updateTrip.body.parse({ resolution: "keep-as-unscheduled", confirmation }).confirmation).toEqual(confirmation);
+  // The server compares the echoed confirmation with a fresh one, so a key the contract stripped would make every
+  // echo stale: a dateless trip's overflow labels and the removed reservations' file count must survive the parse.
+  const datelessOverflow = {
+    removedDates: [],
+    removedDayLabels: ["Day 2"],
+    events: [{ id: "event", name: "Dinner", docCount: 0 }],
+    noteCount: 0,
+    checklistCount: 0,
+    eventDocumentCount: 0,
+    reservationDocumentCount: 2,
+  };
+  expect(updateTrip.body.parse({ resolution: "delete-events", confirmation: datelessOverflow }).confirmation).toEqual(
+    datelessOverflow
+  );
+  expect(
+    updateTrip.body.safeParse({ confirmation: { ...datelessOverflow, reservationDocumentCount: -1 } }).success
+  ).toBe(false);
   for (const body of [
     { startDate: "2026-13-01" },
     { resolution: "other" },

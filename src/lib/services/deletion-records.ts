@@ -14,7 +14,16 @@ export const DELETION_RECORD_NAMESPACE = "deleted:";
 
 /** Resources whose creates accept a client id and record their deletions. */
 export type DeletionRecordResource =
-  "document" | "event" | "day" | "checklist" | "checklist-item" | "itinerary-note" | "trip-note";
+  | "document"
+  | "event"
+  | "day"
+  | "checklist"
+  | "checklist-item"
+  | "itinerary-note"
+  | "trip-note"
+  | "trip"
+  | "packing-item"
+  | "packing-list";
 
 /** Shown when a create reuses a deleted id. The client mints a new id on the 409, so doing it again creates. */
 const DELETED_MESSAGES: Record<DeletionRecordResource, string> = {
@@ -25,6 +34,10 @@ const DELETED_MESSAGES: Record<DeletionRecordResource, string> = {
   "checklist-item": "This item was deleted. Add it again to create a new item.",
   "itinerary-note": "This note was deleted. Save again to add it as a new note.",
   "trip-note": "This note was deleted. Save again to add it as a new note.",
+  trip: "This trip was deleted. Create it again to start a new trip.",
+  // Sections are packing item rows (`isLabel`), so they share this resource and its message.
+  "packing-item": "This packing item was deleted. Add it again to create a new one.",
+  "packing-list": "This packing list was deleted. Create it again to start a new list.",
 };
 
 function recordKey(resource: DeletionRecordResource, id: string): string {
