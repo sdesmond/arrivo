@@ -26,6 +26,13 @@ export function parseOwnStorageUrl(value: string): ParsedUploadStorageName | nul
   }
 }
 
+/** True when the URL is a stored file this trip owns as its cover; any other cover (photo, graphic, tile) is never ours to delete. */
+export function isOwnTripCoverFile(value: string | null | undefined, tripId: string): value is string {
+  if (!value) return false;
+  const stored = parseOwnStorageUrl(value);
+  return stored?.scope === "trip-cover" && stored.ownerId === tripId;
+}
+
 function isKnownGraphicCover(value: string): boolean {
   const graphic = parseGraphicCover(value);
   if (!graphic) return false;

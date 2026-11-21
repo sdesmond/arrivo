@@ -3,6 +3,7 @@ import {
   MAX_URL_LENGTH,
   assertValidCoverImageUrl,
   isHttpUrl,
+  isOwnTripCoverFile,
   isValidCoverImageUrl,
   parseOwnStorageUrl,
 } from "./url-policy";
@@ -157,5 +158,24 @@ describe("assertValidCoverImageUrl", () => {
   it("throws a readable error for invalid values and passes valid ones", () => {
     expect(() => assertValidCoverImageUrl("javascript:alert(1)", TRIP_ID)).toThrow("Invalid cover image URL.");
     expect(() => assertValidCoverImageUrl("https://images.unsplash.com/photo-1", TRIP_ID)).not.toThrow();
+  });
+});
+
+describe("isOwnTripCoverFile", () => {
+  const ownFile = `/api/storage/trip-covers/${TRIP_ID}/11111111-1111-4111-8111-111111111111.jpg`;
+
+  it("accepts a cover file stored for this trip", () => {
+    expect(isOwnTripCoverFile(ownFile, TRIP_ID)).toBe(true);
+  });
+
+  it.each([
+    ["another trip's file", ownFile, OTHER_TRIP_ID],
+    ["a missing cover", null, TRIP_ID],
+    ["an empty cover", "", TRIP_ID],
+    ["a photo", "https://images.unsplash.com/photo-1", TRIP_ID],
+    ["a graphic", "graphic:blue:waves:plane", TRIP_ID],
+    ["a document file", `/api/storage/trip-documents/${TRIP_ID}/11111111-1111-4111-8111-111111111111.pdf`, TRIP_ID],
+  ])("rejects %s", (_label, value, tripId) => {
+    expect(isOwnTripCoverFile(value, tripId)).toBe(false);
   });
 });
