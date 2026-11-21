@@ -20,14 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../actions", () => ({
-  addPackingItem: vi.fn(),
-
-  pullTemplatesOntoTrip: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
-}));
-
-vi.mock("../packing-actions", () => ({
-  removePackingSection: vi.fn(),
 }));
 
 const detail: TripDetailPayload = {
@@ -758,7 +751,7 @@ describe("useTripDetailHandlers", () => {
     );
   });
 
-  it("handlePullTemplates calls pullTemplatesOntoTrip with the trip id and template ids", async () => {
+  it("handlePullTemplates calls the pull-templates API with the trip id and template ids", async () => {
     const { api } = await import("@/lib/api/client");
     vi.mocked(api).mockResolvedValueOnce({ added: 3, skipped: 1 });
 

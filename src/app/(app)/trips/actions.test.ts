@@ -82,8 +82,7 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
-const { addPackingItemAction, saveTripListAsTemplateAction } = vi.hoisted(() => ({
-  addPackingItemAction: vi.fn(),
+const { saveTripListAsTemplateAction } = vi.hoisted(() => ({
   saveTripListAsTemplateAction: vi.fn(),
 }));
 
@@ -103,7 +102,6 @@ vi.mock("./packing-actions", async (importOriginal) => {
 
   return {
     ...actual,
-    addPackingItem: addPackingItemAction,
     saveTripListAsTemplate: saveTripListAsTemplateAction,
   };
 });
@@ -562,7 +560,6 @@ describe("retrieveLocation", () => {
 describe("packing action delegation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    addPackingItemAction.mockResolvedValue(undefined);
     saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
   });
 

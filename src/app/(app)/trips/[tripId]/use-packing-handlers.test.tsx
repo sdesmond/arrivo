@@ -12,17 +12,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 vi.mock("@/lib/api/client", async (original) => ({ ...(await original<typeof import("@/lib/api/client")>()), api }));
 vi.mock("../actions", () => ({
-  addPackingItem: vi.fn(),
-  removePackingItem: vi.fn(),
   saveTripListAsTemplate: vi.fn(),
-  togglePackingItem: vi.fn(),
-  updatePackingItem: vi.fn(),
-}));
-vi.mock("../packing-actions", () => ({
-  removePackingSection: vi.fn(),
-  createPackingList: vi.fn(),
-  renamePackingList: vi.fn(),
-  deletePackingList: vi.fn(),
 }));
 
 import { ApiClientError } from "@/lib/api/client";
