@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   publishUser: vi.fn(),
   purge: vi.fn(),
   after: vi.fn(),
+  recordDeletions: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: { transaction: mocks.transaction, update: mocks.dbUpdate } }));
 vi.mock("@/lib/api/idempotency", () => ({ withIdempotency: mocks.idempotent }));
@@ -58,6 +60,10 @@ vi.mock("@/lib/trip-events", () => ({
   purgeTripTopic: mocks.purge,
 }));
 vi.mock("@/lib/currency", () => ({ recalculateAll: mocks.recalculate }));
+vi.mock("./deletion-records", () => ({
+  recordDeletions: mocks.recordDeletions,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ConflictError } from "./conflict-error";
 import { ValidationFailedError } from "./validation-failed-error";
@@ -229,8 +235,30 @@ it("passes the resolution and confirmation through and queues removed documents 
     "user"
   );
   expect(mocks.queueDeletions).toHaveBeenCalledWith(expect.anything(), ["/api/storage/doc.pdf"]);
+  // Storage deletes run after the response, so a committed PATCH never waits on them (as deleteTrip does).
+  expect(mocks.after).toHaveBeenCalledOnce();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+  await mocks.after.mock.calls[0][0]();
   expect(mocks.removeFiles).toHaveBeenCalledWith(queued);
-  expect(mocks.queueDeletions.mock.invocationCallOrder[0]).toBeLessThan(mocks.removeFiles.mock.invocationCallOrder[0]);
+});
+it("keeps a committed date change successful when file cleanup cannot be scheduled", async () => {
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  mocks.applyDateChange.mockResolvedValue({ startDate: "2026-08-01", endDate: "2026-08-01", documentUrls: ["/f"] });
+  mocks.queueDeletions.mockResolvedValue([{ id: "queue-1", url: "/f" }]);
+  mocks.after.mockImplementationOnce(() => {
+    throw new Error("outside a request");
+  });
+  await expect(
+    updateTrip(actor, tripId, {
+      startDate: "2026-08-01",
+      endDate: "2026-08-01",
+      resolution: "delete-events",
+      confirmation,
+    })
+  ).resolves.toMatchObject({ id: tripId });
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
+  expect(warning).toHaveBeenCalled();
+  warning.mockRestore();
 });
 it("writes and removes nothing when the preview asks for confirmation", async () => {
   mocks.applyDateChange.mockRejectedValue(new ConfirmationRequiredError("Confirm.", confirmation));
@@ -277,15 +305,32 @@ it("aborts the date change when the atomic currency conversion fails", async () 
 it("does not run the date change for a metadata-only edit", async () => {
   await updateTrip(actor, tripId, { name: "New" });
   expect(mocks.applyDateChange).not.toHaveBeenCalled();
-  expect(mocks.removeFiles).toHaveBeenCalledWith([]);
+  expect(mocks.after).not.toHaveBeenCalled();
+  expect(mocks.removeFiles).not.toHaveBeenCalled();
 });
 
+const snapshotTransaction = { snapshot: true };
+function readSnapshotInTransaction() {
+  mocks.transaction.mockImplementation(async (work: (transaction: unknown) => Promise<unknown>) =>
+    work(snapshotTransaction)
+  );
+}
 it("returns the trip snapshot for a viewer after checking the role", async () => {
+  readSnapshotInTransaction();
   const payload = { trip: { id: tripId }, accessRole: "viewer" };
   mocks.detail.mockResolvedValue(payload);
   await expect(getTrip(actor, tripId.toUpperCase())).resolves.toBe(payload);
   expect(mocks.requireRole).toHaveBeenCalledWith(tripId, "user", "viewer");
-  expect(mocks.detail).toHaveBeenCalledWith(tripId, "user");
+  expect(mocks.detail).toHaveBeenCalledWith(tripId, "user", snapshotTransaction);
+});
+it("reads the whole snapshot in one read-only repeatable-read transaction, so its ETag covers one state", async () => {
+  readSnapshotInTransaction();
+  mocks.detail.mockResolvedValue({ trip: { id: tripId } });
+  await getTrip(actor, tripId);
+  expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
 });
 it("does not read the snapshot when access is denied", async () => {
   mocks.requireRole.mockRejectedValueOnce(new TripNotFoundError());
@@ -293,16 +338,19 @@ it("does not read the snapshot when access is denied", async () => {
   expect(mocks.detail).not.toHaveBeenCalled();
 });
 it("answers not found when the trip vanished after the access check", async () => {
+  readSnapshotInTransaction();
   mocks.detail.mockResolvedValue(null);
   await expect(getTrip(actor, tripId)).rejects.toBeInstanceOf(TripNotFoundError);
 });
 it("answers 404 when access is lost between the role check and the read", async () => {
+  readSnapshotInTransaction();
   mocks.detail.mockRejectedValue(
     Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" })
   );
   await expect(getTrip(actor, tripId)).rejects.toBeInstanceOf(TripNotFoundError);
 });
 it("rethrows other snapshot read failures", async () => {
+  readSnapshotInTransaction();
   mocks.detail.mockRejectedValue(new Error("db down"));
   await expect(getTrip(actor, tripId)).rejects.toThrow("db down");
 });
@@ -390,6 +438,16 @@ it("creates the trip under the client id, then records, covers and revalidates a
   expect(mocks.dbUpdate).toHaveBeenCalledWith(trips);
   expect(mocks.set).toHaveBeenCalledWith({ coverImageUrl: "https://images.example/a.jpg", coverPhotographer: "Ann" });
   expect(mocks.revalidate).toHaveBeenCalledWith("/trips");
+});
+
+it("refuses a recently deleted trip id before creating anything", async () => {
+  stubCreate();
+  selectResults = [[], []];
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("This trip was deleted."));
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "trip", newId);
+  expect(mocks.createInTransaction).not.toHaveBeenCalled();
+  expect(mocks.recordCreated).not.toHaveBeenCalled();
 });
 
 it("builds one day per date and writes budgets as strings", async () => {
@@ -610,6 +668,8 @@ it("deletes under a lock, queues files, then publishes and cleans up after commi
   expect(mocks.requireRole).toHaveBeenCalledWith(tripId, "user", "manager", transaction);
   expect(mocks.queueDeletions).toHaveBeenCalledWith(transaction, expect.arrayContaining(["/file"]));
   expect(mocks.remove).toHaveBeenCalledWith(trips);
+  // A late create retry with this client id must conflict instead of recreating the trip.
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, "trip", [tripId], "user");
   expect(mocks.publishTrip).toHaveBeenCalledOnce();
   expect(mocks.publishUser).toHaveBeenCalledExactlyOnceWith("other", { type: "trip-deleted", tripId });
   expect(mocks.purge).toHaveBeenCalledOnce();
@@ -645,6 +705,7 @@ it("returns success for a missing trip without effects", async () => {
   expect(mocks.requireRole).not.toHaveBeenCalled();
   expect(mocks.publishTrip).not.toHaveBeenCalled();
   expect(mocks.queueDeletions).not.toHaveBeenCalled();
+  expect(mocks.recordDeletions).not.toHaveBeenCalled();
 });
 
 it("does not delete or publish when access is denied under the lock", async () => {

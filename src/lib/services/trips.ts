@@ -27,6 +27,7 @@ import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-e
 import { buildDatelessDayRow, buildDayRows } from "@/app/(app)/trips/create-trip-days";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { generateTripCover } from "./trip-cover-generation";
 import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
@@ -37,11 +38,17 @@ import { ValidationFailedError } from "./validation-failed-error";
 export async function getTrip(actor: Actor, tripId: string): Promise<TripDetailPayload> {
   tripId = readContract.params.parse({ tripId }).tripId;
   await requireTripRole(tripId, actor.userId, "viewer");
+  // One read-only snapshot, so a write committing mid-read can't give the ETag a payload mixing two states.
   // getTripDetail turns access lost since the check above into Next's notFound(); answer it as a plain 404.
-  const detail = await getTripDetail(tripId, actor.userId).catch((error: unknown) => {
-    if (String((error as { digest?: unknown })?.digest).includes("NEXT_HTTP_ERROR_FALLBACK;404")) return null;
-    throw error;
-  });
+  const detail = await db
+    .transaction((transaction) => getTripDetail(tripId, actor.userId, transaction), {
+      isolationLevel: "repeatable read",
+      accessMode: "read only",
+    })
+    .catch((error: unknown) => {
+      if (String((error as { digest?: unknown })?.digest).includes("NEXT_HTTP_ERROR_FALLBACK;404")) return null;
+      throw error;
+    });
   if (!detail) throw new TripNotFoundError();
   return detail;
 }
@@ -121,8 +128,15 @@ export async function updateTrip(
       },
     })
   );
-  // Best effort: the rows are gone and the names are queued, so a failure only leaves the file for the next drain.
-  await removeQueuedFiles(queued);
+  // Best effort after the response: the rows are gone and the names are queued, so a failure (or no request scope to
+  // schedule in) only leaves the file for the next drain.
+  if (queued.length > 0) {
+    try {
+      after(() => removeQueuedFiles(queued));
+    } catch (error) {
+      console.warn("Could not schedule queued file cleanup", error);
+    }
+  }
   return saved;
 }
 
@@ -205,6 +219,7 @@ export async function createTrip(
                 throw new ConflictError("This ID was already used for a different trip.");
               return dbTripToType(existing);
             }
+            await refuseRecentlyDeleted(transaction, "trip", body.id);
             const result = await createTripInTransaction(transaction, actor.userId, (owner) => {
               const preferredCurrency = owner.currency ?? detectPreferredCurrency(options.acceptLanguage ?? "");
               const resolvedTransitMode = body.transitMode ?? owner.transitMode ?? TransitMode.Drive;
@@ -328,6 +343,8 @@ export async function deleteTrip(
               files.flatMap(({ url }) => (url ? [url] : []))
             );
             await transaction.delete(trips).where(eq(trips.id, tripId));
+            // Children need a live trip to be created, so recording the refused trip id covers them too.
+            await recordDeletions(transaction, "trip", [tripId], actor.userId);
             return null;
           },
         }

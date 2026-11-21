@@ -17,7 +17,7 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
   schemaTokens: {
     trips: { id: "trips.id", name: "trips.name", startDate: "trips.startDate", endDate: "trips.endDate" },
     days: { tripId: "days.tripId" },
-    events: { tripId: "events.tripId", startAt: "events.startAt", position: "events.position" },
+    events: { tripId: "events.tripId", startAt: "events.startAt", position: "events.position", id: "events.id" },
     documents: {
       tripId: "documents.tripId",
       eventId: "documents.eventId",
@@ -25,21 +25,32 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
       addedAt: "documents.addedAt",
       id: "documents.id",
     },
-    collaborators: { tripId: "collaborators.tripId", userId: "collaborators.userId", role: "collaborators.role" },
+    collaborators: {
+      tripId: "collaborators.tripId",
+      userId: "collaborators.userId",
+      role: "collaborators.role",
+      id: "collaborators.id",
+    },
     invitations: {
       tripId: "invitations.tripId",
       inviteeId: "invitations.inviteeId",
       status: "invitations.status",
       expiresAt: "invitations.expiresAt",
     },
-    reservations: { tripId: "reservations.tripId" },
-    expenses: { tripId: "expenses.tripId" },
-    packingItems: { tripId: "packingItems.tripId", done: "packingItems.done", isLabel: "packingItems.isLabel" },
-    tripPackingLists: {},
-    itineraryNotes: {},
-    notes: { position: "notes.position" },
-    itineraryChecklists: {},
-    checklistItems: {},
+    reservations: { tripId: "reservations.tripId", id: "reservations.id" },
+    expenses: { tripId: "expenses.tripId", id: "expenses.id" },
+    packingItems: {
+      tripId: "packingItems.tripId",
+      done: "packingItems.done",
+      isLabel: "packingItems.isLabel",
+      position: "packingItems.position",
+      id: "packingItems.id",
+    },
+    tripPackingLists: { position: "tripPackingLists.position", id: "tripPackingLists.id" },
+    itineraryNotes: { position: "itineraryNotes.position", id: "itineraryNotes.id" },
+    notes: { position: "notes.position", id: "notes.id" },
+    itineraryChecklists: { position: "itineraryChecklists.position", id: "itineraryChecklists.id" },
+    checklistItems: { createdAt: "checklistItems.createdAt", id: "checklistItems.id" },
     users: { id: "users.id", username: "users.username", image: "users.image" },
     userLoyaltyNumbers: {},
     userWishlistDestinations: {},
@@ -51,14 +62,28 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
 
 // Collaborator and invitation reads join users for usernames. Tests that don't care about the join mock only
 // `from().where()`, so a join step the mock leaves out passes straight through to the same chain.
+// Likewise, a `where()` mocked as resolving rows directly also accepts a trailing `orderBy()` (rows unchanged), so
+// adding a tiebreaker order to a read doesn't force every older fixture to restate its chain.
 type MockChain = Record<string, unknown> & { from?: (...args: unknown[]) => Record<string, unknown> };
+function withOptionalOrderBy(next: Record<string, unknown>): Record<string, unknown> {
+  if (typeof next?.where !== "function") return next;
+  const where = next.where as (...args: unknown[]) => unknown;
+  return {
+    ...next,
+    where: (...args: unknown[]) => {
+      const result = where(...args);
+      if (result instanceof Promise && !("orderBy" in result)) return Object.assign(result, { orderBy: () => result });
+      return result;
+    },
+  };
+}
 function withPassthroughJoins(chain: MockChain): MockChain {
   if (typeof chain?.from !== "function") return chain;
   const from = chain.from;
   return {
     ...chain,
     from: (...args: unknown[]) => {
-      const next = from(...args);
+      const next = withOptionalOrderBy(from(...args));
       return { leftJoin: () => next, innerJoin: () => next, ...next };
     },
   };
@@ -989,9 +1014,78 @@ describe("getTripDetail", () => {
 
     const result = await getTripDetail("trip-1", "user-1");
 
-    expect(noteOrderBy).toHaveBeenCalledWith("notes.position");
+    expect(noteOrderBy).toHaveBeenCalledWith("notes.position", "notes.id");
     expect(mockDbTripNoteToType).toHaveBeenCalledTimes(2);
     expect(result?.notes.map((note) => note.id)).toEqual(["note-newest", "note-older"]);
+  });
+
+  // The API hashes this payload into an ETag, so every collection needs a total order: positions repeat per day and
+  // per list, and an unordered read lets Postgres return identical state in a different order.
+  function recordingSelect(orderCalls: Map<unknown, unknown[][]>) {
+    const rowsByTable = new Map<unknown, unknown[]>([
+      [schemaTokens.trips, [{ id: "trip-1", name: "Trip", startDate: "2026-08-01", endDate: "2026-08-05" }]],
+      [schemaTokens.days, [{ id: "day-1", dayNumber: 1, date: "2026-08-01", label: "Day 1" }]],
+      [
+        schemaTokens.events,
+        [{ id: "event-1", dayId: "day-1", tripId: "trip-1", name: "Museum", position: 0, startAt: null, endAt: null }],
+      ],
+      [schemaTokens.itineraryChecklists, [{ id: "checklist-1", dayId: "day-1", position: 0 }]],
+      [
+        schemaTokens.reservations,
+        [{ id: "res-1", tripId: "trip-1", type: "flight", provider: "Acme", startAt: null, endAt: null }],
+      ],
+    ]);
+    return () => ({
+      from: (table: unknown) => ({
+        where: () => {
+          const rows = Promise.resolve(rowsByTable.get(table) ?? []);
+          return Object.assign(rows, {
+            orderBy: (...args: unknown[]) => {
+              orderCalls.set(table, [...(orderCalls.get(table) ?? []), args]);
+              return rows;
+            },
+          });
+        },
+      }),
+    });
+  }
+
+  it("orders every payload collection by a unique tiebreaker", async () => {
+    const orderCalls = new Map<unknown, unknown[][]>();
+    mockDbSelect.mockImplementation(recordingSelect(orderCalls));
+
+    await getTripDetail("trip-1", "user-1");
+
+    const lastOrder = (table: unknown) => orderCalls.get(table)?.at(-1);
+    expect(lastOrder(schemaTokens.events)).toEqual(["events.position", "events.id"]);
+    expect(lastOrder(schemaTokens.collaborators)).toEqual(["collaborators.id"]);
+    expect(lastOrder(schemaTokens.packingItems)).toEqual(["packingItems.position", "packingItems.id"]);
+    expect(lastOrder(schemaTokens.tripPackingLists)).toEqual(["tripPackingLists.position", "tripPackingLists.id"]);
+    expect(lastOrder(schemaTokens.notes)).toEqual(["notes.position", "notes.id"]);
+    expect(lastOrder(schemaTokens.reservations)).toEqual(["reservations.id"]);
+    expect(lastOrder(schemaTokens.expenses)).toEqual(["expenses.id"]);
+    expect(lastOrder(schemaTokens.itineraryNotes)).toEqual(["itineraryNotes.position", "itineraryNotes.id"]);
+    expect(lastOrder(schemaTokens.itineraryChecklists)).toEqual([
+      "itineraryChecklists.position",
+      "itineraryChecklists.id",
+    ]);
+    expect(lastOrder(schemaTokens.checklistItems)).toEqual(["checklistItems.createdAt", "checklistItems.id"]);
+    // Trip, reservation and event documents: newest first, then id.
+    expect(orderCalls.get(schemaTokens.documents)).toHaveLength(3);
+    for (const args of orderCalls.get(schemaTokens.documents) ?? []) expect(args).toHaveLength(2);
+    mockDbSelect.mockReset();
+  });
+
+  it("reads through the executor it is given, so a caller can hold one snapshot", async () => {
+    const orderCalls = new Map<unknown, unknown[][]>();
+    const executorSelect = vi.fn<(...args: unknown[]) => MockChain>(recordingSelect(orderCalls));
+    const executor = { select: (...args: unknown[]) => withPassthroughJoins(executorSelect(...args)) };
+
+    const result = await getTripDetail("trip-1", "user-1", executor as never);
+
+    expect(result?.trip.id).toBe("trip-1");
+    expect(executorSelect).toHaveBeenCalled();
+    expect(mockDbSelect).not.toHaveBeenCalled();
   });
 });
 

@@ -48,7 +48,8 @@ export function buildTripDateChangeConfirmation(
   noteCount: number,
   checklistCount: number,
   eventDocumentCount: number,
-  reservationsToRemove: TripDateChangePreviewReservation[] = []
+  reservationsToRemove: TripDateChangePreviewReservation[] = [],
+  reservationDocumentCount = 0
 ): TripDateChangeConfirmation {
   return {
     removedDates,
@@ -58,5 +59,6 @@ export function buildTripDateChangeConfirmation(
     noteCount,
     checklistCount,
     eventDocumentCount,
+    ...(reservationDocumentCount > 0 ? { reservationDocumentCount } : {}),
   };
 }

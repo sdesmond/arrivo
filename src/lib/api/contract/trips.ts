@@ -28,6 +28,7 @@ const dateChangeConfirmation = z.object({
   noteCount: z.number().int().nonnegative(),
   checklistCount: z.number().int().nonnegative(),
   eventDocumentCount: z.number().int().nonnegative(),
+  reservationDocumentCount: z.number().int().nonnegative().optional(),
 });
 
 export const getTrip = defineEndpoint<TripDetailPayload>()({

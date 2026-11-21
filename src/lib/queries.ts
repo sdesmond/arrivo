@@ -24,6 +24,7 @@ import {
 } from "@/db/schema";
 import { eq, and, or, sql, inArray, asc, count, isNull, ne, getTableColumns } from "drizzle-orm";
 import { assertTripAccess } from "@/lib/auth-helpers";
+import type { DbTransaction } from "@/lib/server-action-locks";
 import { decryptOptionalField } from "@/lib/field-encryption";
 import { deriveLinkedEvents } from "@/lib/linked-events";
 import {
@@ -46,6 +47,8 @@ import {
   isTransitMode,
 } from "@/lib/db-mappers";
 import { CollaboratorRole, CoverType } from "@/data/types";
+
+type ReadExecutor = Pick<DbTransaction, "select">;
 import { getTripStatus, getWallClockDateKey, toLocalDateKey } from "@/lib/utils";
 import { buildSharedOwnedTrips } from "@/lib/trip-ownership";
 import type {
@@ -109,8 +112,8 @@ export async function getSharedOwnedTrips(userId: string): Promise<AccountDeleti
   return buildSharedOwnedTrips(ownedTrips, members, userId);
 }
 
-function selectCollaboratorsWithUsername() {
-  return db
+function selectCollaboratorsWithUsername(executor: ReadExecutor = db) {
+  return executor
     .select({ ...getTableColumns(collaborators), username: users.username, image: users.image })
     .from(collaborators)
     .leftJoin(users, eq(collaborators.userId, users.id));
@@ -406,40 +409,60 @@ export async function getContributorsAndInvitations(
   };
 }
 
-export async function getTripDetail(tripId: string, userId: string): Promise<TripDetailPayload | null> {
+/**
+ * `executor` lets the API read the whole payload inside one snapshot transaction (its ETag hashes the result); pages
+ * pass nothing and read through the shared client. Every collection has a total order so equal state serializes equally.
+ */
+export async function getTripDetail(
+  tripId: string,
+  userId: string,
+  executor: ReadExecutor = db
+): Promise<TripDetailPayload | null> {
   const accessRole = await assertTripAccess(tripId, userId);
   const isViewer = accessRole === CollaboratorRole.Viewer;
 
-  const [trip] = await db.select().from(trips).where(eq(trips.id, tripId));
+  const [trip] = await executor.select().from(trips).where(eq(trips.id, tripId));
   if (!trip) return null;
 
-  const tripDays = await db.select().from(days).where(eq(days.tripId, tripId)).orderBy(days.dayNumber);
+  const tripDays = await executor.select().from(days).where(eq(days.tripId, tripId)).orderBy(days.dayNumber);
 
-  const tripEvents = await db.select().from(events).where(eq(events.tripId, tripId)).orderBy(events.position);
+  const tripEvents = await executor
+    .select()
+    .from(events)
+    .where(eq(events.tripId, tripId))
+    .orderBy(events.position, events.id);
 
-  const tripDocs = await db
+  const tripDocs = await executor
     .select()
     .from(documents)
     .where(eq(documents.tripId, tripId))
     .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id));
-  const tripCollaborators = (await selectCollaboratorsWithUsername().where(eq(collaborators.tripId, tripId))).filter(
-    (collaborator) => collaborator.userId !== userId
-  );
-  const tripPackingItems = await db
+  const tripCollaborators = (
+    await selectCollaboratorsWithUsername(executor).where(eq(collaborators.tripId, tripId)).orderBy(collaborators.id)
+  ).filter((collaborator) => collaborator.userId !== userId);
+  const tripPackingItems = await executor
     .select()
     .from(packingItems)
     .where(eq(packingItems.tripId, tripId))
-    .orderBy(packingItems.position);
+    .orderBy(packingItems.position, packingItems.id);
 
-  const tripPackingListRows = await db
+  const tripPackingListRows = await executor
     .select()
     .from(tripPackingLists)
     .where(eq(tripPackingLists.tripId, tripId))
-    .orderBy(asc(tripPackingLists.position));
+    .orderBy(tripPackingLists.position, tripPackingLists.id);
 
-  const tripNotesPromise = db.select().from(notes).where(eq(notes.tripId, tripId)).orderBy(notes.position);
-  const tripReservationsPromise = db.select().from(reservations).where(eq(reservations.tripId, tripId));
-  const tripExpensesPromise = db.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const tripNotesPromise = executor
+    .select()
+    .from(notes)
+    .where(eq(notes.tripId, tripId))
+    .orderBy(notes.position, notes.id);
+  const tripReservationsPromise = executor
+    .select()
+    .from(reservations)
+    .where(eq(reservations.tripId, tripId))
+    .orderBy(reservations.id);
+  const tripExpensesPromise = executor.select().from(expenses).where(eq(expenses.tripId, tripId)).orderBy(expenses.id);
   const [tripNotes, tripReservations, tripExpenses] = await Promise.all([
     tripNotesPromise,
     tripReservationsPromise,
@@ -449,7 +472,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
   const reservationIds = tripReservations.map((row) => row.id);
   const reservationDocRows =
     reservationIds.length > 0
-      ? await db
+      ? await executor
           .select()
           .from(documents)
           .where(inArray(documents.reservationId, reservationIds))
@@ -485,7 +508,7 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
 
   const allNotes =
     tripDays.length > 0
-      ? await db
+      ? await executor
           .select()
           .from(itineraryNotes)
           .where(
@@ -494,12 +517,12 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
               tripDays.map((day) => day.id)
             )
           )
-          .orderBy(itineraryNotes.position)
+          .orderBy(itineraryNotes.position, itineraryNotes.id)
       : [];
 
   const allChecklists =
     tripDays.length > 0
-      ? await db
+      ? await executor
           .select()
           .from(itineraryChecklists)
           .where(
@@ -508,22 +531,28 @@ export async function getTripDetail(tripId: string, userId: string): Promise<Tri
               tripDays.map((day) => day.id)
             )
           )
-          .orderBy(itineraryChecklists.position)
+          .orderBy(itineraryChecklists.position, itineraryChecklists.id)
       : [];
 
   const checklistIds = allChecklists.map((checklist) => checklist.id);
   const allChecklistItems =
     checklistIds.length > 0
-      ? await db
+      ? await executor
           .select()
           .from(checklistItems)
           .where(inArray(checklistItems.checklistId, checklistIds))
-          .orderBy(checklistItems.createdAt)
+          .orderBy(checklistItems.createdAt, checklistItems.id)
       : [];
 
   const eventIds = tripEvents.map((event) => event.id);
   const eventDocs =
-    eventIds.length > 0 ? await db.select().from(documents).where(inArray(documents.eventId, eventIds)) : [];
+    eventIds.length > 0
+      ? await executor
+          .select()
+          .from(documents)
+          .where(inArray(documents.eventId, eventIds))
+          .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id))
+      : [];
 
   const scheduledEvents = tripEvents.filter((event) => !!event.dayId);
   const unscheduledEvents = tripEvents
