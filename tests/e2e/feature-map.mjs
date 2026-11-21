@@ -886,6 +886,9 @@ export const FEATURE_MAP = [
     "src/app/(app)/packing/actions.ts",
     "src/app/(app)/packing/template-name.ts",
     "src/lib/error-utils.ts",
+    "src/lib/services/packing-templates.ts",
+    "src/lib/api/contract/packing-templates.ts",
+    "src/app/api/v1/packing-templates/**",
   ]),
   entry("travel-history", [
     "src/lib/services/trips.ts",

@@ -471,6 +471,22 @@ Body: `{ "tripId": "<uuid>", "name": "Checked bag" }`, with the same name rules 
 
 Body: `{ "tripId": "<uuid>" }`. Deletes the list and every item and section in it; other lists and the default list are untouched. An absent list still returns 204 after trip authorization; a list on another trip returns 404. Viewers receive 403 and non-members receive 404.
 
+## Packing templates
+
+### POST /api/v1/packing-templates
+
+**Auth** signed in � **`Idempotency-Key`** yes � **Success** `200` `PackingTemplate`
+
+Creates a packing template owned by the caller. Body (strict): `id` (a client-chosen UUID, required) and `name` (required, trimmed, at most 30 characters). A blank or over-limit name returns 422 `validation_failed` and writes nothing.
+
+Repeating the same `id` with the same name returns the current template without writing, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found` and reveals nothing about it. A keyed replay returns the stored response after rechecking the caller's authentication.
+
+### GET /api/v1/packing-templates
+
+**Auth** signed in � **`Idempotency-Key`** no � **Success** `200` `{ templates: PackingTemplate[] }`
+
+No query fields. Returns only the caller's templates, ordered by name (case-insensitive), then creation time.
+
 ## Trip notes
 
 Notes on the trip's Notes tab.
