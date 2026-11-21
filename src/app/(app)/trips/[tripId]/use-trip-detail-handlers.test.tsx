@@ -714,6 +714,37 @@ describe("useTripDetailHandlers", () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
+  it("redirects when a deletion event arrived but the delete request failed", async () => {
+    let rejectRequest!: (error: Error) => void;
+    vi.mocked(api).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectRequest = reject;
+      })
+    );
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    act(() => result.current.handleDeleteTrip());
+    act(() => expect(result.current.deferTripDeletedEvent()).toBe(true));
+    await act(async () => rejectRequest(new Error("network failure")));
+    expect(mockPush).toHaveBeenCalledExactlyOnceWith("/trips");
+    expect(toast.error).toHaveBeenCalledWith("This trip was deleted.");
+    expect(result.current.deferTripDeletedEvent()).toBe(false);
+  });
+
+  it("does not repeat navigation after a successful delete and its live event", async () => {
+    let resolveRequest!: (value: null) => void;
+    vi.mocked(api).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      })
+    );
+    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    act(() => result.current.handleDeleteTrip());
+    act(() => expect(result.current.deferTripDeletedEvent()).toBe(true));
+    await act(async () => resolveRequest(null));
+    expect(mockPush).toHaveBeenCalledExactlyOnceWith("/trips");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(result.current.deferTripDeletedEvent()).toBe(true);
+  });
   it("renames packing items through the API", async () => {
     const { api } = await import("@/lib/api/client");
     vi.mocked(api).mockResolvedValueOnce({});

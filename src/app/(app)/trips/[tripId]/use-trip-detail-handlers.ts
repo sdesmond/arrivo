@@ -83,6 +83,7 @@ export interface TripDetailHandlers extends PackingHandlers {
     currencyChangeMode?: TripCurrencyChangeMode
   ) => Promise<UpdateTripMetadataResult | undefined>;
   handleDeleteTrip: () => void;
+  deferTripDeletedEvent: () => boolean;
   handleAddDay: () => void;
   handleRemoveLastDay: (
     confirmedDestructiveRemoval: boolean,
@@ -118,6 +119,8 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   const router = useRouter();
   const [savingTrip, startSaveTripTransition] = React.useTransition();
   const [isDeleting, startDeleteTripTransition] = React.useTransition();
+  const tripDeletedDuringDelete = React.useRef(false);
+  const deleteOutcome = React.useRef<"idle" | "pending" | "succeeded">("idle");
 
   const eventMutation = useApiMutation(updateEventEndpoint);
   const eventCreateMutation = useApiMutation(createEventEndpoint);
@@ -323,13 +326,22 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
   }
 
   function handleDeleteTrip(): void {
+    tripDeletedDuringDelete.current = false;
+    deleteOutcome.current = "pending";
     startDeleteTripTransition(async () => {
       try {
         await api(deleteTripEndpoint, { params: { tripId: trip.id }, body: {} });
+        deleteOutcome.current = "succeeded";
         router.push("/trips");
         router.refresh();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to delete trip. Please try again.");
+        deleteOutcome.current = "idle";
+        if (tripDeletedDuringDelete.current) {
+          toast.error("This trip was deleted.");
+          router.push("/trips");
+        } else {
+          toast.error(error instanceof Error ? error.message : "Failed to delete trip. Please try again.");
+        }
       }
     });
   }
@@ -398,6 +410,11 @@ export function useTripDetailHandlers(detail: TripDetailPayload): TripDetailHand
     handleTripSaveResolution: (patch, resolution, confirmation, currencyChangeMode) =>
       handleTripSave(patch, resolution, confirmation, currencyChangeMode),
     handleDeleteTrip,
+    deferTripDeletedEvent: () => {
+      if (deleteOutcome.current === "idle") return false;
+      if (deleteOutcome.current === "pending") tripDeletedDuringDelete.current = true;
+      return true;
+    },
     handleAddDay,
     handleRemoveLastDay,
   };

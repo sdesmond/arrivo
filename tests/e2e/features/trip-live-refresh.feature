@@ -27,6 +27,12 @@ Feature: Trip page live refresh
     When I delete the trip
     Then the contributor's open trip page redirects to the trips list with a deletion notice
 
+  Scenario: The owner deletes a shared trip from its detail page
+    Given I am signed in
+    And I have a trip with an editor contributor viewing it in their own session
+    When I delete the shared trip from its detail page with live sync connected
+    Then the owner returns to the trips list with no deletion dialog
+    And the contributor's open trip page redirects to the trips list with a deletion notice
   Scenario: Checklist PATCH in a second tab updates completion in the first tab without reload
     Given I have a trip checklist with one unchecked live item
     When I open the trip in a second tab
