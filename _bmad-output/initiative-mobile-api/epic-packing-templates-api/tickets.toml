@@ -1,0 +1,83 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Create and list owned packing templates"
+description = "Expose owner-scoped collection reads and create through /api/v1, switch the web create caller to a draft-stable UUID, and retain direct server-rendered reads."
+verify = "In templates.feature and route tests, create and reload, replay the create for one row, and verify a second user cannot list it."
+covers = ["R4", "R7"]
+after = ["1.10","5.12"]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Save the selected packing list as a template"
+description = "Pass the selected list ID from the dialog, require editor access to its trip, and copy only its ordered items into an editor-owned template with remapped section IDs in one replay-safe transaction."
+verify = "In save-trip-as-template.feature and service/route tests, seed two lists, verify only the selected contents and section links are copied once, reject an empty or wrong-trip selection, and deny replay after access is revoked."
+covers = ["R4", "R7"]
+after = [1,"5.5"]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Open, rename and delete owned templates"
+description = "Expose owner-scoped detail, rename and delete operations, switch the web mutation callers, and preserve cascade and deletion replay semantics."
+verify = "In templates.feature and route tests, open the template, rename and reload, delete and reload, then verify foreign access fails and replay cannot resurrect deleted records."
+covers = ["R4", "R7"]
+after = [2]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Edit template items and sections"
+description = "Migrate item and section creation, before/after insertion, text updates, item deletion and both section-removal modes, enforcing template ownership for every referenced ID."
+verify = "In template-items.feature and service/route tests, verify insertion order and persisted edits, replay-safe creation, removal with children deleted or moved to ungrouped, and rejection of foreign references."
+covers = ["R4", "R7"]
+after = [3]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Reorder template items across sections"
+description = "Move the drag caller to an atomic order update scoped to the owned template and validate the complete item and label assignments before writing."
+verify = "In template-items.feature and service/route tests, reload after a drag within and across sections and verify duplicate, missing or foreign IDs and foreign labels leave the original order intact."
+covers = ["R4", "R7"]
+after = [4]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Refactor sweep"
+description = "Resolve cleanup identified in the five implementation stories and retain their public contracts and behavior."
+verify = "Rerun the targeted checks identified in the cleanup diff and verify each deferred review finding has a recorded disposition."
+covers = ["R7"]
+after = [1,2,3,4,5]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Verify packing template reuse end to end"
+description = "Exercise selected-list save, template edits, trip pull, checklist insertion and deletion together against the production build using scenario-owned records."
+verify = "Save one of two lists, edit its template, reuse it through both existing integrations, delete the template and reload to verify the independent ordered copies and checklist label exclusion."
+covers = ["R4", "R7"]
+after = [6]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
