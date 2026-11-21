@@ -217,9 +217,11 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Tighten the create-trip e2e "wrote nothing new" step so a 422 asserts zero rows for the id.
   evidence: Step accepts one same-name row, so a committed-then-422 regression would pass (verification-gap lens).
+  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; new step "the create trip API created no trip" asserts zero rows for the 422 scenarios (`api.feature`, `api-create-trip.steps.ts`).
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Trip cover generation needs a fetch timeout, orphaned-tile cleanup and a guarded cover update.
   evidence: Mapbox fetch has no abort; tile stays in storage if the cover save fails; update ignores a newer cover. All pre-existing from the old action.
+  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; orphaned tile cleanup only: a failed cover save removes the stored tile (`trips.test.ts` "removes the stored map tile when the cover save fails"). The fetch timeout and the guarded cover update stay open.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Unsupported stored account currency makes every create 422 on a field the client never sent.
   evidence: `resolveBudgetCurrency` throws for the account default; behavior carried over from the old action.
@@ -230,10 +232,12 @@
 - source_plan: story-delete-a-trip-through-the-api-plan.md
   summary: Clean up owned trip cover files when deleting a trip.
   evidence: The previous delete action removed document files but did not remove stored trip covers.
+  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; `deleteTrip` queues the trip's own stored cover with its document files (`isOwnTripCoverFile`, `url-policy.ts`). Tests: `trips.test.ts` (own file, photo, another trip's file, no cover), `url-policy.test.ts`.
 
 - source_plan: plan-dismiss-trip-deletion-dialog.md
   summary: Exercise trip deletion with a controllably slow storage adapter in an integration test.
   evidence: Service tests verify deferred scheduling, but the browser scenarios do not hold real file cleanup open.
+  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; `trips.test.ts` "answers the deletion while storage cleanup is still held open" holds the cleanup promise open and shows the 204 does not wait on it. Service-level, not browser.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-verify-trips-and-packing-api-end-to-end-plan.md`
   summary: packing-tab scenario "New sections appear above existing sections and stay there after reload" timed out once under full 11-feature load on the step "I add a packing label named" (`getByPlaceholder('New section…')` never appeared on the second add).
