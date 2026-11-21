@@ -46,7 +46,7 @@ async function rowsFor(id: string) {
 
 Given("a new template id and name for the packing template API", async ({ page, scenario }) => {
   await scenario.ensureCurrentUser();
-  states.set(page, { id: randomUUID(), name: scenario.uniqueName("API Template"), responses: [] });
+  states.set(page, { id: randomUUID(), name: `API ${randomUUID().slice(0, 8)}`, responses: [] });
 });
 
 Given("my own and a different user's templates for the packing template API", async ({ page, scenario }) => {
