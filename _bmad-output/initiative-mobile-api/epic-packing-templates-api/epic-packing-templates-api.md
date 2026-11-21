@@ -28,6 +28,11 @@ Template and template-item operations use /api/v1 in the production build.
 
 Migrate packing-template lifecycle and item operations, including saving trip lists as templates, through shared contracts and services. R7 ownership covers tests and feature-map registration for this epic's own changes; the pilot owns shared API test infrastructure and cleanup owns final enforcement. No native phone UI.
 
+## Requirements
+
+- R4 covers template lifecycle, items, sections, ordering, and saving the selected trip packing list.
+- R7 covers ownership, replay safety, production regression checks and feature mapping. Each route ships with its contract documentation, colocated tests and affected feature and step updates. Keep server-rendered reads on the shared query layer.
+
 ## References
 
 - parent — `_bmad-output/initiative-mobile-api/initiative-mobile-api.md`, Requirements R4, R7.
@@ -40,4 +45,6 @@ Migrate packing-template lifecycle and item operations, including saving trip li
 - Branch workflow: Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1.
 - Story inheritance: Every new story entry and story file in this epic must explicitly carry this branch workflow; retain it when pulling, refining, or handing off a story.
 
-- Inception: Story breakdown and exact test intent are completed when this epic is selected.
+- Source conflict: the existing save action copies every packing item on the trip while the dialog describes the selected list.
+- Decision: 2026-11-21 — Save only the selected list. Use a trip with two lists to verify the dialog count matches the saved contents.
+- Decision: 2026-11-21 — Create and reload an owned template first to prove the web/API path, then settle selected-list saving before extending lifecycle and item operations. Use one lane because the route documentation, feature map and packing callers overlap. Close with a refactor sweep and production reuse checks.
