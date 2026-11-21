@@ -234,3 +234,7 @@
 - source_plan: plan-dismiss-trip-deletion-dialog.md
   summary: Exercise trip deletion with a controllably slow storage adapter in an integration test.
   evidence: Service tests verify deferred scheduling, but the browser scenarios do not hold real file cleanup open.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-verify-trips-and-packing-api-end-to-end-plan.md`
+  summary: packing-tab scenario "New sections appear above existing sections and stay there after reload" timed out once under full 11-feature load on the step "I add a packing label named" (`getByPlaceholder('New section…')` never appeared on the second add).
+  evidence: 735 of 736 passed in the combined production-build run; the same feature passed 25/25 twice in isolation. Likely the List options menu click racing a re-render after the first label POST; unreproduced, so unverified.
