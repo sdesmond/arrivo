@@ -3,7 +3,7 @@ title: "Verify trips and packing API end to end"
 type: "chore"
 ticket: "12"
 created: "2026-11-20"
-status: "built"
+status: done
 baseline_revision: "26c4d7e6f4f1afba62daf00e0bbfd7917cb8aff8"
 route: "oneshot"
 route_source: "auto"

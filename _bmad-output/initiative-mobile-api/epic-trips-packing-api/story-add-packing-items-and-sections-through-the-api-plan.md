@@ -3,7 +3,7 @@ title: "Add packing items and sections through the API"
 type: feature
 ticket: 3
 created: 2026-11-19
-status: built
+status: done
 baseline_revision: "0653803e592acebfa4e71d526fe2b5c327ae16cd"
 route: full
 route_source: auto

@@ -3,7 +3,7 @@ title: "Pull templates onto a trip through the API"
 type: feature
 ticket: 5
 created: 2026-11-19
-status: built
+status: done
 baseline_revision: "b17424d31f098a46376e665bae5601db1e06e446"
 route: full
 route_source: auto

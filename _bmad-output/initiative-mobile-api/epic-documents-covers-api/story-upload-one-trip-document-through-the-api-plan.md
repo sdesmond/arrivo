@@ -3,7 +3,7 @@ title: "Upload one trip document through the API"
 type: "feature"
 ticket: "1"
 created: "2026-11-12"
-status: "built"
+status: done
 baseline_revision: "e2363aba6d6648ccef092180fbe30f85d181423d"
 route: "full"
 route_source: "auto"

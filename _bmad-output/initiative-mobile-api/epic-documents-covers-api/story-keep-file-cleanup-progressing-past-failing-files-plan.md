@@ -3,7 +3,7 @@ title: "Keep file cleanup progressing past failing files"
 type: feature
 ticket: "8"
 created: "2026-11-12"
-status: built
+status: done
 baseline_revision: "595534bcd469006270d66c56f8e08f97afe4eb4d"
 route: oneshot
 route_source: auto

@@ -11,7 +11,7 @@ import {
 import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { assertUploadContentMatchesType, assertValidCoverUpload, createUploadStorageName } from "@/lib/upload-policy";
-import { isValidCoverImageUrl, parseOwnStorageUrl } from "@/lib/url-policy";
+import { isOwnTripCoverFile, isValidCoverImageUrl } from "@/lib/url-policy";
 import { deriveGraphicCover } from "@/lib/utils";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite } from "./trip-write";
@@ -25,9 +25,7 @@ async function queueReplacedCover(
   previousUrl: string | null,
   nextUrl: string
 ): Promise<QueuedFileDeletion[]> {
-  if (!previousUrl || previousUrl === nextUrl) return [];
-  const stored = parseOwnStorageUrl(previousUrl);
-  if (stored?.scope !== "trip-cover" || stored.ownerId !== tripId) return [];
+  if (previousUrl === nextUrl || !isOwnTripCoverFile(previousUrl, tripId)) return [];
   return queueFileDeletions(transaction, [previousUrl]);
 }
 

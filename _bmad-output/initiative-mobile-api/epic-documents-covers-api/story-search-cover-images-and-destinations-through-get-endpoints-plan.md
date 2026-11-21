@@ -3,7 +3,7 @@ title: "Search cover images and destinations through GET endpoints"
 type: feature
 ticket: "7"
 created: "2026-11-13"
-status: built
+status: done
 baseline_revision: "1cd8f831b3438122d2240dcd5d862c66952dbbf9"
 route: full
 route_source: auto

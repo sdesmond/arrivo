@@ -157,6 +157,12 @@ Then("the create trip API wrote nothing new", async ({ page }) => {
   expect(rows.length).toBeLessThanOrEqual(1);
 });
 
+Then("the create trip API created no trip", async ({ page }) => {
+  const { tripId } = state(page);
+  const rows = await withE2EDb((database) => database.select({ id: trips.id }).from(trips).where(eq(trips.id, tripId)));
+  expect(rows).toHaveLength(0);
+});
+
 Then("my trip list holds my trip and the shared trip but not the other one", async ({ page }) => {
   const current = state(page);
   expect(current.responses.at(-1)!.status()).toBe(200);

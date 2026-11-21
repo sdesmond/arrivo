@@ -3,7 +3,7 @@ title: "Manage packing lists through the API"
 type: feature
 ticket: 4
 created: 2026-11-19
-status: built
+status: done
 baseline_revision: "80408db2151d4449cbc320222e8d5542ac27bd38"
 route: full
 route_source: auto

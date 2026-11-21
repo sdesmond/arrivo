@@ -3,7 +3,7 @@ title: "Rename and remove documents through the API"
 type: feature
 ticket: "3"
 created: "2026-11-12"
-status: built
+status: done
 baseline_revision: "5fd462eacf5ad5130d12e04c750ae33ddead6284"
 route: full
 route_source: auto

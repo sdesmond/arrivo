@@ -3,7 +3,7 @@ title: "Trips and packing refactor sweep"
 type: "refactor"
 ticket: "11"
 created: "2026-11-20"
-status: "built"
+status: done
 baseline_revision: "ed4728b627771e9a3e55d9ed2bdc4e252760554e"
 route: "oneshot"
 route_source: "auto"

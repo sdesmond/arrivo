@@ -3,7 +3,7 @@ title: "Reorder packing items through the API"
 type: feature
 ticket: 2
 created: 2026-11-19
-status: built
+status: done
 baseline_revision: "e3cb0e916cd79343896fc510c1c190d12fa2d3b7"
 route: full
 route_source: auto

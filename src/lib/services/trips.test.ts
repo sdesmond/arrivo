@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   applyDateChange: vi.fn(),
   queueDeletions: vi.fn(),
   removeFiles: vi.fn(),
+  discardFile: vi.fn(),
   detail: vi.fn(),
   transaction: vi.fn(),
   dbUpdate: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock("./trip-date-change", () => ({ applyTripDateChange: mocks.applyDateChang
 vi.mock("@/lib/file-cleanup", () => ({
   queueFileDeletions: mocks.queueDeletions,
   removeQueuedFiles: mocks.removeFiles,
+  discardStoredFile: mocks.discardFile,
 }));
 vi.mock("@/lib/queries", () => ({ getTripDetail: mocks.detail, listTripsForUser: mocks.listForUser }));
 vi.mock("@/lib/trip-events", () => ({
@@ -70,6 +72,7 @@ import { ValidationFailedError } from "./validation-failed-error";
 import { TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { createTrip, deleteTrip, getTrip, listTrips, updateTrip } from "./trips";
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
+const otherTripId = "223e4567-e89b-12d3-a456-426614174000";
 const actor = { userId: "user" };
 const row = {
   id: tripId,
@@ -472,6 +475,24 @@ it("keeps a failed cover save from failing the create", async () => {
   await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
   expect(error).toHaveBeenCalledWith("Cover image save failed:", expect.any(Error));
   expect(mocks.revalidate).toHaveBeenCalledWith("/trips");
+  // A photo URL is not a file this app stored, so there is nothing to remove.
+  expect(mocks.discardFile).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+it("removes the stored map tile when the cover save fails", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  const tile = `/api/storage/trip-covers/${newId}/11111111-1111-4111-8111-111111111111.jpg`;
+  mocks.generateCover.mockResolvedValue({ coverImageUrl: tile });
+  mocks.set.mockReturnValue({
+    where: async () => {
+      throw new Error("write failed");
+    },
+  });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
+  expect(mocks.discardFile).toHaveBeenCalledExactlyOnceWith(tile);
   error.mockRestore();
 });
 
@@ -678,6 +699,66 @@ it("deletes under a lock, queues files, then publishes and cleans up after commi
   expect(mocks.removeFiles).not.toHaveBeenCalled();
   await mocks.after.mock.calls[0][0]();
   expect(mocks.removeFiles).toHaveBeenCalledWith([{ id: "queued", url: "/file" }]);
+});
+
+it.each([
+  [
+    "its own stored file",
+    (id: string) => `/api/storage/trip-covers/${id}/11111111-1111-4111-8111-111111111111.jpg`,
+    true,
+  ],
+  ["a photo", () => "https://images.example/a.jpg", false],
+  [
+    "another trip's file",
+    () => `/api/storage/trip-covers/${otherTripId}/11111111-1111-4111-8111-111111111111.jpg`,
+    false,
+  ],
+  ["no cover", () => null, false],
+])("queues the trip cover for removal only when it is %s", async (_label, coverFor, queuesCover) => {
+  stubCreate();
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () =>
+          table === documents ? [{ url: "/file" }] : table === trips ? [{ coverImageUrl: coverFor(tripId) }] : [],
+      }),
+    }),
+    delete: mocks.remove,
+  };
+  mocks.remove.mockReturnValue({ where: async () => undefined });
+  mocks.transaction.mockImplementationOnce(async (work) => work(transaction));
+  mocks.queueDeletions.mockResolvedValueOnce([]);
+  await deleteTrip(actor, tripId, {});
+  const queuedUrls = mocks.queueDeletions.mock.calls[0][1] as string[];
+  expect(queuedUrls[0]).toBe("/file");
+  expect(queuedUrls).toHaveLength(queuesCover ? 2 : 1);
+  if (queuesCover) expect(queuedUrls[1]).toBe(coverFor(tripId));
+});
+
+it("answers the deletion while storage cleanup is still held open", async () => {
+  stubCreate();
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({ where: async () => (table === documents ? [{ url: "/file" }] : []) }),
+    }),
+    delete: mocks.remove,
+  };
+  mocks.remove.mockReturnValue({ where: async () => undefined });
+  mocks.transaction.mockImplementationOnce(async (work) => work(transaction));
+  mocks.queueDeletions.mockResolvedValueOnce([{ id: "queued", url: "/file" }]);
+  // Storage is held open until the test releases it; `after` starts the callback without awaiting it, as Next does.
+  let releaseStorage!: () => void;
+  const storageHeld = new Promise<void>((resolve) => {
+    releaseStorage = resolve;
+  });
+  mocks.removeFiles.mockReturnValueOnce(storageHeld);
+  mocks.after.mockImplementationOnce((work: () => Promise<void>) => {
+    void work();
+  });
+  await expect(deleteTrip(actor, tripId, {})).resolves.toBeNull();
+  expect(mocks.removeFiles).toHaveBeenCalledWith([{ id: "queued", url: "/file" }]);
+  releaseStorage();
+  await storageHeld;
 });
 
 it("keeps committed deletion successful when cleanup cannot be scheduled", async () => {

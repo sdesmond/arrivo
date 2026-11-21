@@ -3,7 +3,7 @@ title: "Delete a trip through the API"
 type: feature
 ticket: 10
 created: 2026-11-20
-status: built
+status: done
 baseline_revision: "fe8c5e6c70c3ffe95cb745e6a9650690b9f26d71"
 route: full
 route_source: auto

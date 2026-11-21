@@ -3,7 +3,7 @@ title: "Verify documents and covers end to end"
 type: chore
 ticket: "10"
 created: "2026-11-13"
-status: built
+status: done
 baseline_revision: "d83669dc08dea7f1f624b353e60150a952f2a588"
 route: full
 route_source: auto

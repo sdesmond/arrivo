@@ -3,7 +3,7 @@ title: "Attach and promote documents through the API"
 type: feature
 ticket: "4"
 created: "2026-11-12"
-status: built
+status: done
 baseline_revision: "49a3721b7a392ae378d9c983877458afdec9c324"
 route: full
 route_source: auto

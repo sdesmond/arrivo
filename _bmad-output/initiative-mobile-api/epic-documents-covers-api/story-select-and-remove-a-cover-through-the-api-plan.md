@@ -3,7 +3,7 @@ title: "Select and remove a cover through the API"
 type: feature
 ticket: "5"
 created: "2026-11-13"
-status: built
+status: done
 baseline_revision: "b48922a8d7624c19ad107c9640e8cee99b7fcddc"
 route: full
 route_source: auto

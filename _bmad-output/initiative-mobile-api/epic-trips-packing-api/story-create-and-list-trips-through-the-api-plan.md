@@ -3,7 +3,7 @@ title: "Create and list trips through the API"
 type: feature
 ticket: 9
 created: 2026-11-20
-status: built
+status: done
 baseline_revision: "b1f46dcca89815a3158209168fe0dda5a6e94114"
 route: full
 route_source: auto

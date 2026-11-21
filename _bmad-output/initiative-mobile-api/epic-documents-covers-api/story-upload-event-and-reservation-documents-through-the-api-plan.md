@@ -3,7 +3,7 @@ title: "Upload event and reservation documents through the API"
 type: feature
 ticket: "2"
 created: "2026-11-12"
-status: built
+status: done
 baseline_revision: "c24c82c8df3ce59e343b86c7ce9c194ac50dfe05"
 route: full
 route_source: auto

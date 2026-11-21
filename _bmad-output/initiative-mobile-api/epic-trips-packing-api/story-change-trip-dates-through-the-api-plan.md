@@ -3,7 +3,7 @@ title: "Change trip dates through the API"
 type: feature
 ticket: 7
 created: 2026-11-20
-status: built
+status: done
 baseline_revision: "f72a17f4633325b5e26d46cb507afd411596818d"
 route: full
 route_source: auto

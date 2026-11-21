@@ -29,7 +29,8 @@ import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { generateTripCover } from "./trip-cover-generation";
-import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
+import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
+import { isOwnTripCoverFile } from "@/lib/url-policy";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { applyTripDateChange } from "./trip-date-change";
 import { lockTrip, runTripWrite } from "./trip-write";
@@ -267,6 +268,8 @@ export async function createTrip(
         await db.update(trips).set(cover).where(eq(trips.id, body.id));
       } catch (error) {
         console.error("Cover image save failed:", error);
+        // A generated map tile is stored before the row update; nothing points at it once the update fails.
+        if (isOwnTripCoverFile(cover.coverImageUrl, body.id)) await discardStoredFile(cover.coverImageUrl);
       }
     }
     revalidatePath("/trips");
@@ -333,15 +336,20 @@ export async function deleteTrip(
                   inArray(documents.reservationId, reservationIds)
                 )
               );
+            const [tripRow] = await transaction
+              .select({ coverImageUrl: trips.coverImageUrl })
+              .from(trips)
+              .where(eq(trips.id, tripId));
+            const coverFiles = isOwnTripCoverFile(tripRow?.coverImageUrl, tripId) ? [tripRow.coverImageUrl] : [];
             const members = await transaction
               .select({ userId: collaborators.userId })
               .from(collaborators)
               .where(eq(collaborators.tripId, tripId));
             recipientIds = members.flatMap(({ userId }) => (userId && userId !== actor.userId ? [userId] : []));
-            queued = await queueFileDeletions(
-              transaction,
-              files.flatMap(({ url }) => (url ? [url] : []))
-            );
+            queued = await queueFileDeletions(transaction, [
+              ...files.flatMap(({ url }) => (url ? [url] : [])),
+              ...coverFiles,
+            ]);
             await transaction.delete(trips).where(eq(trips.id, tripId));
             // Children need a live trip to be created, so recording the refused trip id covers them too.
             await recordDeletions(transaction, "trip", [tripId], actor.userId);
