@@ -2819,7 +2819,7 @@ Feature: Absolute checklist checked-state API
     Given a new trip id and name for the create trip API
     When <request>
     Then the create trip API answers 422 with code "validation_failed"
-    And the create trip API wrote nothing new
+    And the create trip API created no trip
 
     Examples:
       | request                                           |
