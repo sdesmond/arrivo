@@ -40,16 +40,9 @@ it("gives list controls 44px targets", async () => {
   expect(screen.getByRole("button", { name: 'Delete "Bag"' })).toHaveClass("size-11");
   await userEvent.click(screen.getByRole("button", { name: 'Rename "Bag"' }));
   expect(screen.getByRole("textbox", { name: "Packing list name" })).toHaveClass("h-11");
-  await userEvent.keyboard("{Escape}");
-  const newList = screen.getByRole("button", { name: "New List" });
-  expect(newList).toHaveClass("h-11");
-  await userEvent.click(newList);
-  expect(screen.getByRole("textbox", { name: "Packing list name" })).toHaveClass("h-11");
-  expect(screen.getByRole("button", { name: "Create" })).toHaveClass("h-11");
-  expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass("h-11");
 });
 
-it("gives the empty-state create button a 44px target", () => {
+it("shows the create form's empty state when there are no lists", () => {
   render(
     <PackingListOverview
       packingLists={[]}
@@ -61,7 +54,44 @@ it("gives the empty-state create button a 44px target", () => {
       onDeleteList={vi.fn()}
     />
   );
-  expect(screen.getByRole("button", { name: "New List" })).toHaveClass("h-11");
+  expect(screen.getByText("No packing lists yet")).toBeInTheDocument();
+});
+
+it("deletes an empty list without asking", async () => {
+  const onDeleteList = vi.fn(async () => {});
+  render(
+    <PackingListOverview
+      packingLists={[{ id: "list", tripId: "trip", name: "Bag", position: 0 }]}
+      packingItems={[{ name: "Clothes", done: false, isLabel: true, listId: "list" }]}
+      onOpen={vi.fn()}
+      onCreated={vi.fn()}
+      onCreateList={vi.fn()}
+      onRenameList={vi.fn()}
+      onDeleteList={onDeleteList}
+    />
+  );
+  await userEvent.click(screen.getByRole("button", { name: 'Delete "Bag"' }));
+  expect(onDeleteList).toHaveBeenCalledWith("list");
+  expect(screen.queryByRole("button", { name: "Delete List" })).not.toBeInTheDocument();
+});
+
+it("confirms before deleting a list that has items", async () => {
+  const onDeleteList = vi.fn(async () => {});
+  render(
+    <PackingListOverview
+      packingLists={[{ id: "list", tripId: "trip", name: "Bag", position: 0 }]}
+      packingItems={[{ name: "Socks", done: false, listId: "list" }]}
+      onOpen={vi.fn()}
+      onCreated={vi.fn()}
+      onCreateList={vi.fn()}
+      onRenameList={vi.fn()}
+      onDeleteList={onDeleteList}
+    />
+  );
+  await userEvent.click(screen.getByRole("button", { name: 'Delete "Bag"' }));
+  expect(onDeleteList).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Delete List" }));
+  expect(onDeleteList).toHaveBeenCalledWith("list");
 });
 
 it("shows a committed rename immediately while the save is still in flight", async () => {

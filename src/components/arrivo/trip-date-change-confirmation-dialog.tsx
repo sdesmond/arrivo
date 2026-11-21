@@ -94,6 +94,7 @@ export function TripDateChangeConfirmationDialog({
 
   const affectedReservations = dateChangeConfirmation?.reservations ?? [];
   const hasReservations = affectedReservations.length > 0;
+  const reservationDocumentCount = dateChangeConfirmation?.reservationDocumentCount ?? 0;
   const affectsOnlyReservations =
     hasReservations &&
     (dateChangeConfirmation?.events.length ?? 0) === 0 &&
@@ -140,6 +141,12 @@ export function TripDateChangeConfirmationDialog({
                   </li>
                 ))}
               </ul>
+              {reservationDocumentCount > 0 && (
+                <p className="mt-1">
+                  Removing them also deletes {reservationDocumentCount} attached{" "}
+                  {reservationDocumentCount === 1 ? "file" : "files"}.
+                </p>
+              )}
             </div>
           )}
         </AlertDialogHeader>
