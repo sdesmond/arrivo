@@ -3,7 +3,7 @@ title: "Pack and edit a packing item through the API"
 type: feature
 ticket: 1
 created: 2026-11-19
-status: built
+status: done
 baseline_revision: "66d70173ca326bb04fc56cd1b8a06ec79f892ec8"
 route: full
 route_source: auto

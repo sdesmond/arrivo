@@ -3,7 +3,7 @@ title: "Serve the trip snapshot with an ETag"
 type: feature
 ticket: 8
 created: 2026-11-20
-status: built
+status: done
 baseline_revision: "d263e78b0525f8ddcc016abeeee04098f3506e92"
 route: oneshot
 route_source: auto

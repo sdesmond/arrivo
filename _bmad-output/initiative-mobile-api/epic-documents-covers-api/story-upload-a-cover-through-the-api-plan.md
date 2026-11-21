@@ -3,7 +3,7 @@ title: "Upload a cover through the API"
 type: feature
 ticket: "6"
 created: "2026-11-13"
-status: built
+status: done
 baseline_revision: "8adabe1a84cbeffeb0313449beeaf2fed9ca0bc1"
 route: full
 route_source: auto

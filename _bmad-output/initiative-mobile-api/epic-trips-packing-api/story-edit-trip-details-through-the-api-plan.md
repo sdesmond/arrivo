@@ -3,7 +3,7 @@ title: "Edit trip details through the API"
 type: feature
 ticket: 6
 created: 2026-11-20
-status: in-review
+status: done
 baseline_revision: "e5f34139b5f1ff153ca2b7adae48c760e5182aa8"
 route: full
 route_source: auto
