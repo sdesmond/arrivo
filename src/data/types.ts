@@ -1130,10 +1130,6 @@ export interface PackingTemplate {
   createdAt?: string;
 }
 
-export interface CreatePackingTemplateInput {
-  name: string;
-}
-
 export interface UpdatePackingTemplatePatch {
   name: string;
 }

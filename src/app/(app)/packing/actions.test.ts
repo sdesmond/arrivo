@@ -6,7 +6,6 @@ const { and, db, eq, requireUser, revalidatePath } = vi.hoisted(() => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
   db: {
     delete: vi.fn(),
-    insert: vi.fn(),
     update: vi.fn(),
   },
   eq: vi.fn((left: unknown, right: unknown) => ({ type: "eq", left, right })),
@@ -35,7 +34,7 @@ vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
-import { createTemplate, deleteTemplate, renameTemplate } from "./actions";
+import { deleteTemplate, renameTemplate } from "./actions";
 import { normalizeTemplateName } from "./template-name";
 
 describe("normalizeTemplateName", () => {
@@ -56,45 +55,6 @@ describe("template actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user-1" });
-  });
-
-  it("creates a template for the authenticated user and revalidates the route", async () => {
-    const returning = vi.fn().mockResolvedValue([{ id: "template-1" }]);
-    const values = vi.fn(() => ({ returning }));
-    db.insert.mockReturnValue({ values });
-
-    await expect(createTemplate({ name: "  Beach Weekend  " })).resolves.toEqual({ id: "template-1" });
-
-    expect(requireUser).toHaveBeenCalledOnce();
-    expect(db.insert).toHaveBeenCalledWith(packingTemplates);
-    expect(values).toHaveBeenCalledWith({ userId: "user-1", name: "Beach Weekend" });
-    expect(revalidatePath).toHaveBeenCalledWith("/packing");
-  });
-
-  it("rejects invalid create names before touching the database", async () => {
-    await expect(createTemplate({ name: "   " })).rejects.toThrow("Template name is required.");
-
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("throws when the insert returns no rows", async () => {
-    const returning = vi.fn().mockResolvedValue([]);
-    const values = vi.fn(() => ({ returning }));
-    db.insert.mockReturnValue({ values });
-
-    await expect(createTemplate({ name: "Beach Weekend" })).rejects.toThrow("Failed to create template.");
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("sanitizes unexpected createTemplate failures", async () => {
-    const returning = vi.fn().mockRejectedValue(new Error("database exploded"));
-    const values = vi.fn(() => ({ returning }));
-    db.insert.mockReturnValue({ values });
-
-    await expect(createTemplate({ name: "Beach Weekend" })).rejects.toThrow(
-      "An unexpected error occurred. Please try again."
-    );
   });
 
   it("renames a template with user scoping and revalidation", async () => {

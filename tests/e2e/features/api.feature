@@ -2855,3 +2855,31 @@ Feature: Absolute checklist checked-state API
     When I delete the trip concurrently through the API
     Then the trip delete API responses are both 204
     And the delete API trip and its legacy documents are removed
+
+  Scenario: Creating a packing template with a retried key stores one row
+    Given I am signed in
+    And a new template id and name for the packing template API
+    When I create that template through the API twice with the same key
+    Then the packing template API answered 200 each time with one stored row
+
+  Scenario: Reusing a template id under another name conflicts
+    Given I am signed in
+    And a new template id and name for the packing template API
+    When I create that template through the API under another name
+    Then the packing template API answered 409 with code "conflict"
+    And the stored template keeps its first name
+
+  Scenario: A different user's template id is not found
+    Given I am signed in
+    And a new template id and name for the packing template API
+    And my own and a different user's templates for the packing template API
+    When I create a template through the API with the id of a different user's template
+    Then the packing template API answered 404 with code "not_found"
+    And the different user's template is unchanged
+
+  Scenario: Listing templates shows only my own
+    Given I am signed in
+    And a new template id and name for the packing template API
+    And my own and a different user's templates for the packing template API
+    When I list my templates through the API
+    Then my template list holds my template but not the different user's
