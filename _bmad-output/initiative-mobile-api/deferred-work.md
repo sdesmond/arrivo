@@ -213,6 +213,7 @@
 - source_plan: `epic-trips-packing-api/story-add-packing-items-and-sections-through-the-api-plan.md`
   summary: Investigate whether deleted packing UUIDs need tombstones to prevent delayed creation retries from recreating deleted sections or items.
   evidence: Unverified medium risk; establish the intended retry window and whether existing deletion and idempotency conventions already prevent recreation.
+  completed: 2026-11-21 on `fix/epic-5-cover-and-packing-retries`; already covered by story 5.3: deleting an item, section (with its children) or list records the id (`recordDeletions`) and a create under that id returns 409 for 24 hours (`packing.test.ts`). Browser-level evidence already exists: the `api.feature` outline "A <resource> create retried after the delete conflicts instead of bringing it back" has packing item and section rows. Nothing was missing.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Tighten the create-trip e2e "wrote nothing new" step so a 422 asserts zero rows for the id.
@@ -221,7 +222,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Trip cover generation needs a fetch timeout, orphaned-tile cleanup and a guarded cover update.
   evidence: Mapbox fetch has no abort; tile stays in storage if the cover save fails; update ignores a newer cover. All pre-existing from the old action.
-  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; orphaned tile cleanup only: a failed cover save removes the stored tile (`trips.test.ts` "removes the stored map tile when the cover save fails"). The fetch timeout and the guarded cover update stay open.
+  completed: 2026-11-21 on `fix/epic-5-deferred-cleanup`; a failed cover save removes the stored tile (`trips.test.ts` "removes the stored map tile when the cover save fails"); the Mapbox tile fetch aborts after `MAP_TILE_TIMEOUT_MS` (5s, `trip-cover-generation.test.ts`); the cover update only fills an empty cover and discards an unused own tile (`trips.test.ts` "keeps a cover chosen while generation ran...").
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Unsupported stored account currency makes every create 422 on a field the client never sent.
   evidence: `resolveBudgetCurrency` throws for the account default; behavior carried over from the old action.

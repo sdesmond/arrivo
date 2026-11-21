@@ -11,7 +11,7 @@ vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ pu
 vi.mock("@/lib/services/cover-search", () => ({ searchCoverImages: mocks.search }));
 
 import { deriveGraphicCover } from "@/lib/utils";
-import { generateTripCover } from "./trip-cover-generation";
+import { MAP_TILE_TIMEOUT_MS, generateTripCover } from "./trip-cover-generation";
 
 const mockFetch = vi.fn();
 
@@ -84,9 +84,29 @@ describe("generateTripCover", () => {
       generateTripCover({ ...base, destinationName: "Paris", destinationCenter: [2.3488, 48.8534] })
     ).resolves.toEqual({ coverImageUrl: "/api/storage/trip-covers/trip-1/cover-1234.jpg" });
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/2.3488,48.8534,10/600x400@2x?access_token=token"
+      "https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/2.3488,48.8534,10/600x400@2x?access_token=token",
+      { signal: expect.any(AbortSignal) }
     );
     expect(mocks.put).toHaveBeenCalledWith("trip-covers/trip-1/cover-1234.jpg", expect.any(File));
+  });
+
+  it("gives up on a tile fetch that outlasts the timeout and stores nothing", async () => {
+    const timeout = new AbortController();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeout.signal);
+    storedCoverType("map");
+    mockFetch.mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => reject(init.signal.reason));
+        })
+    );
+    const cover = generateTripCover({ ...base, destinationName: "Paris", destinationCenter: [1, 2] });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    expect(timeoutSpy).toHaveBeenCalledWith(MAP_TILE_TIMEOUT_MS);
+    timeout.abort(new DOMException("timed out", "TimeoutError"));
+    await expect(cover).resolves.toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
   });
 
   it("does nothing for the map type without coordinates", async () => {

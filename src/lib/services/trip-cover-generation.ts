@@ -8,6 +8,9 @@ import { getStorageAdapter } from "@/lib/storage/storage-adapter";
 import { createUploadStorageName } from "@/lib/upload-policy";
 import { searchCoverImages } from "@/lib/services/cover-search";
 
+/** Longest the create request waits on Mapbox for the map tile before the trip keeps no cover. */
+export const MAP_TILE_TIMEOUT_MS = 5000;
+
 const VALID_COVER_TYPES = new Set<string>(Object.values(CoverType));
 
 export interface TripCoverUpdate {
@@ -54,7 +57,7 @@ export async function generateTripCover(request: TripCoverRequest): Promise<Trip
         const [lng, lat] = destinationCenter;
         const token = process.env.MAPBOX_ACCESS_TOKEN ?? "";
         const tileUrl = `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${lng},${lat},10/600x400@2x?access_token=${token}`;
-        const tileRes = await fetch(tileUrl);
+        const tileRes = await fetch(tileUrl, { signal: AbortSignal.timeout(MAP_TILE_TIMEOUT_MS) });
         if (!tileRes.ok) throw new Error(`Mapbox tile fetch failed: ${tileRes.status}`);
         const tileBlob = await tileRes.blob();
         const storageName = createUploadStorageName("trip-cover", tripId, "image/jpeg");

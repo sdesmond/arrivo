@@ -393,7 +393,7 @@ function stubCreate(): void {
   );
   mocks.generateCover.mockResolvedValue(null);
   mocks.dbUpdate.mockReturnValue({ set: mocks.set });
-  mocks.set.mockReturnValue({ where: async () => undefined });
+  mocks.set.mockReturnValue({ where: () => ({ returning: async () => [{ id: newId }] }) });
 }
 
 const storedRow = { ...row, id: newId, name: "Paris", tags: [], budgetTotal: null, budgetCurrency: "USD" };
@@ -467,9 +467,11 @@ it("keeps a failed cover save from failing the create", async () => {
   selectResults = [[], [], [storedRow]];
   mocks.generateCover.mockResolvedValue({ coverImageUrl: "https://images.example/a.jpg" });
   mocks.set.mockReturnValue({
-    where: async () => {
-      throw new Error("write failed");
-    },
+    where: () => ({
+      returning: async () => {
+        throw new Error("write failed");
+      },
+    }),
   });
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
@@ -486,14 +488,38 @@ it("removes the stored map tile when the cover save fails", async () => {
   const tile = `/api/storage/trip-covers/${newId}/11111111-1111-4111-8111-111111111111.jpg`;
   mocks.generateCover.mockResolvedValue({ coverImageUrl: tile });
   mocks.set.mockReturnValue({
-    where: async () => {
-      throw new Error("write failed");
-    },
+    where: () => ({
+      returning: async () => {
+        throw new Error("write failed");
+      },
+    }),
   });
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
   expect(mocks.discardFile).toHaveBeenCalledExactlyOnceWith(tile);
   error.mockRestore();
+});
+
+it("keeps a cover chosen while generation ran and removes the unused tile", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  const tile = `/api/storage/trip-covers/${newId}/11111111-1111-4111-8111-111111111111.jpg`;
+  mocks.generateCover.mockResolvedValue({ coverImageUrl: tile });
+  mocks.set.mockReturnValue({ where: () => ({ returning: async () => [] }) });
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  await expect(createTrip(actor, { id: newId, name: "Paris" })).resolves.toMatchObject({ id: newId });
+  expect(mocks.discardFile).toHaveBeenCalledExactlyOnceWith(tile);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+it("leaves a chosen cover alone when a generated photo is not applied", async () => {
+  stubCreate();
+  selectResults = [[], [], [storedRow]];
+  mocks.generateCover.mockResolvedValue({ coverImageUrl: "https://images.example/a.jpg" });
+  mocks.set.mockReturnValue({ where: () => ({ returning: async () => [] }) });
+  await createTrip(actor, { id: newId, name: "Paris" });
+  expect(mocks.discardFile).not.toHaveBeenCalled();
 });
 
 it("skips the cover save when none is generated", async () => {

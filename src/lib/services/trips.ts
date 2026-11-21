@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { db } from "@/db";
@@ -265,7 +265,14 @@ export async function createTrip(
     });
     if (cover) {
       try {
-        await db.update(trips).set(cover).where(eq(trips.id, body.id));
+        // Generation runs after the commit and can be slow, so only fill a cover nobody chose in the meantime.
+        const applied = await db
+          .update(trips)
+          .set(cover)
+          .where(and(eq(trips.id, body.id), isNull(trips.coverImageUrl)))
+          .returning({ id: trips.id });
+        if (applied.length === 0 && isOwnTripCoverFile(cover.coverImageUrl, body.id))
+          await discardStoredFile(cover.coverImageUrl);
       } catch (error) {
         console.error("Cover image save failed:", error);
         // A generated map tile is stored before the row update; nothing points at it once the update fails.
