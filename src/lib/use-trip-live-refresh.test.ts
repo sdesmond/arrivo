@@ -146,6 +146,26 @@ describe("useTripLiveRefresh", () => {
     expect(mockRouterRefresh).not.toHaveBeenCalled();
   });
 
+  it("does not redirect or show a remote-deletion toast during the owner's own delete", async () => {
+    const { rerender } = renderHook(({ deleting }) => useTripLiveRefresh("trip-1", undefined, () => deleting), {
+      initialProps: { deleting: false },
+    });
+    act(() => tripSource().emitOpen());
+    rerender({ deleting: true });
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
+    await flushMicrotasks();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+  it("records a deletion event received during the owner's request", async () => {
+    const onDeletedWhileDeleting = vi.fn(() => true);
+    renderHook(() => useTripLiveRefresh("trip-1", undefined, onDeletedWhileDeleting));
+    act(() => tripSource().emitOpen());
+    act(() => tripSource().emitMessage(JSON.stringify({ type: LiveSyncEventType.TripDeleted, tripId: "trip-1" })));
+    await flushMicrotasks();
+    expect(onDeletedWhileDeleting).toHaveBeenCalledOnce();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
   it("collapses a burst of quick-succession triggers into a single refresh for the latest generation", async () => {
     renderHook(() => useTripLiveRefresh("trip-1"));
     act(() => tripSource().emitOpen());

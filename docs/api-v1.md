@@ -756,6 +756,12 @@ No query fields. Returns the whole trip the way the trip page reads it: `trip`, 
 
 The response carries a strong `ETag` (a quoted SHA-256 of the serialized payload) and `Cache-Control: private, no-cache`. The tag is stable while the trip, the caller's role and the collaborators are unchanged, and differs after any write that changes the payload. Send it back as `If-None-Match` (a list, a `W/` prefix and `*` are accepted); a match returns `304` with the same headers and no body. The tag is per caller, because the payload depends on the caller's role.
 
+### DELETE /api/v1/trips/:tripId
+
+**Role** manager · **`Idempotency-Key`** yes · **Success** `204`
+
+Deletes a trip and its associated records. Requires manager access; an editor receives 403 and a nonmember receives 404. A missing trip returns 204, including retries. Send an empty JSON object; unknown fields are rejected. Supports `Idempotency-Key`. Document files are queued for cleanup in the deletion transaction. Success returns 204 with no body.
+
 ### PATCH /api/v1/trips/:tripId
 
 **Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Trip`

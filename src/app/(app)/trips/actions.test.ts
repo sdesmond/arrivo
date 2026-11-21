@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { trips } from "@/db/schema";
 
 const { recordTripCreated, recordTripUpdated, recordTripInvitation } = vi.hoisted(() => ({
   recordTripInvitation: vi.fn(),
@@ -110,92 +109,7 @@ vi.mock("./packing-actions", async (importOriginal) => {
 });
 
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import {
-  deleteTrip,
-  retrieveLocation,
-  saveTripListAsTemplate,
-  searchAddressLocations,
-  searchLocations,
-} from "./actions";
-
-import { LiveSyncEventType } from "@/data/types";
-
-describe("manager-gated trip actions", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "editor-1" });
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-  });
-
-  it("denies an editor from deleting a trip before any write", async () => {
-    await expect(deleteTrip("trip-1")).rejects.toThrow("not found");
-
-    expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "editor-1", "manager");
-    expect(db.delete).not.toHaveBeenCalled();
-    expect(publishTripEvent).not.toHaveBeenCalled();
-  });
-});
-
-describe("deleteTrip", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    requireUser.mockResolvedValue({ id: "manager-1" });
-    assertTripAccess.mockResolvedValue("manager");
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => [],
-      }),
-    });
-    db.delete.mockReturnValue({
-      where: async () => {},
-    });
-  });
-
-  it("publishes trip-deleted and purges the topic after the delete commits, before revalidating", async () => {
-    await deleteTrip("trip-1");
-
-    expect(db.delete).toHaveBeenCalledWith(trips);
-    expect(publishTripEvent).toHaveBeenCalledWith("trip-1", {
-      type: LiveSyncEventType.TripDeleted,
-      tripId: "trip-1",
-    });
-    expect(purgeTripTopic).toHaveBeenCalledWith("trip-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/trips");
-
-    const deleteOrder = db.delete.mock.invocationCallOrder[0];
-    const publishOrder = publishTripEvent.mock.invocationCallOrder[0];
-    const purgeOrder = purgeTripTopic.mock.invocationCallOrder[0];
-    const revalidateOrder = revalidatePath.mock.invocationCallOrder[0];
-    expect(deleteOrder).toBeLessThan(publishOrder);
-    expect(publishOrder).toBeLessThan(purgeOrder);
-    expect(purgeOrder).toBeLessThan(revalidateOrder);
-    expect(publishOrder).toBeLessThan(revalidateOrder);
-  });
-
-  it("also publishes trip-deleted to each other collaborator's personal channel, but not the acting manager's", async () => {
-    db.select.mockReturnValue({
-      from: () => ({
-        where: async () => [{ userId: "manager-1" }, { userId: "user-editor" }, { userId: null }],
-      }),
-    });
-
-    await deleteTrip("trip-1");
-
-    expect(publishUserEvent).toHaveBeenCalledExactlyOnceWith("user-editor", {
-      type: LiveSyncEventType.TripDeleted,
-      tripId: "trip-1",
-    });
-  });
-
-  it("does not publish or purge when access is denied", async () => {
-    assertTripAccess.mockRejectedValue(new Error("not found"));
-
-    await expect(deleteTrip("trip-1")).rejects.toThrow("not found");
-
-    expect(publishTripEvent).not.toHaveBeenCalled();
-    expect(purgeTripTopic).not.toHaveBeenCalled();
-  });
-});
+import { retrieveLocation, saveTripListAsTemplate, searchAddressLocations, searchLocations } from "./actions";
 
 describe("resolveTripDateRange", () => {
   it("fills a missing end date from the requested start date", () => {

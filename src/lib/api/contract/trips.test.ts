@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createTrip, getTrip, listTrips, updateTrip } from "./trips";
+import { createTrip, deleteTrip, getTrip, listTrips, updateTrip } from "./trips";
 
 const tripId = "123e4567-e89b-12d3-a456-426614174000";
 it("validates strict partial metadata and normalizes currency", () => {
@@ -80,4 +80,13 @@ it("defines the trip list as a bodiless GET on the collection", () => {
   expect(listTrips.params.parse({})).toEqual({});
   expect(listTrips.body.safeParse({}).success).toBe(true);
   expect(listTrips.body.safeParse({ status: "past" }).success).toBe(false);
+});
+
+it("defines a strict bodiless trip deletion with a normalized UUID", () => {
+  expect(deleteTrip.method).toBe("DELETE");
+  expect(deleteTrip.path).toBe("/api/v1/trips/:tripId");
+  expect(deleteTrip.params.parse({ tripId: tripId.toUpperCase() })).toEqual({ tripId });
+  expect(deleteTrip.params.safeParse({ tripId: "bad" }).success).toBe(false);
+  expect(deleteTrip.body.parse({})).toEqual({});
+  expect(deleteTrip.body.safeParse({ force: true }).success).toBe(false);
 });

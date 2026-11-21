@@ -261,6 +261,7 @@ vi.mock("./use-trip-detail-handlers", () => ({
     handleTripSave: vi.fn(),
     handleTripSaveResolution: vi.fn(),
     handleDeleteTrip: vi.fn(),
+    deferTripDeletedEvent: vi.fn(),
     handleAddDay: vi.fn(),
     handleRemoveLastDay: vi.fn(),
   }),
@@ -319,7 +320,11 @@ describe("TripDetailClient", () => {
   it("mounts live refresh for the trip", () => {
     render(<TripDetailClient detail={baseDetail} nowISO="2026-05-24T12:00:00.000Z" dateFormat="MM/DD/YYYY" />);
 
-    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith("trip-1", expect.any(Function));
+    expect(mockUseTripLiveRefresh).toHaveBeenCalledExactlyOnceWith(
+      "trip-1",
+      expect.any(Function),
+      expect.any(Function)
+    );
   });
 
   it("mounts the bfcache refresh hook so a restored page re-runs its access check", () => {

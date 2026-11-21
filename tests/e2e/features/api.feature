@@ -2782,3 +2782,28 @@ Feature: Absolute checklist checked-state API
     Given a trip owned by someone else that is shared with me and one that is not
     When I list my trips through the API
     Then my trip list holds my trip and the shared trip but not the other one
+
+  Scenario: A manager deletes a trip and legacy documents with a retry
+    Given I am signed in
+    And a trip for the delete API where I am "manager"
+    When I delete the trip through the API twice with the same key
+    Then the trip delete API responses are both 204
+    And the delete API trip and its legacy documents are removed
+
+  Scenario Outline: A nonmanager cannot delete an existing trip
+    Given I am signed in
+    And a trip for the delete API where I am "<role>"
+    When I delete the trip through the API twice with the same key
+    Then the trip delete API responses are both <status>
+
+    Examples:
+      | role     | status |
+      | editor   | 403    |
+      | stranger | 404    |
+
+  Scenario: Concurrent trip deletes both succeed
+    Given I am signed in
+    And a trip for the delete API where I am "manager"
+    When I delete the trip concurrently through the API
+    Then the trip delete API responses are both 204
+    And the delete API trip and its legacy documents are removed

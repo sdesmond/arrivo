@@ -130,6 +130,20 @@ Then("the contributor's open trip page no longer shows the sharing dialog", asyn
   await expect(contributorPage.getByRole("heading", { name: "Share trip" })).not.toBeVisible({ timeout: 10_000 });
 });
 
+When("I delete the shared trip from its detail page with live sync connected", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  await openTripWithLiveSync(page, trip.id);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Delete trip", exact: true }).click();
+  const response = waitForApiResponse(page, { method: "DELETE", path: `/api/v1/trips/${trip.id}` });
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  expect((await response).status()).toBe(204);
+});
+
+Then("the owner returns to the trips list with no deletion dialog", async ({ page }) => {
+  await expect(page).toHaveURL(/\/trips\/?$/, { timeout: 15_000 });
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+});
 Then("the contributor's open trip page redirects to the trips list with a deletion notice", async ({ scenario }) => {
   const contributorPage = scenario.getValue<Page>(CONTRIBUTOR_PAGE_KEY);
   if (!contributorPage) throw new Error("No contributor page is open for this scenario.");

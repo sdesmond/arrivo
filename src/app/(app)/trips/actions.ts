@@ -1,56 +1,10 @@
 "use server";
 
 import { requireUser } from "@/lib/auth-helpers";
-import { assertTripAccess } from "@/lib/auth-helpers";
-import { db } from "@/db";
-import { trips, collaborators, documents } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { getStorageAdapter } from "@/lib/storage/storage-adapter";
-import { LiveSyncEventType } from "@/data/types";
-import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { saveTripListAsTemplate as saveTripListAsTemplateAction } from "./packing-actions";
-
-export async function deleteTrip(tripId: string) {
-  const user = await requireUser();
-  await assertTripAccess(tripId, user.id!, "manager");
-
-  const tripDocs = await db.select({ url: documents.url }).from(documents).where(eq(documents.tripId, tripId));
-  const tripCollaborators = await db
-    .select({ userId: collaborators.userId })
-    .from(collaborators)
-    .where(eq(collaborators.tripId, tripId));
-
-  await db.delete(trips).where(eq(trips.id, tripId));
-
-  publishTripEvent(tripId, { type: LiveSyncEventType.TripDeleted, tripId });
-  // publishTripEvent above reaches anyone with the trip page open (useTripLiveRefresh). Collaborators
-  // without that page open — e.g. watching their dashboard — only hold their personal channel, so
-  // each one (other than the acting manager, who is already navigating away client-side) needs its
-  // own push too, mirroring the removedUserIds loop in the sharing service's saveContributorChanges.
-  for (const collaborator of tripCollaborators) {
-    if (collaborator.userId && collaborator.userId !== user.id) {
-      publishUserEvent(collaborator.userId, { type: LiveSyncEventType.TripDeleted, tripId });
-    }
-  }
-  purgeTripTopic(tripId);
-
-  const urlsToCleanup = tripDocs.map((doc) => doc.url).filter((url): url is string => !!url);
-  if (urlsToCleanup.length > 0) {
-    await Promise.all(
-      urlsToCleanup.map((url) =>
-        getStorageAdapter()
-          .del(url)
-          .catch((error) => console.warn(`Cleanup failed for ${url}`, error))
-      )
-    );
-  }
-
-  revalidatePath("/trips");
-}
 
 export async function saveTripListAsTemplate(
   tripId: string,

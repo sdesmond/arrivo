@@ -72,6 +72,7 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/api-trip-dates.steps.ts",
     "tests/e2e/steps/api-trip-snapshot.steps.ts",
     "tests/e2e/steps/api-create-trip.steps.ts",
+    "tests/e2e/steps/api-trip-delete.steps.ts",
     "src/lib/services/trip-cover-generation.ts",
     "src/app/api/v1/trips/route.ts",
     "tests/e2e/trip-patch-response.ts",
@@ -548,6 +549,9 @@ export const FEATURE_MAP = [
   // dashboard hook is mounted in the trips page-client and every scenario lands on `/trips`, so it
   // can move any feature — naming it here would demote it to these two scenarios.
   entry("dashboard-live-sync", [
+    "src/lib/services/trips.ts",
+    "src/app/api/v1/trips/*/route.ts",
+    "tests/e2e/steps/trip-delete.steps.ts",
     "src/lib/services/sharing.ts",
     "src/lib/membership-writes.ts",
     "src/components/arrivo/use-trip-share-dialog-controller.ts",
@@ -908,7 +912,15 @@ export const FEATURE_MAP = [
     "src/app/api/mapbox/static/**",
     ...STORAGE,
   ]),
-  entry("trip-delete", ["src/components/arrivo/delete-trip-alert-dialog.tsx", ...STORAGE]),
+  entry("trip-delete", [
+    "src/components/arrivo/delete-trip-alert-dialog.tsx",
+    "src/lib/services/trips.ts",
+    "src/lib/api/contract/trips.ts",
+    "src/app/api/v1/trips/*/route.ts",
+    "src/app/(app)/trips/use-trips-page-handlers.ts",
+    "src/app/(app)/trips/[tripId]/use-trip-detail-handlers.ts",
+    ...STORAGE,
+  ]),
   entry("leave-trip", [
     "src/components/arrivo/leave-trip-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/use-leave-trip.ts",
@@ -921,6 +933,8 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("trip-live-refresh", [
+    "src/lib/services/trips.ts",
+    "src/app/api/v1/trips/*/route.ts",
     "src/lib/services/packing.ts",
     "src/app/api/v1/packing-items/**",
     "src/app/api/v1/trips/*/packing/**",

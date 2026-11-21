@@ -1,6 +1,5 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
-import { waitForServerActionSettled } from "../server-action";
 
 Given("I have a trip available to delete from the listing page", async ({ page, scenario }) => {
   await scenario.ensureCurrentTrip("deleteTrip");
@@ -30,10 +29,12 @@ When("I choose {string} from the trip options menu", async ({ page }, action: st
 });
 
 When("I confirm the trip deletion", async ({ page }) => {
-  // Used from the trip list and from Travel History, so any page's server action counts.
-  const deleted = waitForServerActionSettled(page, { pathIncludes: "" });
+  const deleted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "DELETE" && /\/api\/v1\/trips\/[^/]+$/.test(new URL(response.url()).pathname)
+  );
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  expect(await deleted).toBe(true);
+  expect((await deleted).status()).toBe(204);
 });
 
 Then("the trip {string} is no longer visible in the trip list", async ({ page }, tripName: string) => {
@@ -54,8 +55,31 @@ When("I delete the trip", async ({ page, scenario }) => {
   }).toPass({ timeout: 10_000 });
   await deleteTripItem.click();
   // Wait for the delete action itself: under load it can outlast the card assertion's timeout on its own.
-  const deleted = waitForServerActionSettled(page, { pathIncludes: "/trips" });
+  const deleted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/v1/trips/${trip.id}`
+  );
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  expect(await deleted).toBe(true);
+  expect((await deleted).status()).toBe(204);
   await expect(page.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0);
+});
+
+When("I open that trip and delete it from its detail page", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
+  await page.goto(`/trips/${trip.id}`);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Delete trip", exact: true }).click();
+  const deleted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/v1/trips/${trip.id}`
+  );
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  expect((await deleted).status()).toBe(204);
+});
+Then("I return to the trips list after deletion", async ({ page }) => {
+  await expect(page).toHaveURL(/\/trips\/?$/);
+});
+
+Then("the trip deletion dialog is closed", async ({ page }) => {
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });

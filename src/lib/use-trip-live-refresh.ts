@@ -31,7 +31,11 @@ const REFRESH_EVENT_TYPES = new Set<LiveSyncEventType>([
  * refresh's round trip to correct role-gated UI. A personal `membership-left` naming this trip
  * means the user left it themselves elsewhere, so the view closes back to the trips list.
  */
-export function useTripLiveRefresh(tripId: string, onSelfRoleChanged?: () => void): void {
+export function useTripLiveRefresh(
+  tripId: string,
+  onSelfRoleChanged?: () => void,
+  shouldDeferTripDeleted?: () => boolean
+): void {
   const router = useRouter();
   const onSelfRoleChangedRef = useRef(onSelfRoleChanged);
   useEffect(() => {
@@ -40,6 +44,7 @@ export function useTripLiveRefresh(tripId: string, onSelfRoleChanged?: () => voi
 
   function handleEvent(event: LiveSyncEvent): void {
     if (event.type !== LiveSyncEventType.TripDeleted) return;
+    if (shouldDeferTripDeleted?.()) return;
     toast.error("This trip was deleted.");
     router.push("/trips");
   }

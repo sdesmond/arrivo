@@ -116,7 +116,7 @@ export function TripDetailClient({
     setDialogResetNonce((current) => current + 1);
   }
 
-  useTripLiveRefresh(trip.id, forceCloseRoleGatedDialogs);
+  useTripLiveRefresh(trip.id, forceCloseRoleGatedDialogs, handlers.deferTripDeletedEvent);
   useBfcacheRefresh();
 
   const revocationTicket = useSyncExternalStore(subscribeRevocation, getRevocationTicket, getServerRevocationTicket);
