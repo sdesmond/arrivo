@@ -82,10 +82,6 @@ const { mockSearchBoxSuggest, mockSearchBoxRetrieve } = vi.hoisted(() => ({
   mockSearchBoxRetrieve: vi.fn(),
 }));
 
-const { saveTripListAsTemplateAction } = vi.hoisted(() => ({
-  saveTripListAsTemplateAction: vi.fn(),
-}));
-
 vi.mock("@mapbox/search-js-core", () => ({
   // Must use regular functions (not arrows) so `new SearchBoxCore()` works as a constructor
   SearchBoxCore: vi.fn(function (this: Record<string, unknown>) {
@@ -97,17 +93,8 @@ vi.mock("@mapbox/search-js-core", () => ({
   }),
 }));
 
-vi.mock("./packing-actions", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./packing-actions")>();
-
-  return {
-    ...actual,
-    saveTripListAsTemplate: saveTripListAsTemplateAction,
-  };
-});
-
 import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "./date-sync";
-import { retrieveLocation, saveTripListAsTemplate, searchAddressLocations, searchLocations } from "./actions";
+import { retrieveLocation, searchAddressLocations, searchLocations } from "./actions";
 
 describe("resolveTripDateRange", () => {
   it("fills a missing end date from the requested start date", () => {
@@ -554,35 +541,6 @@ describe("retrieveLocation", () => {
     mockSearchBoxRetrieve.mockRejectedValue(new Error("Network failure"));
 
     await expect(retrieveLocation("some-id", "sess")).rejects.toThrow("Location retrieve failed: Network failure");
-  });
-});
-
-describe("packing action delegation", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    saveTripListAsTemplateAction.mockResolvedValue({ templateId: "tmpl-new" });
-  });
-
-  it("delegates to packing-actions with the same arguments", async () => {
-    await expect(saveTripListAsTemplate("trip-1", "My Template", "idem-1")).resolves.toEqual({
-      templateId: "tmpl-new",
-    });
-
-    expect(saveTripListAsTemplateAction).toHaveBeenCalledWith("trip-1", "My Template", "idem-1");
-  });
-
-  it("allows callers to omit the idempotency key", async () => {
-    await expect(saveTripListAsTemplate("trip-1", "Beach Holiday")).resolves.toEqual({
-      templateId: "tmpl-new",
-    });
-
-    expect(saveTripListAsTemplateAction).toHaveBeenCalledWith("trip-1", "Beach Holiday", undefined);
-  });
-
-  it("surfaces delegate failures unchanged", async () => {
-    saveTripListAsTemplateAction.mockRejectedValueOnce(new Error("Template name is required"));
-
-    await expect(saveTripListAsTemplate("trip-1", "   ")).rejects.toThrow("Template name is required");
   });
 });
 

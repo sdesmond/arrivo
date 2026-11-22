@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { useTripDetailHandlers } from "./use-trip-detail-handlers";
 import { api } from "@/lib/api/client";
-import { saveTripListAsTemplate } from "../actions";
 import { type TripDetailPayload } from "@/data/types";
 
 const { mockPush, mockRefresh } = vi.hoisted(() => ({
@@ -17,10 +16,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
-}));
-
-vi.mock("../actions", () => ({
-  saveTripListAsTemplate: vi.fn(),
 }));
 
 const detail: TripDetailPayload = {
@@ -785,31 +780,37 @@ describe("useTripDetailHandlers", () => {
     expect(pullResult).toBeUndefined();
   });
 
-  it("handleSaveAsTemplate calls saveTripListAsTemplate with trip id and name, resolves with templateId", async () => {
-    vi.mocked(saveTripListAsTemplate).mockResolvedValueOnce({ templateId: "tmpl-abc" });
+  it("handleSaveAsTemplate posts the list id, trip id and name, resolves with the template id", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockResolvedValueOnce({ id: "tmpl-abc" });
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     let saveResult: Awaited<ReturnType<typeof result.current.handleSaveAsTemplate>>;
     await act(async () => {
-      saveResult = await result.current.handleSaveAsTemplate("My Template");
+      saveResult = await result.current.handleSaveAsTemplate("My Template", "list-1");
     });
 
-    expect(saveTripListAsTemplate).toHaveBeenCalledWith("trip-1", "My Template");
-    await waitFor(() => expect(saveResult).toBe("tmpl-abc"));
+    expect(api).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "POST", path: "/api/v1/packing-lists/:listId/template" }),
+      { params: { listId: "list-1" }, body: { tripId: "trip-1", id: expect.any(String), name: "My Template" } }
+    );
+    const sentId = (vi.mocked(api).mock.calls.at(-1)![1] as { body: { id: string } }).body.id;
+    await waitFor(() => expect(saveResult).toBe(sentId));
   });
 
-  it("handleSaveAsTemplate shows toast.error and resolves undefined when action throws", async () => {
-    vi.mocked(saveTripListAsTemplate).mockRejectedValueOnce(new Error("Save failed"));
+  it("handleSaveAsTemplate shows toast.error and resolves undefined when the request fails", async () => {
+    const { api } = await import("@/lib/api/client");
+    vi.mocked(api).mockRejectedValueOnce(new Error("Save failed"));
 
     const { result } = renderHook(() => useTripDetailHandlers(detail));
 
     let saveResult: Awaited<ReturnType<typeof result.current.handleSaveAsTemplate>>;
     await act(async () => {
-      saveResult = await result.current.handleSaveAsTemplate("My Template");
+      saveResult = await result.current.handleSaveAsTemplate("My Template", "list-1");
     });
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not save changes. Try again."));
     expect(saveResult).toBeUndefined();
   });
 });

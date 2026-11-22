@@ -487,6 +487,14 @@ Repeating the same `id` with the same name returns the current template without 
 
 No query fields. Returns only the caller's templates, ordered by name (case-insensitive), then creation time.
 
+### POST /api/v1/packing-lists/:listId/template
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplate`
+
+Saves one packing list as a template owned by the caller. Body (strict): `tripId` (the list's trip, required), `id` (a client-chosen UUID for the template, required) and `name` (required, trimmed, at most 30 characters). Only that list's items are copied, in order, with each item's section link rebuilt inside the template and every item unchecked. Items of other lists, the default list and other trips are never copied; the list itself is unchanged.
+
+A blank or over-limit name returns 422 `validation_failed`, as does a list with no items; nothing is written. A caller below editor gets 403 `forbidden` (404 `not_found` with no access to the trip); a list that does not exist or is in another trip returns 404 `not_found`. Repeating the same `id` with the same name returns the current template without a second copy, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found`. A keyed replay returns the stored response after rechecking the caller's access to the trip.
+
 ## Trip notes
 
 Notes on the trip's Notes tab.

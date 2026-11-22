@@ -30,3 +30,14 @@ Feature: Save trip packing list as a template
     When I open the packing tab for the save-template trip
     And I save the packing list as template named "Checked Test"
     Then the saved template should have no checked items
+
+  Scenario: Only the open list is saved when the trip has several lists
+    Given I have a trip with packing items for save-as-template
+    And the save-template trip also has a second packing list
+    When I open the packing tab for the save-template trip
+    And I open the save-as-template dialog
+    Then the save dialog announces 2 items
+    When I confirm the save dialog with the name "Two Lists Test"
+    Then the template "Two Lists Test" holds exactly "Passport" and "Toothbrush"
+    And the packing tab still shows "Passport"
+

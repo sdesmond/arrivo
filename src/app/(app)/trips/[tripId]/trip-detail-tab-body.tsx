@@ -93,7 +93,7 @@ export interface TripDetailTabBodyProps {
   ) => void;
   onEditPackingItem: (id: string, name: string) => void;
   onPullTemplates: (templateIds: string[]) => Promise<PullTemplatesResult | undefined>;
-  onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
+  onSaveAsTemplate?: (name: string, listId: string) => Promise<string | undefined>;
   onCreatePackingList: (name: string) => Promise<string | undefined>;
   onRenamePackingList: (listId: string, name: string) => Promise<void>;
   onDeletePackingList: (listId: string) => Promise<void>;

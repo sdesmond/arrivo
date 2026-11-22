@@ -2591,6 +2591,50 @@ Feature: Absolute checklist checked-state API
       | viewer   | 403    | forbidden |
       | stranger | 404    | not_found |
 
+  Scenario: Saving a packing list as a template copies only that list and replays safely
+    Given a scenario-owned packing list API fixture
+    And the doomed packing list also holds a section with an item
+    And my checklist API role is "editor"
+    When I save the doomed packing list as a template twice with one key and once with another
+    Then the template saves answer 200 and hold only the doomed list items once
+
+  Scenario: Saving a packing list under a used template id with another name conflicts
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I save the doomed packing list as a template under another name
+    Then the second template save conflicts and the template keeps its name
+
+  Scenario: Saving a packing list under another user's template id is not found
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I save the doomed packing list under the id of another user's template
+    Then the template save answers 404 with code "not_found" and nothing was copied
+
+  Scenario: Saving an empty, missing or wrong-trip packing list writes nothing
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I save an empty packing list, a missing list and a list of another trip as templates
+    Then the template saves answer 422 then 404 then 404 and write nothing
+
+  Scenario Outline: Saving a packing list as a template requires editor access
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "<role>"
+    When I attempt to save the doomed packing list as a template
+    Then the template save is denied with <status> and nothing is written
+
+    Examples:
+      | role     | status |
+      | viewer   | 403    |
+      | stranger | 404    |
+
+  Scenario: Saving a packing list as a template replay rechecks access
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I commit a keyed save of the doomed packing list as a template
+    And my checklist API role is "viewer"
+    And I replay the keyed template save
+    Then the keyed template save replay is forbidden
+
   Scenario: Template pull ignores foreign templates and replays safely
     Given a scenario-owned packing list API fixture
     And owned and foreign templates for the packing pull API

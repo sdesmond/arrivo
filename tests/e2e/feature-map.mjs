@@ -381,7 +381,6 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
     "src/app/(app)/trips/[tripId]/reservations/actions.ts",
-    "src/app/(app)/trips/packing-actions.ts",
     "src/components/arrivo/app-activity.tsx",
     "src/components/arrivo/app-activity-viewer.tsx",
     "src/components/arrivo/app-users-list.tsx",
@@ -725,10 +724,9 @@ export const FEATURE_MAP = [
     "src/components/arrivo/droppable-packing-section.tsx",
     "src/components/arrivo/delete-packing-section-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
-    "src/app/(app)/trips/packing-actions.ts",
-    // Packing keeps raw keys in the idempotency_keys table that API replay namespaces its own rows in.
+    // Packing writes go through API replay, which stores its rows in idempotency_keys.
     "src/lib/api/idempotency.ts",
-    // Its save-as-template replay window is the retention.
+    // The replay window is the retention.
     "src/lib/idempotency-retention.ts",
     "src/lib/services/conflict-error.ts",
     "src/lib/error-utils.ts",
@@ -836,7 +834,10 @@ export const FEATURE_MAP = [
   ]),
   entry("save-trip-as-template", [
     "src/components/arrivo/save-as-template-dialog.tsx",
-    "src/app/(app)/trips/packing-actions.ts",
+    "src/components/arrivo/packing-lists-view.tsx",
+    "src/lib/services/packing-templates.ts",
+    "src/lib/api/contract/packing-templates.ts",
+    "src/app/api/v1/packing-lists/*/template/**",
     "src/app/(app)/trips/[tripId]/use-packing-handlers.ts",
   ]),
   entry("schedule-conflict", [
