@@ -246,3 +246,152 @@ Then("those lifecycle requests are rejected and the template is unchanged", asyn
   );
   expect(items.map((item) => item.text)).toEqual(["First", "Second"]);
 });
+
+interface TemplateItemApiState {
+  ownedId: string;
+  foreignId: string;
+  createdIds: string[];
+  responses: APIResponse[];
+}
+const itemStates = new WeakMap<Page, TemplateItemApiState>();
+function itemState(page: Page): TemplateItemApiState {
+  const current = itemStates.get(page);
+  if (!current) throw new Error("Packing template item API state missing");
+  return current;
+}
+function itemHeaders(page: Page, key?: string): Record<string, string> {
+  return {
+    "x-arrivo-client": "web",
+    origin: new URL(page.url()).origin,
+    ...(key ? { "Idempotency-Key": key } : {}),
+  };
+}
+async function sendItem(
+  page: Page,
+  method: "post" | "patch" | "delete",
+  path: string,
+  data: Record<string, unknown>,
+  key?: string
+): Promise<APIResponse> {
+  const response = await (await apiClient(page))[method](path, { headers: itemHeaders(page, key), data });
+  itemState(page).responses.push(response);
+  return response;
+}
+async function storedItems(templateId: string) {
+  return withE2EDb((database) =>
+    database
+      .select()
+      .from(packingTemplateItems)
+      .where(eq(packingTemplateItems.templateId, templateId))
+      .orderBy(packingTemplateItems.position)
+  );
+}
+async function itemIdByText(templateId: string, text: string): Promise<string> {
+  const row = (await storedItems(templateId)).find((item) => item.text === text);
+  if (!row) throw new Error(`Template item "${text}" missing`);
+  return row.id;
+}
+
+Given("owned and foreign sectioned templates for the template item API", async ({ page, scenario }) => {
+  const items = [
+    { text: "Gear", isLabel: true, position: 0 },
+    { text: "Boots", isLabel: false, position: 1, under: "Gear" },
+    { text: "Socks", isLabel: false, position: 2, under: "Gear" },
+    { text: "Loose", isLabel: false, position: 3 },
+  ];
+  await scenario.ensureCurrentUser();
+  const owned = await scenario.materialize({ template: { overrides: { items }, setCurrent: false } });
+  const other = await scenario.materialize({ user: { setCurrent: false } });
+  const foreign = await scenario.materialize({
+    template: { overrides: { items }, userId: other.user!.id, setCurrent: false },
+  });
+  itemStates.set(page, { ownedId: owned.template!.id, foreignId: foreign.template!.id, createdIds: [], responses: [] });
+});
+
+When("I add template items at the end, before and after the first item through the API", async ({ page }) => {
+  const current = itemState(page);
+  const first = await itemIdByText(current.ownedId, "Gear");
+  const path = `/api/v1/packing-templates/${current.ownedId}/items`;
+  const ids = [randomUUID(), randomUUID(), randomUUID()];
+  current.createdIds = ids;
+  await sendItem(page, "post", path, { id: ids[0], text: "Last" });
+  await sendItem(page, "post", path, { id: ids[1], text: "Before", beforeItemId: first });
+  const key = randomUUID();
+  await sendItem(page, "post", path, { id: ids[2], text: "After", afterItemId: first }, key);
+  await sendItem(page, "post", path, { id: ids[2], text: "After", afterItemId: first }, key);
+});
+Then("the template items read back in the order sent without a duplicate", async ({ page }) => {
+  const current = itemState(page);
+  for (const response of current.responses) expect(response.status()).toBe(200);
+  const rows = await storedItems(current.ownedId);
+  expect(rows.map((row) => row.text)).toEqual(["Before", "Gear", "After", "Boots", "Socks", "Loose", "Last"]);
+  expect(rows.map((row) => row.position)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+});
+
+When("I edit, delete and then replay the creation of a template item through the API", async ({ page }) => {
+  const current = itemState(page);
+  const id = randomUUID();
+  current.createdIds = [id];
+  const path = `/api/v1/packing-templates/${current.ownedId}/items`;
+  await sendItem(page, "post", path, { id, text: "Hat" });
+  await sendItem(page, "patch", `/api/v1/packing-template-items/${id}`, { text: "Cap" });
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${id}`, {});
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${id}`, {});
+  await sendItem(page, "post", path, { id, text: "Cap" });
+});
+Then("the template item was edited and removed and is not recreated", async ({ page }) => {
+  const current = itemState(page);
+  expect(current.responses.map((response) => response.status())).toEqual([200, 200, 204, 204, 409]);
+  expect((await current.responses[1].json()).text).toBe("Cap");
+  expect((await current.responses[4].json()).error.code).toBe("conflict");
+  expect((await storedItems(current.ownedId)).map((row) => row.text)).not.toContain("Cap");
+});
+
+When("I remove the template section through the API with mode {string}", async ({ page }, mode: string) => {
+  const current = itemState(page);
+  const sectionId = await itemIdByText(current.ownedId, "Gear");
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${sectionId}/section`, { mode });
+});
+When("I delete the template section through the item API", async ({ page }) => {
+  const current = itemState(page);
+  const sectionId = await itemIdByText(current.ownedId, "Gear");
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${sectionId}`, {});
+});
+Then("the template section is gone and its items are deleted", async ({ page }) => {
+  const current = itemState(page);
+  expect(current.responses[0].status()).toBe(204);
+  expect((await storedItems(current.ownedId)).map((row) => row.text)).toEqual(["Loose"]);
+});
+Then("the template section is gone and its items are ungrouped", async ({ page }) => {
+  const current = itemState(page);
+  expect(current.responses[0].status()).toBe(204);
+  const rows = await storedItems(current.ownedId);
+  expect(rows.map((row) => row.text)).toEqual(["Boots", "Socks", "Loose"]);
+  expect(rows.every((row) => row.labelId === null)).toBe(true);
+});
+
+When("I send template item requests that reference the other user's template", async ({ page }) => {
+  const current = itemState(page);
+  const foreignItem = await itemIdByText(current.foreignId, "Boots");
+  const foreignSection = await itemIdByText(current.foreignId, "Gear");
+  const ownedPath = `/api/v1/packing-templates/${current.ownedId}/items`;
+  await sendItem(page, "post", `/api/v1/packing-templates/${current.foreignId}/items`, {
+    id: randomUUID(),
+    text: "Hijack",
+  });
+  await sendItem(page, "post", ownedPath, { id: randomUUID(), text: "Hijack", labelId: foreignSection });
+  await sendItem(page, "post", ownedPath, { id: randomUUID(), text: "Hijack", afterItemId: foreignItem });
+  await sendItem(page, "post", ownedPath, { id: foreignItem, text: "Boots" });
+  await sendItem(page, "patch", `/api/v1/packing-template-items/${foreignItem}`, { text: "Hijack" });
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${foreignItem}`, {});
+  await sendItem(page, "delete", `/api/v1/packing-template-items/${foreignSection}/section`, {
+    mode: "delete-items",
+  });
+});
+Then("those template item requests are refused and neither template changed", async ({ page }) => {
+  const current = itemState(page);
+  expect(current.responses.map((response) => response.status())).toEqual([404, 422, 422, 404, 404, 204, 204]);
+  const expected = ["Gear", "Boots", "Socks", "Loose"];
+  expect((await storedItems(current.foreignId)).map((row) => row.text)).toEqual(expected);
+  expect((await storedItems(current.ownedId)).map((row) => row.text)).toEqual(expected);
+});

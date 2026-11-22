@@ -1,34 +1,12 @@
 "use server";
 
-import { and, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
 import { requireUser } from "@/lib/auth-helpers";
 import { withErrorHandling } from "@/lib/error-utils";
 import { lockPackingTemplateForUpdate } from "@/lib/server-action-locks";
-import {
-  RemovePackingSectionMode,
-  type AddTemplateItemInput,
-  type RemovePackingSectionInput,
-  type UpdateTemplateItemInput,
-} from "@/data/types";
-
-const ITEM_TEXT_MAX = 30;
-
-function normalizeItemText(text: string | undefined): string {
-  const trimmed = text?.trim() ?? "";
-
-  if (!trimmed) {
-    throw new Error("Item text is required.");
-  }
-
-  if (trimmed.length > ITEM_TEXT_MAX) {
-    throw new Error(`Item text must be ${ITEM_TEXT_MAX} characters or fewer.`);
-  }
-
-  return trimmed;
-}
 
 async function assertTemplateOwnership(templateId: string, userId: string): Promise<void> {
   const [template] = await db
@@ -39,23 +17,6 @@ async function assertTemplateOwnership(templateId: string, userId: string): Prom
   if (!template) {
     throw new Error("Template not found.");
   }
-}
-
-async function assertItemOwnership(itemId: string, userId: string): Promise<{ templateId: string }> {
-  const [item] = await db
-    .select({ templateId: packingTemplateItems.templateId })
-    .from(packingTemplateItems)
-    .innerJoin(
-      packingTemplates,
-      and(eq(packingTemplateItems.templateId, packingTemplates.id), eq(packingTemplates.userId, userId))
-    )
-    .where(eq(packingTemplateItems.id, itemId));
-
-  if (!item) {
-    throw new Error("Item not found.");
-  }
-
-  return item;
 }
 
 type TemplateQueryExecutor = Pick<typeof db, "select">;
@@ -83,190 +44,6 @@ async function assertLabelsInTemplate(
   if (found.length !== uniqueLabelIds.length) {
     throw new Error("Invalid labelId.");
   }
-}
-
-async function addTemplateItemImpl(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
-  const user = await requireUser();
-  await assertTemplateOwnership(templateId, user.id!);
-  const text = normalizeItemText(input.text);
-  const labelId = input.isLabel ? null : (input.labelId ?? null);
-  await assertLabelsInTemplate(db, templateId, [labelId]);
-
-  let newItem: { id: string } | undefined;
-
-  if (input.afterItemId) {
-    const afterItemId = input.afterItemId;
-    newItem = await db.transaction(async (tx) => {
-      await lockPackingTemplateForUpdate(tx, templateId);
-
-      const [targetItem] = await tx
-        .select()
-        .from(packingTemplateItems)
-        .where(and(eq(packingTemplateItems.id, afterItemId), eq(packingTemplateItems.templateId, templateId)));
-
-      if (!targetItem) {
-        throw new Error("Target item not found.");
-      }
-
-      await tx
-        .update(packingTemplateItems)
-        .set({ position: sql`${packingTemplateItems.position} + 1` })
-        .where(
-          and(eq(packingTemplateItems.templateId, templateId), gt(packingTemplateItems.position, targetItem.position))
-        );
-
-      const [inserted] = await tx
-        .insert(packingTemplateItems)
-        .values({
-          templateId,
-          text,
-          isLabel: input.isLabel ?? false,
-          position: targetItem.position + 1,
-          labelId,
-        })
-        .returning({ id: packingTemplateItems.id });
-
-      return inserted;
-    });
-  } else if (input.beforeItemId) {
-    const beforeItemId = input.beforeItemId;
-    newItem = await db.transaction(async (tx) => {
-      await lockPackingTemplateForUpdate(tx, templateId);
-
-      const [targetItem] = await tx
-        .select()
-        .from(packingTemplateItems)
-        .where(and(eq(packingTemplateItems.id, beforeItemId), eq(packingTemplateItems.templateId, templateId)));
-
-      if (!targetItem) {
-        throw new Error("Target item not found.");
-      }
-
-      await tx
-        .update(packingTemplateItems)
-        .set({ position: sql`${packingTemplateItems.position} + 1` })
-        .where(
-          and(
-            eq(packingTemplateItems.templateId, templateId),
-            gt(packingTemplateItems.position, targetItem.position - 1)
-          )
-        );
-
-      const [inserted] = await tx
-        .insert(packingTemplateItems)
-        .values({
-          templateId,
-          text,
-          isLabel: input.isLabel ?? false,
-          position: targetItem.position,
-          labelId,
-        })
-        .returning({ id: packingTemplateItems.id });
-
-      return inserted;
-    });
-  } else {
-    const [inserted] = await db.transaction(async (tx) => {
-      await lockPackingTemplateForUpdate(tx, templateId);
-
-      const [{ maxPos }] = await tx
-        .select({ maxPos: max(packingTemplateItems.position) })
-        .from(packingTemplateItems)
-        .where(eq(packingTemplateItems.templateId, templateId));
-
-      return tx
-        .insert(packingTemplateItems)
-        .values({
-          templateId,
-          text,
-          isLabel: input.isLabel ?? false,
-          position: (maxPos ?? -1) + 1,
-          labelId,
-        })
-        .returning({ id: packingTemplateItems.id });
-    });
-
-    newItem = inserted;
-  }
-
-  if (!newItem) {
-    throw new Error("Failed to create template item.");
-  }
-
-  revalidatePath(`/packing/${templateId}`);
-  return { id: newItem.id };
-}
-
-async function updateTemplateItemImpl(itemId: string, input: UpdateTemplateItemInput): Promise<void> {
-  const user = await requireUser();
-  const { templateId } = await assertItemOwnership(itemId, user.id!);
-  const text = normalizeItemText(input.text);
-
-  await db.update(packingTemplateItems).set({ text }).where(eq(packingTemplateItems.id, itemId));
-
-  revalidatePath(`/packing/${templateId}`);
-}
-
-async function removeTemplateItemImpl(itemId: string): Promise<void> {
-  const user = await requireUser();
-  const { templateId } = await assertItemOwnership(itemId, user.id!);
-
-  await db.delete(packingTemplateItems).where(eq(packingTemplateItems.id, itemId));
-
-  revalidatePath(`/packing/${templateId}`);
-}
-
-async function removeTemplateSectionImpl(itemId: string, input: RemovePackingSectionInput): Promise<void> {
-  const user = await requireUser();
-  const { templateId } = await assertItemOwnership(itemId, user.id!);
-
-  const [section] = await db
-    .select({
-      id: packingTemplateItems.id,
-      templateId: packingTemplateItems.templateId,
-      isLabel: packingTemplateItems.isLabel,
-    })
-    .from(packingTemplateItems)
-    .where(and(eq(packingTemplateItems.id, itemId), eq(packingTemplateItems.templateId, templateId)));
-
-  if (!section || section.isLabel !== true) {
-    throw new Error("Section not found.");
-  }
-
-  await db.transaction(async (tx) => {
-    await lockPackingTemplateForUpdate(tx, templateId);
-
-    const [lockedSection] = await tx
-      .select({
-        id: packingTemplateItems.id,
-        isLabel: packingTemplateItems.isLabel,
-      })
-      .from(packingTemplateItems)
-      .where(and(eq(packingTemplateItems.id, itemId), eq(packingTemplateItems.templateId, templateId)));
-
-    if (!lockedSection || lockedSection.isLabel !== true) {
-      throw new Error("Section not found.");
-    }
-
-    if (input.mode === RemovePackingSectionMode.MoveItemsToUngrouped) {
-      await tx
-        .update(packingTemplateItems)
-        .set({ labelId: null })
-        .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, itemId)));
-    } else {
-      await tx
-        .delete(packingTemplateItems)
-        .where(
-          and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.labelId, lockedSection.id))
-        );
-    }
-
-    await tx
-      .delete(packingTemplateItems)
-      .where(and(eq(packingTemplateItems.templateId, templateId), eq(packingTemplateItems.id, lockedSection.id)));
-  });
-
-  revalidatePath(`/packing/${templateId}`);
 }
 
 async function reorderTemplateItemsImpl(
@@ -299,27 +76,7 @@ async function reorderTemplateItemsImpl(
   revalidatePath(`/packing/${templateId}`);
 }
 
-const addTemplateItemWithErrorHandling = withErrorHandling(addTemplateItemImpl);
-const updateTemplateItemWithErrorHandling = withErrorHandling(updateTemplateItemImpl);
-const removeTemplateItemWithErrorHandling = withErrorHandling(removeTemplateItemImpl);
-const removeTemplateSectionWithErrorHandling = withErrorHandling(removeTemplateSectionImpl);
 const reorderTemplateItemsWithErrorHandling = withErrorHandling(reorderTemplateItemsImpl);
-
-export async function addTemplateItem(templateId: string, input: AddTemplateItemInput): Promise<{ id: string }> {
-  return addTemplateItemWithErrorHandling(templateId, input);
-}
-
-export async function updateTemplateItem(itemId: string, input: UpdateTemplateItemInput): Promise<void> {
-  return updateTemplateItemWithErrorHandling(itemId, input);
-}
-
-export async function removeTemplateItem(itemId: string): Promise<void> {
-  return removeTemplateItemWithErrorHandling(itemId);
-}
-
-export async function removeTemplateSection(itemId: string, input: RemovePackingSectionInput): Promise<void> {
-  return removeTemplateSectionWithErrorHandling(itemId, input);
-}
 
 export async function reorderTemplateItems(
   templateId: string,

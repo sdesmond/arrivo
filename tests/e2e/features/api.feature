@@ -2965,3 +2965,39 @@ Feature: Absolute checklist checked-state API
     Given an owned template with ordered items for the packing template API
     When I send invalid template lifecycle requests
     Then those lifecycle requests are rejected and the template is unchanged
+
+  Scenario: Template items insert at the end, before and after an anchor and replay safely
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I add template items at the end, before and after the first item through the API
+    Then the template items read back in the order sent without a duplicate
+
+  Scenario: Template item edits persist and a deleted item is not recreated by a replay
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I edit, delete and then replay the creation of a template item through the API
+    Then the template item was edited and removed and is not recreated
+
+  Scenario: Removing a template section deletes its items
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I remove the template section through the API with mode "delete-items"
+    Then the template section is gone and its items are deleted
+
+  Scenario: Removing a template section can ungroup its items
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I remove the template section through the API with mode "move-items-to-ungrouped"
+    Then the template section is gone and its items are ungrouped
+
+  Scenario: Deleting a template section as a plain item leaves its items ungrouped
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I delete the template section through the item API
+    Then the template section is gone and its items are ungrouped
+
+  Scenario: Template item requests cannot reach another user's template
+    Given I am signed in
+    And owned and foreign sectioned templates for the template item API
+    When I send template item requests that reference the other user's template
+    Then those template item requests are refused and neither template changed

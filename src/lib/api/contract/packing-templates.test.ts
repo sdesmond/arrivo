@@ -60,3 +60,41 @@ it("validates lifecycle parameters and rename bodies", async () => {
     expect(renamePackingTemplate.body.safeParse({ name }).success).toBe(false);
   expect(deletePackingTemplate.status).toBe(204);
 });
+
+it("validates template item create, update, delete and section removal contracts", async () => {
+  const {
+    createPackingTemplateItem,
+    updatePackingTemplateItem,
+    deletePackingTemplateItem,
+    removePackingTemplateSection,
+  } = await import("./packing-templates");
+  const other = "123e4567-e89b-12d3-a456-426614174001";
+  expect(createPackingTemplateItem.path).toBe("/api/v1/packing-templates/:templateId/items");
+  expect(createPackingTemplateItem.params.parse({ templateId: uuid.toUpperCase() })).toEqual({ templateId: uuid });
+  expect(createPackingTemplateItem.body.parse({ id: uuid.toUpperCase(), text: " Hat ", labelId: other })).toEqual({
+    id: uuid,
+    text: "Hat",
+    labelId: other,
+  });
+  for (const body of [
+    { id: uuid, text: "  " },
+    { id: uuid, text: "x".repeat(FIELD_LIMITS.packingItemText + 1) },
+    { id: uuid, text: "Hat", extra: true },
+    { text: "Hat" },
+    { id: uuid, text: "Hat", beforeItemId: other, afterItemId: other },
+    { id: uuid, text: "Zone", isLabel: true, labelId: other },
+  ])
+    expect(createPackingTemplateItem.body.safeParse(body).success).toBe(false);
+  expect(updatePackingTemplateItem.body.parse({ text: " Cap " })).toEqual({ text: "Cap" });
+  expect(updatePackingTemplateItem.body.safeParse({ text: "" }).success).toBe(false);
+  expect(updatePackingTemplateItem.body.safeParse({ text: "Cap", extra: 1 }).success).toBe(false);
+  for (const endpoint of [updatePackingTemplateItem, deletePackingTemplateItem, removePackingTemplateSection]) {
+    expect(endpoint.params.parse({ itemId: uuid.toUpperCase() })).toEqual({ itemId: uuid });
+    expect(endpoint.params.safeParse({ itemId: "bad" }).success).toBe(false);
+  }
+  expect(deletePackingTemplateItem.status).toBe(204);
+  expect(deletePackingTemplateItem.body.safeParse({ extra: 1 }).success).toBe(false);
+  expect(removePackingTemplateSection.status).toBe(204);
+  expect(removePackingTemplateSection.body.parse({ mode: "delete-items" })).toEqual({ mode: "delete-items" });
+  expect(removePackingTemplateSection.body.safeParse({ mode: "other" }).success).toBe(false);
+});

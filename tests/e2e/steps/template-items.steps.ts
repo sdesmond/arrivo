@@ -6,6 +6,7 @@ import { type TemplateItemSeed } from "../e2e-seed-data";
 import { type ScenarioFixtureContext } from "../scenario-fixture";
 import { Given, Then, When } from "../fixtures";
 import { waitForServerActionResponse } from "../server-action";
+import { waitForApiResponse } from "../api-response";
 
 async function getTemplateEditorId(userId: string, name: string): Promise<string> {
   return withE2EDb(async (db) => {
@@ -135,7 +136,8 @@ When("I add the template item {string}", async ({ page }, name: string) => {
 
 When("I add the template label {string}", async ({ page }, name: string) => {
   await page.getByPlaceholder("New section…").fill(name);
-  const response = waitForServerActionResponse(page, { pathIncludes: "/packing/" });
+  const templateId = new URL(page.url()).pathname.split("/").pop();
+  const response = waitForApiResponse(page, { method: "POST", path: `/api/v1/packing-templates/${templateId}/items` });
   await page.keyboard.press("Enter");
   await response;
   await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 10_000 });
