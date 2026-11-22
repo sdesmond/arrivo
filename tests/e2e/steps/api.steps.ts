@@ -4806,3 +4806,21 @@ Then("trip currency conversion is rolled back", async ({ page, scenario }) => {
   expect(expense.convertedCurrencyTrip).toBe("USD");
   expect(Number(expense.convertedAmountTrip)).toBe(100);
 });
+
+When("I delete that saved template through the API", async ({ page }) => {
+  const current = saveTemplateApi(page);
+  const response = await (
+    await apiClient(page)
+  ).delete(`/api/v1/packing-templates/${current.templateId}`, {
+    headers: { "x-arrivo-client": "web", origin: new URL(page.url()).origin },
+    data: {},
+  });
+  expect(response.status()).toBe(204);
+});
+Then("the deleted saved template replay is not found", async ({ page }) => {
+  const current = saveTemplateApi(page);
+  expect(current.responses.map((response) => response.status)).toEqual([200, 404]);
+  const stored = await storedSavedTemplates(current.templateId);
+  expect(stored.templates).toHaveLength(0);
+  expect(stored.items).toHaveLength(0);
+});

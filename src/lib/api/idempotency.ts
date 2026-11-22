@@ -112,6 +112,7 @@ interface IdempotencySteps<Result> {
   /** Must acquire any resource locks and re-verify the actor's access; runs before any stored result is read. */
   authorize: () => Promise<void>;
   mutate: () => Promise<Result>;
+  validateReplay?: (result: Result) => Promise<void>;
 }
 
 /**
@@ -153,7 +154,9 @@ export async function withIdempotency<Result>(
       if (stored.fingerprint !== fingerprint) {
         throw new ConflictError("This Idempotency-Key was already used for a different request.");
       }
-      return { value: stored.response as Result, replayed: true };
+      const value = stored.response as Result;
+      await steps.validateReplay?.(value);
+      return { value, replayed: true };
     }
   }
 

@@ -2927,3 +2927,41 @@ Feature: Absolute checklist checked-state API
     And my own and a different user's templates for the packing template API
     When I list my templates through the API
     Then my template list holds my template but not the different user's
+
+  Scenario: Foreign template lifecycle is hidden
+    Given I am signed in
+    And a new template id and name for the packing template API
+    And my own and a different user's templates for the packing template API
+    When I request and mutate the foreign template through the API
+    Then foreign template lifecycle responses hide ownership
+    And the different user's template is unchanged
+
+  Scenario: Deleted templates stay deleted on keyed replay
+    Given I am signed in
+    And a new template id and name for the packing template API
+    When I create, rename and delete that template and replay both writes
+    Then the deleted template remains absent on replay
+
+  Scenario: Deleting a template cascades its items
+    Given I am signed in
+    And an owned template with an item for the packing template API
+    When I delete the owned template through the API twice
+    Then the template and its items are gone
+
+  Scenario: Saved template replay after deletion stays deleted
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I commit a keyed save of the doomed packing list as a template
+    And I delete that saved template through the API
+    And I replay the keyed template save
+    Then the deleted saved template replay is not found
+
+  Scenario: Owned template detail returns items in order
+    Given an owned template with ordered items for the packing template API
+    When I request that template detail through the API
+    Then the owned template detail contains its items in order
+
+  Scenario: Invalid template lifecycle requests do not write
+    Given an owned template with ordered items for the packing template API
+    When I send invalid template lifecycle requests
+    Then those lifecycle requests are rejected and the template is unchanged

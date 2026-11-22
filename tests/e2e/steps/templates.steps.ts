@@ -48,17 +48,29 @@ When("I create a packing template named {string}", async ({ page }, name: string
 });
 
 When("I rename the packing template {string} to {string}", async ({ page }, currentName: string, nextName: string) => {
+  const href = await page.getByRole("link", { name: currentName }).getAttribute("href");
+  const saved = waitForApiResponse(page, {
+    method: "PATCH",
+    path: `/api/v1/packing-templates/${href!.split("/").pop()}`,
+  });
   await page.getByTitle(`Rename ${currentName}`).click();
   const input = page.getByLabel("Template name");
   await input.clear();
   await input.fill(nextName);
   await page.getByRole("button", { name: "Save name" }).click();
+  await saved;
   await expect(page.getByText(nextName)).toBeVisible({ timeout: 10_000 });
 });
 
 When("I delete the packing template {string}", async ({ page }, name: string) => {
+  const href = await page.getByRole("link", { name }).getAttribute("href");
+  const deleted = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/packing-templates/${href!.split("/").pop()}`,
+  });
   await page.getByTitle(`Delete ${name}`).click();
   await page.getByRole("button", { name: "Delete" }).click();
+  await deleted;
   await expect(page.getByText(name)).toHaveCount(0, { timeout: 10_000 });
 });
 
@@ -97,4 +109,19 @@ Then("I should see a template validation error", async ({ page }) => {
 
 Then("the create template button should be disabled", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Create template" })).toBeDisabled();
+});
+
+When("I rename the template editor to {string}", async ({ page }, name: string) => {
+  const saved = waitForApiResponse(page, {
+    method: "PATCH",
+    path: `/api/v1/packing-templates/${page.url().split("/").pop()}`,
+  });
+  await page.getByRole("heading", { level: 1 }).click();
+  const input = page.locator("input").first();
+  await input.fill(name);
+  await input.press("Enter");
+  await saved;
+});
+Then("I should see the template editor title {string}", async ({ page }, name: string) => {
+  await expect(page.getByRole("heading", { name })).toBeVisible();
 });

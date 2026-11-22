@@ -27,3 +27,27 @@ export const savePackingListAsTemplate = defineEndpoint<PackingTemplate>()({
   params: z.object({ listId: z.uuid().toLowerCase() }),
   body: z.strictObject({ tripId: z.uuid().toLowerCase(), id: z.uuid().toLowerCase(), name: templateName }),
 });
+
+const templateParams = z.object({ templateId: z.uuid().toLowerCase() });
+export const getPackingTemplate = defineEndpoint<{
+  template: PackingTemplate;
+  items: import("@/data/types").PackingTemplateItem[];
+}>()({
+  method: "GET",
+  path: "/api/v1/packing-templates/:templateId",
+  params: templateParams,
+  body: z.strictObject({}),
+});
+export const renamePackingTemplate = defineEndpoint<PackingTemplate>()({
+  method: "PATCH",
+  path: "/api/v1/packing-templates/:templateId",
+  params: templateParams,
+  body: z.strictObject({ name: templateName }),
+});
+export const deletePackingTemplate = defineEndpoint<void>()({
+  method: "DELETE",
+  path: "/api/v1/packing-templates/:templateId",
+  params: templateParams,
+  body: z.strictObject({}),
+  status: 204,
+});

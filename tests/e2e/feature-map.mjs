@@ -65,6 +65,10 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/lib/services/packing-templates.ts",
+    "src/lib/api/contract/packing-templates.ts",
+    "src/app/api/v1/packing-templates/**",
+    "tests/e2e/steps/api-packing-templates.steps.ts",
     "src/lib/services/trips.ts",
     "src/lib/services/trip-date-change.ts",
     "src/app/(app)/trips/date-sync.ts",
@@ -884,8 +888,6 @@ export const FEATURE_MAP = [
     "src/components/arrivo/template-form-dialog.tsx",
     "src/components/arrivo/delete-template-alert-dialog.tsx",
     "src/app/(app)/packing/page-client.tsx",
-    "src/app/(app)/packing/actions.ts",
-    "src/app/(app)/packing/template-name.ts",
     "src/lib/error-utils.ts",
     "src/lib/services/packing-templates.ts",
     "src/lib/api/contract/packing-templates.ts",

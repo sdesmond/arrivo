@@ -39,7 +39,11 @@ export async function runTripWrite<Result>(
   steps: (
     transaction: DbTransaction,
     markChanged: () => void
-  ) => { authorize: () => Promise<void>; mutate: () => Promise<Result> }
+  ) => {
+    authorize: () => Promise<void>;
+    mutate: () => Promise<Result>;
+    validateReplay?: (result: Result) => Promise<void>;
+  }
 ): Promise<Result> {
   let changed = false;
   const { value, replayed } = await db.transaction((transaction) =>

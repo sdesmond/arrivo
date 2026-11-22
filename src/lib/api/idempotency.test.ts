@@ -290,3 +290,13 @@ it("maps a lock timeout to a retryable conflict and rethrows other lock failures
   await expect(run()).rejects.toBe("weird");
   expect(authorize).not.toHaveBeenCalled();
 });
+
+it("validates a stored result before replaying it", async () => {
+  seed(envelope());
+  const validateReplay = vi.fn().mockRejectedValue(new Error("resource deleted"));
+  await expect(
+    withIdempotency(transactionStub(), { actor, request, payload }, { authorize, mutate, validateReplay })
+  ).rejects.toThrow("resource deleted");
+  expect(validateReplay).toHaveBeenCalledWith({ stored: true });
+  expect(mutate).not.toHaveBeenCalled();
+});

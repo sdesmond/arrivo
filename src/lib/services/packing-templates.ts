@@ -8,11 +8,14 @@ import type { Actor, IdempotentRequest, PackingTemplate } from "@/data/types";
 import {
   createPackingTemplate as createContract,
   listPackingTemplates as listContract,
+  getPackingTemplate as detailContract,
+  renamePackingTemplate as renameContract,
+  deletePackingTemplate as deleteContract,
   savePackingListAsTemplate as saveListContract,
 } from "@/lib/api/contract/packing-templates";
 import { withIdempotency } from "@/lib/api/idempotency";
 import { dbTemplateToType } from "@/lib/db-mappers";
-import { listTemplatesForUser } from "@/lib/queries";
+import { getTemplateWithItems, listTemplatesForUser } from "@/lib/queries";
 import { guardTransactionDeadline } from "@/lib/request-deadline";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
@@ -49,6 +52,19 @@ export async function createPackingTemplate(
               .from(packingTemplates)
               .where(eq(packingTemplates.id, body.id));
             if (existing && existing.userId !== actor.userId) throw new TripNotFoundError();
+          },
+          validateReplay: async (result) => {
+            const [row] = await transaction
+              .select({ userId: packingTemplates.userId, createdAt: packingTemplates.createdAt })
+              .from(packingTemplates)
+              .where(eq(packingTemplates.id, body.id));
+            if (
+              !row ||
+              row.userId !== actor.userId ||
+              !row.createdAt ||
+              row.createdAt.toISOString() !== result.createdAt
+            )
+              throw new TripNotFoundError();
           },
           mutate: async () => {
             created = false;
@@ -104,6 +120,14 @@ export async function savePackingListAsTemplate(
         .where(eq(packingTemplates.id, body.id));
       if (existing && existing.userId !== actor.userId) throw new TripNotFoundError();
     },
+    validateReplay: async (result) => {
+      const [row] = await transaction
+        .select({ userId: packingTemplates.userId, createdAt: packingTemplates.createdAt })
+        .from(packingTemplates)
+        .where(eq(packingTemplates.id, body.id));
+      if (!row || row.userId !== actor.userId || !row.createdAt || row.createdAt.toISOString() !== result.createdAt)
+        throw new TripNotFoundError();
+    },
     mutate: async () => {
       const [existing] = await transaction.select().from(packingTemplates).where(eq(packingTemplates.id, body.id));
       if (existing) {
@@ -150,4 +174,69 @@ export async function savePackingListAsTemplate(
     revalidatePath(`/trips/${tripId}`);
   }
   return template;
+}
+
+export async function getPackingTemplate(actor: Actor, templateId: string) {
+  const params = detailContract.params.parse({ templateId });
+  const detail = await getTemplateWithItems(params.templateId, actor.userId);
+  if (!detail) throw new TripNotFoundError();
+  return detail;
+}
+export async function renamePackingTemplate(
+  actor: Actor,
+  templateId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+) {
+  templateId = renameContract.params.parse({ templateId }).templateId;
+  const body = renameContract.body.parse(input);
+  const { value, replayed } = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<PackingTemplate>(
+        transaction,
+        { actor, request: replay, payload: body },
+        {
+          authorize: async () => {
+            await lockClientIds(transaction, [`packing-template:${templateId}`]);
+            const [row] = await transaction
+              .select()
+              .from(packingTemplates)
+              .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, actor.userId)));
+            if (!row) throw new TripNotFoundError();
+          },
+          validateReplay: async (result) => {
+            const [row] = await transaction
+              .select({ createdAt: packingTemplates.createdAt })
+              .from(packingTemplates)
+              .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, actor.userId)));
+            if (!row?.createdAt || row.createdAt.toISOString() !== result.createdAt) throw new TripNotFoundError();
+          },
+          mutate: async () => {
+            const [row] = await transaction
+              .update(packingTemplates)
+              .set({ name: body.name })
+              .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, actor.userId)))
+              .returning();
+            return dbTemplateToType(row);
+          },
+        }
+      )
+    )
+  );
+  if (!replayed) revalidatePath("/packing");
+  return value;
+}
+
+export async function deletePackingTemplate(actor: Actor, templateId: string): Promise<void> {
+  templateId = deleteContract.params.parse({ templateId }).templateId;
+  const deleted = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, async () => {
+      await lockClientIds(transaction, [`packing-template:${templateId}`]);
+      return transaction
+        .delete(packingTemplates)
+        .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, actor.userId)))
+        .returning({ id: packingTemplates.id });
+    })
+  );
+  if (deleted.length > 0) revalidatePath("/packing");
 }

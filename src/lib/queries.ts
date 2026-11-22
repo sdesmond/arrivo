@@ -364,27 +364,20 @@ export async function getTemplateWithItems(
   templateId: string,
   userId: string
 ): Promise<{ template: PackingTemplate; items: PackingTemplateItem[] } | null> {
-  const [templateRow] = await db
-    .select()
+  // One statement gives the owner check, template and items the same database snapshot, even if the ID is reused.
+  const rows = await db
+    .select({ template: packingTemplates, item: packingTemplateItems })
     .from(packingTemplates)
-    .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, userId)));
-
-  if (!templateRow) {
-    return null;
-  }
-
-  const itemRows = await db
-    .select()
-    .from(packingTemplateItems)
-    .where(eq(packingTemplateItems.templateId, templateId))
+    .leftJoin(packingTemplateItems, eq(packingTemplateItems.templateId, packingTemplates.id))
+    .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, userId)))
     .orderBy(asc(packingTemplateItems.position));
 
+  if (rows.length === 0) return null;
   return {
-    template: dbTemplateToType(templateRow),
-    items: itemRows.map(dbTemplateItemToType),
+    template: dbTemplateToType(rows[0].template),
+    items: rows.flatMap(({ item }) => (item ? [dbTemplateItemToType(item)] : [])),
   };
 }
-
 export async function getContributorsAndInvitations(
   tripId: string,
   userId: string

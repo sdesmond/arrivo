@@ -1,13 +1,15 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { toast } from "sonner";
-import { deleteTemplate, renameTemplate } from "./actions";
+import { useRef, useState } from "react";
 import { DeleteTemplateAlertDialog } from "@/components/arrivo/delete-template-alert-dialog";
 import { TemplateFormDialog } from "@/components/arrivo/template-form-dialog";
 import { TemplateLibrary } from "@/components/arrivo/template-library";
 import type { PackingTemplate } from "@/data/types";
-import { createPackingTemplate } from "@/lib/api/contract/packing-templates";
+import {
+  createPackingTemplate,
+  renamePackingTemplate,
+  deletePackingTemplate,
+} from "@/lib/api/contract/packing-templates";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
 
@@ -15,17 +17,14 @@ export interface TemplatesPageClientProps {
   templates: PackingTemplate[];
 }
 
-function getActionErrorMessage(error: unknown, fallbackMessage: string): string {
-  return error instanceof Error && error.message ? error.message : fallbackMessage;
-}
-
 export function TemplatesPageClient({ templates }: TemplatesPageClientProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renamingTemplate, setRenamingTemplate] = useState<PackingTemplate | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<PackingTemplate | null>(null);
-  const [isActionPending, startTransition] = useTransition();
+  const rename = useApiMutation(renamePackingTemplate);
+  const remove = useApiMutation(deletePackingTemplate);
   const creation = useApiMutation(createPackingTemplate);
-  const isPending = isActionPending || creation.isPending;
+  const isPending = rename.isPending || remove.isPending || creation.isPending;
   // A retry of the same draft reuses its id, so the server sees one template however many times it is sent.
   const draftId = useRef<{ name: string; id: string } | null>(null);
 
@@ -47,28 +46,20 @@ export function TemplatesPageClient({ templates }: TemplatesPageClientProps) {
     if (!renamingTemplate) return;
 
     const current = renamingTemplate;
-    startTransition(async () => {
-      try {
-        await renameTemplate(current.id, { name });
-        setRenamingTemplate((prev) => (prev === current ? null : prev));
-      } catch (error) {
-        toast.error(getActionErrorMessage(error, "Could not rename template"));
-      }
-    });
+    return rename.mutate(
+      { params: { templateId: current.id }, body: { name } },
+      { onSuccess: () => setRenamingTemplate((prev) => (prev === current ? null : prev)) }
+    );
   }
 
   function handleDelete() {
     if (!deletingTemplate) return;
 
     const current = deletingTemplate;
-    startTransition(async () => {
-      try {
-        await deleteTemplate(current.id);
-        setDeletingTemplate((prev) => (prev === current ? null : prev));
-      } catch (error) {
-        toast.error(getActionErrorMessage(error, "Could not delete template"));
-      }
-    });
+    return remove.mutate(
+      { params: { templateId: current.id }, body: {} },
+      { onSuccess: () => setDeletingTemplate((prev) => (prev === current ? null : prev)) }
+    );
   }
 
   return (

@@ -22,6 +22,16 @@ describe("feature-map consistency", async () => {
     .map((name) => name.replace(/\.feature$/, ""));
   const mappedTags = new Set(FEATURE_MAP.map((feature) => feature.tag));
 
+  it("maps template lifecycle runtime to API scenarios", () => {
+    const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:api");
+    for (const path of [
+      "src/lib/services/packing-templates.ts",
+      "src/lib/api/contract/packing-templates.ts",
+      "src/app/api/v1/packing-templates/[templateId]/route.ts",
+    ]) {
+      expect(matchesAnyGlob(path, feature.sourceGlobs)).toBe(true);
+    }
+  });
   it("maps optimistic checklist handlers to day planning", () => {
     const feature = FEATURE_MAP.find((candidate) => candidate.tag === "@feat:day-planning");
     expect(matchesAnyGlob("src/app/(app)/trips/[tripId]/use-checklist-handlers.ts", feature.sourceGlobs)).toBe(true);
