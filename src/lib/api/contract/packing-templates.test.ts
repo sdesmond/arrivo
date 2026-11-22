@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { createPackingTemplate, listPackingTemplates, savePackingListAsTemplate } from "./packing-templates";
+import {
+  createPackingTemplate,
+  listPackingTemplates,
+  savePackingListAsTemplate,
+  reorderPackingTemplateItems,
+} from "./packing-templates";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 const uuid = "123e4567-e89b-12d3-a456-426614174000";
 it("accepts only an empty list body", () => {
@@ -97,4 +102,34 @@ it("validates template item create, update, delete and section removal contracts
   expect(removePackingTemplateSection.status).toBe(204);
   expect(removePackingTemplateSection.body.parse({ mode: "delete-items" })).toEqual({ mode: "delete-items" });
   expect(removePackingTemplateSection.body.safeParse({ mode: "other" }).success).toBe(false);
+});
+
+it("validates complete reorder bodies and rejects duplicates", () => {
+  expect(
+    reorderPackingTemplateItems.body.safeParse({
+      items: [{ id: uuid, labelId: null }],
+      expectedItems: [{ id: uuid, labelId: null, position: 0 }],
+    }).success
+  ).toBe(true);
+  expect(
+    reorderPackingTemplateItems.body.safeParse({
+      items: [
+        { id: uuid, labelId: null },
+        { id: uuid, labelId: null },
+      ],
+    }).success
+  ).toBe(false);
+});
+
+it("requires a unique exact expected snapshot and permits templates over 1000 items", () => {
+  const items = Array.from({ length: 1001 }, (_, index) => ({
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    labelId: null,
+  }));
+  const expectedItems = items.map((item, position) => ({ ...item, position }));
+  expect(reorderPackingTemplateItems.body.safeParse({ items, expectedItems }).success).toBe(true);
+  expect(reorderPackingTemplateItems.body.safeParse({ items }).success).toBe(false);
+  expect(
+    reorderPackingTemplateItems.body.safeParse({ items, expectedItems: [expectedItems[0], expectedItems[0]] }).success
+  ).toBe(false);
 });

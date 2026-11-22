@@ -30,6 +30,7 @@ export interface PackingRowProps {
 export interface SortablePackingRowProps extends PackingRowProps {
   id: string;
   isActiveDragSource?: boolean;
+  reorderDisabled?: boolean;
 }
 
 export function PackingRow({
@@ -222,7 +223,7 @@ export function PackingRow({
 export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
-    disabled: props.isLabel,
+    disabled: props.isLabel || props.reorderDisabled,
     animateLayoutChanges: () => false,
   });
   const style = {
@@ -246,9 +247,10 @@ export function SortablePackingRow({ id, ...props }: SortablePackingRowProps): R
       {...attributes}
       {...listeners}
       aria-label={`Reorder ${props.item.name}`}
+      aria-disabled={props.reorderDisabled || undefined}
       className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
       role="button"
-      tabIndex={0}
+      tabIndex={props.reorderDisabled ? -1 : 0}
       title={`Reorder ${props.item.name}`}
       style={{ cursor: "grab", touchAction: "none", outlineColor: "var(--accent-brand)", ...minimumTouchTargetStyle }}
     >

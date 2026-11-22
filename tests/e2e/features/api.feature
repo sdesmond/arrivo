@@ -3001,3 +3001,9 @@ Feature: Absolute checklist checked-state API
     And owned and foreign sectioned templates for the template item API
     When I send template item requests that reference the other user's template
     Then those template item requests are refused and neither template changed
+
+  Scenario: Template ordering persists and rejects stale and foreign items
+    Given a new template id and name for the packing template API
+    And owned and foreign sectioned templates for the template item API
+    When I reorder template items and submit stale and foreign orders through the API
+    Then the reordered template persists and rejected orders leave it unchanged

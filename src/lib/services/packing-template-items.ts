@@ -3,8 +3,9 @@ import { and, eq, gte, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { packingTemplateItems, packingTemplates } from "@/db/schema";
-import type { Actor, IdempotentRequest, PackingTemplateItem } from "@/data/types";
+import type { Actor, IdempotentRequest, PackingTemplateItem, PackingTemplateItemOrder } from "@/data/types";
 import {
+  reorderPackingTemplateItems as reorderContract,
   createPackingTemplateItem as createContract,
   updatePackingTemplateItem as updateContract,
   deletePackingTemplateItem as deleteContract,
@@ -271,4 +272,66 @@ export async function removePackingTemplateSection(
   );
   if (removedFrom && !replayed) revalidatePath(`/packing/${removedFrom}`);
   return null;
+}
+
+/** Replaces all positions and section assignments while holding the owned template lock. */
+export async function reorderPackingTemplateItems(
+  actor: Actor,
+  templateId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<PackingTemplateItemOrder> {
+  templateId = reorderContract.params.parse({ templateId }).templateId;
+  const body = reorderContract.body.parse(input);
+  let changed = false;
+  const { value, replayed } = await db.transaction((transaction) =>
+    guardTransactionDeadline(transaction, () =>
+      withIdempotency<PackingTemplateItemOrder>(
+        transaction,
+        { actor, request: replay, payload: body },
+        {
+          authorize: () => lockOwnedTemplate(transaction, templateId, actor.userId),
+          mutate: async () => {
+            changed = false;
+            const stored = new Map(
+              (
+                await transaction
+                  .select()
+                  .from(packingTemplateItems)
+                  .where(eq(packingTemplateItems.templateId, templateId))
+              ).map((row) => [row.id, row] as const)
+            );
+            if (stored.size !== body.items.length || body.items.some((item) => !stored.has(item.id)))
+              throw new ConflictError("This packing template changed since it was loaded.");
+            if (
+              stored.size !== body.expectedItems.length ||
+              body.expectedItems.some((item) => {
+                const row = stored.get(item.id);
+                return !row || row.position !== item.position || row.labelId !== item.labelId;
+              })
+            )
+              throw new ConflictError("This packing template changed since it was loaded.");
+            for (const item of body.items) {
+              if (item.labelId !== null && (!stored.get(item.labelId)?.isLabel || stored.get(item.id)?.isLabel))
+                throw new ValidationFailedError("A template section must be a label of the same template.", {
+                  items: ["Invalid template section."],
+                });
+            }
+            for (const [index, item] of body.items.entries()) {
+              const row = stored.get(item.id);
+              if (row?.position === index && row.labelId === item.labelId) continue;
+              await transaction
+                .update(packingTemplateItems)
+                .set({ position: index, labelId: item.labelId })
+                .where(and(eq(packingTemplateItems.id, item.id), eq(packingTemplateItems.templateId, templateId)));
+              changed = true;
+            }
+            return body;
+          },
+        }
+      )
+    )
+  );
+  if (changed && !replayed) revalidatePath(`/packing/${templateId}`);
+  return value;
 }

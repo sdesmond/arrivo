@@ -46,6 +46,7 @@ export interface PackingListSortableProps {
     labelId?: string | null
   ) => Promise<void>;
   onAnnounceMove?: (message: string) => void;
+  reorderDisabled?: boolean;
   isAdding?: boolean;
 }
 
@@ -66,6 +67,7 @@ interface PackingSectionsProps {
     beforeItemId?: string,
     labelId?: string | null
   ) => Promise<void>;
+  reorderDisabled?: boolean;
   isAdding?: boolean;
 }
 
@@ -80,6 +82,7 @@ function PackingSections({
   onToggleItem,
   onEditItem,
   onAddItem,
+  reorderDisabled,
   isAdding,
 }: PackingSectionsProps): ReactElement {
   return (
@@ -113,6 +116,7 @@ function PackingSections({
                   key={item.id}
                   id={item.id!}
                   item={item}
+                  reorderDisabled={reorderDisabled}
                   isActiveDragSource={activeId === item.id}
                   isPending={item.id ? pendingItemIds.has(item.id) : false}
                   onRemove={() => onRemoveItem(item)}
@@ -149,6 +153,7 @@ export function PackingListSortable({
   onEditItem,
   onAddItem,
   onAnnounceMove,
+  reorderDisabled,
   isAdding,
 }: PackingListSortableProps): ReactElement {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -186,6 +191,7 @@ export function PackingListSortable({
   }
 
   function handleDragStart({ active }: DragStartEvent): void {
+    if (reorderDisabled) return;
     setActiveId(String(active.id));
     lastOverIdRef.current = null;
   }
@@ -234,6 +240,10 @@ export function PackingListSortable({
   }
 
   function handleDragEnd({ active, over }: DragEndEvent): void {
+    if (reorderDisabled) {
+      handleDragCancel();
+      return;
+    }
     const fallbackOverId = over ? String(over.id) : lastOverIdRef.current;
     clearExpandTimeout();
     lastOverIdRef.current = null;
@@ -298,6 +308,7 @@ export function PackingListSortable({
     >
       <section className="flex flex-col gap-4" aria-label="Packing list">
         <PackingSections
+          reorderDisabled={reorderDisabled}
           sections={sections}
           completeLabelIds={completeLabelIds}
           activeId={activeId}
@@ -330,6 +341,7 @@ export function PackingListSortable({
                 key={item.id}
                 id={item.id!}
                 item={item}
+                reorderDisabled={reorderDisabled}
                 isActiveDragSource={activeId === item.id}
                 isPending={item.id ? pendingItemIds.has(item.id) : false}
                 onRemove={() => onRemoveItem(item)}

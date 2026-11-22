@@ -8,30 +8,33 @@ import {
   type RemovePackingSectionInput,
 } from "@/data/types";
 
-const { mockReorderTemplateItems } = vi.hoisted(() => ({
-  mockReorderTemplateItems: vi.fn(),
-}));
-
 const mutations = vi.hoisted(() => ({
   rename: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
   section: vi.fn(),
+  reorder: vi.fn(),
 }));
 const mockRenameTemplate = mutations.rename;
 const rollbackSpy = vi.hoisted(() => vi.fn());
 const renameFailure = vi.hoisted(() => vi.fn());
 const sectionFailure = vi.hoisted(() => vi.fn());
 
-vi.mock("./actions", () => ({
-  reorderTemplateItems: mockReorderTemplateItems,
+const mockReadTemplate = vi.hoisted(() => vi.fn());
+const useRealMutation = vi.hoisted(() => ({ current: false }));
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api: mockReadTemplate,
 }));
 
-vi.mock("@/lib/api/use-api-mutation", async () => {
+vi.mock("@/lib/api/use-api-mutation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/use-api-mutation")>();
   const contract = await import("@/lib/api/contract/packing-templates");
   return {
-    useApiMutation: (endpoint: unknown) => {
+    useApiMutation: (endpoint: Parameters<typeof actual.useApiMutation>[0]) => {
+      const real = actual.useApiMutation(endpoint);
+      if (useRealMutation.current) return real;
       const mutate =
         endpoint === contract.createPackingTemplateItem
           ? mutations.create
@@ -41,7 +44,9 @@ vi.mock("@/lib/api/use-api-mutation", async () => {
               ? mutations.remove
               : endpoint === contract.removePackingTemplateSection
                 ? mutations.section
-                : mutations.rename;
+                : endpoint === contract.reorderPackingTemplateItems
+                  ? mutations.reorder
+                  : mutations.rename;
       return { mutate, isPending: false };
     },
   };
@@ -55,6 +60,7 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
   TemplateEditorView: ({
     items,
     isAdding,
+    reorderDisabled,
     onAddItem,
     onEditItem,
     onOptimisticReorder,
@@ -66,6 +72,7 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
     onRenameTemplate: (name: string) => Promise<void>;
     items: PackingTemplateItem[];
     isAdding?: boolean;
+    reorderDisabled?: boolean;
     onAddItem: (
       text: string,
       isLabel?: boolean,
@@ -82,6 +89,7 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
     <div>
       <div>items:{items.map((item) => item.text).join(",")}</div>
       <div>isAdding:{String(isAdding)}</div>
+      <div>reorderDisabled:{String(reorderDisabled)}</div>
       <button onClick={() => void onRenameTemplate("Coast").catch(renameFailure)}>rename-template</button>
       <button onClick={() => void onAddItem("Sunscreen")}>add-item</button>
       <button onClick={() => void onAddItem("Sunscreen", false, "item-1", undefined, "label-1")}>add-item-after</button>
@@ -137,7 +145,6 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
   ),
 }));
 
-import { toast } from "sonner";
 import { TemplateEditorClient } from "./page-client";
 
 const template: PackingTemplate = {
@@ -254,19 +261,30 @@ describe("TemplateEditorClient", () => {
 
   it("rolls back optimistic reorder state when reorder fails", async () => {
     const user = userEvent.setup();
-    mockReorderTemplateItems.mockRejectedValueOnce(new Error("Reorder failed"));
+    mutations.reorder.mockImplementationOnce(async (_input, options) => options.onError(new Error("Reorder failed")));
 
     render(<TemplateEditorClient template={template} items={items} />);
 
     await user.click(screen.getByRole("button", { name: "reorder-items" }));
 
     await waitFor(() => {
-      expect(mockReorderTemplateItems).toHaveBeenCalledWith("template-1", [
-        { id: "item-2", labelId: null, position: 0 },
-        { id: "item-1", labelId: null, position: 1 },
-      ]);
+      expect(mutations.reorder).toHaveBeenCalledWith(
+        {
+          params: { templateId: "template-1" },
+          body: {
+            expectedItems: [
+              { id: "item-1", position: 0, labelId: null },
+              { id: "item-2", position: 1, labelId: null },
+            ],
+            items: [
+              { id: "item-2", labelId: null },
+              { id: "item-1", labelId: null },
+            ],
+          },
+        },
+        expect.objectContaining({ onError: expect.any(Function), onAuthLost: expect.any(Function) })
+      );
       expect(rollbackSpy).toHaveBeenCalledOnce();
-      expect(toast.error).toHaveBeenCalledWith("Reorder failed");
     });
   });
 });
@@ -289,4 +307,97 @@ it("propagates a failed editor rename", async () => {
   render(<TemplateEditorClient template={template} items={items} />);
   await user.click(screen.getByRole("button", { name: "rename-template" }));
   await waitFor(() => expect(renameFailure).toHaveBeenCalledWith(error));
+});
+
+it("blocks overlapping reorders and resumes against the successful baseline", async () => {
+  const user = userEvent.setup();
+  mutations.reorder.mockClear();
+  let finish: (() => void) | undefined;
+  mutations.reorder.mockImplementationOnce(async (_input, options) => {
+    finish = () => {
+      options.onSuccess();
+      options.onSettled();
+    };
+  });
+  render(<TemplateEditorClient template={template} items={items} />);
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  expect(screen.getByText("reorderDisabled:true")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  expect(mutations.reorder).toHaveBeenCalledTimes(1);
+  finish?.();
+  await waitFor(() => expect(screen.getByText("reorderDisabled:false")).toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  expect(mutations.reorder.mock.calls[1][0].body.expectedItems).toEqual([
+    { id: "item-2", position: 0, labelId: null },
+    { id: "item-1", position: 1, labelId: null },
+  ]);
+});
+
+it("reconciles conflicts and uncertain failures and retries a failed read", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  const user = userEvent.setup();
+  let release: ((value: unknown) => void) | undefined;
+  mockReadTemplate.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      })
+  );
+  mutations.reorder.mockImplementationOnce(async (_input, options) => {
+    options.onError(new ApiClientError(409, "conflict", "stale"));
+    options.onSettled();
+  });
+  const { rerender } = render(<TemplateEditorClient template={template} items={items} />);
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  rerender(<TemplateEditorClient template={template} items={[...items]} />);
+  expect(screen.getByText("reorderDisabled:true")).toBeInTheDocument();
+  const fresh = [
+    { ...items[1], position: 0 },
+    { ...items[0], position: 1 },
+  ];
+  release?.({ template, items: fresh });
+  await waitFor(() => expect(screen.getByText("reorderDisabled:false")).toBeInTheDocument());
+  mutations.reorder.mockImplementationOnce(async (_input, options) => {
+    options.onError(new ApiClientError(0, "network_error", "offline"));
+    options.onSettled();
+  });
+  mockReadTemplate.mockRejectedValueOnce(new Error("offline"));
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  await screen.findByRole("button", { name: "Retry loading order" });
+  expect(screen.getByText("reorderDisabled:true")).toBeInTheDocument();
+  mockReadTemplate.mockResolvedValueOnce({ template, items: fresh });
+  await user.click(screen.getByRole("button", { name: "Retry loading order" }));
+  await waitFor(() => expect(screen.getByText("reorderDisabled:false")).toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "reorder-items" }));
+  expect(mutations.reorder.mock.calls.at(-1)?.[0].body.expectedItems).toEqual(
+    fresh.map(({ id, position, labelId }) => ({ id, position, labelId }))
+  );
+});
+
+it("rolls back and shows a toast on authentication loss", async () => {
+  const { toast } = await import("sonner");
+  mutations.reorder.mockImplementationOnce(async (_input, options) => {
+    options.onAuthLost();
+    options.onSettled();
+  });
+  render(<TemplateEditorClient template={template} items={items} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "reorder-items" }));
+  expect(toast.error).toHaveBeenCalledWith("Your session has expired.");
+  expect(rollbackSpy).toHaveBeenCalled();
+});
+
+it("shows the mutation hook toast on an ordinary reorder failure and reconciles", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  const { toast } = await import("sonner");
+  useRealMutation.current = true;
+  mockReadTemplate
+    .mockRejectedValueOnce(new ApiClientError(500, "server_error", "Reorder failed"))
+    .mockResolvedValueOnce({ template, items });
+  const view = render(<TemplateEditorClient template={template} items={items} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "reorder-items" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Reorder failed"));
+  expect(rollbackSpy).toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByText("reorderDisabled:false")).toBeInTheDocument());
+  view.unmount();
+  useRealMutation.current = false;
 });

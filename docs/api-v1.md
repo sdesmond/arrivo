@@ -505,6 +505,12 @@ Body: `{ "name": "Beach" }`, with the same name rules as create. Missing or fore
 
 Body: `{}`. Deletes the caller's template and its items. Missing and foreign templates also return 204.
 
+### PUT /api/v1/packing-templates/:templateId/order
+
+**`Idempotency-Key`** yes
+
+Replaces the complete template order and section assignments. Send `{ "items": [{ "id": "uuid", "labelId": null }], "expectedItems": [{ "id": "uuid", "position": 0, "labelId": null }] }`; array indices determine desired positions. `expectedItems` must match the last confirmed positions and sections exactly, including gaps and ties. A changed snapshot returns 409 `conflict`. Every stored item and section must appear exactly once. Missing, extra, or foreign item IDs return 409 `conflict`; duplicate IDs or invalid section assignments return 422. Unknown or foreign templates return 404. Supports `Idempotency-Key`. See [Ordering](#ordering).
+
 ### POST /api/v1/packing-templates/:templateId/items
 
 **Auth** signed in · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplateItem`

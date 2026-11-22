@@ -73,3 +73,10 @@ Feature: Template item and label management
     Then the template editor order should be "Sunglasses" then "Sunscreen"
     When I reload the page
     Then the template editor order should be "Sunglasses" then "Sunscreen"
+
+  Scenario: Reordering blocks another drag until the first order is confirmed
+    Given the template editor "Editor Template" has items "Sunscreen" and "Sunglasses"
+    When I open the template editor for "Editor Template"
+    And I pause the template order request during a drag
+    Then template drag handles are disabled until the order completes
+    And the template editor order should be "Sunglasses" then "Sunscreen"

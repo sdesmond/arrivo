@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { reorderTemplateItems } from "./actions";
+import { api } from "@/lib/api/client";
 import {
+  getPackingTemplate,
+  reorderPackingTemplateItems,
   createPackingTemplateItem,
   deletePackingTemplateItem,
   removePackingTemplateSection,
@@ -19,11 +21,13 @@ export interface TemplateEditorClientProps {
   items: PackingTemplateItem[];
 }
 
-function getActionErrorMessage(error: unknown, fallbackMessage: string): string {
-  return error instanceof Error && error.message ? error.message : fallbackMessage;
-}
-
 export function TemplateEditorClient({ template, items }: TemplateEditorClientProps) {
+  const reorder = useApiMutation(reorderPackingTemplateItems);
+  const confirmed = useRef(items.map(({ id, position, labelId }) => ({ id, position, labelId: labelId ?? null })));
+  const reorderLocked = useRef(false);
+  const reconciling = useRef(false);
+  const [recoveryFailed, setRecoveryFailed] = useState(false);
+  const [reorderDisabled, setReorderDisabled] = useState(false);
   const rename = useApiMutation(renamePackingTemplate);
   const createItem = useApiMutation(createPackingTemplateItem);
   const updateItem = useApiMutation(updatePackingTemplateItem);
@@ -32,15 +36,20 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
   const [localItems, setLocalItems] = useState<PackingTemplateItem[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
-  const [, startTransition] = useTransition();
   // A failed create keeps its id, so the retry of the same entry cannot add it twice.
   const createRetry = useRef<{ details: string; id: string } | null>(null);
 
   if (prevItems !== items) {
     setPrevItems(items);
-    setLocalItems(null);
+    if (!reorderDisabled) setLocalItems(null);
     setIsAdding(false);
   }
+
+  useEffect(() => {
+    if (!reorderLocked.current) {
+      confirmed.current = items.map(({ id, position, labelId }) => ({ id, position, labelId: labelId ?? null }));
+    }
+  }, [items]);
 
   async function handleAddItem(
     text: string,
@@ -106,32 +115,76 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
     });
   }
 
+  async function reconcileOrder(): Promise<void> {
+    reconciling.current = true;
+    setRecoveryFailed(false);
+    try {
+      const fresh = await api(getPackingTemplate, { params: { templateId: template.id }, body: {} });
+      confirmed.current = fresh.items.map(({ id, position, labelId }) => ({ id, position, labelId: labelId ?? null }));
+      setLocalItems(fresh.items);
+      reconciling.current = false;
+      reorderLocked.current = false;
+      setReorderDisabled(false);
+    } catch {
+      setRecoveryFailed(true);
+    }
+  }
+
   function handleReorderItems(
     ordered: { id: string; labelId: string | null; position: number }[],
     onError?: () => void
   ): void {
-    startTransition(async () => {
-      try {
-        await reorderTemplateItems(template.id, ordered);
-      } catch (error) {
-        onError?.();
-        toast.error(getActionErrorMessage(error, "Could not reorder template items"));
+    if (reorderLocked.current) {
+      onError?.();
+      return;
+    }
+    reorderLocked.current = true;
+    setReorderDisabled(true);
+    const items = ordered.map(({ id, labelId }) => ({ id, labelId }));
+    void reorder.mutate(
+      { params: { templateId: template.id }, body: { items, expectedItems: confirmed.current } },
+      {
+        onSuccess: () => {
+          confirmed.current = ordered.map(({ id, position, labelId }) => ({ id, position, labelId }));
+        },
+        onError: () => {
+          onError?.();
+          void reconcileOrder();
+        },
+        onAuthLost: () => {
+          onError?.();
+          toast.error("Your session has expired.");
+        },
+        onSettled: () => {
+          if (!reconciling.current) {
+            reorderLocked.current = false;
+            setReorderDisabled(false);
+          }
+        },
       }
-    });
+    );
   }
 
   return (
-    <TemplateEditorView
-      template={template}
-      items={localItems ?? items}
-      onAddItem={handleAddItem}
-      onRemoveItem={handleRemoveItem}
-      onRemoveSection={handleRemoveSection}
-      onEditItem={handleEditItem}
-      onReorderItems={handleReorderItems}
-      onOptimisticReorder={setLocalItems}
-      isAdding={isAdding}
-      onRenameTemplate={handleRenameTemplate}
-    />
+    <>
+      {recoveryFailed ? (
+        <button type="button" className="h-11 px-4" onClick={() => void reconcileOrder()}>
+          Retry loading order
+        </button>
+      ) : null}
+      <TemplateEditorView
+        reorderDisabled={reorderDisabled}
+        template={template}
+        items={localItems ?? items}
+        onAddItem={handleAddItem}
+        onRemoveItem={handleRemoveItem}
+        onRemoveSection={handleRemoveSection}
+        onEditItem={handleEditItem}
+        onReorderItems={handleReorderItems}
+        onOptimisticReorder={setLocalItems}
+        isAdding={isAdding}
+        onRenameTemplate={handleRenameTemplate}
+      />
+    </>
   );
 }

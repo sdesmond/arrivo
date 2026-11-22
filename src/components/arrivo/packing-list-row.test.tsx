@@ -352,3 +352,10 @@ describe("SortablePackingRow", () => {
     expect(screen.queryByLabelText("Reorder Documents")).not.toBeInTheDocument();
   });
 });
+
+it("exposes disabled drag handles while retaining row controls", () => {
+  render(<SortablePackingRow id="item-1" item={itemRow} reorderDisabled onRemove={vi.fn()} />);
+  expect(screen.getByLabelText("Reorder Passport")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByLabelText("Reorder Passport")).toHaveAttribute("tabindex", "-1");
+  expect(useSortableMock).toHaveBeenLastCalledWith(expect.objectContaining({ disabled: true }));
+});

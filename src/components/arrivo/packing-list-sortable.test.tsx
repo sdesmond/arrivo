@@ -1259,3 +1259,18 @@ describe("arrayMove", () => {
     expect(arrayMove(input, 5, 0)).toEqual(["a", "b", "c"]);
   });
 });
+
+it("disables section and ungrouped drag handles while preserving editing controls", () => {
+  render(
+    <PackingListSortable
+      items={reorderItems}
+      pendingItemIds={new Set()}
+      onRemoveItem={vi.fn()}
+      onOptimisticReorder={vi.fn()}
+      onReorderItems={vi.fn()}
+      reorderDisabled
+    />
+  );
+  expect(screen.getByLabelText("Reorder Item A")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByLabelText("Reorder Item C")).toHaveAttribute("aria-disabled", "true");
+});

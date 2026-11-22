@@ -6,17 +6,20 @@ import { RemovePackingSectionMode, type PackingTemplate, type PackingTemplateIte
 
 vi.mock("./packing-list-sortable", () => ({
   PackingListSortable: ({
+    reorderDisabled,
     collapsedLabels,
     items,
     onToggleCollapse,
     onRemoveItem,
   }: {
     collapsedLabels?: Set<string>;
+    reorderDisabled?: boolean;
     items: Array<{ id?: string; name: string }>;
     onToggleCollapse?: (labelId: string) => void;
     onRemoveItem: (item: { id?: string; name: string }) => void;
   }) => (
     <div>
+      <div>reorderDisabled:{String(reorderDisabled)}</div>
       <div>collapsed:{Array.from(collapsedLabels ?? []).join(",")}</div>
       <button onClick={() => onToggleCollapse?.("label-1")}>toggle-label-1</button>
       {items.map((item) => (
@@ -455,4 +458,19 @@ describe("TemplateEditorView", () => {
       expect(onRenameTemplate).not.toHaveBeenCalled();
     });
   });
+});
+
+it("passes pending reorder state to the sortable list", () => {
+  render(
+    <TemplateEditorView
+      template={template}
+      items={items}
+      onAddItem={vi.fn()}
+      onRemoveItem={vi.fn()}
+      onEditItem={vi.fn()}
+      onReorderItems={vi.fn()}
+      reorderDisabled
+    />
+  );
+  expect(screen.getByText("reorderDisabled:true")).toBeInTheDocument();
 });
