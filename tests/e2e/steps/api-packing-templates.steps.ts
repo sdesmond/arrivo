@@ -1,7 +1,7 @@
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { packingTemplates } from "../../../src/db/schema";
+import { packingTemplateItems, packingTemplates } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { apiClient } from "../anonymous-api";
 import { Given, Then, When } from "../fixtures";
@@ -121,4 +121,128 @@ Then("my template list holds my template but not the different user's", async ({
   const ids = (current.listed ?? []).map((template) => template.id);
   expect(ids).toContain(current.ownedId);
   expect(ids).not.toContain(current.foreignId);
+});
+
+When("I request and mutate the foreign template through the API", async ({ page }) => {
+  const current = state(page);
+  const client = await apiClient(page);
+  const path = `/api/v1/packing-templates/${current.foreignId}`;
+  const headers = { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+  current.responses.push(await client.get(path, { headers }));
+  current.responses.push(await client.patch(path, { headers, data: { name: "Hijack" } }));
+  current.responses.push(await client.delete(path, { headers, data: {} }));
+});
+Then("foreign template lifecycle responses hide ownership", async ({ page }) => {
+  expect(state(page).responses.map((response) => response.status())).toEqual([404, 404, 204]);
+});
+When("I create, rename and delete that template and replay both writes", async ({ page }) => {
+  const current = state(page);
+  const client = await apiClient(page);
+  const createKey = randomUUID(),
+    renameKey = randomUUID();
+  const path = `/api/v1/packing-templates/${current.id}`;
+  const headers = { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+  await postTemplate(page, { id: current.id, name: current.name }, createKey);
+  current.responses.push(
+    await client.patch(path, { headers: { ...headers, "Idempotency-Key": renameKey }, data: { name: "Renamed" } })
+  );
+  current.responses.push(await client.delete(path, { headers, data: {} }));
+  await postTemplate(page, { id: current.id, name: current.name }, createKey);
+  current.responses.push(
+    await client.patch(path, { headers: { ...headers, "Idempotency-Key": renameKey }, data: { name: "Renamed" } })
+  );
+  current.responses.push(await client.delete(path, { headers, data: {} }));
+});
+Then("the deleted template remains absent on replay", async ({ page }) => {
+  const current = state(page);
+  expect(current.responses.map((response) => response.status())).toEqual([200, 200, 204, 404, 404, 204]);
+  expect(await rowsFor(current.id)).toHaveLength(0);
+});
+
+Given("an owned template with an item for the packing template API", async ({ page, scenario }) => {
+  const result = await scenario.materialize({
+    template: { overrides: { items: [{ text: "Hat", isLabel: false, position: 0 }] }, setCurrent: false },
+  });
+  states.set(page, { id: result.template!.id, name: "", responses: [] });
+});
+When("I delete the owned template through the API twice", async ({ page }) => {
+  const current = state(page);
+  const client = await apiClient(page);
+  const path = `/api/v1/packing-templates/${current.id}`;
+  const headers = { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+  current.responses.push(await client.delete(path, { headers, data: {} }));
+  current.responses.push(await client.delete(path, { headers, data: {} }));
+});
+Then("the template and its items are gone", async ({ page }) => {
+  const current = state(page);
+  expect(current.responses.map((response) => response.status())).toEqual([204, 204]);
+  expect(await rowsFor(current.id)).toHaveLength(0);
+  const items = await withE2EDb((database) =>
+    database.select().from(packingTemplateItems).where(eq(packingTemplateItems.templateId, current.id))
+  );
+  expect(items).toHaveLength(0);
+});
+
+Given("an owned template with ordered items for the packing template API", async ({ page, scenario }) => {
+  const result = await scenario.materialize({
+    template: {
+      overrides: {
+        template: { name: "Ordered gear" },
+        items: [
+          { text: "Second", isLabel: false, position: 1 },
+          { text: "First", isLabel: false, position: 0 },
+        ],
+      },
+      setCurrent: false,
+    },
+  });
+  states.set(page, { id: result.template!.id, name: "Ordered gear", responses: [] });
+});
+When("I request that template detail through the API", async ({ page }) => {
+  const current = state(page);
+  current.responses.push(
+    await (
+      await apiClient(page)
+    ).get(`/api/v1/packing-templates/${current.id}`, {
+      headers: { "x-arrivo-client": "web", origin: new URL(page.url()).origin },
+    })
+  );
+});
+Then("the owned template detail contains its items in order", async ({ page }) => {
+  const current = state(page);
+  const response = current.responses[0];
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.template).toMatchObject({ id: current.id, name: current.name });
+  expect(body.items.map((item: { text: string }) => item.text)).toEqual(["First", "Second"]);
+});
+When("I send invalid template lifecycle requests", async ({ page }) => {
+  const current = state(page);
+  const client = await apiClient(page);
+  const headers = { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+  const path = `/api/v1/packing-templates/${current.id}`;
+  current.responses.push(await client.get("/api/v1/packing-templates/not-a-uuid", { headers }));
+  current.responses.push(
+    await client.patch("/api/v1/packing-templates/not-a-uuid", { headers, data: { name: "Changed" } })
+  );
+  current.responses.push(await client.delete("/api/v1/packing-templates/not-a-uuid", { headers, data: {} }));
+  current.responses.push(await client.patch(path, { headers, data: { name: "   " } }));
+  current.responses.push(await client.patch(path, { headers, data: { name: "x".repeat(31) } }));
+  current.responses.push(await client.patch(path, { headers, data: { name: "Valid", extra: true } }));
+});
+Then("those lifecycle requests are rejected and the template is unchanged", async ({ page }) => {
+  const current = state(page);
+  for (const response of current.responses) {
+    expect(response.status()).toBe(422);
+    expect((await response.json()).error.code).toBe("validation_failed");
+  }
+  expect(await rowsFor(current.id)).toEqual([{ id: current.id, name: current.name }]);
+  const items = await withE2EDb((database) =>
+    database
+      .select()
+      .from(packingTemplateItems)
+      .where(eq(packingTemplateItems.templateId, current.id))
+      .orderBy(packingTemplateItems.position)
+  );
+  expect(items.map((item) => item.text)).toEqual(["First", "Second"]);
 });

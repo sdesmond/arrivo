@@ -9,7 +9,8 @@ import {
   reorderTemplateItems,
   updateTemplateItem,
 } from "./actions";
-import { renameTemplate } from "../actions";
+import { renamePackingTemplate } from "@/lib/api/contract/packing-templates";
+import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { TemplateEditorView } from "@/components/arrivo/template-editor-view";
 import type { PackingTemplate, PackingTemplateItem, RemovePackingSectionInput } from "@/data/types";
 
@@ -23,6 +24,7 @@ function getActionErrorMessage(error: unknown, fallbackMessage: string): string 
 }
 
 export function TemplateEditorClient({ template, items }: TemplateEditorClientProps) {
+  const rename = useApiMutation(renamePackingTemplate);
   const [localItems, setLocalItems] = useState<PackingTemplateItem[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
@@ -84,7 +86,12 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
   }
 
   function handleRenameTemplate(name: string): Promise<void> {
-    return renameTemplate(template.id, { name });
+    return new Promise<void>((resolve, reject) => {
+      void rename.mutate(
+        { params: { templateId: template.id }, body: { name } },
+        { onSuccess: () => resolve(), onError: reject, onAuthLost: () => reject(new Error("Authentication required")) }
+      );
+    });
   }
 
   function handleReorderItems(

@@ -1,23 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PackingTemplate } from "@/data/types";
 
-const { mockCreateMutate, mockDeleteTemplate, mockRenameTemplate } = vi.hoisted(() => ({
+const { mockCreateMutate, mockDeleteTemplate, mockRenameTemplate, settings } = vi.hoisted(() => ({
+  settings: { realHook: false },
   mockCreateMutate: vi.fn(),
   mockDeleteTemplate: vi.fn(),
   mockRenameTemplate: vi.fn(),
 }));
 
-vi.mock("@/lib/api/use-api-mutation", () => ({
-  useApiMutation: () => ({ mutate: mockCreateMutate, isPending: false, fields: {} }),
-}));
-
-vi.mock("./actions", () => ({
-  deleteTemplate: mockDeleteTemplate,
-  renameTemplate: mockRenameTemplate,
-}));
-
+vi.mock("@/lib/api/use-api-mutation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/use-api-mutation")>();
+  return {
+    useApiMutation: (endpoint: Parameters<typeof actual.useApiMutation>[0]) =>
+      settings.realHook
+        ? actual.useApiMutation(endpoint)
+        : {
+            mutate:
+              endpoint.method === "POST"
+                ? mockCreateMutate
+                : endpoint.method === "PATCH"
+                  ? mockRenameTemplate
+                  : mockDeleteTemplate,
+            isPending: false,
+            fields: {},
+          },
+  };
+});
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
@@ -91,6 +101,9 @@ const templates: PackingTemplate[] = [{ id: "template-1", name: "Beach Weekend" 
 
 describe("TemplatesPageClient", () => {
   beforeEach(() => {
+    settings.realHook = false;
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
     mockCreateMutate.mockReset();
   });
 
@@ -158,40 +171,54 @@ describe("TemplatesPageClient", () => {
 
   it("renames a template and clears rename state on success", async () => {
     const user = userEvent.setup();
-    mockRenameTemplate.mockResolvedValueOnce(undefined);
+    mockRenameTemplate.mockImplementationOnce(async (_input, options) => options.onSuccess());
 
     render(<TemplatesPageClient templates={templates} />);
 
     await user.click(screen.getByRole("button", { name: "open-rename" }));
     await user.click(screen.getByRole("button", { name: "submit-rename" }));
 
-    expect(mockRenameTemplate).toHaveBeenCalledWith("template-1", { name: "Renamed Template" });
+    expect(mockRenameTemplate).toHaveBeenCalledWith(
+      { params: { templateId: "template-1" }, body: { name: "Renamed Template" } },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
     expect(screen.queryByRole("button", { name: "submit-rename" })).not.toBeInTheDocument();
   });
 
   it("deletes a template and clears delete state on success", async () => {
     const user = userEvent.setup();
-    mockDeleteTemplate.mockResolvedValueOnce(undefined);
+    mockDeleteTemplate.mockImplementationOnce(async (_input, options) => options.onSuccess());
 
     render(<TemplatesPageClient templates={templates} />);
 
     await user.click(screen.getByRole("button", { name: "open-delete" }));
     await user.click(screen.getByRole("button", { name: "confirm-delete" }));
 
-    expect(mockDeleteTemplate).toHaveBeenCalledWith("template-1");
+    expect(mockDeleteTemplate).toHaveBeenCalledWith(
+      { params: { templateId: "template-1" }, body: {} },
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
     expect(screen.queryByRole("button", { name: "confirm-delete" })).not.toBeInTheDocument();
   });
 
   it("reports action failures with a toast and keeps the dialog open", async () => {
     const user = userEvent.setup();
-    mockRenameTemplate.mockRejectedValueOnce(new Error("Rename failed"));
+    settings.realHook = true;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ error: { code: "server_error", message: "Rename failed" } }, { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<TemplatesPageClient templates={templates} />);
 
     await user.click(screen.getByRole("button", { name: "open-rename" }));
     await user.click(screen.getByRole("button", { name: "submit-rename" }));
 
-    expect(toast.error).toHaveBeenCalledWith("Rename failed");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Rename failed"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/packing-templates/template-1"),
+      expect.objectContaining({ method: "PATCH" })
+    );
     expect(screen.getByRole("button", { name: "submit-rename" })).toBeInTheDocument();
   });
 });

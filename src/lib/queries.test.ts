@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { and, ne } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { CollaboratorRole } from "@/data/types";
 
 const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToType, schemaTokens } = vi.hoisted(() => ({
@@ -55,8 +55,8 @@ const { mockAssertTripAccess, mockDbSelect, mockDbTripNoteToType, mockDbTripToTy
     userLoyaltyNumbers: {},
     userWishlistDestinations: {},
     userCompanions: {},
-    packingTemplates: {},
-    packingTemplateItems: {},
+    packingTemplates: { id: "templates.id", userId: "templates.userId" },
+    packingTemplateItems: { templateId: "items.templateId", position: "items.position" },
   },
 }));
 
@@ -131,13 +131,14 @@ vi.mock("@/lib/db-mappers", () => ({
   dbCompanionToType: vi.fn(),
   dbPackingItemToType: vi.fn(),
   dbPackingListToType: vi.fn(),
-  dbTemplateToType: vi.fn(),
-  dbTemplateItemToType: vi.fn(),
+  dbTemplateToType: vi.fn((row: unknown) => row),
+  dbTemplateItemToType: vi.fn((row: unknown) => row),
   isTransitMode: vi.fn((value: string) => value === "driving"),
 }));
 
 import { encryptField } from "./field-encryption";
 import {
+  getTemplateWithItems,
   getContributorsAndInvitations,
   getSharedOwnedTrips,
   getTripDetail,
@@ -1437,5 +1438,51 @@ describe("getSharedOwnedTrips", () => {
 
     await expect(getSharedOwnedTrips("user-1")).resolves.toEqual([]);
     expect(mockDbSelect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getTemplateWithItems", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads ownership, template and items in one statement even if the id is replaced afterwards", async () => {
+    const owned = { id: "template", userId: "owner", name: "Original" };
+    const originalItem = { id: "item", templateId: "template", text: "Original item", position: 0 };
+    const foreignItem = { id: "other", templateId: "template", text: "Foreign item", position: 0 };
+    let replaced = false;
+    const orderBy = vi.fn(async () => {
+      const snapshot = [{ template: owned, item: originalItem }];
+      replaced = true;
+      return snapshot;
+    });
+    const where = vi.fn(() => ({ orderBy }));
+    const leftJoin = vi.fn(() => ({ where }));
+    mockDbSelect.mockImplementation(() => ({
+      from: () => (replaced ? { where: async () => [foreignItem] } : { leftJoin }),
+    }));
+
+    await expect(getTemplateWithItems("template", "owner")).resolves.toEqual({
+      template: owned,
+      items: [originalItem],
+    });
+    expect(mockDbSelect).toHaveBeenCalledOnce();
+    expect(leftJoin).toHaveBeenCalledWith(schemaTokens.packingTemplateItems, "eq");
+    expect(eq).toHaveBeenCalledWith("items.templateId", "templates.id");
+    expect(eq).toHaveBeenCalledWith("templates.id", "template");
+    expect(eq).toHaveBeenCalledWith("templates.userId", "owner");
+    expect(where).toHaveBeenCalledWith("and");
+  });
+
+  it("returns an empty item list or null for an absent owned template", async () => {
+    const query = (rows: unknown[]) => ({
+      from: () => ({ leftJoin: () => ({ where: () => ({ orderBy: async () => rows }) }) }),
+    });
+    mockDbSelect
+      .mockReturnValueOnce(query([{ template: { id: "template" }, item: null }]))
+      .mockReturnValueOnce(query([]));
+    await expect(getTemplateWithItems("template", "owner")).resolves.toEqual({
+      template: { id: "template" },
+      items: [],
+    });
+    await expect(getTemplateWithItems("template", "owner")).resolves.toBeNull();
   });
 });

@@ -291,3 +291,10 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-save-the-selected-packing-list-as-a-template-plan.md`
   summary: PR #568 review bot fails "Tests: Source files changed without matching tests" on `src/lib/api/idempotency.ts`, which only had a comment reworded.
   evidence: The comment still described the deleted `saveTripListAsTemplate` raw-key path; the edit has no runtime change, so no test applies. Accepted as-is for #568. Fix later by either reverting the wording or teaching `scripts/pr-review` to ignore comment-only source edits.
+
+- source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
+  summary: Verify whether existing templates have null creation timestamps and handle keyed replay for those records.
+  evidence: The schema permits null, while lifecycle replay validation fails closed for null timestamps; deployed data is needed to establish impact.
+- source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
+  summary: Handle editor title rename promise rejections in the template editor.
+  evidence: Existing title commit is invoked without awaiting or catching failures from its rename callback.

@@ -57,3 +57,12 @@ Feature: Packing templates
       | Winter Ski  |
     When I open the templates page
     Then the packing templates should appear in order "beach trip" then "Beach Trip" then "Winter Ski"
+
+  Scenario: Open and rename a template with items
+    Given the template editor "Editor Template" has an item "Sunscreen"
+    When I open the templates page
+    And I click the template editor "Editor Template"
+    And I rename the template editor to "Beach Kit"
+    When I reload the page
+    Then I should see the template editor title "Beach Kit"
+    And the template editor should contain "Sunscreen"

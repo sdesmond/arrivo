@@ -24,6 +24,7 @@ const {
 
 const mockRenameTemplate = vi.hoisted(() => vi.fn());
 const rollbackSpy = vi.hoisted(() => vi.fn());
+const renameFailure = vi.hoisted(() => vi.fn());
 
 vi.mock("./actions", () => ({
   addTemplateItem: mockAddTemplateItem,
@@ -33,8 +34,8 @@ vi.mock("./actions", () => ({
   updateTemplateItem: mockUpdateTemplateItem,
 }));
 
-vi.mock("../actions", () => ({
-  renameTemplate: mockRenameTemplate,
+vi.mock("@/lib/api/use-api-mutation", () => ({
+  useApiMutation: () => ({ mutate: mockRenameTemplate, isPending: false }),
 }));
 
 vi.mock("sonner", () => ({
@@ -51,7 +52,9 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
     onRemoveItem,
     onRemoveSection,
     onReorderItems,
+    onRenameTemplate,
   }: {
+    onRenameTemplate: (name: string) => Promise<void>;
     items: PackingTemplateItem[];
     isAdding?: boolean;
     onAddItem: (
@@ -70,6 +73,7 @@ vi.mock("@/components/arrivo/template-editor-view", () => ({
     <div>
       <div>items:{items.map((item) => item.text).join(",")}</div>
       <div>isAdding:{String(isAdding)}</div>
+      <button onClick={() => void onRenameTemplate("Coast").catch(renameFailure)}>rename-template</button>
       <button onClick={() => onAddItem("Sunscreen")}>add-item</button>
       <button onClick={() => onEditItem("item-1", "SPF 50 Sunscreen")}>edit-item</button>
       <button onClick={() => onRemoveItem("item-1")}>remove-item</button>
@@ -229,4 +233,24 @@ describe("TemplateEditorClient", () => {
       expect(toast.error).toHaveBeenCalledWith("Reorder failed");
     });
   });
+});
+
+it("renames the editor template through the API", async () => {
+  mockRenameTemplate.mockImplementationOnce(async (_input, options) => options.onSuccess());
+  const user = userEvent.setup();
+  render(<TemplateEditorClient template={template} items={items} />);
+  await user.click(screen.getByRole("button", { name: "rename-template" }));
+  expect(mockRenameTemplate).toHaveBeenCalledWith(
+    { params: { templateId: "template-1" }, body: { name: "Coast" } },
+    expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+  );
+});
+
+it("propagates a failed editor rename", async () => {
+  const error = new Error("Rename failed");
+  mockRenameTemplate.mockImplementationOnce(async (_input, options) => options.onError(error));
+  const user = userEvent.setup();
+  render(<TemplateEditorClient template={template} items={items} />);
+  await user.click(screen.getByRole("button", { name: "rename-template" }));
+  await waitFor(() => expect(renameFailure).toHaveBeenCalledWith(error));
 });

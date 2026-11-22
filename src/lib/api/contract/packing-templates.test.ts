@@ -48,3 +48,15 @@ it("accepts only the trip, template id and a trimmed name for a list save", () =
   ])
     expect(savePackingListAsTemplate.body.safeParse(body).success).toBe(false);
 });
+
+it("validates lifecycle parameters and rename bodies", async () => {
+  const { getPackingTemplate, renamePackingTemplate, deletePackingTemplate } = await import("./packing-templates");
+  for (const endpoint of [getPackingTemplate, renamePackingTemplate, deletePackingTemplate]) {
+    expect(endpoint.params.parse({ templateId: uuid.toUpperCase() })).toEqual({ templateId: uuid });
+    expect(endpoint.params.safeParse({ templateId: "bad" }).success).toBe(false);
+  }
+  expect(renamePackingTemplate.body.parse({ name: " Beach " })).toEqual({ name: "Beach" });
+  for (const name of [" ", "x".repeat(FIELD_LIMITS.templateName + 1)])
+    expect(renamePackingTemplate.body.safeParse({ name }).success).toBe(false);
+  expect(deletePackingTemplate.status).toBe(204);
+});
