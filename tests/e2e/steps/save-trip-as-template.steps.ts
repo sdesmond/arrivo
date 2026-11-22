@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { eq } from "drizzle-orm";
-import { packingItems, tripPackingLists } from "../../../src/db/schema";
+import { packingItems, packingTemplateItems, packingTemplates, tripPackingLists } from "../../../src/db/schema";
 import { withE2EDb } from "../e2e-db";
 import { E2E_TRIP_ALT_START_DATE, E2E_TRIP_ALT_THIRD_DATE } from "../e2e-seed-data";
 import { Given, Then, When } from "../fixtures";
@@ -63,6 +63,22 @@ When("I save the packing list as template named {string}", async ({ page }, name
   await page.waitForLoadState("domcontentloaded");
 });
 
+Given("the save-template trip also has a second packing list", async ({ scenario }) => {
+  const tripId = scenario.currentTrip!.id;
+  await withE2EDb(async (db) => {
+    const rows = (await db
+      .insert(tripPackingLists)
+      .values({ tripId, name: "Extra", position: 1 })
+      .returning({ id: tripPackingLists.id })) as { id: string }[];
+    const listId = rows[0]!.id;
+    await db.insert(packingItems).values([
+      { tripId, listId, name: "Sunscreen", isLabel: false, done: false, position: 0, labelId: null },
+      { tripId, listId, name: "Camera", isLabel: false, done: false, position: 1, labelId: null },
+      { tripId, listId, name: "Charger", isLabel: false, done: false, position: 2, labelId: null },
+    ]);
+  });
+});
+
 When("I open the save-as-template dialog", async ({ page }) => {
   await page.getByRole("button", { name: "List options" }).click();
   await page.getByText("Save as template").click();
@@ -101,3 +117,38 @@ Then("the saved template should have no checked items", async ({ page }) => {
   await templateLink.click();
   await expect(page.getByRole("checkbox", { checked: true })).toHaveCount(0, { timeout: 10_000 });
 });
+
+Then("the save dialog announces {int} items", async ({ page }, count: number) => {
+  await expect(page.getByRole("dialog").getByText(`${count} items will be saved`)).toBeVisible({ timeout: 5_000 });
+});
+
+When("I confirm the save dialog with the name {string}", async ({ page }, name: string) => {
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Template name").fill(name);
+  await dialog.getByRole("button", { name: "Save template" }).click();
+  await expect(dialog).toBeHidden({ timeout: 10_000 });
+  await expect(page.getByText("Template saved")).toBeVisible({ timeout: 10_000 });
+});
+
+Then(
+  "the template {string} holds exactly {string} and {string}",
+  async ({}, name: string, first: string, second: string) => {
+    await expect
+      .poll(async () =>
+        withE2EDb(async (db) => {
+          const templates = await db
+            .select({ id: packingTemplates.id })
+            .from(packingTemplates)
+            .where(eq(packingTemplates.name, name));
+          if (templates.length !== 1) return `templates:${templates.length}`;
+          const items = await db
+            .select({ text: packingTemplateItems.text, position: packingTemplateItems.position })
+            .from(packingTemplateItems)
+            .where(eq(packingTemplateItems.templateId, templates[0]!.id))
+            .orderBy(packingTemplateItems.position);
+          return items.map((item) => item.text);
+        })
+      )
+      .toEqual([first, second]);
+  }
+);
