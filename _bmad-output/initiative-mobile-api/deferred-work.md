@@ -287,3 +287,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV2: `tests/e2e/steps/api.steps.ts` is about 4,600 lines (+817 in epic 5); packing API steps went into the shared file.
   evidence: Split packing and trip steps into `api-<domain>.steps.ts` files, and adopt one steps file per migrated domain.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-save-the-selected-packing-list-as-a-template-plan.md`
+  summary: PR #568 review bot fails "Tests: Source files changed without matching tests" on `src/lib/api/idempotency.ts`, which only had a comment reworded.
+  evidence: The comment still described the deleted `saveTripListAsTemplate` raw-key path; the edit has no runtime change, so no test applies. Accepted as-is for #568. Fix later by either reverting the wording or teaching `scripts/pr-review` to ignore comment-only source edits.
