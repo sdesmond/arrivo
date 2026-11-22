@@ -505,6 +505,30 @@ Body: `{ "name": "Beach" }`, with the same name rules as create. Missing or fore
 
 Body: `{}`. Deletes the caller's template and its items. Missing and foreign templates also return 204.
 
+### POST /api/v1/packing-templates/:templateId/items
+
+**Auth** signed in · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplateItem`
+
+Adds an item or section to a template the caller owns. Body (strict): `id` (a client-chosen UUID, required), `text` (required, trimmed, 1-30 characters), and optional `isLabel`, `labelId` and one of `beforeItemId` or `afterItemId`. Without an anchor the item goes last; an anchor inserts it directly before or after that item and shifts later items down. `labelId` must be a section of the same template, and sections cannot have a parent. Returns the created item. Repeating the same `id` with the same content returns the current item without writing, whatever `Idempotency-Key` it carries; the same `id` with different content returns 409 `conflict`. The `id` of an item or section deleted within the last 24 hours returns 409 and is not recreated. A missing or foreign template, or an `id` that belongs to another user's template, returns 404 `not_found`. A `labelId` or anchor that is not in this template returns 422 `validation_failed` and writes nothing.
+
+### PATCH /api/v1/packing-template-items/:itemId
+
+**Auth** signed in · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplateItem`
+
+Body (strict): `{ "text": "Cap" }`, trimmed, 1-30 characters. Applies to items and sections. A missing item or one in another user's template returns 404.
+
+### DELETE /api/v1/packing-template-items/:itemId
+
+**Auth** signed in · **`Idempotency-Key`** yes · **Success** `204`
+
+Body: `{}`. Deletes the item and remembers its id for 24 hours. A missing item, and an item in another user's template, also return 204 and write nothing. Deleting a section this way leaves its items in place, ungrouped; use the section endpoint to choose.
+
+### DELETE /api/v1/packing-template-items/:itemId/section
+
+**Auth** signed in · **`Idempotency-Key`** yes · **Success** `204`
+
+Body: `{ "mode": "delete-items" | "move-items-to-ungrouped" }`. Removes the section and either deletes its items or moves them to ungrouped. The removed ids cannot be recreated for 24 hours. An item that is not a section returns 404; a missing section, and one in another user's template, return 204 and write nothing.
+
 ### POST /api/v1/packing-lists/:listId/template
 
 **Role** editor · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplate`
