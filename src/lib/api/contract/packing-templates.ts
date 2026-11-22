@@ -9,16 +9,21 @@ export const listPackingTemplates = defineEndpoint<{ templates: PackingTemplate[
   params: z.object({}),
   body: z.strictObject({}),
 });
+const templateName = z
+  .string()
+  .trim()
+  .min(1, "Template name is required.")
+  .max(FIELD_LIMITS.templateName, overLimitMessage("Template name", FIELD_LIMITS.templateName));
 export const createPackingTemplate = defineEndpoint<PackingTemplate>()({
   method: "POST",
   path: "/api/v1/packing-templates",
   params: z.object({}),
-  body: z.strictObject({
-    id: z.uuid().toLowerCase(),
-    name: z
-      .string()
-      .trim()
-      .min(1, "Template name is required.")
-      .max(FIELD_LIMITS.templateName, overLimitMessage("Template name", FIELD_LIMITS.templateName)),
-  }),
+  body: z.strictObject({ id: z.uuid().toLowerCase(), name: templateName }),
+});
+/** Copies the list's items, in order, into a new template under the client id. */
+export const savePackingListAsTemplate = defineEndpoint<PackingTemplate>()({
+  method: "POST",
+  path: "/api/v1/packing-lists/:listId/template",
+  params: z.object({ listId: z.uuid().toLowerCase() }),
+  body: z.strictObject({ tripId: z.uuid().toLowerCase(), id: z.uuid().toLowerCase(), name: templateName }),
 });

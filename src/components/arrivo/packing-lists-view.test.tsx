@@ -5,8 +5,17 @@ import { PackingListsView } from "./packing-lists-view";
 import type { TripPackingList, PackingItem } from "@/data/types";
 
 vi.mock("./packing-list-view", () => ({
-  PackingListView: ({ items }: { items: PackingItem[] }) => (
-    <div data-testid="packing-list-view">{items.map((item) => item.name).join(", ")}</div>
+  PackingListView: ({
+    items,
+    onSaveAsTemplate,
+  }: {
+    items: PackingItem[];
+    onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
+  }) => (
+    <div data-testid="packing-list-view">
+      {items.map((item) => item.name).join(", ")}
+      {onSaveAsTemplate && <button onClick={() => void onSaveAsTemplate("Beach")}>Save template</button>}
+    </div>
   ),
 }));
 
@@ -65,6 +74,27 @@ describe("PackingListsView — list cards", () => {
   it("renders delete button with accessible label", () => {
     render(<PackingListsView {...baseProps} packingLists={lists} packingItems={[]} />);
     expect(screen.getByRole("button", { name: 'Delete "Carry-On"' })).toBeInTheDocument();
+  });
+});
+
+describe("PackingListsView — save as template", () => {
+  it("passes the open list id, not the default list or the overview, to the save callback", async () => {
+    const user = userEvent.setup();
+    const onSaveAsTemplate = vi.fn().mockResolvedValue("template-id");
+    render(
+      <PackingListsView {...baseProps} packingLists={lists} packingItems={items} onSaveAsTemplate={onSaveAsTemplate} />
+    );
+    expect(screen.queryByRole("button", { name: "Save template" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: 'Open "Checked Bag"' }));
+    await user.click(screen.getByRole("button", { name: "Save template" }));
+    expect(onSaveAsTemplate).toHaveBeenCalledExactlyOnceWith("Beach", "list-2");
+  });
+
+  it("offers no save when the caller provides none", async () => {
+    const user = userEvent.setup();
+    render(<PackingListsView {...baseProps} packingLists={lists} packingItems={items} />);
+    await user.click(screen.getByRole("button", { name: 'Open "Carry-On"' }));
+    expect(screen.queryByRole("button", { name: "Save template" })).not.toBeInTheDocument();
   });
 });
 

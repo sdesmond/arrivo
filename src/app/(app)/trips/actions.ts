@@ -4,16 +4,6 @@ import { requireUser } from "@/lib/auth-helpers";
 import { SearchBoxCore, SessionToken } from "@mapbox/search-js-core";
 import { assertWithinRateLimit } from "@/lib/rate-limit";
 import type { SearchBoxAdministrativeUnitTypes, SearchBoxSuggestion } from "@mapbox/search-js-core";
-import { saveTripListAsTemplate as saveTripListAsTemplateAction } from "./packing-actions";
-
-export async function saveTripListAsTemplate(
-  tripId: string,
-  name: string,
-  idempotencyKey?: string
-): Promise<import("@/data/types").SaveTripAsTemplateResult> {
-  return saveTripListAsTemplateAction(tripId, name, idempotencyKey);
-}
-
 export interface LocationSuggestion {
   placeName: string;
   country: string;

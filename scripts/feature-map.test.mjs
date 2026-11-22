@@ -115,7 +115,7 @@ describe("feature-map consistency", async () => {
       expect.arrayContaining(["@feat:api", "@feat:day-planning", "@feat:trip-live-refresh", "@feat:packing-tab"])
     );
     expect(tagsFor("src/lib/api/idempotency.test.ts")).not.toContain("@feat:packing-tab");
-    expect(tagsFor("src/app/(app)/trips/packing-actions.ts")).toContain("@feat:packing-tab");
+    expect(tagsFor("src/lib/services/packing-templates.ts")).toContain("@feat:save-trip-as-template");
   });
 
   it("every feature file carries its own @feat:<stem> tag", () => {

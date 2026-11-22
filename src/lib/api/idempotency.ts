@@ -10,7 +10,7 @@ import { isUuid } from "@/lib/validation-limits";
 import { ConflictError } from "@/lib/services/conflict-error";
 import { ApiError } from "./errors";
 
-/** Prefix that keeps API replay rows apart from the raw keys `packing-actions.ts` stores in the same table. */
+/** Prefix that keeps API replay rows apart from any raw keys stored in the same table. */
 export const API_IDEMPOTENCY_NAMESPACE = "api:v1:";
 export const DEFAULT_IDEMPOTENCY_EXPIRY_MS = IDEMPOTENCY_RETENTION_MS;
 const IDEMPOTENCY_KEY_MAX = 255;

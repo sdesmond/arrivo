@@ -33,7 +33,7 @@ export interface PackingListsViewProps {
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onEditItem?: (id: string, name: string) => void;
   onPullTemplates?: (templateIds: string[], listId?: string | null) => Promise<PullTemplatesResult | undefined>;
-  onSaveAsTemplate?: (name: string) => Promise<string | undefined>;
+  onSaveAsTemplate?: (name: string, listId: string) => Promise<string | undefined>;
   onCreateList: (name: string) => Promise<string | undefined>;
   onRenameList: (listId: string, name: string) => Promise<void>;
   onDeleteList: (listId: string) => Promise<void>;
@@ -172,7 +172,7 @@ export function PackingListsView({
           onEditItem={onEditItem}
           templates={templates}
           onPullTemplates={onPullTemplates ? (templateIds) => onPullTemplates(templateIds, activeListId) : undefined}
-          onSaveAsTemplate={onSaveAsTemplate}
+          onSaveAsTemplate={onSaveAsTemplate ? (name) => onSaveAsTemplate(name, activeListId) : undefined}
         />
       </div>
     );

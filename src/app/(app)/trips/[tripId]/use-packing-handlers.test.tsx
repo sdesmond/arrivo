@@ -11,9 +11,6 @@ const { api, push, refresh } = vi.hoisted(() => ({ api: vi.fn(), push: vi.fn(), 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 vi.mock("@/lib/api/client", async (original) => ({ ...(await original<typeof import("@/lib/api/client")>()), api }));
-vi.mock("../actions", () => ({
-  saveTripListAsTemplate: vi.fn(),
-}));
 
 import { ApiClientError } from "@/lib/api/client";
 
@@ -445,6 +442,48 @@ describe("packing list API writes", () => {
     });
     expect(created).toBeUndefined();
     expect(toast.error).toHaveBeenCalledExactlyOnceWith("List name is required");
+  });
+  it("saves a list as a template with a draft id that survives a failed retry and changes with the name", async () => {
+    const { savePackingListAsTemplate } = await import("@/lib/api/contract/packing-templates");
+    const secondId = "55555555-5555-4555-8555-555555555555";
+    vi.mocked(crypto.randomUUID).mockReturnValueOnce(checklistId).mockReturnValueOnce(secondId);
+    api.mockRejectedValueOnce(new ApiClientError(500, "internal", "Boom"));
+    const { result } = renderPackingHandlers(detail);
+    let saved: string | undefined = "unset";
+    await act(async () => {
+      saved = await result.current.handleSaveAsTemplate("Beach ", sourceId);
+    });
+    expect(saved).toBeUndefined();
+    expect(toast.error).toHaveBeenCalledWith("Boom");
+    await act(async () => {
+      saved = await result.current.handleSaveAsTemplate(" Beach", sourceId);
+    });
+    expect(saved).toBe(checklistId);
+    expect(api).toHaveBeenLastCalledWith(savePackingListAsTemplate, {
+      params: { listId: sourceId },
+      body: { tripId, id: checklistId, name: "Beach" },
+    });
+    // Success clears the draft, so the next save mints a new id.
+    await act(async () => {
+      saved = await result.current.handleSaveAsTemplate("Beach", sourceId);
+    });
+    expect(saved).toBe(secondId);
+  });
+  it("mints a new draft id when the name or the list changes after a failure", async () => {
+    const secondId = "55555555-5555-4555-8555-555555555555";
+    const thirdId = "66666666-6666-4666-8666-666666666666";
+    vi.mocked(crypto.randomUUID)
+      .mockReturnValueOnce(checklistId)
+      .mockReturnValueOnce(secondId)
+      .mockReturnValueOnce(thirdId);
+    api.mockRejectedValue(new ApiClientError(500, "internal", "Boom"));
+    const { result } = renderPackingHandlers(detail);
+    await act(async () => {
+      await result.current.handleSaveAsTemplate("Beach", sourceId);
+      await result.current.handleSaveAsTemplate("Beach 2", sourceId);
+      await result.current.handleSaveAsTemplate("Beach 2", checklistId);
+    });
+    expect(api.mock.calls.map(([, input]) => input.body.id)).toEqual([checklistId, secondId, thirdId]);
   });
   it("renames and deletes through trip-scoped requests", async () => {
     const { renamePackingList, deletePackingList } = await import("@/lib/api/contract/packing");

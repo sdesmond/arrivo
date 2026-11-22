@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RemovePackingSectionMode, TripDetailPayload, PullTemplatesResult } from "@/data/types";
-import { saveTripListAsTemplate } from "../actions";
 import {
   createPackingItem,
   removePackingSection,
@@ -16,6 +14,7 @@ import {
   deletePackingList,
   pullTemplatesOntoTrip,
 } from "@/lib/api/contract/packing";
+import { savePackingListAsTemplate } from "@/lib/api/contract/packing-templates";
 import { createChecklist } from "@/lib/api/contract/checklists";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { createRandomId } from "@/lib/utils";
@@ -36,7 +35,7 @@ export interface PackingHandlers {
   handleReorderPackingItems: (ordered: { id: string; labelId: string | null }[], onError?: () => void) => void;
   handleUpdatePackingItem: (id: string, name: string) => void;
   handlePullTemplates: (templateIds: string[], listId?: string | null) => Promise<PullTemplatesResult | undefined>;
-  handleSaveAsTemplate: (name: string) => Promise<string | undefined>;
+  handleSaveAsTemplate: (name: string, listId: string) => Promise<string | undefined>;
   handleCreatePackingList: (name: string) => Promise<string | undefined>;
   handleRenamePackingList: (listId: string, name: string) => Promise<void>;
   handleDeletePackingList: (listId: string) => Promise<void>;
@@ -69,6 +68,9 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const createListMutation = useApiMutation(createPackingList);
   const renameListMutation = useApiMutation(renamePackingList);
   const deleteListMutation = useApiMutation(deletePackingList);
+  const saveTemplateMutation = useApiMutation(savePackingListAsTemplate);
+  // One id per list and name, so a retry of a failed save cannot create a second template.
+  const saveTemplateDraft = useRef<{ key: string; id: string } | null>(null);
 
   useEffect(() => {
     if (newlyCreatedChecklistId === null) return;
@@ -247,14 +249,23 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     return result;
   }
 
-  async function handleSaveAsTemplate(name: string): Promise<string | undefined> {
-    try {
-      const result = await saveTripListAsTemplate(trip.id, name);
-      return result.templateId;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save template. Please try again.");
-      return undefined;
-    }
+  async function handleSaveAsTemplate(name: string, listId: string): Promise<string | undefined> {
+    const trimmed = name.trim();
+    const key = JSON.stringify([listId, trimmed]);
+    const id = saveTemplateDraft.current?.key === key ? saveTemplateDraft.current.id : createRandomId();
+    saveTemplateDraft.current = { key, id };
+    let saved = false;
+    // The hook toasts a failure; the dialog stays open because no id comes back.
+    await saveTemplateMutation.mutate(
+      { params: { listId }, body: { tripId: trip.id, id, name: trimmed } },
+      {
+        onSuccess: () => {
+          saved = true;
+          saveTemplateDraft.current = null;
+        },
+      }
+    );
+    return saved ? id : undefined;
   }
 
   async function handleCreatePackingList(name: string): Promise<string | undefined> {

@@ -1469,10 +1469,6 @@ export interface PullTemplatesResult {
   skipped: number;
 }
 
-export interface SaveTripAsTemplateResult {
-  templateId: string;
-}
-
 // ── Account security ─────────────────────────────────────────────────────────
 
 // `code` values on the CredentialsSignin errors thrown from authorize(). They appear in Auth.js error URLs,
