@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { reorderTemplateItems } from "./actions";
 import {
-  addTemplateItem,
-  removeTemplateItem,
-  removeTemplateSection,
-  reorderTemplateItems,
-  updateTemplateItem,
-} from "./actions";
-import { renamePackingTemplate } from "@/lib/api/contract/packing-templates";
+  createPackingTemplateItem,
+  deletePackingTemplateItem,
+  removePackingTemplateSection,
+  renamePackingTemplate,
+  updatePackingTemplateItem,
+} from "@/lib/api/contract/packing-templates";
 import { useApiMutation } from "@/lib/api/use-api-mutation";
 import { TemplateEditorView } from "@/components/arrivo/template-editor-view";
 import type { PackingTemplate, PackingTemplateItem, RemovePackingSectionInput } from "@/data/types";
@@ -25,10 +25,16 @@ function getActionErrorMessage(error: unknown, fallbackMessage: string): string 
 
 export function TemplateEditorClient({ template, items }: TemplateEditorClientProps) {
   const rename = useApiMutation(renamePackingTemplate);
+  const createItem = useApiMutation(createPackingTemplateItem);
+  const updateItem = useApiMutation(updatePackingTemplateItem);
+  const deleteItem = useApiMutation(deletePackingTemplateItem);
+  const removeSection = useApiMutation(removePackingTemplateSection);
   const [localItems, setLocalItems] = useState<PackingTemplateItem[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [prevItems, setPrevItems] = useState(items);
   const [, startTransition] = useTransition();
+  // A failed create keeps its id, so the retry of the same entry cannot add it twice.
+  const createRetry = useRef<{ details: string; id: string } | null>(null);
 
   if (prevItems !== items) {
     setPrevItems(items);
@@ -48,41 +54,47 @@ export function TemplateEditorClient({ template, items }: TemplateEditorClientPr
     }
 
     setIsAdding(true);
-    try {
-      await addTemplateItem(template.id, { text, isLabel, afterItemId, beforeItemId, labelId });
-    } catch (error) {
-      setIsAdding(false);
-      toast.error(getActionErrorMessage(error, "Could not add template item"));
-    }
+    const details = JSON.stringify([template.id, text, isLabel ?? false, afterItemId, beforeItemId, labelId]);
+    const id = createRetry.current?.details === details ? createRetry.current.id : crypto.randomUUID();
+    createRetry.current = null;
+    // The hook toasts a failure; the adding state clears here so the entry can be sent again.
+    await createItem.mutate(
+      {
+        params: { templateId: template.id },
+        body: { id, text, isLabel, afterItemId, beforeItemId, labelId },
+      },
+      {
+        onError: () => {
+          createRetry.current = { details, id };
+          setIsAdding(false);
+        },
+        onAuthLost: () => setIsAdding(false),
+      }
+    );
   }
 
   function handleRemoveItem(id: string): void {
-    startTransition(async () => {
-      try {
-        await removeTemplateItem(id);
-      } catch (error) {
-        toast.error(getActionErrorMessage(error, "Could not remove template item"));
-      }
-    });
+    void deleteItem.mutate({ params: { itemId: id }, body: {} });
   }
 
   async function handleRemoveSection(id: string, input: RemovePackingSectionInput): Promise<void> {
-    try {
-      await removeTemplateSection(id, input);
-    } catch (error) {
-      toast.error(getActionErrorMessage(error, "Could not remove template section"));
-      throw error;
-    }
+    let failure: unknown;
+    await removeSection.mutate(
+      { params: { itemId: id }, body: { mode: input.mode } },
+      {
+        onError: (error) => {
+          failure = error;
+        },
+        onAuthLost: () => {
+          failure = new Error("Your session has expired.");
+        },
+      }
+    );
+    if (failure) throw failure;
   }
 
   function handleEditItem(id: string, text: string): void {
-    startTransition(async () => {
-      try {
-        await updateTemplateItem(id, { text });
-      } catch (error) {
-        toast.error(getActionErrorMessage(error, "Could not update template item"));
-      }
-    });
+    void updateItem.mutate({ params: { itemId: id }, body: { text } });
   }
 
   function handleRenameTemplate(name: string): Promise<void> {
