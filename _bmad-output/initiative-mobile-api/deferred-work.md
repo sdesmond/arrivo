@@ -298,3 +298,7 @@
 - source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
   summary: Handle editor title rename promise rejections in the template editor.
   evidence: Existing title commit is invoked without awaiting or catching failures from its rename callback.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-edit-template-items-and-sections-plan.md`
+  summary: Template item create accepts a before/after anchor in a different section than the supplied `labelId`.
+  evidence: Flat position places the item inside the anchor's block while `labelId` points elsewhere; the old server action had the same flaw.
