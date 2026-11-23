@@ -1,7 +1,7 @@
 ---
 epic: epic-packing-templates-api
 date: 2026-11-23
-verdict: rejected
+verdict: accepted-with-open-items
 criteria: declared
 headless: false
 ---
@@ -90,10 +90,10 @@ Items 1-6 verified against the epic 5 verdict text and the files cited; commits 
 
 Proposed, not applied.
 
-1. **Developer: add template deletion records (F1).** Add `packing-template` to `deletion-records.ts`, record on `deletePackingTemplate` (and its cascade), refuse recreate within the window, with a failing service test and an `api.feature` scenario first.
+1. **Developer: add template deletion records (F1). Fixed on `fix/template-deletion-records`, PR #576, merged 2026-11-23 (`47aa1516`).** Add `packing-template` to `deletion-records.ts`, record on `deletePackingTemplate` (and its cascade), refuse recreate within the window, with a failing service test and an `api.feature` scenario first.
 2. **Process owner: make validator result a required plan Verification field (F5).** Repeat of epic 5 action 8.
 3. **Process owner: add the cross-story invariant pass to the epic 7 verify story (F6).** For epic 7: deletion records for every client-id resource (reservations, expenses), replay windows, ETag determinism.
-4. **Process owner: update ticket and plan status at merge.** Mark epic 6 tickets `done` through `bmad-ticket` after F1 lands and the verdict is revised.
+4. **Process owner: update ticket and plan status at merge.** Mark epic 6 tickets `done` through `bmad-ticket` Done 2026-11-23 (`tickets.py mark ... done`, tickets 6.1-6.7).
 5. **Developer: move template save steps out of `api.steps.ts` (F3).** Fold into the AV2 split.
 6. **Developer (carried over from epic 5): AV1, AV2, F8, F13, F15, F17 and the invitation F3.** Already in `deferred-work.md`; decide before epic 8 or 12.
 
@@ -110,7 +110,7 @@ None written (user decision, 2026-11-23: no ADRs; the choices stay in `docs/api-
 
 ## Acceptance verdict
 
-**Rejected** (user decision, 2026-11-23). The machine verdict was accepted-with-open-items: Done when 1 and 2 are met with evidence, 3 is met except for F1, and every ticket is built. The user overrode it to hold epic 6 open until F1 (template deletion records) is fixed. Criteria declared. Epic 6 tickets stay at `review`; do not mark them `done` until F1 lands and this verdict is revised.
+**Accepted with open items** (user decision, 2026-11-23; revised from rejected). The first verdict, also 2026-11-23, was rejected until F1 was fixed. The F1 fix is built and validated on `fix/template-deletion-records` (PR #576, into `feature/api-v1`): lint, tsc, build, coverage (8,390 tests; lines 98.08%, branches 94.17%) and affected E2E (755 passed) pass. The user revised the verdict and marked the seven tickets done before #576 merged, and #576 has since merged (`47aa1516`), so F1 is on `feature/api-v1`. Criteria declared; Done when 1-3 are met. Open items: F2-F4 and F5-F6 above (deferred, process), the carried-over epic 5 items (AV1, AV2, F8, F13, F15, F17, invitation F3) and the null-`createdAt` replay question in `deferred-work.md`.
 
 ## Open questions
 

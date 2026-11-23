@@ -3,7 +3,7 @@ title: "Open, rename and delete owned templates"
 type: feature
 ticket: 3
 created: 2026-11-21
-status: built
+status: done
 baseline_revision: "148d568931ac07084d134cf3d286668625ebd30e"
 route: full
 route_source: auto
