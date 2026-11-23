@@ -1,15 +1,32 @@
 import { expect } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
+import { reloadPage } from "../page-reload";
 
 Given("I have a trip available to delete from the listing page", async ({ page, scenario }) => {
-  await scenario.ensureCurrentTrip("deleteTrip");
+  const trip = await scenario.ensureCurrentTrip("deleteTrip");
   await scenario.signIn(page);
   await page.goto("/trips");
-  await expect(page.locator("a[href^='/trips/']").filter({ hasText: "E2E Delete Trip" }).first()).toBeVisible();
+  await expect(page.locator(`a[href="/trips/${trip.id}"]`).first()).toBeVisible();
 });
 
-When("I open the trip options menu for {string}", async ({ page }, tripName: string) => {
-  const tripCard = page.locator("a[href^='/trips/']").filter({ hasText: tripName }).first();
+Given("I have another trip with the same name", async ({ page, scenario }) => {
+  const { trip } = await scenario.materialize({ trip: { mother: "deleteTrip", setCurrent: false } });
+  if (!trip) throw new Error("Could not create the second trip.");
+  scenario.setValue("same-name-trip-id", trip.id);
+  await reloadPage(page);
+  await expect(page.locator(`a[href="/trips/${trip.id}"]`).first()).toBeVisible();
+});
+
+Then("the other trip with the same name remains visible", async ({ page, scenario }) => {
+  const tripId = scenario.getValue<string>("same-name-trip-id");
+  if (!tripId) throw new Error("The second trip was not created.");
+  await expect(page.locator(`a[href="/trips/${tripId}"]`).first()).toBeVisible();
+});
+
+When("I open the trip options menu for {string}", async ({ page, scenario }, tripName: string) => {
+  const trip = await scenario.ensureCurrentTrip();
+  expect(trip.name).toBe(tripName);
+  const tripCard = page.locator(`a[href="/trips/${trip.id}"]`).first();
   await expect(tripCard).toBeVisible();
   const trigger = tripCard.getByTitle("Trip options");
   await trigger.click();
@@ -28,17 +45,20 @@ When("I choose {string} from the trip options menu", async ({ page }, action: st
   await page.keyboard.press("Enter");
 });
 
-When("I confirm the trip deletion", async ({ page }) => {
+When("I confirm the trip deletion", async ({ page, scenario }) => {
+  const trip = await scenario.ensureCurrentTrip();
   const deleted = page.waitForResponse(
     (response) =>
-      response.request().method() === "DELETE" && /\/api\/v1\/trips\/[^/]+$/.test(new URL(response.url()).pathname)
+      response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/v1/trips/${trip.id}`
   );
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   expect((await deleted).status()).toBe(204);
 });
 
-Then("the trip {string} is no longer visible in the trip list", async ({ page }, tripName: string) => {
-  await expect(page.locator("a[href^='/trips/']").filter({ hasText: tripName })).toHaveCount(0);
+Then("the trip {string} is no longer visible in the trip list", async ({ page, scenario }, tripName: string) => {
+  const trip = await scenario.ensureCurrentTrip();
+  expect(trip.name).toBe(tripName);
+  await expect(page.locator(`a[href="/trips/${trip.id}"]`)).toHaveCount(0);
 });
 
 When("I delete the trip", async ({ page, scenario }) => {
