@@ -24,6 +24,7 @@ export type DeletionRecordResource =
   | "trip"
   | "packing-item"
   | "packing-list"
+  | "packing-template"
   | "packing-template-item";
 
 /** Shown when a create reuses a deleted id. The client mints a new id on the 409, so doing it again creates. */
@@ -39,6 +40,7 @@ const DELETED_MESSAGES: Record<DeletionRecordResource, string> = {
   // Sections are packing item rows (`isLabel`), so they share this resource and its message.
   "packing-item": "This packing item was deleted. Add it again to create a new one.",
   "packing-list": "This packing list was deleted. Create it again to start a new list.",
+  "packing-template": "This template was deleted. Create it again to start a new template.",
   // Template sections are template item rows (`isLabel`), so they share this resource and its message.
   "packing-template-item": "This template item was deleted. Add it again to create a new one.",
 };

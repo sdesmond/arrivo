@@ -19,6 +19,7 @@ import { getTemplateWithItems, listTemplatesForUser } from "@/lib/queries";
 import { guardTransactionDeadline } from "@/lib/request-deadline";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
+import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite } from "./trip-write";
 import { ValidationFailedError } from "./validation-failed-error";
@@ -77,6 +78,7 @@ export async function createPackingTemplate(
                 throw new ConflictError("This ID was already used for a different template.");
               return dbTemplateToType(existing);
             }
+            await refuseRecentlyDeleted(transaction, "packing-template", body.id);
             const [row] = await transaction
               .insert(packingTemplates)
               .values({ id: body.id, userId: actor.userId, name: body.name })
@@ -134,6 +136,7 @@ export async function savePackingListAsTemplate(
         if (existing.name !== body.name) throw new ConflictError("This ID was already used for a different template.");
         return dbTemplateToType(existing);
       }
+      await refuseRecentlyDeleted(transaction, "packing-template", body.id);
       const items = await transaction
         .select()
         .from(packingItems)
@@ -232,10 +235,26 @@ export async function deletePackingTemplate(actor: Actor, templateId: string): P
   const deleted = await db.transaction((transaction) =>
     guardTransactionDeadline(transaction, async () => {
       await lockClientIds(transaction, [`packing-template:${templateId}`]);
-      return transaction
+      // The items cascade with the template, so read their ids first: an item create reusing one under another
+      // owned template must conflict too.
+      const itemIds = await transaction
+        .select({ id: packingTemplateItems.id })
+        .from(packingTemplateItems)
+        .where(eq(packingTemplateItems.templateId, templateId));
+      const removed = await transaction
         .delete(packingTemplates)
         .where(and(eq(packingTemplates.id, templateId), eq(packingTemplates.userId, actor.userId)))
         .returning({ id: packingTemplates.id });
+      if (removed.length > 0) {
+        await recordDeletions(transaction, "packing-template", [templateId], actor.userId);
+        await recordDeletions(
+          transaction,
+          "packing-template-item",
+          itemIds.map((item) => item.id),
+          actor.userId
+        );
+      }
+      return removed;
     })
   );
   if (deleted.length > 0) revalidatePath("/packing");
