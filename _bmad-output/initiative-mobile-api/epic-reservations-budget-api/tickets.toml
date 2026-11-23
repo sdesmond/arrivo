@@ -1,0 +1,107 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Create reservations through the API"
+description = "Tracer: expose POST and GET /api/v1/trips/:tripId/reservations with a client-supplied UUID, the createReservationSchema rules and REQUIRES_END_AT, trip lock with date-range widening and recordTripUpdated parity; add the reservation deletion-record kind and refuse creates of deleted ids; move reservation-date-range.ts and REQUIRES_END_AT into src/lib; switch the reservation-edit-drawer create caller and keep server-rendered reads direct."
+verify = "In reservations.feature, add a reservation in the drawer and reload on the production build; route and service tests prove a replay yields one row, trip dates widen once, a deleted id cannot be recreated, and a viewer is denied."
+covers = ["R4", "R7"]
+after = ["1.10", "6.7"]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Create expenses through the API"
+description = "Expose POST and GET /api/v1/trips/:tripId/expenses with a client UUID, amount, category and currency validation, one event-or-reservation link checked in-trip, dual conversion that still saves and returns conversionError when the rate lookup fails, amount stored with toString and read through dbExpenseToType, and recordTripUpdated parity; add the expense deletion-record kind; switch the trip-add-expense-modal create caller; create budget.feature (@feat:budget), move the Misc Expense scenario from trips.feature and the budget component mappings from the trips feature-map entry to it."
+verify = "In budget.feature, add a Misc expense and reload; service and route tests cover replay, a foreign-trip link target rejected, a failed rate lookup saving with conversionError, and a deleted id refused."
+covers = ["R4", "R7"]
+after = [1]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Edit reservations through the API"
+description = "Expose PATCH and GET /api/v1/reservations/:reservationId as a partial patch under the trip lock with start/end order checks, date-range widening and the address clear that also clears location name, lat and lng; switch the reservation-row inline update callers."
+verify = "In reservations.feature, edit fields inline and reload; service tests cover date widening, end-before-start rejected, the address-clear cascade, and foreign or viewer access denied."
+covers = ["R4", "R7"]
+after = [1]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Delete reservations through the API"
+description = "Expose DELETE /api/v1/reservations/:reservationId reusing the document services (resolveDocumentTripId, queueFileDeletions, removeQueuedFiles) with the in-transaction role recheck, succeeding when already gone, and recording deletions for the reservation and its cascaded expense; record the same when trip date narrowing prunes reservations in trip-date-change.ts; switch the reservation-row delete caller, delete reservations/actions.ts and remove its feature-map path."
+verify = "In reservations.feature, delete a reservation with documents and reload with files removed after commit; service tests prove a replayed create cannot bring back a deleted or date-pruned reservation or its expense."
+covers = ["R4", "R7"]
+after = [2, 3]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Edit and delete expenses through the API"
+description = "Expose PATCH /api/v1/expenses/:expenseId as a partial patch that recomputes conversions only when amount, currency or date change and checks link changes in-trip, and DELETE that records the deletion and succeeds when gone; record deletions of expenses cascaded by event deletion in events.ts; switch the trip-add-expense-modal update and delete callers."
+verify = "In budget.feature, edit and delete an expense and reload; service tests prove a note-only edit keeps the conversion, an amount edit recomputes, a foreign relink is rejected, and recreating a deleted or event-cascaded expense is refused."
+covers = ["R4", "R7"]
+after = [2]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Move linked-expense callers to the API"
+description = "Switch the reservation-row and place-row create, update and delete of their linked expense to the expense endpoints, leaving recalculation as the only budget server action."
+verify = "In reservations.feature and a new day-planning.feature scenario, add, edit and remove a cost on a reservation and on a place, reload, and see matching Budget tab totals."
+covers = ["R4", "R7"]
+after = [4, 5]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Recalculate expense conversions through the API"
+description = "Expose POST /api/v1/trips/:tripId/expenses/recalculate in one transaction against trips.budgetCurrency through one recalculation function shared with the trip budget PATCH in services/trips.ts; switch trip-budget-tab, delete budget/actions.ts and remove its feature-map paths."
+verify = "In budget.feature, recalculate after a currency change and reload; service tests prove all-or-nothing rollback, editor-only access, and identical results from the endpoint and the trip PATCH including native-currency rows."
+covers = ["R4", "R7"]
+after = [6]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Refactor sweep"
+description = "Resolve cleanup identified in stories 1-7 and their deferred review findings with public contracts unchanged, and make the build-validator result a required field of each plan's Verification section (epic 6 retro F5)."
+verify = "Rerun the targeted checks the cleanup diff names, verify each deferred finding has a recorded disposition, and confirm the plan Verification field is required."
+covers = ["R7"]
+after = [1, 2, 3, 4, 5, 6, 7]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Verify reservations and budget end to end"
+description = "Exercise reservation create, edit and delete with documents, linked and Misc expenses, and recalculation together on the production build with scenario-owned records, plus a cross-story invariant pass: deletion records for reservations and expenses including cascades, replay windows, and ETag determinism."
+verify = "Run the combined scenario and reload, and record in the plan a table of each invariant with the test that proves it."
+covers = ["R4", "R7"]
+after = [8]
+hitl = false
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
