@@ -80,3 +80,11 @@ Feature: Template item and label management
     And I pause the template order request during a drag
     Then template drag handles are disabled until the order completes
     And the template editor order should be "Sunglasses" then "Sunscreen"
+
+  Scenario: API flat order displays items under their assigned sections
+    Given the template editor "Interleaved" has two sections for API ordering
+    When I arrange an interleaved template order through the API
+    And I open the template editor for "Interleaved"
+    Then the template editor displays the assigned sections in grouped order
+    When I reload the page
+    Then the template editor displays the assigned sections in grouped order

@@ -434,3 +434,31 @@ Then("the reordered template persists and rejected orders leave it unchanged", a
   expect(rows.map((row) => row.text)).toEqual(["Gear", "Loose", "Boots", "Socks"]);
   expect(rows[1].labelId).toBe(rows[0].id);
 });
+
+When("I arrange an interleaved template order through the API", async ({ page, scenario }) => {
+  const templateId = scenario.getValue<string>("templateEditorId")!;
+  const rows = await storedItems(templateId);
+  const byName = (text: string) => {
+    const row = rows.find((entry) => entry.text === text);
+    if (!row) throw new Error(`Missing template item ${text}`);
+    return row;
+  };
+  const expectedItems = rows.map(({ id, position, labelId }) => ({ id, position, labelId }));
+  const items = ["Gear", "Clothes", "Boots", "Shirt"].map((text) => {
+    const { id, labelId } = byName(text);
+    return { id, labelId };
+  });
+  const response = await (
+    await apiClient(page)
+  ).put(`/api/v1/packing-templates/${templateId}/order`, {
+    headers: itemHeaders(page),
+    data: { items, expectedItems },
+  });
+  expect(response.status()).toBe(200);
+  expect((await storedItems(templateId)).map((row) => [row.text, row.position])).toEqual([
+    ["Gear", 0],
+    ["Clothes", 1],
+    ["Boots", 2],
+    ["Shirt", 3],
+  ]);
+});

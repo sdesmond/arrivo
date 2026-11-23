@@ -285,3 +285,31 @@ Then("template drag handles are disabled until the order completes", async ({ pa
   await response;
   await expect(handle).not.toHaveAttribute("aria-disabled", "true");
 });
+
+Given("the template editor {string} has two sections for API ordering", async ({ scenario }, name: string) => {
+  const templateId = await materializeTemplateFromStep(scenario, name, [
+    { text: "Gear", isLabel: true, position: 0 },
+    { text: "Boots", isLabel: false, position: 1, under: "Gear" },
+    { text: "Clothes", isLabel: true, position: 2 },
+    { text: "Shirt", isLabel: false, position: 3, under: "Clothes" },
+  ]);
+  scenario.setValue("templateEditorId", templateId);
+});
+
+Then("the template editor displays the assigned sections in grouped order", async ({ page }) => {
+  const rows = page.locator("[data-packing-kind]");
+  await expect(rows).toHaveCount(4);
+  const text = await rows.allTextContents();
+  expect(text.map((entry) => entry.trim())).toEqual(
+    expect.arrayContaining([
+      expect.stringContaining("Gear"),
+      expect.stringContaining("Boots"),
+      expect.stringContaining("Clothes"),
+      expect.stringContaining("Shirt"),
+    ])
+  );
+  expect(text[0]).toContain("Gear");
+  expect(text[1]).toContain("Boots");
+  expect(text[2]).toContain("Clothes");
+  expect(text[3]).toContain("Shirt");
+});

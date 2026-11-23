@@ -482,3 +482,38 @@ it("returns a replay without comparing the now-changed snapshot", async () => {
   expect(mocks.update).not.toHaveBeenCalled();
   expect(mocks.revalidate).not.toHaveBeenCalled();
 });
+
+it("accepts an anchor in a different section while retaining requested membership", async () => {
+  selectResults = [owned, [], [], [section], [{ ...stored, id: anchorId, labelId: null, position: 8 }]];
+  await createPackingTemplateItem(actor, templateId, {
+    id: itemId,
+    text: "Hat",
+    labelId: sectionId,
+    beforeItemId: anchorId,
+  });
+  expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ labelId: sectionId, position: 8 }));
+});
+
+it("persists interleaved section membership in requested flat positions", async () => {
+  const otherItemId = "123e4567-e89b-12d3-a456-426614174004";
+  const otherSection = { ...section, id: anchorId, position: 2 };
+  const entries = [
+    { ...section, position: 0 },
+    { ...stored, position: 1, labelId: sectionId },
+    otherSection,
+    { ...stored, id: otherItemId, position: 3, labelId: anchorId },
+  ];
+  const body = {
+    expectedItems: entries.map(({ id, position, labelId }) => ({ id, position, labelId })),
+    items: [
+      { id: sectionId, labelId: null },
+      { id: anchorId, labelId: null },
+      { id: itemId, labelId: sectionId },
+      { id: otherItemId, labelId: anchorId },
+    ],
+  };
+  selectResults = [owned, entries];
+  await reorderPackingTemplateItems(actor, templateId, body);
+  expect(mocks.set).toHaveBeenCalledWith({ position: 1, labelId: null });
+  expect(mocks.set).toHaveBeenCalledWith({ position: 2, labelId: sectionId });
+});

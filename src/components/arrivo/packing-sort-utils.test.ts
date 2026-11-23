@@ -270,3 +270,17 @@ describe("arrayMove", () => {
     expect(arrayMove(input, 5, 0)).toEqual(["a", "b", "c"]);
   });
 });
+
+it("groups interleaved flat positions by membership while preserving order within sections", () => {
+  const grouped = groupPackingItems([
+    label("a", 0),
+    label("b", 1),
+    item("a1", 2, "a"),
+    item("b1", 3, "b"),
+    item("a2", 4, "a"),
+  ]);
+  expect(grouped.sections.map((section) => [section.label.id, section.items.map((entry) => entry.id)])).toEqual([
+    ["a", ["a1", "a2"]],
+    ["b", ["b1"]],
+  ]);
+});
