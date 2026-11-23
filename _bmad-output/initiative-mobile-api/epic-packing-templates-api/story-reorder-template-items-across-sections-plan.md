@@ -3,7 +3,7 @@ title: "Reorder template items across sections"
 type: feature
 ticket: 5
 created: 2026-11-22
-status: built
+status: done
 baseline_revision: "1b8143703b53ee803d42f28eaa7030b92a820505"
 route: full
 route_source: auto

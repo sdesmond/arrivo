@@ -3,7 +3,7 @@ title: "Verify packing template reuse end to end"
 type: feature
 ticket: 7
 created: 2026-11-23
-status: built
+status: done
 baseline_revision: "75fac2e343885f2f8c53174319e6e85c11dd832e"
 route: full
 route_source: auto

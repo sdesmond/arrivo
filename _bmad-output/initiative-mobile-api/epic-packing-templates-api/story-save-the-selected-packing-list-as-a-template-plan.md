@@ -3,7 +3,7 @@ title: "Save the selected packing list as a template"
 type: feature
 ticket: 2
 created: 2026-11-21
-status: built
+status: done
 baseline_revision: "b1ea35918eb878dc6901aee7d6af4ec0f66c1ee2"
 route: full
 route_source: auto

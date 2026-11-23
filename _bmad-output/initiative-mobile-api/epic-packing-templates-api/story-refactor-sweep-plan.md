@@ -3,7 +3,7 @@ title: "Packing template refactor sweep"
 type: refactor
 ticket: 6
 created: 2026-11-22
-status: built
+status: done
 baseline_revision: "c48db44e539a1eed2e0fd6618c8bfadfcb9b5503"
 route: full
 route_source: auto

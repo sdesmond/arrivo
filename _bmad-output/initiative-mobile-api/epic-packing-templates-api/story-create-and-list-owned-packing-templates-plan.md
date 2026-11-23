@@ -3,7 +3,7 @@ title: "Create and list owned packing templates"
 type: feature
 ticket: 1
 created: 2026-11-21
-status: built
+status: done
 baseline_revision: "c4816de65c1b31f800cb32c96065a86f9bceb27f"
 route: full
 route_source: auto

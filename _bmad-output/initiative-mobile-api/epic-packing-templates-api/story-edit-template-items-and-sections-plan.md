@@ -3,7 +3,7 @@ title: "Edit template items and sections"
 type: feature
 ticket: 4
 created: 2026-11-22
-status: built
+status: done
 baseline_revision: "5c6dc7accea3d1f5f996fa53ab8cd83d95d7c793"
 route: full
 route_source: auto
