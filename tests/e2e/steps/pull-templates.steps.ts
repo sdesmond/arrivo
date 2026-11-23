@@ -186,6 +186,16 @@ Given("I have a trip with two packing lists for pull", async ({ scenario }) => {
     ],
   });
 });
+Given("the second list contains an ungrouped item named {string}", async ({ scenario }, name: string) => {
+  const tripId = scenario.currentTrip!.id;
+  await withE2EDb(async (database) => {
+    const lists = await database.select().from(tripPackingLists).where(eq(tripPackingLists.tripId, tripId));
+    const list = lists.find((candidate) => candidate.name === "Carry-on")!;
+    await database
+      .insert(packingItems)
+      .values({ tripId, listId: list.id, name, isLabel: false, done: false, position: 0 });
+  });
+});
 Given("I have a sectioned packing template available for pull", async ({ scenario }) => {
   await scenario.materialize({
     template: {
@@ -248,4 +258,22 @@ Then("the selected list and its section persist after reload", async ({ page, sc
     rows.find((item) => item.name === "Essentials")?.id
   );
   expect(rows.find((item) => item.name === "Travel adapter")?.listId).toBe(list.id);
+});
+
+Then("the section and its child coexist with the matching item after reload", async ({ page, scenario }) => {
+  await reloadPage(page);
+  await page.getByRole("button", { name: "Packing" }).click();
+  await page.getByText("Carry-on", { exact: true }).first().click();
+  const section = page
+    .locator("[data-packing-container]")
+    .filter({ has: page.getByRole("heading", { name: "Essentials" }) });
+  await expect(section.locator('[data-packing-kind="item"]').filter({ hasText: "Travel adapter" })).toHaveCount(1);
+  const rows = await withE2EDb((database) =>
+    database.select().from(packingItems).where(eq(packingItems.tripId, scenario.currentTrip!.id))
+  );
+  const matching = rows.filter((item) => item.name === "Essentials");
+  expect(matching).toHaveLength(2);
+  const label = matching.find((item) => item.isLabel)!;
+  expect(matching.find((item) => !item.isLabel)?.labelId).toBeNull();
+  expect(rows.find((item) => item.name === "Travel adapter")?.labelId).toBe(label.id);
 });

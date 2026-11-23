@@ -227,6 +227,263 @@ describe("handleInsertFromPackingSource", () => {
 });
 
 describe("packing item API writes", () => {
+  it("does not treat a failed deletion after unmount as successful", async () => {
+    let fail: (error: Error) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      })
+    );
+    const data = { ...detail, packingItems: [{ id: "remount-failure", name: "Hat", done: false }] };
+    const first = renderPackingHandlers(data);
+    const removal = first.result.current.handleRemovePackingItem("remount-failure");
+    const outcome = expect(removal).rejects.toThrow("failed");
+    first.unmount();
+    const second = renderPackingHandlers(data);
+    const rollback = vi.fn();
+    act(() => second.result.current.handleReorderPackingItems([{ id: "remount-failure", labelId: null }], rollback));
+    await act(async () => {
+      fail(new Error("failed"));
+      await outcome;
+    });
+    await waitFor(() => expect(rollback).toHaveBeenCalledOnce());
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a reorder that succeeds after unmount for a queued section removal", async () => {
+    let release: (value: unknown) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      })
+    );
+    const sectionId = "remount-section";
+    const childId = "remount-child";
+    const data = {
+      ...detail,
+      packingItems: [
+        { id: sectionId, name: "Gear", done: false, isLabel: true },
+        { id: childId, name: "Hat", done: false, labelId: null },
+      ],
+    };
+    const order = [
+      { id: sectionId, labelId: null },
+      { id: childId, labelId: sectionId },
+    ];
+    const first = renderPackingHandlers(data);
+    act(() => first.result.current.handleReorderPackingItems(order));
+    first.unmount();
+    const second = renderPackingHandlers(data);
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      removal = second.result.current.handleRemovePackingSection(sectionId, "delete-items");
+      second.result.current.handleReorderPackingItems(order);
+    });
+    await act(async () => {
+      release({});
+    });
+    await settled(removal);
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    expect(api.mock.calls[2][1].body.items).toEqual([]);
+  });
+
+  it("retains successful membership when a later reorder fails", async () => {
+    const sectionId = "previous-section";
+    const childId = "previous-child";
+    const data = {
+      ...detail,
+      packingItems: [
+        { id: sectionId, name: "Gear", done: false, isLabel: true },
+        { id: childId, name: "Hat", done: false, labelId: null },
+      ],
+    };
+    const { result } = renderPackingHandlers(data);
+    const first = [
+      { id: sectionId, labelId: null },
+      { id: childId, labelId: sectionId },
+    ];
+    act(() => result.current.handleReorderPackingItems(first));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+    api.mockRejectedValueOnce(new Error("failed"));
+    act(() =>
+      result.current.handleReorderPackingItems([
+        { id: sectionId, labelId: null },
+        { id: childId, labelId: null },
+      ])
+    );
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      removal = result.current.handleRemovePackingSection(sectionId, "delete-items");
+    });
+    await settled(removal);
+    act(() => result.current.handleReorderPackingItems(first));
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(4));
+    expect(api.mock.calls[3][1].body.items).toEqual([]);
+  });
+  it("uses preceding reordered membership when deleting a section", async () => {
+    let release: (value: unknown) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      })
+    );
+    const sectionId = "ordered-section";
+    const childId = "ordered-child";
+    const survivorId = "ordered-survivor";
+    const data = {
+      ...detail,
+      packingItems: [
+        { id: sectionId, name: "Gear", done: false, isLabel: true },
+        { id: childId, name: "Hat", done: false, labelId: null },
+        { id: survivorId, name: "Boots", done: false, labelId: null },
+      ],
+    };
+    const { result } = renderPackingHandlers(data);
+    const ordered = [
+      { id: sectionId, labelId: null },
+      { id: childId, labelId: sectionId },
+      { id: survivorId, labelId: null },
+    ];
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      result.current.handleReorderPackingItems(ordered);
+      removal = result.current.handleRemovePackingSection(sectionId, "delete-items");
+      result.current.handleReorderPackingItems(ordered);
+    });
+    await act(async () => {
+      release({});
+    });
+    await settled(removal);
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    expect(api.mock.calls[2][1].body.items).toEqual([{ id: survivorId, labelId: null }]);
+  });
+  it("does not block reordering another list while a deletion is pending", async () => {
+    let release: (value: unknown) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      })
+    );
+    const data = {
+      ...detail,
+      packingItems: [
+        { id: "one", name: "Hat", done: false, listId: "list-one" },
+        { id: "two", name: "Boots", done: false, listId: "list-two" },
+      ],
+    };
+    const { result } = renderPackingHandlers(data);
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      removal = result.current.handleRemovePackingItem("one");
+      result.current.handleReorderPackingItems([{ id: "two", labelId: null }]);
+    });
+    expect(api).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      release({});
+    });
+    await settled(removal);
+  });
+  it.each(["delete-items", "move-items-to-ungrouped"] as const)(
+    "adjusts a queued reorder after section removal: %s",
+    async (mode) => {
+      let release: (value: unknown) => void = () => {};
+      api.mockReturnValueOnce(
+        new Promise((resolve) => {
+          release = resolve;
+        })
+      );
+      const sectionId = mode === "delete-items" ? "section-delete" : "section-move";
+      const childId = mode === "delete-items" ? "child-delete" : "child-move";
+      const data = {
+        ...detail,
+        packingItems: [
+          { id: sectionId, name: "Gear", done: false, isLabel: true },
+          { id: childId, name: "Hat", done: false, labelId: sectionId },
+        ],
+      };
+      const first = renderPackingHandlers(data);
+      let removal: Promise<void> = Promise.resolve();
+      act(() => {
+        removal = first.result.current.handleRemovePackingSection(sectionId, mode);
+      });
+      first.unmount();
+      const second = renderPackingHandlers(data);
+      act(() =>
+        second.result.current.handleReorderPackingItems([
+          { id: sectionId, labelId: null },
+          { id: childId, labelId: sectionId },
+        ])
+      );
+      expect(api).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        release({});
+      });
+      await settled(removal);
+      await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+      expect(api.mock.calls[1][1].body.items).toEqual(mode === "delete-items" ? [] : [{ id: childId, labelId: null }]);
+    }
+  );
+
+  it("rolls back a queued reorder after a failed deletion", async () => {
+    let reject: (error: Error) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      })
+    );
+    const data = { ...detail, packingItems: [{ id: sourceId, name: "Hat", done: false }] };
+    const { result } = renderPackingHandlers(data);
+    const rollback = vi.fn();
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      removal = result.current.handleRemovePackingItem(sourceId);
+      result.current.handleReorderPackingItems([{ id: sourceId, labelId: null }], rollback);
+    });
+    const outcome = expect(removal).rejects.toThrow("failed");
+    await act(async () => {
+      reject(new Error("failed"));
+      await outcome;
+    });
+    await waitFor(() => expect(rollback).toHaveBeenCalledOnce());
+    expect(api).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalled();
+  });
+  it.each(["delete-first", "reorder-first"])("serializes overlapping %s writes", async (order) => {
+    const removedId = order === "delete-first" ? "item-delete-first" : "item-reorder-first";
+    let release: (value: unknown) => void = () => {};
+    api.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      })
+    );
+    const data = {
+      ...detail,
+      packingItems: [
+        { id: removedId, name: "Hat", done: false },
+        { id: checklistId, name: "Boots", done: false },
+      ],
+    };
+    const { result } = renderPackingHandlers(data);
+    const items = [
+      { id: checklistId, labelId: null },
+      { id: removedId, labelId: null },
+    ];
+    let removal: Promise<void> = Promise.resolve();
+    act(() => {
+      if (order === "delete-first") removal = result.current.handleRemovePackingItem(removedId);
+      result.current.handleReorderPackingItems(items);
+      if (order === "reorder-first") removal = result.current.handleRemovePackingItem(removedId);
+    });
+    expect(api).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      release({});
+    });
+    await settled(removal);
+    await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
+    const request = api.mock.calls.find(([, input]) => input.body.items)?.[1];
+    expect(request.body.items).toEqual(order === "delete-first" ? [items[0]] : items);
+  });
   it("sends absolute packed state and trip-scoped deletion", async () => {
     const { result } = renderPackingHandlers(detail);
     await act(async () => {

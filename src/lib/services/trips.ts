@@ -25,6 +25,7 @@ import { recordTripCreated } from "@/lib/trip-activity";
 import { detectPreferredCurrency } from "@/lib/utils";
 import { publishTripEvent, publishUserEvent, purgeTripTopic } from "@/lib/trip-events";
 import { buildDatelessDayRow, buildDayRows } from "@/app/(app)/trips/create-trip-days";
+import { resolveTripDateRange } from "@/app/(app)/trips/date-sync";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
@@ -69,6 +70,11 @@ export async function updateTrip(
       confirmation: ["Required with a resolution."],
     });
   }
+  if (confirmation && !resolution) {
+    throw new ValidationFailedError("Send a resolution with the confirmation.", {
+      resolution: ["Required with a confirmation."],
+    });
+  }
   const changesDates = startDate !== undefined || endDate !== undefined;
   let queued: QueuedFileDeletion[] = [];
   const saved = await runTripWrite(
@@ -85,7 +91,19 @@ export async function updateTrip(
         const [current] = await transaction.select().from(trips).where(eq(trips.id, tripId));
         if (!current) throw new TripNotFoundError();
         let dateColumns: { startDate: string | null; endDate: string | null } | undefined;
-        if (changesDates) {
+        const range = resolveTripDateRange(
+          { startDate: current.startDate ?? undefined, endDate: current.endDate ?? undefined },
+          { startDate, endDate }
+        );
+        const effectiveStart = startDate === null ? null : (range.startDate ?? null);
+        const effectiveEnd = effectiveStart === null ? null : (range.endDate ?? null);
+        const datesDiffer = effectiveStart !== current.startDate || effectiveEnd !== current.endDate;
+        if ((confirmation || resolution) && (!changesDates || !datesDiffer || startDate === null)) {
+          throw new ConflictError(
+            "Trip dates changed before this confirmation was applied. Review the date change again."
+          );
+        }
+        if (changesDates && datesDiffer) {
           // A preview throws here, before any write, so the transaction rolls back and nothing is cached for replay.
           const change = await applyTripDateChange(
             transaction,

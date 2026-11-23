@@ -481,7 +481,7 @@ export async function pullTemplatesOntoTrip(
           listId === null ? isNull(packingItems.listId) : eq(packingItems.listId, listId)
         );
         const existing = await transaction.select().from(packingItems).where(scope);
-        const names = new Set(existing.map((item) => item.name.trim().toLowerCase()));
+        const names = new Set(existing.filter((item) => !item.isLabel).map((item) => item.name.trim().toLowerCase()));
         const labels = new Map(
           existing.filter((item) => item.isLabel).map((item) => [item.name.trim().toLowerCase(), item.id])
         );
@@ -499,7 +499,7 @@ export async function pullTemplatesOntoTrip(
           const pendingLabels: { itemId: string; templateLabelId: string }[] = [];
           for (const item of items) {
             const normalized = item.text.trim().toLowerCase();
-            if (names.has(normalized)) {
+            if (item.isLabel ? labels.has(normalized) : names.has(normalized)) {
               const existingId = labels.get(normalized);
               if (item.isLabel && existingId) mapped.set(item.id, existingId);
               skipped++;
@@ -525,7 +525,7 @@ export async function pullTemplatesOntoTrip(
               mapped.set(item.id, inserted.id);
               labels.set(normalized, inserted.id);
             }
-            names.add(normalized);
+            if (!item.isLabel) names.add(normalized);
             added++;
           }
           for (const pending of pendingLabels) {

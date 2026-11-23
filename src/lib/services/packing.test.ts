@@ -674,6 +674,33 @@ it("maps a child onto an existing destination section", async () => {
   expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
 });
 
+it.each([true, false])(
+  "keeps a template entry when an existing opposite-kind name collides (label: %s)",
+  async (isLabel) => {
+    const { pullTemplatesOntoTrip } = await import("./packing");
+    const queries: unknown[][] = [
+      [{ id: first }],
+      [{ id: "existing", name: "Gear", isLabel: !isLabel, position: 0 }],
+      [{ id: "entry", text: " gear ", isLabel, labelId: null }],
+    ];
+    mocks.select.mockReturnValue({
+      from: () => ({
+        where: () => {
+          const rows = queries.shift() ?? [];
+          return Object.assign(Promise.resolve(rows), { orderBy: async () => rows });
+        },
+      }),
+    });
+    const values = vi.fn(() => ({ returning: async () => [{ id: "new" }] }));
+    mocks.insert.mockReturnValue({ values });
+    await expect(pullTemplatesOntoTrip(actor, tripId, { templateIds: [first] })).resolves.toEqual({
+      added: 1,
+      skipped: 0,
+    });
+    expect(values).toHaveBeenCalledWith(expect.objectContaining({ name: "gear", isLabel }));
+  }
+);
+
 it("does not write or emit effects for a duplicate-only pull", async () => {
   const { pullTemplatesOntoTrip } = await import("./packing");
   const queries: unknown[][] = [

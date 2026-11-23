@@ -48,6 +48,7 @@
   summary: A partial event PATCH can store `endAt` before `startAt`: only per-field format is validated.
   evidence: Pre-existing (the retired action and `updateEventSchema` had no ordering check). Needs a merged-state check in `services/events.ts` returning 422.
   tracked: https://github.com/sdesmond/arrivo/issues/504 (needs the overnight-capable time dialog first; the plain-event dialog cannot express overnight spans).
+  disposition: 2026-11-22 — not planned for this sprint; external issue remains open.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-itinerary-api/story-edit-one-event-through-the-api-plan.md`
   summary: No API reference documents `PATCH /api/v1/events/:eventId` or the pilot endpoints.
@@ -189,6 +190,7 @@
 - source_plan: `epic-sharing-api/story-invite-one-contributor-through-the-api-plan.md`
   summary: Replace caught unique-violation recovery inside invitation transaction with conflict-safe insertion.
   evidence: Pre-existing writer catches PostgreSQL unique violation inside transaction; database marks transaction aborted, so later statements cannot persist a typed replay result. Cooperating writers serialize through existing account and trip locks.
+  disposition: 2026-11-22 — not planned for this sprint.
 - source_plan: `epic-sharing-api/story-apply-contributor-changes-through-the-api-plan.md`
   summary: Move deletion-concurrency contributor-change fixtures from the unused `saveContributorChangesWrite` wrapper onto the service/PATCH path.
   evidence: Production batches now run lock, locked role recheck and idempotency read/upsert in `services/sharing.ts`; `deletion-concurrency.steps.ts:161-191` still calls the outer writer, so real-lock interleavings with account deletion are verified only for a path production no longer uses (same as 4.1 `inviteContributorWrite`).
@@ -209,6 +211,7 @@
 - source_plan: `epic-trips-packing-api/story-pack-and-edit-a-packing-item-through-the-api-plan.md`
   summary: Investigate whether a refresh transition can remain unresolved and block the shared refresh queue.
   evidence: Unverified; demonstrate a reachable transition that never settles or unmounts before adding recovery.
+  disposition: 2026-11-22 — not planned for this sprint.
 
 - source_plan: `epic-trips-packing-api/story-add-packing-items-and-sections-through-the-api-plan.md`
   summary: Investigate whether deleted packing UUIDs need tombstones to prevent delayed creation retries from recreating deleted sections or items.
@@ -226,10 +229,12 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-create-and-list-trips-through-the-api-plan.md`
   summary: Unsupported stored account currency makes every create 422 on a field the client never sent.
   evidence: `resolveBudgetCurrency` throws for the account default; behavior carried over from the old action.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 
 - source_plan: story-delete-a-trip-through-the-api-plan.md
   summary: Prevent deletion notifications from reaching a newly created trip that reuses the deleted trip ID.
   evidence: The previous action and current service publish after the deleting transaction commits, allowing UUID reuse before publication.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 - source_plan: story-delete-a-trip-through-the-api-plan.md
   summary: Clean up owned trip cover files when deleting a trip.
   evidence: The previous delete action removed document files but did not remove stored trip covers.
@@ -243,14 +248,17 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/story-verify-trips-and-packing-api-end-to-end-plan.md`
   summary: packing-tab scenario "New sections appear above existing sections and stay there after reload" timed out once under full 11-feature load on the step "I add a packing label named" (`getByPlaceholder('New section…')` never appeared on the second add).
   evidence: 735 of 736 passed in the combined production-build run; the same feature passed 25/25 twice in isolation. Likely the List options menu click racing a re-render after the first label POST; unreproduced, so unverified.
+  disposition: 2026-11-22 — not planned for this sprint.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F8: Trip-create replay compares editable fields, so a retry after a collaborator's edit gets 409 instead of the trip.
   evidence: `isSameTrip` (`src/lib/services/trips.ts`) compares name, dates, tags and similar fields; packing list create compares name the same way. A fix needs a stored creation fingerprint; the scenario "Reusing a trip UUID for another name conflicts" relies on the field comparison, and no mobile outbox exists yet.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F9: A trip PATCH whose dates equal the stored dates still renumbers days and changes `updatedAt`, the live event and the ETag; `resolution`/`confirmation` without a date change is silently ignored.
   evidence: `updateTrip` date branch (`src/lib/services/trips.ts`). Skip the date path when the effective range is unchanged.
+  completed: 2026-11-23 on `fix/packing-trip-deferred-issues`; unchanged effective dates skip date writes and stale confirmations fail closed.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F12: Cover generation is awaited in the create response with no timeout, can orphan the tile, and is skipped by trip delete.
@@ -259,26 +267,32 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F13: Pull-templates is unbounded: `templateIds` has no max, inserts run per item under the trip lock, and lists can grow past the 1000-item reorder cap.
   evidence: `src/lib/api/contract/packing.ts` (pull-templates and order schemas). Add a `.max()` that matches downstream caps, and refuse a pull that would push a list over 1000 rows.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F14: Pull-templates compares section and item names in one namespace, so a template section matching a plain item is skipped and its children land ungrouped.
   evidence: `pullTemplates` name matching in `src/lib/services/packing.ts`. Plausible, not reproduced.
+  completed: 2026-11-23 on `fix/packing-trip-deferred-issues`; sections and items use separate name namespaces, with persisted collision coverage.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F15: Currency conversion runs its FX lookup inside the trip lock; `convertCurrency` without `budgetCurrency` is silently ignored.
   evidence: `updateTrip` calls `recalculateAll` under `lockTrip` (`src/lib/services/trips.ts`). Fetch rates before taking the lock.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F16: Packing reorder and delete use separate client queues, so a reorder can race a just-sent delete and roll back on a spurious 409.
   evidence: `use-packing-handlers.ts` reorder queue vs delete handler. Plausible, not reproduced.
+  completed: 2026-11-23 on `fix/packing-trip-deferred-issues`; per-list coordination covers overlapping deletes and reorders, including persistence and remounts.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F17: The trip snapshot ETag is cache-only; PATCH and DELETE ignore `If-Match`, and `docs/api-v1.md` does not say so.
   evidence: Document cache-only, last-write-wins semantics, or add `If-Match` support when the mobile client needs it.
+  disposition: 2026-11-22 — not planned for this sprint; retain for future prioritization.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: F19: Minor items: a stale `packing-actions.ts` comment in `src/lib/api/idempotency.ts`; the `deleted` flag in `deleteTrip`'s authorize is not reset per call (theoretical); the refresh queue can stall on a never-settling transition (already deferred under 5.1).
   evidence: Clean up when next touching those files.
+  disposition: 2026-11-22 — theoretical deleted flag and duplicate refresh-queue investigation are not planned for this sprint; retain the maintenance comment separately.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV1: Services import route-folder code: `src/lib/services/trips.ts` and `trip-date-change.ts` import `@/app/(app)/trips/create-trip-days` and `date-sync`.
@@ -297,6 +311,7 @@
   summary: Verify whether existing templates have null creation timestamps and handle keyed replay for those records.
   evidence: The schema permits null, while lifecycle replay validation fails closed for null timestamps; deployed data is needed to establish impact.
   disposition: 2026-11-22 — still open. `packingTemplates.createdAt` defaults to now but is nullable in `src/db/schema.ts`; create, save-list, and rename replay validators in `src/lib/services/packing-templates.ts` reject null or mismatched timestamps. No deployed data was inspected. Count nulls in each deployment, then design and test a backfill or stable identity scheme that preserves deleted/recreated resource protection before changing replay behavior.
+  sprint_disposition: 2026-11-22 — not planned for this sprint.
 - source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
   summary: Handle editor title rename promise rejections in the template editor.
   evidence: Existing title commit is invoked without awaiting or catching failures from its rename callback.
@@ -315,6 +330,7 @@
   summary: Measure reorder transaction limits for unusually large packing templates.
   evidence: The service updates changed items individually under a transaction deadline; a representative large-template test would establish the practical limit.
   disposition: 2026-11-22 — limit remains unmeasured. The order contract has no array size cap, and `reorderPackingTemplateItems` awaits one update per changed row inside `guardTransactionDeadline`. One local timing would not establish a supported limit across DB latency, load, deadline, and deployment configurations. Follow up with a reproducible real-Postgres benchmark across representative item counts and deployment latencies, then set an explicit supported bound or batch updates with compatibility tests; do not infer a limit from a single run.
+  sprint_disposition: 2026-11-22 — representative-latency benchmark not planned for this sprint.
 
 Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 

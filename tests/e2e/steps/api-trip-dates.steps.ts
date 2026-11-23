@@ -177,6 +177,15 @@ When(
 When("I PATCH the trip to end on day {int} with a resolution but no confirmation", async ({ page }, day: number) => {
   await patchTrip(page, { endDate: END_DATES[day], resolution: "delete-events" });
 });
+When("I PATCH the trip with the confirmation using {string}", async ({ page }, testCase: string) => {
+  const confirmation = state(page).confirmation;
+  if (testCase === "no resolution") await patchTrip(page, { endDate: END_DATES[2], confirmation });
+  else if (testCase === "unchanged dates")
+    await patchTrip(page, { endDate: END_DATES[3], resolution: "delete-events", confirmation });
+  else if (testCase === "clear dates")
+    await patchTrip(page, { startDate: null, resolution: "delete-events", confirmation });
+  else throw new Error(`Unknown confirmation case: ${testCase}`);
+});
 When("the final-day event is renamed before the confirmation is applied", async ({ page }) => {
   const current = state(page);
   await withE2EDb((database) =>

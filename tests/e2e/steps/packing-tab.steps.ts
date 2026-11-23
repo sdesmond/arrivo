@@ -417,6 +417,52 @@ When("I delete the packing entry named {string}", async ({ page, scenario }, nam
   await expect(page.locator("[data-packing-kind]").filter({ hasText: name })).toHaveCount(0, { timeout: 10_000 });
 });
 
+When(
+  "I reorder {string} while deletion of {string} is held in flight",
+  async ({ page, scenario }, name: string, removed: string) => {
+    const path = await packingItemPath(scenario.currentTrip!.id, removed);
+    let release: () => void = () => {};
+    let reached: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const intercepted = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    await page.route(`**${path}`, async (route) => {
+      if (route.request().method() !== "DELETE") return route.continue();
+      reached();
+      await held;
+      await route.continue();
+    });
+    try {
+      const deletion = waitForApiResponse(page, { method: "DELETE", path, timeoutMs: 30_000 });
+      await page
+        .getByRole("button", { name: `Remove ${removed}` })
+        .first()
+        .click();
+      await intercepted;
+      const handle = page.getByTitle(`Reorder ${name}`);
+      const status = page.getByRole("status").filter({ hasText: "was moved over" });
+      await handle.focus();
+      await handle.press("Space");
+      await expect(status).toContainText("was moved over");
+      const pickup = (await status.textContent()) ?? "";
+      await handle.press("ArrowDown");
+      await expect(status).not.toHaveText(pickup);
+      const reordered = waitForPackingOrder(page, true);
+      await handle.press("Enter");
+      await waitForPackingItemPosition(page, name, 1);
+      release();
+      await deletion;
+      await reordered;
+    } finally {
+      release();
+      await page.unroute(`**${path}`);
+    }
+  }
+);
+
 Then("the packing list should not contain {string}", async ({ page }, name: string) => {
   await expect(page.locator("[data-packing-kind]").filter({ hasText: name })).toHaveCount(0);
 });
@@ -436,6 +482,13 @@ Then(
     }).toPass({ timeout: 10_000 });
   }
 );
+
+Then("the packing list order should be {string} then {string}", async ({ page }, first: string, second: string) => {
+  await expect(async () => {
+    const names = await page.locator("[data-packing-name]").allTextContents();
+    expect(names.map((name) => name.trim())).toEqual([first, second]);
+  }).toPass({ timeout: 10_000 });
+});
 
 Given("I have pre-seeded packing items for the trip", async ({ page, scenario }) => {
   const currentTrip = scenario.currentTrip;

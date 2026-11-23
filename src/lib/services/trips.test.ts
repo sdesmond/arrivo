@@ -210,11 +210,62 @@ it("writes the new dates with metadata in one update after moving the days", asy
   );
   expect(mocks.markChanged).toHaveBeenCalledOnce();
 });
+it.each([{ startDate: null }, { startDate: null, endDate: null }])(
+  "skips an unchanged effective range: %j",
+  async (dates) => {
+    await updateTrip(actor, tripId, dates);
+    expect(mocks.applyDateChange).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.markChanged).not.toHaveBeenCalled();
+  }
+);
+it.each([{ startDate: "2026-08-01", endDate: "2026-08-03" }, { startDate: "2026-08-01" }, { endDate: "2026-08-03" }])(
+  "skips an unchanged dated range: %j",
+  async (dates) => {
+    mocks.now.mockReturnValue(new Date("2026-01-01T12:00:00Z"));
+    mocks.select.mockReturnValue({
+      from: () => ({ where: async () => [{ ...row, startDate: "2026-08-01", endDate: "2026-08-03" }] }),
+    });
+    await updateTrip(actor, tripId, dates);
+    expect(mocks.applyDateChange).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.markChanged).not.toHaveBeenCalled();
+  }
+);
+it("applies metadata while skipping an unchanged effective date range", async () => {
+  await updateTrip(actor, tripId, { startDate: null, name: "New" });
+  expect(mocks.applyDateChange).not.toHaveBeenCalled();
+  expect(mocks.set).toHaveBeenCalledWith(expect.objectContaining({ name: "New" }));
+});
 it("writes cleared dates even when no metadata is sent", async () => {
+  mocks.select.mockReturnValue({
+    from: () => ({ where: async () => [{ ...row, startDate: "2026-08-01", endDate: "2026-08-01" }] }),
+  });
   mocks.applyDateChange.mockResolvedValue({ startDate: null, endDate: null, documentUrls: [] });
   await updateTrip(actor, tripId, { startDate: null });
   expect(mocks.set).toHaveBeenCalledWith(expect.objectContaining({ startDate: null, endDate: null }));
   expect(mocks.markChanged).toHaveBeenCalledOnce();
+});
+it("rejects a confirmation against an unchanged range", async () => {
+  await expect(
+    updateTrip(actor, tripId, { startDate: null, resolution: "delete-events", confirmation })
+  ).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+it("rejects a stale confirmation when clearing dates", async () => {
+  mocks.select.mockReturnValue({
+    from: () => ({ where: async () => [{ ...row, startDate: "2026-08-01", endDate: "2026-08-01" }] }),
+  });
+  await expect(
+    updateTrip(actor, tripId, { startDate: null, resolution: "delete-events", confirmation })
+  ).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.applyDateChange).not.toHaveBeenCalled();
+});
+it("rejects a confirmation without a resolution", async () => {
+  await expect(updateTrip(actor, tripId, { startDate: "2026-08-01", confirmation })).rejects.toBeInstanceOf(
+    ValidationFailedError
+  );
+  expect(mocks.run).not.toHaveBeenCalled();
 });
 it("passes the resolution and confirmation through and queues removed documents before the files go", async () => {
   const queued = [{ id: "queue-1", url: "/api/storage/doc.pdf" }];

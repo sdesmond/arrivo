@@ -43,3 +43,11 @@ Feature: Pull templates onto a trip packing list
     When I select the second packing list for pull
     And I pull the sectioned template onto the trip
     Then the selected list and its section persist after reload
+
+  Scenario: A template section can share a name with an existing item
+    Given I have a trip with two packing lists for pull
+    And the second list contains an ungrouped item named "Essentials"
+    And I have a sectioned packing template available for pull
+    When I select the second packing list for pull
+    And I pull the sectioned template onto the trip
+    Then the section and its child coexist with the matching item after reload

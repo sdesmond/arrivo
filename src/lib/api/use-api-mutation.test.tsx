@@ -244,6 +244,45 @@ it("sends a write started after unmount", async () => {
   expect(router.refresh).not.toHaveBeenCalled();
 });
 
+it.each([true, false])("reports the actual write outcome after unmount (success: %s)", async (success) => {
+  let finish: (value: unknown) => void = () => {};
+  let fail: (error: Error) => void = () => {};
+  api.mockReturnValueOnce(
+    new Promise((resolve, reject) => {
+      finish = resolve;
+      fail = reject;
+    })
+  );
+  const onResult = vi.fn();
+  const { result, unmount } = renderHook(() => useApiMutation(updateChecklistItem));
+  const pending = result.current.mutate(input, { onResult });
+  unmount();
+  if (success) finish({ id: "item" });
+  else fail(new Error("failed"));
+  await pending;
+  expect(onResult).toHaveBeenCalledOnce();
+  expect(onResult.mock.calls[0][0]).toMatchObject({ ok: success });
+});
+
+it("does not turn a bookkeeping callback error into a failed write", async () => {
+  api.mockResolvedValueOnce({ id: "item" });
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  const onError = vi.fn();
+  const { result } = renderHook(() => useApiMutation(updateChecklistItem));
+  await act(async () => {
+    await result.current.mutate(input, {
+      onResult: () => {
+        throw new Error("callback");
+      },
+      onError,
+    });
+  });
+  expect(onError).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
+  expect(logged).toHaveBeenCalledOnce();
+  logged.mockRestore();
+});
+
 it("toasts a failed write after unmount instead of failing silently, without running onError", async () => {
   api.mockRejectedValue(new ApiClientError(422, "validation_failed", "Invalid"));
   const onError = vi.fn();

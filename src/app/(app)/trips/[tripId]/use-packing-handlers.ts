@@ -50,6 +50,10 @@ export interface PackingHandlers {
 
 // Writes outlive a tab or page remount; the newest promise is retained until it settles.
 const packingItemWrites = new Map<string, Promise<void>>();
+type PendingRemoval = { removed: Set<string>; ungroup: string | null; succeeded: boolean };
+const packingRemovals = new Map<string, Set<PendingRemoval>>();
+type PendingOrder = { items: { id: string; labelId: string | null }[]; succeeded: boolean };
+const packingOrders = new Map<string, PendingOrder>();
 
 export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   const { trip, days } = detail;
@@ -82,6 +86,32 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- clear the flag once refreshed props catch up
     if (isRendered) setNewlyCreatedChecklistId(null);
   }, [days, newlyCreatedChecklistId]);
+
+  useEffect(() => {
+    for (const [key, removals] of packingRemovals) {
+      if (!key.startsWith(`${trip.id}:`)) continue;
+      for (const removal of removals) {
+        if (
+          removal.succeeded &&
+          !detail.packingItems.some(
+            (item) => (item.id && removal.removed.has(item.id)) || (removal.ungroup && item.labelId === removal.ungroup)
+          )
+        )
+          removals.delete(removal);
+      }
+      if (!removals.size) packingRemovals.delete(key);
+    }
+    for (const [key, order] of packingOrders) {
+      if (!key.startsWith(`${trip.id}:`) || !order.succeeded) continue;
+      if (
+        order.items.every((entry) =>
+          detail.packingItems.some((item) => item.id === entry.id && (item.labelId ?? null) === entry.labelId)
+        )
+      ) {
+        packingOrders.delete(key);
+      }
+    }
+  }, [trip.id, detail.packingItems]);
 
   function handleAddPackingItem(
     name: string,
@@ -168,40 +198,84 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
   }
 
   function handleRemovePackingItem(id: string): Promise<void> {
-    return queueItemWrite(id, async () => {
-      let failure: unknown;
-      await deleteMutation.mutate(
-        { params: { itemId: id }, body: { tripId: trip.id } },
-        {
-          onError: (error) => {
-            failure = error;
-          },
-          onAuthLost: () => {
-            failure = new Error("Your session has expired.");
-          },
-        }
-      );
-      if (failure) throw failure;
-    });
+    return queueRemoval(id, null, () =>
+      queueItemWrite(id, async () => {
+        let failure: unknown;
+        await deleteMutation.mutate(
+          { params: { itemId: id }, body: { tripId: trip.id } },
+          {
+            onResult: (result) => {
+              if (!result.ok) failure = result.error;
+            },
+            onError: (error) => {
+              failure = error;
+            },
+            onAuthLost: () => {
+              failure = new Error("Your session has expired.");
+            },
+          }
+        );
+        if (failure) throw failure;
+      })
+    );
   }
 
   function handleRemovePackingSection(id: string, mode: RemovePackingSectionMode): Promise<void> {
-    return queueItemWrite(id, async () => {
-      let failure: unknown;
-      await sectionMutation.mutate(
-        { params: { itemId: id }, body: { tripId: trip.id, mode } },
-        {
-          onError: (error) => {
-            failure = error;
-            router.refresh();
-          },
-          onAuthLost: () => {
-            failure = new Error("Your session has expired.");
-          },
-        }
-      );
-      if (failure) throw failure;
+    return queueRemoval(id, mode, () =>
+      queueItemWrite(id, async () => {
+        let failure: unknown;
+        await sectionMutation.mutate(
+          { params: { itemId: id }, body: { tripId: trip.id, mode } },
+          {
+            onResult: (result) => {
+              if (!result.ok) failure = result.error;
+            },
+            onError: (error) => {
+              failure = error;
+              router.refresh();
+            },
+            onAuthLost: () => {
+              failure = new Error("Your session has expired.");
+            },
+          }
+        );
+        if (failure) throw failure;
+      })
+    );
+  }
+
+  function queueRemoval(id: string, mode: RemovePackingSectionMode | null, write: () => Promise<void>): Promise<void> {
+    const listId = detail.packingItems.find((item) => item.id === id)?.listId ?? null;
+    const key = `${trip.id}:${listId}`;
+    const removed = new Set([id]);
+    if (mode === "delete-items") {
+      for (const item of detail.packingItems) if (item.labelId === id && item.id) removed.add(item.id);
+    }
+    const removal: PendingRemoval = {
+      removed,
+      ungroup: mode === "move-items-to-ungrouped" ? id : null,
+      succeeded: false,
+    };
+    const pending = packingRemovals.get(key) ?? new Set<PendingRemoval>();
+    pending.add(removal);
+    packingRemovals.set(key, pending);
+    const result = queueItemWrite(`list-order:${listId}`, async () => {
+      const previousOrder = packingOrders.get(key);
+      if (mode === "delete-items" && previousOrder?.succeeded && previousOrder.items.some((item) => item.id === id)) {
+        removed.clear();
+        removed.add(id);
+        for (const item of previousOrder.items) if (item.labelId === id) removed.add(item.id);
+      }
+      await write();
+      removal.succeeded = true;
     });
+    void result
+      .finally(() => {
+        if (!removal.succeeded) pending.delete(removal);
+        if (!pending.size && packingRemovals.get(key) === pending) packingRemovals.delete(key);
+      })
+      .catch(() => {});
+    return result;
   }
 
   function handleTogglePackingItem(id: string, isPacked: boolean): Promise<void> {
@@ -218,19 +292,45 @@ export function usePackingHandlers(detail: TripDetailPayload): PackingHandlers {
       return;
     }
     const listId = first.listId ?? null;
+    const removals = [...(packingRemovals.get(`${trip.id}:${listId}`) ?? [])];
+    const pendingOrder: PendingOrder = { items: ordered, succeeded: false };
+    const orderKey = `${trip.id}:${listId}`;
     // Drags of one list share a chain, so rapid drags reach the server in order and the last one wins. The hook
     // toasts the failure (a stale list is a 409); the caller rolls back and the page reloads the stored order.
-    void queueItemWrite(`order:${listId}`, () =>
-      reorderMutation.mutate(
-        { params: { tripId: trip.id }, body: { listId, items: ordered.map(({ id, labelId }) => ({ id, labelId })) } },
+    void queueItemWrite(`list-order:${listId}`, () => {
+      if (removals.some((removal) => !removal.succeeded)) {
+        onError?.();
+        router.refresh();
+        return Promise.resolve();
+      }
+      pendingOrder.items = ordered
+        .filter(({ id }) => !removals.some((removal) => removal.succeeded && removal.removed.has(id)))
+        .map(({ id, labelId }) => ({
+          id,
+          labelId: removals.some((removal) => removal.succeeded && removal.ungroup === labelId) ? null : labelId,
+        }));
+      return reorderMutation.mutate(
+        {
+          params: { tripId: trip.id },
+          body: {
+            listId,
+            items: pendingOrder.items,
+          },
+        },
         {
           onError: () => {
             onError?.();
             router.refresh();
           },
+          onResult: (result) => {
+            if (result.ok) {
+              pendingOrder.succeeded = true;
+              packingOrders.set(orderKey, pendingOrder);
+            }
+          },
         }
-      )
-    );
+      );
+    });
   }
 
   async function handlePullTemplates(
