@@ -160,6 +160,22 @@ Then("the deleted template remains absent on replay", async ({ page }) => {
   expect(await rowsFor(current.id)).toHaveLength(0);
 });
 
+When("I create, delete and recreate that template under the same id without a key", async ({ page }) => {
+  const current = state(page);
+  const headers = { "x-arrivo-client": "web", origin: new URL(page.url()).origin };
+  await postTemplate(page, { id: current.id, name: current.name });
+  current.responses.push(
+    await (await apiClient(page)).delete(`/api/v1/packing-templates/${current.id}`, { headers, data: {} })
+  );
+  await postTemplate(page, { id: current.id, name: current.name });
+});
+Then("the recreated template conflicts and stays absent", async ({ page }) => {
+  const current = state(page);
+  expect(current.responses.map((response) => response.status())).toEqual([200, 204, 409]);
+  expect(((await current.responses[2].json()) as { error: { code: string } }).error.code).toBe("conflict");
+  expect(await rowsFor(current.id)).toHaveLength(0);
+});
+
 Given("an owned template with an item for the packing template API", async ({ page, scenario }) => {
   const result = await scenario.materialize({
     template: { overrides: { items: [{ text: "Hat", isLabel: false, position: 0 }] }, setCurrent: false },

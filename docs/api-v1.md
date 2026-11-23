@@ -479,7 +479,7 @@ Body: `{ "tripId": "<uuid>" }`. Deletes the list and every item and section in i
 
 Creates a packing template owned by the caller. Body (strict): `id` (a client-chosen UUID, required) and `name` (required, trimmed, at most 30 characters). A blank or over-limit name returns 422 `validation_failed` and writes nothing.
 
-Repeating the same `id` with the same name returns the current template without writing, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found` and reveals nothing about it. A keyed replay returns the stored response only while the template remains owned by the caller; after deletion it returns 404.
+Repeating the same `id` with the same name returns the current template without writing, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found` and reveals nothing about it. A keyed replay returns the stored response only while the template remains owned by the caller; after deletion it returns 404. The `id` of a template deleted within the last 24 hours returns 409 `conflict` and is not recreated; mint a new `id`.
 
 ### GET /api/v1/packing-templates
 
@@ -503,7 +503,7 @@ Body: `{ "name": "Beach" }`, with the same name rules as create. Missing or fore
 
 **Auth** signed in · **`Idempotency-Key`** no · **Success** `204`
 
-Body: `{}`. Deletes the caller's template and its items. Missing and foreign templates also return 204.
+Body: `{}`. Deletes the caller's template and its items. Missing and foreign templates also return 204. The template's `id` and its items' ids are remembered for 24 hours, so a create that reuses one returns 409 instead of bringing it back.
 
 ### PUT /api/v1/packing-templates/:templateId/order
 
@@ -543,7 +543,7 @@ Body: `{ "mode": "delete-items" | "move-items-to-ungrouped" }`. Removes the sect
 
 Saves one packing list as a template owned by the caller. Body (strict): `tripId` (the list's trip, required), `id` (a client-chosen UUID for the template, required) and `name` (required, trimmed, at most 30 characters). Only that list's items are copied, in order, with each item's section link rebuilt inside the template and every item unchecked. Items of other lists, the default list and other trips are never copied; the list itself is unchanged.
 
-A blank or over-limit name returns 422 `validation_failed`, as does a list with no items; nothing is written. A caller below editor gets 403 `forbidden` (404 `not_found` with no access to the trip); a list that does not exist or is in another trip returns 404 `not_found`. Repeating the same `id` with the same name returns the current template without a second copy, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found`. A keyed replay rechecks trip access and template ownership; after template deletion it returns 404.
+A blank or over-limit name returns 422 `validation_failed`, as does a list with no items; nothing is written. A caller below editor gets 403 `forbidden` (404 `not_found` with no access to the trip); a list that does not exist or is in another trip returns 404 `not_found`. Repeating the same `id` with the same name returns the current template without a second copy, whatever `Idempotency-Key` it carries. The same `id` with a different name returns 409 `conflict`; an `id` that belongs to another user's template returns 404 `not_found`. A keyed replay rechecks trip access and template ownership; after template deletion it returns 404. The `id` of a template deleted within the last 24 hours returns 409 `conflict` and is not recreated.
 
 ## Trip notes
 
