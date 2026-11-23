@@ -1,6 +1,8 @@
 // Deterministic half of the PR reviewer: diff parsing, secret scan, test-pairing, and the compact packet the model
 // sees. Nothing here calls a model, so these checks cost no tokens and give the same answer every run.
 
+import { commentOnly } from "./comment-only.mjs";
+
 const MAX_MISSING = 10;
 
 const NOISE_FILE_NAMES = new Set(["package-lock.json", "pnpm-lock.yaml", "yarn.lock", ".env.example"]);
@@ -174,13 +176,15 @@ function hasNearbyTest(path, testDirs) {
   return [...testDirs].some((testDir) => testDir !== "" && dir.startsWith(`${testDir}/`));
 }
 
-export function checkTests(files) {
+export function checkTests(files, versions = {}) {
   const tests = files.filter((file) => classifyFile(file.path) === "test");
   const testDirs = new Set(tests.map((file) => dirName(file.path)));
   const hasE2e = tests.some((file) => E2E_PATH.test(file.path));
   const hasMigration = files.some((file) => file.path.startsWith("drizzle/"));
 
   const uncovered = files.filter(needsTest).filter((file) => {
+    const source = versions[file.path];
+    if (file.status === "modified" && source && commentOnly(source.before, source.after, file.path)) return false;
     if (hasNearbyTest(file.path, testDirs)) return false;
     const e2eCovers = hasE2e && (file.path.startsWith("src/app/") || file.path.startsWith("src/components/"));
     return isStrict(file.path) || !e2eCovers;

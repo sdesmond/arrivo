@@ -507,6 +507,8 @@ Body: `{}`. Deletes the caller's template and its items. Missing and foreign tem
 
 ### PUT /api/v1/packing-templates/:templateId/order
 
+The requested item sequence is stored as flat positions, including interleaved sections and items. The editor groups items under their `labelId` heading and sorts headings and each group by position, followed by ungrouped items; its display can therefore differ from the flat API sequence.
+
 **`Idempotency-Key`** yes
 
 Replaces the complete template order and section assignments. Send `{ "items": [{ "id": "uuid", "labelId": null }], "expectedItems": [{ "id": "uuid", "position": 0, "labelId": null }] }`; array indices determine desired positions. `expectedItems` must match the last confirmed positions and sections exactly, including gaps and ties. A changed snapshot returns 409 `conflict`. Every stored item and section must appear exactly once. Missing, extra, or foreign item IDs return 409 `conflict`; duplicate IDs or invalid section assignments return 422. Unknown or foreign templates return 404. Supports `Idempotency-Key`. See [Ordering](#ordering).
@@ -515,7 +517,7 @@ Replaces the complete template order and section assignments. Send `{ "items": [
 
 **Auth** signed in · **`Idempotency-Key`** yes · **Success** `200` `PackingTemplateItem`
 
-Adds an item or section to a template the caller owns. Body (strict): `id` (a client-chosen UUID, required), `text` (required, trimmed, 1-30 characters), and optional `isLabel`, `labelId` and one of `beforeItemId` or `afterItemId`. Without an anchor the item goes last; an anchor inserts it directly before or after that item and shifts later items down. `labelId` must be a section of the same template, and sections cannot have a parent. Returns the created item. Repeating the same `id` with the same content returns the current item without writing, whatever `Idempotency-Key` it carries; the same `id` with different content returns 409 `conflict`. The `id` of an item or section deleted within the last 24 hours returns 409 and is not recreated. A missing or foreign template, or an `id` that belongs to another user's template, returns 404 `not_found`. A `labelId` or anchor that is not in this template returns 422 `validation_failed` and writes nothing.
+Adds an item or section to a template the caller owns. Body (strict): `id` (a client-chosen UUID, required), `text` (required, trimmed, 1-30 characters), and optional `isLabel`, `labelId` and one of `beforeItemId` or `afterItemId`. Without an anchor the item goes last; an anchor inserts it directly before or after that item in the flat order and shifts later items down. The anchor may belong to a different section from the requested `labelId`; membership follows `labelId`. `labelId` must be a section of the same template, and sections cannot have a parent. Returns the created item. Repeating the same `id` with the same content returns the current item without writing, whatever `Idempotency-Key` it carries; the same `id` with different content returns 409 `conflict`. The `id` of an item or section deleted within the last 24 hours returns 409 and is not recreated. A missing or foreign template, or an `id` that belongs to another user's template, returns 404 `not_found`. A `labelId` or anchor that is not in this template returns 422 `validation_failed` and writes nothing.
 
 ### PATCH /api/v1/packing-template-items/:itemId
 

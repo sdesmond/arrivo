@@ -396,3 +396,36 @@ describe("scopeStats", () => {
     });
   });
 });
+
+describe("comment-only source versions", () => {
+  const file = parse(fileDiff("src/lib/example.ts", { lines: ["// changed"] }))[0];
+  it.each([
+    ["const value = 1; // old", "const value = 1; // new", true],
+    ["/* old */ const value = 1;", "/* new\ncomment */ const value = 1;", true],
+    ["const value = 1; // old", "const value = 2; // new", false],
+    ['const value = "// old";', 'const value = "// new";', false],
+    ["const value = `/* old */`;", "const value = `/* new */`;", false],
+    ["const value: string = 'a';", "const value: number = 'a';", false],
+    ["function f(){ return /* old */ 1; }", "function f(){ return /* new\n */ 1; }", false],
+    ["const value = (", "const value = ( // changed", false],
+    ["const value = `line\none`;", "const value = `line\ntwo`;", false],
+  ])("classifies complete sources conservatively", (before, after, expected) => {
+    expect(checkTests([file], { "src/lib/example.ts": { before, after } }).status).toBe(expected ? "PASS" : "FAIL");
+  });
+  it("requires both versions and refuses added files", () => {
+    expect(checkTests([file], { "src/lib/example.ts": { before: "const x = 1;" } }).status).toBe("FAIL");
+    const [added] = parse(fileDiff("src/lib/example.ts", { status: "added", lines: ["// new"] }));
+    expect(checkTests([added], { "src/lib/example.ts": { before: "", after: "// new" } }).status).toBe("FAIL");
+  });
+});
+
+it.each([
+  ["// @ts-ignore\nconst value = 1;", "// @ts-expect-error\nconst value = 1;"],
+  ['/// <reference types="one" />\nconst value = 1;', '/// <reference types="two" />\nconst value = 1;'],
+  ["/** @jsx h */\nconst value = 1;", "/** @jsx create */\nconst value = 1;"],
+  ["const x = import(/* webpackIgnore: true */ 'x');", "const x = import(/* webpackIgnore: false */ 'x');"],
+  ["/* @__PURE__ */ call();", "/* ordinary */ call();"],
+])("does not exempt changed directive comments", (before, after) => {
+  const [file] = parse(fileDiff("src/lib/example.ts", { lines: ["// changed"] }));
+  expect(checkTests([file], { "src/lib/example.ts": { before, after } }).status).toBe("FAIL");
+});

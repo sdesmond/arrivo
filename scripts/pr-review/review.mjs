@@ -21,10 +21,10 @@ export function isReviewComment(body) {
   return Boolean(body?.includes(MARKER_PREFIX));
 }
 
-export function evaluate({ title, body, diff }) {
+export function evaluate({ title, body, diff, versions }) {
   const files = parseDiff(diff);
   const secrets = findSecrets(files);
-  const tests = checkTests(files);
+  const tests = checkTests(files, versions);
   const structure = structureVerdicts({ title, body, files });
 
   let testsResult;
@@ -97,33 +97,72 @@ function parseArgs(argv) {
   return options;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), runCommand = run) {
   const options = parseArgs(argv);
   if (!options.pr || !options.repo) throw new Error("usage: review.mjs --pr <number> --repo <owner/name> [--dry-run]");
   const pr = String(options.pr);
 
   const meta = JSON.parse(
-    await run("gh", ["pr", "view", pr, "-R", options.repo, "--json", "title,body,isDraft,author"])
+    await runCommand("gh", [
+      "pr",
+      "view",
+      pr,
+      "-R",
+      options.repo,
+      "--json",
+      "title,body,isDraft,author,baseRefOid,headRefOid",
+    ])
   );
   if (shouldSkipPr(meta)) {
     console.log("Skipped: draft or bot PR.");
     return;
   }
-  const diff = await run("gh", ["pr", "diff", pr, "-R", options.repo]);
-  const result = evaluate({ title: meta.title, body: meta.body ?? "", diff });
+  const diff = await runCommand("gh", [
+    "api",
+    `repos/${options.repo}/compare/${meta.baseRefOid}...${meta.headRefOid}`,
+    "-H",
+    "Accept: application/vnd.github.v3.diff",
+  ]);
+  const versions = {};
+  let mergeBase;
+  try {
+    const comparison = JSON.parse(
+      await runCommand("gh", ["api", `repos/${options.repo}/compare/${meta.baseRefOid}...${meta.headRefOid}`])
+    );
+    mergeBase = comparison.merge_base_commit?.sha;
+  } catch {
+    // Missing merge base prevents any comment-only exemption.
+  }
+  for (const file of parseDiff(diff)) {
+    if (!mergeBase || file.status !== "modified" || !/\.tsx?$/.test(file.path)) continue;
+    try {
+      const readVersion = async (revision) => {
+        const path = file.path.split("/").map(encodeURIComponent).join("/");
+        const data = JSON.parse(
+          await runCommand("gh", ["api", `repos/${options.repo}/contents/${path}?ref=${revision}`])
+        );
+        if (data.encoding !== "base64" || typeof data.content !== "string") throw new Error("Source unavailable");
+        return Buffer.from(data.content, "base64").toString("utf8");
+      };
+      versions[file.path] = { before: await readVersion(mergeBase), after: await readVersion(meta.headRefOid) };
+    } catch {
+      // Missing source keeps the existing conservative test check.
+    }
+  }
+  const result = evaluate({ title: meta.title, body: meta.body ?? "", diff, versions });
   const comment = renderComment(result);
 
   if (options["dry-run"]) {
     console.log(comment);
   } else {
     const comments = JSON.parse(
-      await run("gh", ["api", `repos/${options.repo}/issues/${pr}/comments`, "--paginate", "--slurp"])
+      await runCommand("gh", ["api", `repos/${options.repo}/issues/${pr}/comments`, "--paginate", "--slurp"])
     ).flat();
     const existing = comments.find((item) => isReviewComment(item.body));
     if (existing && existing.body === comment) {
       console.log("Comment already up to date.");
     } else if (existing) {
-      await run("gh", [
+      await runCommand("gh", [
         "api",
         `repos/${options.repo}/issues/comments/${existing.id}`,
         "-X",
@@ -132,7 +171,7 @@ export async function main(argv = process.argv.slice(2)) {
         `body=${comment}`,
       ]);
     } else {
-      await run("gh", ["api", `repos/${options.repo}/issues/${pr}/comments`, "-f", `body=${comment}`]);
+      await runCommand("gh", ["api", `repos/${options.repo}/issues/${pr}/comments`, "-f", `body=${comment}`]);
     }
   }
   console.log(`overall: ${result.overall}`);

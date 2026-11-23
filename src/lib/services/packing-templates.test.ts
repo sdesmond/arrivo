@@ -341,3 +341,29 @@ it("replays create, save and rename while the same owned template exists", async
   await expect(renamePackingTemplate(actor, id, { name: "Beach" }, replay)).resolves.toEqual(result);
   expect(mocks.revalidate).not.toHaveBeenCalled();
 });
+
+it.each(["create", "save", "rename"])(
+  "rejects %s replay with a null current or recorded timestamp",
+  async (operation) => {
+    const { renamePackingTemplate } = await import("./packing-templates");
+    for (const [current, recorded] of [
+      [null, stored.createdAt.toISOString()],
+      [stored.createdAt, null],
+    ]) {
+      mocks.idempotent.mockImplementationOnce(async (_tx, _input, steps) => {
+        await steps.authorize();
+        await steps.validateReplay({ id, name: "Beach", createdAt: recorded });
+      });
+      const row = { ...stored, createdAt: current };
+      selectResults = operation === "save" ? [[listRow], [stored], [row]] : [[stored], [row]];
+      const replay = { key: "k", method: "POST", path: "/x" };
+      const request =
+        operation === "create"
+          ? createPackingTemplate(actor, { id, name: "Beach" }, replay)
+          : operation === "save"
+            ? savePackingListAsTemplate(actor, listId, saveBody, replay)
+            : renamePackingTemplate(actor, id, { name: "Beach" }, replay);
+      await expect(request).rejects.toBeInstanceOf(TripNotFoundError);
+    }
+  }
+);

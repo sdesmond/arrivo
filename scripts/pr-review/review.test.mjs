@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { evaluate, isReviewComment, renderComment, shouldSkipPr } from "./review.mjs";
 
 function fileDiff(path, lines = ["x"]) {
@@ -130,4 +130,59 @@ describe("isReviewComment", () => {
     expect(isReviewComment("looks good to me")).toBe(false);
     expect(isReviewComment(undefined)).toBe(false);
   });
+});
+
+it("keeps secret detection on the full comment-only diff", () => {
+  const secret = ["sk_", "live_4eC39HqLyjWDarjtT1zdp7dc"].join("");
+  const path = "src/lib/format.ts";
+  const result = evaluate({
+    title: GOOD_TITLE,
+    body: GOOD_BODY,
+    diff: fileDiff(path, [`// ${secret}`]),
+    versions: { [path]: { before: "const x = 1; // old", after: `const x = 1; // ${secret}` } },
+  });
+  expect(result.tests.verdict).toBe("PASS");
+  expect(result.secrets.verdict).toBe("FAIL");
+});
+
+it("fetches source from merge base and head, falling back if source is unavailable", async () => {
+  const { main } = await import("./review.mjs");
+  const diff = fileDiff("src/lib/format.ts", ["// changed"]);
+  const calls = [];
+  const command = async (_file, args) => {
+    calls.push(args);
+    if (args.includes("view"))
+      return JSON.stringify({ title: GOOD_TITLE, body: GOOD_BODY, baseRefOid: "base", headRefOid: "head", author: {} });
+    if (args[1]?.includes("compare/") && args.includes("-H")) return diff;
+    if (args[1]?.includes("compare/")) return JSON.stringify({ merge_base_commit: { sha: "merge" } });
+    if (args[1]?.includes("ref=merge"))
+      return JSON.stringify({ encoding: "base64", content: Buffer.from("const value = 1; // old").toString("base64") });
+    if (args[1]?.includes("ref=head"))
+      return JSON.stringify({ encoding: "base64", content: Buffer.from("const value = 2; // new").toString("base64") });
+    throw new Error("unexpected call");
+  };
+  const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+  const originalExit = process.exitCode;
+  try {
+    await main(["--pr", "123", "--repo", "owner/repo", "--dry-run"], command);
+    expect(calls.some((args) => args[1]?.includes("ref=merge"))).toBe(true);
+    expect(calls.some((args) => args[1]?.includes("ref=base"))).toBe(false);
+    expect(spy.mock.calls.flat().join("\n")).toContain("Tests: FAIL");
+    calls.length = 0;
+    spy.mockClear();
+    await main(["--pr", "123", "--repo", "owner/repo", "--dry-run"], async (file, args) => {
+      if (args[1]?.includes("compare/") && !args.includes("-H")) throw new Error("unavailable");
+      return command(file, args);
+    });
+    expect(spy.mock.calls.flat().join("\n")).toContain("Tests: FAIL");
+    spy.mockClear();
+    await main(["--pr", "123", "--repo", "owner/repo", "--dry-run"], async (file, args) => {
+      if (args[1]?.includes("ref=head")) throw new Error("source unavailable");
+      return command(file, args);
+    });
+    expect(spy.mock.calls.flat().join("\n")).toContain("Tests: FAIL");
+  } finally {
+    spy.mockRestore();
+    process.exitCode = originalExit;
+  }
 });
