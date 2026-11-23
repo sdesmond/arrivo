@@ -565,13 +565,14 @@ describe("useTripDetailHandlers", () => {
   it("removes packing items through the trip-scoped API", async () => {
     const { api } = await import("@/lib/api/client");
     vi.mocked(api).mockResolvedValueOnce(null);
-    const { result } = renderHook(() => useTripDetailHandlers(detail));
+    const deletionDetail = { ...detail, trip: { ...detail.trip, id: "deletion-trip" } };
+    const { result } = renderHook(() => useTripDetailHandlers(deletionDetail));
     await act(async () => {
-      await result.current.handleRemovePackingItem("pack-1");
+      await result.current.handleRemovePackingItem("deleted-item");
     });
     expect(api).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE" }), {
-      params: { itemId: "pack-1" },
-      body: { tripId: "trip-1" },
+      params: { itemId: "deleted-item" },
+      body: { tripId: "deletion-trip" },
     });
   });
 

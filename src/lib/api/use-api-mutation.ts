@@ -19,6 +19,8 @@ interface MutationOptions<Result> {
   expectedCodes?: string[];
   onAuthLost?: () => void;
   onSettled?: () => void;
+  /** Bookkeeping for writes that outlive their component. Do not update UI here. */
+  onResult?: (result: { ok: true } | { ok: false; error: unknown }) => void;
 }
 
 function reportAfterCommit(error: unknown): void {
@@ -68,9 +70,17 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
     input: { params: z.input<Params>; body: z.input<Body>; file?: File; timeoutMs?: number },
     options: MutationOptions<Result> = {}
   ): Promise<void> {
+    function reportResult(result: { ok: true } | { ok: false; error: unknown }): void {
+      try {
+        options.onResult?.(result);
+      } catch (error) {
+        reportAfterCommit(error);
+      }
+    }
     // A write the user made still goes out after the component unmounts (navigation, tab switch): only the UI
     // follow-up is skipped, so a queued edit or drag is not silently dropped.
     if (authLost.current) {
+      reportResult({ ok: false, error: new Error("Your session has expired.") });
       if (mounted.current) options.onAuthLost?.();
       return Promise.resolve();
     }
@@ -79,12 +89,14 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
     async function run(): Promise<void> {
       try {
         if (authLost.current) {
+          reportResult({ ok: false, error: new Error("Your session has expired.") });
           if (mounted.current) options.onAuthLost?.();
           return;
         }
         const fieldsKey = options.key ?? UNKEYED;
         if (mounted.current) setFields((current) => omitKey(current, fieldsKey));
         const result = await api(endpoint, input);
+        reportResult({ ok: true });
         if (!mounted.current || authLost.current) return;
         // The write has committed, so nothing below may surface as a failed save.
         try {
@@ -133,6 +145,7 @@ export function useApiMutation<Result, Params extends z.ZodType, Body extends z.
           reportAfterCommit(afterCommitError);
         }
       } catch (error) {
+        reportResult({ ok: false, error });
         if (authLost.current) return;
         if (error instanceof ApiClientError) {
           const errorFields = error.fields;

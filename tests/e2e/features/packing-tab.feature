@@ -98,6 +98,14 @@ Feature: Packing tab
     Then the packing item "Item A" should be at position 1
     Then the packing list order should be "Item B" then "Item A" then "Item C"
 
+  Scenario: Reordering surviving items after a deletion persists after reload
+    Given I have pre-seeded packing reorder items for the trip
+    When I open the Packing tab
+    And I reorder "Item A" while deletion of "Item C" is held in flight
+    Then the packing list order should be "Item B" then "Item A"
+    When I reload the trip page
+    Then the packing list order should be "Item B" then "Item A"
+
   Scenario: Section label shows strikethrough when all items beneath it are checked
     Given I have pre-seeded packing items with label and items for strikethrough
     When I open the Packing tab
