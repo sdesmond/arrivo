@@ -2743,6 +2743,20 @@ Feature: Absolute checklist checked-state API
     Then the trip date API returns 422 with code "validation_failed"
     And the trip still has its original dates, name, event and file
 
+  Scenario Outline: Trip date PATCH rejects an inapplicable confirmation
+    Given a final-day event with a stored document for the trip date API
+    And my checklist API role is "editor"
+    When I PATCH the trip to end on day 2 and a new name
+    And I PATCH the trip with the confirmation using "<case>"
+    Then the trip date API returns <status> with code "<code>"
+    And the trip still has its original dates, name, event and file
+
+    Examples:
+      | case            | status | code              |
+      | no resolution   | 422    | validation_failed |
+      | unchanged dates | 409    | conflict          |
+      | clear dates     | 409    | conflict          |
+
   Scenario: Trip date PATCH clears the dates and keeps the days
     Given a final-day event with a stored document for the trip date API
     And my checklist API role is "editor"
