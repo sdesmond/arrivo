@@ -41,3 +41,7 @@ Migrate reservations, expenses, and budget recalculation, reusing document attac
 - Story inheritance: Every new story entry and story file in this epic must explicitly carry this branch workflow; retain it when pulling, refining, or handing off a story.
 
 - Inception: Story breakdown and exact test intent are completed when this epic is selected.
+- Decision (2026-11-23): Tracer bullet is reservation create (7.1); expense create (7.2) follows as the least certain step (conversion partial failure). Reservation and expense lanes are serialized because both edit docs/api-v1.md, feature-map.mjs and deletion-records.ts.
+- Decision (2026-11-23): Deletion records cover deletes in other epics' code too: trip date-narrowing pruning of reservations and their expenses (7.4) and event-cascaded expenses (7.5).
+- Decision (2026-11-23): Budget E2E moves to a new budget.feature (@feat:budget) with the budget component mappings moved from the trips entry (7.2).
+- Decision (2026-11-23): Refactor sweep (7.8) also makes the build-validator result a required plan Verification field (epic 6 retro F5). Verify story (7.9) carries the cross-story invariant pass (epic 6 retro action 3).
