@@ -5,7 +5,6 @@ import { withE2EDb } from "../e2e-db";
 import { type TemplateItemSeed } from "../e2e-seed-data";
 import { type ScenarioFixtureContext } from "../scenario-fixture";
 import { Given, Then, When } from "../fixtures";
-import { waitForServerActionResponse } from "../server-action";
 import { waitForApiResponse } from "../api-response";
 
 async function getTemplateEditorId(userId: string, name: string): Promise<string> {
@@ -26,6 +25,7 @@ async function getTemplateEditorId(userId: string, name: string): Promise<string
 async function dragTemplateItemOntoTarget(
   page: Page,
   sourceName: string,
+  templateId: string,
   target: ReturnType<Page["locator"]>
 ): Promise<void> {
   const handle = page.getByTitle(`Reorder ${sourceName}`);
@@ -43,7 +43,10 @@ async function dragTemplateItemOntoTarget(
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2 + 8, { steps: 4 });
   await page.mouse.move(destination.x + destination.width / 2, destination.y + destination.height / 2, { steps: 12 });
   await page.waitForTimeout(80);
-  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/packing/" });
+  const reorderResponse = waitForApiResponse(page, {
+    method: "PUT",
+    path: `/api/v1/packing-templates/${templateId}/order`,
+  });
   await page.mouse.up();
   await reorderResponse;
 }
@@ -194,9 +197,9 @@ When("I keep the template label items", async ({ page }) => {
 
 When(
   "I drag the template item {string} onto the template item {string}",
-  async ({ page }, name: string, targetName: string) => {
+  async ({ page, scenario }, name: string, targetName: string) => {
     const target = page.locator('[data-packing-kind="item"]').filter({ hasText: targetName }).first();
-    await dragTemplateItemOntoTarget(page, name, target);
+    await dragTemplateItemOntoTarget(page, name, scenario.getValue<string>("templateEditorId")!, target);
   }
 );
 
@@ -227,4 +230,58 @@ Then("the template editor order should be {string} then {string}", async ({ page
     const names = await page.locator("[data-packing-name]").allTextContents();
     expect(names.map((name) => name.trim())).toEqual([first, second]);
   }).toPass({ timeout: 10_000 });
+});
+
+When("I pause the template order request during a drag", async ({ page, scenario }) => {
+  const templateId = scenario.getValue<string>("templateEditorId")!;
+  let release: (() => void) | undefined;
+  let intercepted: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    intercepted = resolve;
+  });
+  let requests = 0;
+  scenario.setValue("templateOrderRequestCount", () => requests);
+  await page.route(`**/api/v1/packing-templates/${templateId}/order`, async (route) => {
+    requests++;
+    intercepted?.();
+    await held;
+    await route.continue();
+  });
+  scenario.setValue("releaseTemplateOrder", release);
+  const source = await page.getByTitle("Reorder Sunglasses").boundingBox();
+  const target = await page
+    .locator('[data-packing-kind="item"]')
+    .filter({ hasText: "Sunscreen" })
+    .first()
+    .boundingBox();
+  if (!source || !target) throw new Error("Missing drag targets");
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await started;
+});
+Then("template drag handles are disabled until the order completes", async ({ page, scenario }) => {
+  const handle = page.getByTitle("Reorder Sunscreen");
+  await expect(handle).toHaveAttribute("aria-disabled", "true");
+  await expect(handle).toHaveAttribute("tabindex", "-1");
+  const box = await handle.boundingBox();
+  if (!box) throw new Error("Missing disabled drag handle");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 8 });
+  await page.mouse.up();
+  await handle.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  expect(scenario.getValue<() => number>("templateOrderRequestCount")!()).toBe(1);
+  const templateId = scenario.getValue<string>("templateEditorId")!;
+  const response = waitForApiResponse(page, { method: "PUT", path: `/api/v1/packing-templates/${templateId}/order` });
+  scenario.getValue<() => void>("releaseTemplateOrder")!();
+  await response;
+  await expect(handle).not.toHaveAttribute("aria-disabled", "true");
 });

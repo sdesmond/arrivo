@@ -302,3 +302,10 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-edit-template-items-and-sections-plan.md`
   summary: Template item create accepts a before/after anchor in a different section than the supplied `labelId`.
   evidence: Flat position places the item inside the anchor's block while `labelId` points elsewhere; the old server action had the same flaw.
+
+- source_plan: `epic-packing-templates-api/story-reorder-template-items-across-sections-plan.md`
+  summary: Investigate how the template editor displays noncanonical section ordering accepted by the order API.
+  evidence: Unverified whether interleaved API order creates a visible mismatch; compare a persisted interleaved order with the grouped editor rendering.
+- source_plan: `epic-packing-templates-api/story-reorder-template-items-across-sections-plan.md`
+  summary: Measure reorder transaction limits for unusually large packing templates.
+  evidence: The service updates changed items individually under a transaction deadline; a representative large-template test would establish the practical limit.

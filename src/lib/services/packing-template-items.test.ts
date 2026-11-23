@@ -33,6 +33,7 @@ import { ConflictError } from "./conflict-error";
 import { TripNotFoundError } from "./trip-access";
 import { ValidationFailedError } from "./validation-failed-error";
 import {
+  reorderPackingTemplateItems,
   createPackingTemplateItem,
   deletePackingTemplateItem,
   removePackingTemplateSection,
@@ -328,4 +329,156 @@ it("answers a non-section as not found and a missing or foreign section with not
   await removePackingTemplateSection(actor, sectionId, { mode: "delete-items" }, replayRequest);
   expect(mocks.revalidate).not.toHaveBeenCalled();
   await expect(removePackingTemplateSection(actor, sectionId, { mode: "bad" })).rejects.toThrow();
+});
+
+it("reorders the complete template and rejects stale ids or invalid sections before writes", async () => {
+  const body = {
+    expectedItems: [
+      { id: sectionId, position: 5, labelId: null },
+      { id: itemId, position: 5, labelId: null },
+    ],
+    items: [
+      { id: sectionId, labelId: null },
+      { id: itemId, labelId: sectionId },
+    ],
+  };
+  selectResults = [owned, [stored, section]];
+  expect(await reorderPackingTemplateItems(actor, templateId, body)).toEqual(body);
+  expect(mocks.set).toHaveBeenCalledTimes(2);
+  vi.clearAllMocks();
+  selectResults = [owned, [stored, section]];
+  await expect(
+    reorderPackingTemplateItems(actor, templateId, { ...body, items: [body.items[0]] })
+  ).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.update).not.toHaveBeenCalled();
+  selectResults = [owned, [stored, section]];
+  await expect(
+    reorderPackingTemplateItems(actor, templateId, {
+      ...body,
+      items: [{ id: sectionId, labelId: itemId }, body.items[1]],
+    })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+
+it("skips unchanged order and does not revalidate a replay", async () => {
+  const body = {
+    expectedItems: [
+      { id: sectionId, position: 0, labelId: null },
+      { id: itemId, position: 1, labelId: sectionId },
+    ],
+    items: [
+      { id: sectionId, labelId: null },
+      { id: itemId, labelId: sectionId },
+    ],
+  };
+  selectResults = [
+    owned,
+    [
+      { ...section, position: 0 },
+      { ...stored, position: 1, labelId: sectionId },
+    ],
+  ];
+  expect(await reorderPackingTemplateItems(actor, templateId, body)).toEqual(body);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
+  replayed = true;
+  selectResults = [
+    owned,
+    [
+      { ...section, position: 0 },
+      { ...stored, position: 1, labelId: sectionId },
+    ],
+  ];
+  await reorderPackingTemplateItems(actor, templateId, body, replayRequest);
+  expect(mocks.revalidate).not.toHaveBeenCalled();
+});
+
+it("refuses foreign templates, duplicates, extra ids and invalid labels without writes", async () => {
+  const body = {
+    expectedItems: [
+      { id: sectionId, position: 5, labelId: null },
+      { id: itemId, position: 5, labelId: null },
+    ],
+    items: [
+      { id: sectionId, labelId: null },
+      { id: itemId, labelId: null },
+    ],
+  };
+  selectResults = [[]];
+  await expect(reorderPackingTemplateItems(actor, templateId, body)).rejects.toBeInstanceOf(TripNotFoundError);
+  await expect(
+    reorderPackingTemplateItems(actor, templateId, { ...body, items: [body.items[0], body.items[0]] })
+  ).rejects.toThrow();
+  for (const badId of [anchorId, otherTemplateId]) {
+    selectResults = [owned, [section, stored]];
+    await expect(
+      reorderPackingTemplateItems(actor, templateId, { ...body, items: [body.items[0], { id: badId, labelId: null }] })
+    ).rejects.toBeInstanceOf(ConflictError);
+    selectResults = [owned, [section, stored]];
+    await expect(
+      reorderPackingTemplateItems(actor, templateId, {
+        ...body,
+        items: [body.items[0], { id: itemId, labelId: badId }],
+      })
+    ).rejects.toBeInstanceOf(ValidationFailedError);
+  }
+  selectResults = [owned, [section, stored]];
+  await expect(
+    reorderPackingTemplateItems(actor, templateId, { ...body, items: [body.items[0], { id: itemId, labelId: itemId }] })
+  ).rejects.toBeInstanceOf(ValidationFailedError);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+
+it("rejects stale positions and section assignments even when ids match", async () => {
+  const items = [
+    { id: sectionId, labelId: null },
+    { id: itemId, labelId: sectionId },
+  ];
+  const expectedItems = [
+    { id: sectionId, position: 0, labelId: null },
+    { id: itemId, position: 5, labelId: null },
+  ];
+  for (const changed of [
+    { ...stored, position: 6 },
+    { ...stored, labelId: sectionId },
+  ]) {
+    selectResults = [owned, [{ ...section, position: 0 }, changed]];
+    await expect(reorderPackingTemplateItems(actor, templateId, { items, expectedItems })).rejects.toBeInstanceOf(
+      ConflictError
+    );
+    expect(mocks.update).not.toHaveBeenCalled();
+  }
+});
+
+it("compares position gaps and ties exactly", async () => {
+  const expectedItems = [
+    { id: sectionId, position: 5, labelId: null },
+    { id: itemId, position: 5, labelId: null },
+  ];
+  const body = {
+    items: [
+      { id: sectionId, labelId: null },
+      { id: itemId, labelId: null },
+    ],
+    expectedItems,
+  };
+  selectResults = [owned, [section, stored]];
+  expect(await reorderPackingTemplateItems(actor, templateId, body)).toEqual(body);
+  selectResults = [owned, [section, { ...stored, position: 6 }]];
+  mocks.update.mockClear();
+  await expect(reorderPackingTemplateItems(actor, templateId, body)).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+
+it("returns a replay without comparing the now-changed snapshot", async () => {
+  const body = { items: [{ id: itemId, labelId: null }], expectedItems: [{ id: itemId, position: 5, labelId: null }] };
+  mocks.idempotent.mockImplementationOnce(async (_tx, _input, steps) => {
+    await steps.authorize();
+    return { value: body, replayed: true };
+  });
+  selectResults = [owned];
+  expect(await reorderPackingTemplateItems(actor, templateId, body, replayRequest)).toEqual(body);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
 });

@@ -31,6 +31,7 @@ export interface TemplateEditorViewProps {
   onEditItem: (id: string, text: string) => void;
   onReorderItems: (ordered: { id: string; labelId: string | null; position: number }[], onError?: () => void) => void;
   onOptimisticReorder?: (items: PackingTemplateItem[] | null) => void;
+  reorderDisabled?: boolean;
   isAdding?: boolean;
   onRenameTemplate?: (name: string) => Promise<void>;
 }
@@ -66,6 +67,7 @@ export function TemplateEditorView({
   onEditItem,
   onReorderItems,
   onOptimisticReorder,
+  reorderDisabled,
   isAdding = false,
   onRenameTemplate,
 }: TemplateEditorViewProps): ReactElement {
@@ -246,6 +248,7 @@ export function TemplateEditorView({
       />
 
       <PackingListSortable
+        reorderDisabled={reorderDisabled}
         items={packingItems}
         pendingItemIds={new Set()}
         collapsedLabels={collapsedLabels}

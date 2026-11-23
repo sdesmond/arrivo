@@ -1,3 +1,4 @@
+import { reloadPage } from "../page-reload";
 import { expect, type APIResponse, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -268,7 +269,7 @@ function itemHeaders(page: Page, key?: string): Record<string, string> {
 }
 async function sendItem(
   page: Page,
-  method: "post" | "patch" | "delete",
+  method: "post" | "patch" | "delete" | "put",
   path: string,
   data: Record<string, unknown>,
   key?: string
@@ -394,4 +395,42 @@ Then("those template item requests are refused and neither template changed", as
   const expected = ["Gear", "Boots", "Socks", "Loose"];
   expect((await storedItems(current.foreignId)).map((row) => row.text)).toEqual(expected);
   expect((await storedItems(current.ownedId)).map((row) => row.text)).toEqual(expected);
+});
+
+When("I reorder template items and submit stale and foreign orders through the API", async ({ page }) => {
+  const current = itemState(page);
+  const rows = await storedItems(current.ownedId);
+  const section = rows.find((row) => row.isLabel)!;
+  const loose = rows.find((row) => row.text === "Loose")!;
+  const items = [section, loose, ...rows.filter((row) => row.id !== section.id && row.id !== loose.id)].map((row) => ({
+    id: row.id,
+    labelId: row.id === loose.id ? section.id : row.labelId,
+  }));
+  const expectedItems = rows.map(({ id, position, labelId }) => ({ id, position, labelId }));
+  const path = `/api/v1/packing-templates/${current.ownedId}/order`;
+  const key = randomUUID();
+  await sendItem(page, "put", path, { items, expectedItems }, key);
+  await sendItem(page, "put", path, { items, expectedItems }, key);
+  await sendItem(page, "put", path, { items, expectedItems });
+  const freshExpectedItems = (await storedItems(current.ownedId)).map(({ id, position, labelId }) => ({
+    id,
+    position,
+    labelId,
+  }));
+  await sendItem(page, "put", path, { items: items.slice(1), expectedItems: freshExpectedItems });
+  const foreign = (await storedItems(current.foreignId))[0];
+  await sendItem(page, "put", path, {
+    items: [...items.slice(0, -1), { id: foreign.id, labelId: null }],
+    expectedItems: freshExpectedItems,
+  });
+  await sendItem(page, "put", `/api/v1/packing-templates/${current.foreignId}/order`, { items, expectedItems });
+});
+Then("the reordered template persists and rejected orders leave it unchanged", async ({ page }) => {
+  const current = itemState(page);
+  expect(current.responses.map((response) => response.status())).toEqual([200, 200, 409, 409, 409, 404]);
+  expect(await current.responses[1].json()).toEqual(await current.responses[0].json());
+  await reloadPage(page);
+  const rows = await storedItems(current.ownedId);
+  expect(rows.map((row) => row.text)).toEqual(["Gear", "Loose", "Boots", "Socks"]);
+  expect(rows[1].labelId).toBe(rows[0].id);
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PackingTemplate, PackingTemplateItem } from "@/data/types";
+import type { PackingTemplate, PackingTemplateItem, PackingTemplateItemOrder } from "@/data/types";
 import { FIELD_LIMITS, overLimitMessage } from "@/lib/validation-limits";
 import { defineEndpoint } from "../endpoint";
 
@@ -98,4 +98,19 @@ export const removePackingTemplateSection = defineEndpoint<null>()({
   params: itemParams,
   body: z.strictObject({ mode: z.enum(["delete-items", "move-items-to-ungrouped"]) }),
   status: 204,
+});
+
+/** Replaces the complete template order against an exact last-confirmed snapshot. */
+const orderItem = z.strictObject({ id: z.uuid().toLowerCase(), labelId: z.uuid().toLowerCase().nullable() });
+const uniqueIds = (items: { id: string }[]) => new Set(items.map((item) => item.id)).size === items.length;
+export const reorderPackingTemplateItems = defineEndpoint<PackingTemplateItemOrder>()({
+  method: "PUT",
+  path: "/api/v1/packing-templates/:templateId/order",
+  params: templateParams,
+  body: z.strictObject({
+    items: z.array(orderItem).refine(uniqueIds, { message: "Each item can appear once." }),
+    expectedItems: z
+      .array(orderItem.extend({ position: z.number().int() }))
+      .refine(uniqueIds, { message: "Each item can appear once." }),
+  }),
 });

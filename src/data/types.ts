@@ -1099,6 +1099,11 @@ export interface PackingItem {
 }
 
 /** One packing list's complete order, as stored; `listId` null is the default list. */
+export interface PackingTemplateItemOrder {
+  items: { id: string; labelId: string | null }[];
+  expectedItems: { id: string; position: number; labelId: string | null }[];
+}
+
 export interface PackingItemOrder {
   listId: string | null;
   items: { id: string; labelId: string | null }[];
