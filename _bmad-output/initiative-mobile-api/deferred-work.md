@@ -291,21 +291,27 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-save-the-selected-packing-list-as-a-template-plan.md`
   summary: PR #568 review bot fails "Tests: Source files changed without matching tests" on `src/lib/api/idempotency.ts`, which only had a comment reworded.
   evidence: The comment still described the deleted `saveTripListAsTemplate` raw-key path; the edit has no runtime change, so no test applies. Accepted as-is for #568. Fix later by either reverting the wording or teaching `scripts/pr-review` to ignore comment-only source edits.
+  disposition: 2026-11-22 — still open. `scripts/pr-review/review.mjs` passes parsed files to `checkTests`; `scripts/pr-review/review.test.mjs` tests source-without-test failure, with no comment-only exception. Follow up in the review tool with comment-aware classification and regression tests; no runtime test is warranted for the original comment.
 
 - source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
   summary: Verify whether existing templates have null creation timestamps and handle keyed replay for those records.
   evidence: The schema permits null, while lifecycle replay validation fails closed for null timestamps; deployed data is needed to establish impact.
+  disposition: 2026-11-22 — still open. `packingTemplates.createdAt` defaults to now but is nullable in `src/db/schema.ts`; create, save-list, and rename replay validators in `src/lib/services/packing-templates.ts` reject null or mismatched timestamps. No deployed data was inspected. Count nulls in each deployment, then design and test a backfill or stable identity scheme that preserves deleted/recreated resource protection before changing replay behavior.
 - source_plan: `epic-packing-templates-api/story-open-rename-and-delete-owned-templates-plan.md`
   summary: Handle editor title rename promise rejections in the template editor.
   evidence: Existing title commit is invoked without awaiting or catching failures from its rename callback.
+  disposition: 2026-11-22 — fixed in this sweep. `commitTitleEdit` catches the callback rejection; `useApiMutation` retains responsibility for error notification. `template-editor-view.test.tsx` exercises Enter and blur failures and successful rename; both rejection cases produced unhandled errors before the fix and pass afterward.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-packing-templates-api/story-edit-template-items-and-sections-plan.md`
   summary: Template item create accepts a before/after anchor in a different section than the supplied `labelId`.
   evidence: Flat position places the item inside the anchor's block while `labelId` points elsewhere; the old server action had the same flaw.
+  disposition: 2026-11-22 — confirmed, contract decision outstanding. `createPackingTemplateItem` validates the label and anchor independently against the template, then inserts at the anchor position with the supplied `labelId`. `groupPackingItems` displays the item under that label regardless of its flat position. Decide and document cross-section anchor semantics with API clients before changing accepted inputs or placement; add API regression coverage for the chosen behavior.
 
 - source_plan: `epic-packing-templates-api/story-reorder-template-items-across-sections-plan.md`
   summary: Investigate how the template editor displays noncanonical section ordering accepted by the order API.
   evidence: Unverified whether interleaved API order creates a visible mismatch; compare a persisted interleaved order with the grouped editor rendering.
+  disposition: 2026-11-22 — mismatch confirmed by code trace, contract decision outstanding. Reorder validates membership and section references, then stores positions in request order. For positions `A label, B label, A child, B child`, `groupPackingItems` sorts labels and their children separately by position; `PackingListSortable` renders `A label, A child, B label, B child`, then ungrouped items. Thus flat API order differs from grouped display even after reload; membership remains correct. Decide whether to document this representation or introduce compatible canonicalization, and add persisted API-to-editor coverage before changing semantics.
 - source_plan: `epic-packing-templates-api/story-reorder-template-items-across-sections-plan.md`
   summary: Measure reorder transaction limits for unusually large packing templates.
   evidence: The service updates changed items individually under a transaction deadline; a representative large-template test would establish the practical limit.
+  disposition: 2026-11-22 — limit remains unmeasured. The order contract has no array size cap, and `reorderPackingTemplateItems` awaits one update per changed row inside `guardTransactionDeadline`. One local timing would not establish a supported limit across DB latency, load, deadline, and deployment configurations. Follow up with a reproducible real-Postgres benchmark across representative item counts and deployment latencies, then set an explicit supported bound or batch updates with compatibility tests; do not infer a limit from a single run.

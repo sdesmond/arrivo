@@ -121,7 +121,11 @@ export function TemplateEditorView({
     const trimmed = titleDraft.trim();
     setIsEditingTitle(false);
     if (!trimmed || trimmed === template.name) return;
-    await onRenameTemplate?.(trimmed);
+    try {
+      await onRenameTemplate?.(trimmed);
+    } catch {
+      // The mutation handler already reports the error.
+    }
   }
 
   function cancelTitleEdit(): void {

@@ -364,7 +364,7 @@ describe("TemplateEditorView", () => {
 
     it("pressing Enter calls onRenameTemplate with the trimmed name", async () => {
       const user = userEvent.setup();
-      const onRenameTemplate = vi.fn();
+      const onRenameTemplate = vi.fn().mockResolvedValue(undefined);
 
       render(
         <TemplateEditorView
@@ -384,6 +384,34 @@ describe("TemplateEditorView", () => {
       await user.type(input, "Camping Trip{Enter}");
 
       expect(onRenameTemplate).toHaveBeenCalledWith("Camping Trip");
+    });
+
+    it.each(["Enter", "blur"])("handles a rejected rename on %s", async (trigger) => {
+      const user = userEvent.setup();
+      const onRenameTemplate = vi.fn().mockRejectedValue(new Error("Rename failed"));
+
+      render(
+        <TemplateEditorView
+          template={template}
+          items={[]}
+          onAddItem={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onEditItem={vi.fn()}
+          onRenameTemplate={onRenameTemplate}
+          onReorderItems={vi.fn()}
+        />
+      );
+
+      await user.click(screen.getByRole("heading", { name: "Beach Weekend" }));
+      const input = screen.getByDisplayValue("Beach Weekend");
+      await user.clear(input);
+      await user.type(input, "Camping Trip");
+      if (trigger === "Enter") await user.keyboard("{Enter}");
+      else await user.tab();
+
+      expect(onRenameTemplate).toHaveBeenCalledOnce();
+      expect(onRenameTemplate).toHaveBeenCalledWith("Camping Trip");
+      expect(screen.getByRole("heading", { name: "Beach Weekend" })).toBeInTheDocument();
     });
 
     it("pressing Escape cancels without calling onRenameTemplate", async () => {

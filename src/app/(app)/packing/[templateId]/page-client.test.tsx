@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as navigation from "next/navigation";
 import { describe, expect, it, vi } from "vitest";
 import {
   RemovePackingSectionMode,
@@ -307,6 +308,33 @@ it("propagates a failed editor rename", async () => {
   render(<TemplateEditorClient template={template} items={items} />);
   await user.click(screen.getByRole("button", { name: "rename-template" }));
   await waitFor(() => expect(renameFailure).toHaveBeenCalledWith(error));
+});
+
+it("shows the mutation error for a failed rename", async () => {
+  const { ApiClientError } = await import("@/lib/api/client");
+  const { toast } = await import("sonner");
+  useRealMutation.current = true;
+  mockReadTemplate.mockRejectedValueOnce(new ApiClientError(500, "server_error", "Rename failed"));
+  const view = render(<TemplateEditorClient template={template} items={items} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "rename-template" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Rename failed"));
+  expect(renameFailure).toHaveBeenCalledWith(expect.objectContaining({ message: "Rename failed" }));
+  view.unmount();
+  useRealMutation.current = false;
+});
+
+it("refreshes after a successful rename", async () => {
+  const refresh = vi.fn();
+  const router = navigation.useRouter();
+  const routerSpy = vi.spyOn(navigation, "useRouter").mockReturnValue({ ...router, refresh });
+  useRealMutation.current = true;
+  mockReadTemplate.mockResolvedValueOnce({ ...template, name: "Coast" });
+  const view = render(<TemplateEditorClient template={template} items={items} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "rename-template" }));
+  await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  view.unmount();
+  useRealMutation.current = false;
+  routerSpy.mockRestore();
 });
 
 it("blocks overlapping reorders and resumes against the successful baseline", async () => {
