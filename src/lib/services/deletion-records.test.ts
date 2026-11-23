@@ -116,6 +116,7 @@ it.each([
   ["trip", "This trip was deleted. Create it again to start a new trip."],
   ["packing-item", "This packing item was deleted. Add it again to create a new one."],
   ["packing-list", "This packing list was deleted. Create it again to start a new list."],
+  ["packing-template", "This template was deleted. Create it again to start a new template."],
   ["packing-template-item", "This template item was deleted. Add it again to create a new one."],
 ] as const)("refuses a recently deleted %s id as a conflict", async (resource, message) => {
   const { transaction, calls } = fakeTransaction([{ key: "any" }]);

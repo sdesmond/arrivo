@@ -2970,6 +2970,20 @@ Feature: Absolute checklist checked-state API
     And I replay the keyed template save
     Then the deleted saved template replay is not found
 
+  Scenario: A create sent after its template was deleted conflicts instead of bringing it back
+    Given I am signed in
+    And a new template id and name for the packing template API
+    When I create, delete and recreate that template under the same id without a key
+    Then the recreated template conflicts and stays absent
+
+  Scenario: A selected-list save sent after its template was deleted conflicts instead of bringing it back
+    Given a scenario-owned packing list API fixture
+    And my checklist API role is "editor"
+    When I commit a keyed save of the doomed packing list as a template
+    And I delete that saved template through the API
+    And I save the doomed packing list as a template again under a fresh key
+    Then the save after deletion conflicts and the template stays absent
+
   Scenario: Owned template detail returns items in order
     Given an owned template with ordered items for the packing template API
     When I request that template detail through the API

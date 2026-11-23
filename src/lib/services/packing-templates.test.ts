@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   lockTripForUpdate: vi.fn(),
   afterTripWrite: vi.fn(),
+  recordDeletions: vi.fn(),
+  refuseRecentlyDeleted: vi.fn(),
 }));
 vi.mock("./trip-access", async (original) => ({
   ...(await original<typeof import("./trip-access")>()),
@@ -29,6 +31,10 @@ vi.mock("@/lib/request-deadline", () => ({
   guardTransactionDeadline: (_transaction: unknown, work: () => Promise<unknown>) => work(),
 }));
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockIds }));
+vi.mock("./deletion-records", () => ({
+  recordDeletions: mocks.recordDeletions,
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/queries", () => ({ listTemplatesForUser: mocks.list, getTemplateWithItems: mocks.detail }));
 import { ConflictError } from "./conflict-error";
@@ -367,3 +373,45 @@ it.each(["create", "save", "rename"])(
     }
   }
 );
+
+it("refuses to create a template under an id deleted within the retention window", async () => {
+  selectResults = [[], []];
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("deleted"));
+  await expect(createPackingTemplate(actor, { id, name: "Beach" })).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "packing-template", id);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("does not consult deletion records when the id still holds a template", async () => {
+  selectResults = [[{ userId: "user" }], [stored]];
+  await createPackingTemplate(actor, { id, name: "Beach" });
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+});
+it("refuses to save a list under an id deleted within the retention window", async () => {
+  selectResults = [[listRow], [], []];
+  mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new ConflictError("deleted"));
+  await expect(savePackingListAsTemplate(actor, listId, saveBody)).rejects.toBeInstanceOf(ConflictError);
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(expect.anything(), "packing-template", id);
+  expect(mocks.insert).not.toHaveBeenCalled();
+});
+it("does not consult deletion records when a saved id still holds a template", async () => {
+  selectResults = [[listRow], [{ userId: "user" }], [stored]];
+  await savePackingListAsTemplate(actor, listId, saveBody);
+  expect(mocks.refuseRecentlyDeleted).not.toHaveBeenCalled();
+});
+it("records the deleted template and its items", async () => {
+  const { deletePackingTemplate } = await import("./packing-templates");
+  const itemId = "123e4567-e89b-12d3-a456-426614174009";
+  selectResults = [[{ id: itemId }]];
+  mocks.deleteReturning.mockResolvedValue([{ id }]);
+  await deletePackingTemplate(actor, id);
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(expect.anything(), "packing-template", [id], "user");
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(expect.anything(), "packing-template-item", [itemId], "user");
+});
+it("records nothing when a delete matches no template", async () => {
+  const { deletePackingTemplate } = await import("./packing-templates");
+  selectResults = [[]];
+  mocks.deleteReturning.mockResolvedValue([]);
+  await deletePackingTemplate(actor, id);
+  expect(mocks.recordDeletions).not.toHaveBeenCalled();
+  expect(mocks.revalidate).not.toHaveBeenCalled();
+});

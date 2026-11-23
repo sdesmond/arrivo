@@ -4817,6 +4817,18 @@ When("I delete that saved template through the API", async ({ page }) => {
   });
   expect(response.status()).toBe(204);
 });
+// Lives here because `sendSaveTemplate` and the save-template state are private to this file.
+When("I save the doomed packing list as a template again under a fresh key", async ({ page }) => {
+  await sendSaveTemplate(page, packingListApi(page).doomedId, {}, randomUUID());
+});
+Then("the save after deletion conflicts and the template stays absent", async ({ page }) => {
+  const current = saveTemplateApi(page);
+  expect(current.responses.map((response) => response.status)).toEqual([200, 409]);
+  expect((current.responses[1].body as { error: { code: string } }).error.code).toBe("conflict");
+  const stored = await storedSavedTemplates(current.templateId);
+  expect(stored.templates).toHaveLength(0);
+  expect(stored.items).toHaveLength(0);
+});
 Then("the deleted saved template replay is not found", async ({ page }) => {
   const current = saveTemplateApi(page);
   expect(current.responses.map((response) => response.status)).toEqual([200, 404]);
