@@ -4,15 +4,32 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationType } from "@/data/types";
 import { ReservationEditDrawer } from "./reservation-edit-drawer";
-import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+const { createReservation, requestIds } = vi.hoisted(() => ({
+  createReservation: vi.fn(),
+  requestIds: [] as string[],
+}));
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { ApiClientError } from "@/lib/api/client";
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn() },
+  toast: { error: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
-  createReservation: vi.fn(),
+vi.mock("@/lib/api/client", () => ({
+  api: (_endpoint: unknown, input: { params: { tripId: string }; body: { id: string } }) => {
+    const { id, ...body } = input.body;
+    requestIds.push(id);
+    return createReservation(input.params.tripId, body);
+  },
+  ApiClientError: class extends Error {
+    constructor(
+      readonly status: number,
+      _code: string,
+      message: string
+    ) {
+      super(message);
+    }
+  },
 }));
 
 vi.mock("@/components/ui/drawer", () => ({
@@ -337,6 +354,72 @@ describe("ReservationEditDrawer", () => {
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Save failed"), { timeout: 10_000 });
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   }, 15_000);
+
+  it("reuses the draft ID after a failed request", async () => {
+    requestIds.length = 0;
+    createReservation.mockRejectedValueOnce(new Error("Network error")).mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+    await user.type(screen.getByLabelText("Provider *"), "Misc");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network error"));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(requestIds).toHaveLength(2));
+    expect(requestIds[1]).toBe(requestIds[0]);
+  });
+
+  it("reconciles the original payload before accepting edits after an uncertain failure", async () => {
+    requestIds.length = 0;
+    createReservation.mockRejectedValueOnce(new Error("Network error")).mockResolvedValueOnce(undefined);
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={onOpenChange} />);
+    const provider = screen.getByLabelText("Provider *");
+    await user.type(provider, "Original");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network error"));
+    await user.clear(provider);
+    await user.type(provider, "Changed");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(createReservation).toHaveBeenCalledTimes(2));
+    expect(requestIds[1]).toBe(requestIds[0]);
+    expect(createReservation.mock.calls[1][1]).toMatchObject({ provider: "Original" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(toast.info).toHaveBeenCalledWith("Your earlier reservation was saved. Your recent changes were not saved.");
+  });
+
+  it("creates a UUID when randomUUID is unavailable on plain HTTP", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+    Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+    try {
+      requestIds.length = 0;
+      createReservation.mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+      render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+      await user.type(screen.getByLabelText("Provider *"), "Misc");
+      await user.click(screen.getByRole("button", { name: /save/i }));
+      await vi.waitFor(() => expect(requestIds).toHaveLength(1));
+      expect(requestIds[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    } finally {
+      if (descriptor) Object.defineProperty(crypto, "randomUUID", descriptor);
+      else Reflect.deleteProperty(crypto, "randomUUID");
+    }
+  });
+
+  it("retains the original ID after a conflict", async () => {
+    requestIds.length = 0;
+    createReservation
+      .mockRejectedValueOnce(new ApiClientError(409, "conflict", "Conflict"))
+      .mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<ReservationEditDrawer tripId="trip-1" type={ReservationType.Other} open onOpenChange={vi.fn()} />);
+    await user.type(screen.getByLabelText("Provider *"), "Misc");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Conflict"));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await vi.waitFor(() => expect(requestIds).toHaveLength(2));
+    expect(requestIds[1]).toBe(requestIds[0]);
+  });
 
   it("calls onOpenChange(false) when Cancel is clicked", async () => {
     const onOpenChange = vi.fn();

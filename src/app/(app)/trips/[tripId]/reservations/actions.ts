@@ -6,71 +6,16 @@ import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
 import { reservations, documents, trips } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import type { CollaboratorRole, ReservationType, CreateReservationInput, UpdateReservationPatch } from "@/data/types";
-import { createReservationSchema, parseInput, updateReservationSchema } from "@/lib/validation-schemas";
+import type { CollaboratorRole, ReservationType, UpdateReservationPatch } from "@/data/types";
+import { parseInput, updateReservationSchema } from "@/lib/validation-schemas";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
 import { resolveDocumentTripId } from "@/lib/document-ancestry";
 import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { requireTripRole, TripForbiddenError, TripNotFoundError } from "@/lib/services/trip-access";
-import { REQUIRES_END_AT } from "@/components/arrivo/reservation-type-badge";
+import { REQUIRES_END_AT } from "@/lib/reservation-types";
 import { recordTripUpdated } from "@/lib/trip-activity";
-import { extendTripDateRange } from "./reservation-date-range";
-
-export async function createReservation(tripId: string, rawInput: CreateReservationInput): Promise<void> {
-  const user = await requireUser();
-  const input = parseInput(createReservationSchema, rawInput);
-  await assertTripAccess(tripId, user.id!, "editor");
-
-  if (REQUIRES_END_AT.includes(input.type) && !input.endAt) {
-    throw new Error("An end date and time is required for this reservation type.");
-  }
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, tripId);
-
-    const [currentTrip] = await transaction
-      .select({ startDate: trips.startDate, endDate: trips.endDate })
-      .from(trips)
-      .where(eq(trips.id, tripId));
-    if (!currentTrip) {
-      throw new Error("Trip not found.");
-    }
-    if (!currentTrip.startDate) {
-      throw new Error("Set trip dates before adding a reservation.");
-    }
-
-    await extendTripDateRange(
-      transaction,
-      tripId,
-      currentTrip.startDate,
-      currentTrip.endDate ?? undefined,
-      input.startAt,
-      input.endAt
-    );
-
-    await transaction.insert(reservations).values({
-      tripId,
-      type: input.type,
-      provider: input.provider.trim(),
-      startAt: input.startAt ? new Date(input.startAt) : undefined,
-      endAt: input.endAt ? new Date(input.endAt) : undefined,
-      startAddress: input.startAddress,
-      startLocationName: input.startLocationName,
-      startLocationLat: input.startLocationLat,
-      startLocationLng: input.startLocationLng,
-      endAddress: input.endAddress,
-      endLocationName: input.endLocationName,
-      endLocationLat: input.endLocationLat,
-      endLocationLng: input.endLocationLng,
-      confirmationCode: input.confirmationCode,
-      serviceNumber: input.serviceNumber,
-      notes: input.notes,
-    });
-  });
-
-  recordTripUpdated(user.id!, tripId);
-  revalidatePath(`/trips/${tripId}`);
-}
+import { recordDeletion } from "@/lib/services/deletion-records";
+import { extendTripDateRange } from "@/lib/reservation-date-range";
 
 export async function updateReservation(reservationId: string, rawPatch: UpdateReservationPatch): Promise<void> {
   const user = await requireUser();
@@ -237,6 +182,7 @@ export async function deleteReservation(reservationId: string): Promise<void> {
       attachedDocs.map((attached) => attached.url).filter((url): url is string => !!url)
     );
     await transaction.delete(reservations).where(eq(reservations.id, reservationId));
+    await recordDeletion(transaction, "reservation", reservationId, user.id!);
     deleted = true;
   });
   if (!deleted) return;

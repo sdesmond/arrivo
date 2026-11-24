@@ -10,6 +10,7 @@ import {
 } from "../e2e-seed-data";
 import type { DaySeed, EventSeed, ReservationSeed, TripMotherOverrides } from "../e2e-seed-data";
 import { withE2EDb } from "../e2e-db";
+import { waitForApiResponse } from "../api-response";
 import { Given, Then, When } from "../fixtures";
 
 const EXTENSION_PROVIDER = "Extension Hotel";
@@ -68,11 +69,18 @@ async function openAddLodgingReservationDrawer(page: Page): Promise<void> {
   await expect(page.getByText("Add Lodging Reservation")).toBeVisible({ timeout: 10_000 });
 }
 
-async function saveReservation(page: Page): Promise<void> {
+async function saveReservation(page: Page, tripId: string): Promise<void> {
   const saveButton = page.getByRole("button", { name: "Save" });
+  const saved = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${tripId}/reservations`,
+    timeoutMs: 15_000,
+  });
   await saveButton.focus();
   await saveButton.press("Enter");
+  await saved;
   await expect(page.getByText("Add Lodging Reservation")).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("button", { name: /^Lodging, \d+ reservations?,/ })).toBeVisible({ timeout: 15_000 });
 }
 
 async function selectCalendarDate(page: Page, ariaLabel: string, dateString: string): Promise<void> {
@@ -284,40 +292,40 @@ Then(
 
 When(
   "I add a Lodging reservation from {string} at {string} to {string} at {string}",
-  async ({ page }, startDate: string, startTime: string, endDate: string, endTime: string) => {
+  async ({ page, scenario }, startDate: string, startTime: string, endDate: string, endTime: string) => {
     await openAddLodgingReservationDrawer(page);
     await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
     await selectCalendarDate(page, "Check-in date", startDate);
     await page.getByLabel("Check-in time").fill(startTime);
     await selectCalendarDate(page, "Check-out date", endDate);
     await page.getByLabel("Check-out time").fill(endTime);
-    await saveReservation(page);
+    await saveReservation(page, scenario.currentTrip!.id);
   }
 );
 
 When(
   "I add a Lodging reservation from the day before the trip at {string} to trip day 1 at {string}",
-  async ({ page }, startTime: string, endTime: string) => {
+  async ({ page, scenario }, startTime: string, endTime: string) => {
     await openAddLodgingReservationDrawer(page);
     await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
     await selectCalendarDate(page, "Check-in date", e2eTripDate(-1));
     await page.getByLabel("Check-in time").fill(startTime);
     await selectCalendarDate(page, "Check-out date", E2E_TRIP_START_DATE);
     await page.getByLabel("Check-out time").fill(endTime);
-    await saveReservation(page);
+    await saveReservation(page, scenario.currentTrip!.id);
   }
 );
 
 When(
   "I add a Lodging reservation from the day after the trip at {string} to two days after the trip at {string}",
-  async ({ page }, startTime: string, endTime: string) => {
+  async ({ page, scenario }, startTime: string, endTime: string) => {
     await openAddLodgingReservationDrawer(page);
     await page.getByLabel("Provider *").fill(EXTENSION_PROVIDER);
     await selectCalendarDate(page, "Check-in date", e2eTripDate(3));
     await page.getByLabel("Check-in time").fill(startTime);
     await selectCalendarDate(page, "Check-out date", e2eTripDate(4));
     await page.getByLabel("Check-out time").fill(endTime);
-    await saveReservation(page);
+    await saveReservation(page, scenario.currentTrip!.id);
   }
 );
 

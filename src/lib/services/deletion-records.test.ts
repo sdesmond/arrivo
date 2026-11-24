@@ -108,6 +108,7 @@ it("writes nothing for an empty list", async () => {
 it.each([
   ["document", "This document was deleted. Upload the file again to add it as a new document."],
   ["event", "This event was deleted. Save again to add it as a new event."],
+  ["reservation", "This reservation was deleted. Save again to add it as a new reservation."],
   ["day", "This day was deleted. Add a day again to create a new one."],
   ["checklist", "This checklist was deleted. Save again to add it as a new checklist."],
   ["checklist-item", "This item was deleted. Add it again to create a new item."],

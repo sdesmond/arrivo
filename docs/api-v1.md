@@ -237,6 +237,22 @@ Repeating the same `id` with the same content returns the current trip without w
 
 No query fields. Returns every trip the caller owns or is a member of, ordered by start date (dateless trips first) then name. Each entry is `{ trip, todayEvents, summaryEvents }`, the shape the trips page reads, with `trip.status` (`active`, `upcoming` or `past`) computed from the server clock at read time. Trips the caller is not on never appear.
 
+## Reservations
+
+### GET /api/v1/trips/:tripId/reservations
+
+**Role** viewer · **`Idempotency-Key`** no · **Success** `200` `{ reservations: Reservation[] }`
+
+Returns reservations with their attached documents. Editors and managers also receive linked expenses; viewers do not. Nonmembers receive 404.
+
+### POST /api/v1/trips/:tripId/reservations
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Reservation`
+
+Requires `id` (client UUID), `type` (`flight`, `train`, `bus`, `ferry`, `rental-car`, `lodging`, `cruise`, or `other`), and nonblank `provider`. Optional fields are `startAt`, `endAt` (ISO date-times), `startAddress`, `startLocationName`, `startLocationLat`, `startLocationLng`, `endAddress`, `endLocationName`, `endLocationLat`, `endLocationLng`, `confirmationCode`, `serviceNumber`, and `notes`. Lodging, rental cars and cruises require an end; an end requires a start and cannot precede it. Trip dates must be set. Reservation dates may widen the trip up to 45 days.
+
+Retries using the same ID and content return the existing reservation without repeating side effects. A different payload or recently deleted ID returns 409; inaccessible resources return 404 and viewers receive 403. Invalid input returns 422. An optional `Idempotency-Key` also supports safe retries.
+
 ## Days
 
 ### POST /api/v1/trips/:tripId/days

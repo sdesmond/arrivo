@@ -17,6 +17,28 @@ Feature: Reservations
     And I set the "Check-out" time to "11:00"
     And I click "Save" on the reservation drawer
     Then the reservation "Sunset Hotel" appears in the "Lodging" section
+    When I reload the page
+    And the "Lodging" reservation section is expanded
+    Then the reservation "Sunset Hotel" appears in the "Lodging" section
+
+  Scenario: Keyed reservation retries widen the trip only once
+    When I create and retry a keyed reservation outside the trip dates
+    Then the reservation retries return one reservation and one widened itinerary
+
+  Scenario: A reservation UUID racing across trips belongs to one trip
+    When I race one reservation UUID across two visible trips
+    Then exactly one trip receives the reservation
+
+  Scenario Outline: Reservation GET respects member visibility
+    Given a reservation with a document and expense for API visibility
+    When I request reservations as a "<role>"
+    Then the reservation API visibility matches "<role>"
+
+    Examples:
+      | role      |
+      | viewer    |
+      | editor    |
+      | nonmember |
 
   Scenario: Add a Flight reservation with selected location suggestions
     When I click "Add Reservation"

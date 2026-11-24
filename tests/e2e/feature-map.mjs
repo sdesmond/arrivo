@@ -812,6 +812,10 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
   ]),
   entry("reservations", [
+    "src/lib/reservation-date-range.ts",
+    "src/lib/reservation-types.ts",
+    "src/lib/services/reservations.ts",
+    "src/app/api/v1/trips/*/reservations/**",
     "src/lib/trip-metadata-save.ts",
     "src/lib/services/trips.ts",
     "src/lib/services/trip-date-change.ts",
