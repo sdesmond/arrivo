@@ -341,3 +341,7 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - Review bot: complete immutable base/head sources are compared using TypeScript parse trees and token text; missing or invalid versions fall back to test requirements. Secret scanning continues against the complete diff. Review-bot regression tests cover comment changes, code and literal changes, automatic semicolon insertion, types and unavailable versions.
 
 
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-create-expenses-through-the-api-plan.md`
+  summary: Expenses removed by cascade (event, reservation or trip deletion) are not recorded as deletion records, so a replayed id returns 404 instead of 409.
+  evidence: only `deleteExpense` calls `recordDeletion`; cascades bypass it. Same gap exists for other kinds.
