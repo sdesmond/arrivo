@@ -37,9 +37,7 @@ vi.mock("./reservation-row", () => ({
   },
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
-  updateReservation: vi.fn(),
-}));
+vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({}));
 
 const NOW = new Date("2026-06-15T12:00:00.000Z");
 
