@@ -12,13 +12,15 @@ import { LocationLookupInput } from "@/components/arrivo/location-lookup-input";
 import { ReservationAnchorFieldset } from "@/components/arrivo/reservation-anchor-fieldset";
 import {
   ANCHOR_LABELS,
-  REQUIRES_END_AT,
   RESERVATION_TYPE_META,
   SERVICE_NUMBER_LABELS,
 } from "@/components/arrivo/reservation-type-badge";
-import { createReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { REQUIRES_END_AT } from "@/lib/reservation-types";
+import { useRouter } from "next/navigation";
+import { api, ApiClientError } from "@/lib/api/client";
+import { createReservation } from "@/lib/api/contract/reservations";
 import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
-import { combineDateAndTimeToIso } from "@/lib/utils";
+import { combineDateAndTimeToIso, createRandomId } from "@/lib/utils";
 import { FileText } from "lucide-react";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
@@ -43,6 +45,8 @@ function focusAnchor(ref: React.RefObject<HTMLDivElement | null>): void {
 }
 
 export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: ReservationEditDrawerProps) {
+  const router = useRouter();
+  const attempt = useRef<{ id: string; input: CreateReservationInput } | null>(null);
   const [provider, setProvider] = useState("");
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [startTime, setStartTime] = useState<string | undefined>(undefined);
@@ -74,6 +78,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
     if (open) {
       providerInputRef.current?.focus();
     } else {
+      attempt.current = null;
       setProvider("");
       setStartDate(undefined);
       setStartTime(undefined);
@@ -158,9 +163,23 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
     };
 
     try {
-      await createReservation(tripId, input);
+      attempt.current ??= { id: createRandomId(), input };
+      const previousInput = attempt.current.input;
+      const changed = JSON.stringify(previousInput) !== JSON.stringify(input);
+      await api(createReservation, { params: { tripId }, body: { ...previousInput, id: attempt.current.id } });
+      if (changed) toast.info("Your earlier reservation was saved. Your recent changes were not saved.");
+      router.refresh();
       onOpenChange(false);
     } catch (error) {
+      if (
+        error instanceof ApiClientError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        error.status !== 409 &&
+        error.status !== 429
+      )
+        attempt.current = null;
       toast.error(error instanceof Error ? error.message : "Failed to save reservation.");
     } finally {
       setSaving(false);

@@ -3,9 +3,19 @@ import { expect, type APIResponse, type Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { collaborators, documents, pendingFileDeletions, reservations } from "../../../src/db/schema";
+import { randomUUID } from "node:crypto";
+import {
+  collaborators,
+  days,
+  documents,
+  expenses,
+  pendingFileDeletions,
+  reservations,
+  trips,
+} from "../../../src/db/schema";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
+import { apiClient } from "../anonymous-api";
 import { withE2EDb } from "../e2e-db";
 import { holdScenarioTripLock, type HeldTripLock } from "../document-scope-concurrency";
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
@@ -26,6 +36,166 @@ interface DocumentScopeRace {
 }
 const documentScopeRaces = new WeakMap<Page, DocumentScopeRace>();
 const recordedFileUrls = new WeakMap<Page, string>();
+
+interface ReservationApiState {
+  id: string;
+  tripIds: string[];
+  statuses: number[];
+  bodies: unknown[];
+  startDate?: string;
+  endDate?: string;
+  originalDayCount?: number;
+}
+const reservationApiStates = new WeakMap<Page, ReservationApiState>();
+const reservationReadStates = new WeakMap<Page, { tripId: string; id: string; response?: APIResponse }>();
+
+Given("a reservation with a document and expense for API visibility", async ({ page, scenario }) => {
+  const { trip } = await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [{ type: "other", provider: "API visibility" }],
+        documents: [{ name: "Ticket", kind: "other", url: "/test/ticket", reservationProvider: "API visibility" }],
+      },
+      setCurrent: false,
+    },
+  });
+  const [row] = await withE2EDb((database) =>
+    database.select().from(reservations).where(eq(reservations.tripId, trip!.id))
+  );
+  await withE2EDb((database) =>
+    database.insert(expenses).values({
+      tripId: trip!.id,
+      reservationId: row.id,
+      category: "misc",
+      amount: "42.00",
+      currency: "USD",
+      date: "2030-01-01",
+    })
+  );
+  reservationReadStates.set(page, { tripId: trip!.id, id: row.id });
+});
+
+When("I request reservations as a {string}", async ({ page, scenario }, role: string) => {
+  const state = reservationReadStates.get(page)!;
+  const { user } = await scenario.materialize({ user: { setCurrent: false } });
+  if (role !== "nonmember")
+    await withE2EDb((database) =>
+      database.insert(collaborators).values({
+        tripId: state.tripId,
+        userId: user!.id,
+        name: user!.name,
+        initials: user!.initials,
+        role,
+        isCreator: false,
+      })
+    );
+  await scenario.signInAsUser(page, user!.username);
+  state.response = await (
+    await apiClient(page)
+  ).get(`/api/v1/trips/${state.tripId}/reservations`, { headers: reservationApiHeaders(page) });
+});
+
+Then("the reservation API visibility matches {string}", async ({ page }, role: string) => {
+  const state = reservationReadStates.get(page)!;
+  expect(state.response!.status()).toBe(role === "nonmember" ? 404 : 200);
+  if (role === "nonmember") return;
+  const body = await state.response!.json();
+  expect(body.reservations).toHaveLength(1);
+  expect(body.reservations[0]).toMatchObject({
+    id: state.id,
+    provider: "API visibility",
+    documents: [{ name: "Ticket" }],
+  });
+  if (role === "viewer") expect(body.reservations[0].expense).toBeUndefined();
+  else expect(body.reservations[0].expense).toMatchObject({ amount: 42, currency: "USD" });
+});
+
+function reservationApiHeaders(page: Page, key?: string) {
+  return { "x-arrivo-client": "web", origin: new URL(page.url()).origin, ...(key ? { "Idempotency-Key": key } : {}) };
+}
+
+function offsetDate(date: string, offset: number): string {
+  const result = new Date(`${date}T00:00:00Z`);
+  result.setUTCDate(result.getUTCDate() + offset);
+  return result.toISOString().slice(0, 10);
+}
+
+When("I create and retry a keyed reservation outside the trip dates", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  const startDate = offsetDate(trip.startDate!, -1);
+  const endDate = offsetDate(trip.endDate!, 1);
+  const originalDays = await withE2EDb((database) => database.select().from(days).where(eq(days.tripId, trip.id)));
+  const id = randomUUID();
+  const key = randomUUID();
+  const body = {
+    id,
+    type: "lodging",
+    provider: "Retry Hotel",
+    startAt: `${startDate}T12:00:00.000Z`,
+    endAt: `${endDate}T12:00:00.000Z`,
+  };
+  const client = await apiClient(page);
+  const path = `/api/v1/trips/${trip.id}/reservations`;
+  const responses = [];
+  responses.push(await client.post(path, { headers: reservationApiHeaders(page, key), data: body }));
+  responses.push(await client.post(path, { headers: reservationApiHeaders(page, key), data: body }));
+  responses.push(await client.post(path, { headers: reservationApiHeaders(page), data: body }));
+  responses.push(
+    await client.post(path, { headers: reservationApiHeaders(page), data: { ...body, provider: "Different" } })
+  );
+  reservationApiStates.set(page, {
+    id,
+    tripIds: [trip.id],
+    statuses: responses.map((response) => response.status()),
+    bodies: await Promise.all(responses.slice(0, 3).map((response) => response.json())),
+    startDate,
+    endDate,
+    originalDayCount: originalDays.length,
+  });
+});
+
+Then("the reservation retries return one reservation and one widened itinerary", async ({ page }) => {
+  const state = reservationApiStates.get(page)!;
+  expect(state.statuses).toEqual([200, 200, 200, 409]);
+  expect(state.bodies[1]).toEqual(state.bodies[0]);
+  expect(state.bodies[2]).toEqual(state.bodies[0]);
+  const stored = await withE2EDb(async (database) => ({
+    reservations: await database.select().from(reservations).where(eq(reservations.id, state.id)),
+    days: await database.select().from(days).where(eq(days.tripId, state.tripIds[0])),
+    trip: (await database.select().from(trips).where(eq(trips.id, state.tripIds[0])))[0],
+  }));
+  expect(stored.reservations).toHaveLength(1);
+  expect(stored.days).toHaveLength(state.originalDayCount! + 2);
+  expect(stored.trip).toMatchObject({ startDate: state.startDate, endDate: state.endDate });
+});
+
+When("I race one reservation UUID across two visible trips", async ({ page, scenario }) => {
+  const firstTrip = scenario.currentTrip!;
+  const { trip: secondTrip } = await scenario.materialize({ trip: { mother: "threeDayTrip", setCurrent: false } });
+  const id = randomUUID();
+  const body = { id, type: "other", provider: "Racing reservation" };
+  const client = await apiClient(page);
+  const responses = await Promise.all(
+    [firstTrip.id, secondTrip!.id].map((tripId) =>
+      client.post(`/api/v1/trips/${tripId}/reservations`, { headers: reservationApiHeaders(page), data: body })
+    )
+  );
+  reservationApiStates.set(page, {
+    id,
+    tripIds: [firstTrip.id, secondTrip!.id],
+    statuses: responses.map((response) => response.status()),
+    bodies: [],
+  });
+});
+
+Then("exactly one trip receives the reservation", async ({ page }) => {
+  const state = reservationApiStates.get(page)!;
+  expect([...state.statuses].sort()).toEqual([200, 409]);
+  const rows = await withE2EDb((database) => database.select().from(reservations).where(eq(reservations.id, state.id)));
+  expect(rows).toHaveLength(1);
+  expect(state.tripIds).toContain(rows[0].tripId);
+});
 
 After(async ({ page }) => {
   const race = documentScopeRaces.get(page);
@@ -139,12 +309,17 @@ When("I set the {string} time to {string}", async ({ page }, anchorLabel: string
   await page.getByLabel(`${anchorLabel} time`).fill(time);
 });
 
-When("I click {string} on the reservation drawer", async ({ page }, buttonText: string) => {
+When("I click {string} on the reservation drawer", async ({ page, scenario }, buttonText: string) => {
   // The dev-only mock-date toggle is fixed at bottom-right and overlaps the drawer footer, so focus + Enter
   // avoids the pointer interception that a real click would hit.
   const button = page.getByRole("button", { name: buttonText });
+  const saved =
+    buttonText === "Save"
+      ? waitForApiResponse(page, { method: "POST", path: `/api/v1/trips/${scenario.currentTrip!.id}/reservations` })
+      : undefined;
   await button.focus();
   await button.press("Enter");
+  if (saved) expect((await saved).ok()).toBe(true);
 });
 
 When(

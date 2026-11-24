@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ReservationType } from "@/data/types";
+import { REQUIRES_END_AT } from "@/lib/reservation-types";
 import {
   ANCHOR_LABELS,
-  REQUIRES_END_AT,
   RESERVATION_TYPE_META,
   SERVICE_NUMBER_LABELS,
   ReservationTypeBadge,

@@ -489,12 +489,17 @@ When("I add a private reservation for Activity", async ({ page, scenario }) => {
   await page.getByRole("menuitem", { name: "Flight" }).click();
   await page.getByLabel("Provider *").fill(PRIVATE_RESERVATION_PROVIDER);
   const since = Date.now();
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}`, timeoutMs: 15_000 });
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${trip.id}/reservations`,
+    timeoutMs: 15_000,
+  });
   // The dev-only mock-date toggle overlaps the drawer footer, so focus + Enter avoids pointer interception.
   const save = page.getByRole("button", { name: "Save" });
   await save.focus();
   await save.press("Enter");
   await response;
+  await expect(page.getByRole("button", { name: /^Flight, \d+ reservations?,/ })).toBeVisible({ timeout: 15_000 });
   await waitForTripUpdatedEndAfter(trip.id, since);
 });
 
