@@ -461,7 +461,7 @@ async function waitForTripUpdatedEndAfter(tripId: string, since: number): Promis
 
 When("I add a private expense for Activity", async ({ page, scenario }) => {
   const trip = scenario.currentTrip!;
-  await page.getByRole("button", { name: "Budget" }).click();
+  await page.getByRole("button", { name: "Budget", exact: true }).click();
   await page.getByRole("button", { name: "Add Misc Expense" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -469,10 +469,17 @@ When("I add a private expense for Activity", async ({ page, scenario }) => {
   await page.getByRole("button", { name: "Select category" }).click();
   await page.getByRole("option", { name: "Food", exact: true }).click();
   const since = Date.now();
-  const response = waitForServerActionResponse(page, { pathIncludes: `/trips/${trip.id}`, timeoutMs: 15_000 });
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${trip.id}/expenses`,
+    timeoutMs: 15_000,
+  });
+  const refreshed = page.waitForResponse((candidate) => candidate.url().includes("_rsc="), { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Save" }).click();
   await response;
   await expect(dialog).not.toBeVisible();
+  // The modal refreshes the page after the POST; let it land so it cannot close the next step's menu.
+  await refreshed;
   await waitForTripUpdatedEndAfter(trip.id, since);
 });
 
@@ -485,8 +492,11 @@ When("I add a private reservation for Activity", async ({ page, scenario }) => {
       await page.getByRole("button", { name: "Reservations", exact: true }).click();
     await expect(addReservation).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
-  await addReservation.click();
-  await page.getByRole("menuitem", { name: "Flight" }).click();
+  // The tab switch navigates; a menu opened mid-navigation is reset, so reopen it until Flight can be chosen.
+  await expect(async () => {
+    if (!(await page.getByRole("menuitem", { name: "Flight" }).isVisible())) await addReservation.click();
+    await page.getByRole("menuitem", { name: "Flight" }).click({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
   await page.getByLabel("Provider *").fill(PRIVATE_RESERVATION_PROVIDER);
   const since = Date.now();
   const response = waitForApiResponse(page, {
