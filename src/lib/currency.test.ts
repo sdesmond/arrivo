@@ -59,6 +59,15 @@ describe("lib/currency", () => {
       expect(result).toEqual({ convertedAmount: 92, rate: 0.92 });
     });
 
+    it("bounds the rate lookup with an abort signal so a slow provider cannot hang the caller", async () => {
+      const fetchSpy = mockFetchRates({ EUR: 0.92 });
+
+      await convert(100, "USD", "EUR", PAST);
+
+      const init = fetchSpy.mock.calls[0][1] as RequestInit;
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
+
     it("supports source currencies that v1 misses but v2 serves", async () => {
       const fetchSpy = mockFetchRates({ USD: 0.014 }, "AFN", PAST);
 
