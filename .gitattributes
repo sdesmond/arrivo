@@ -1,2 +1,5 @@
+# Normalize all text to LF in the repo and the working tree.
+* text=auto eol=lf
+
 # Shell scripts run inside Linux containers; a CRLF checkout on Windows would break their shebang.
 *.sh text eol=lf

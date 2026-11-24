@@ -7,18 +7,29 @@ import { ExpenseCategory } from "@/data/types";
 import type { Expense } from "@/data/types";
 import { pickSelectOption } from "@/test-utils/pick-select-option";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
+import { ApiClientError } from "@/lib/api/client";
+import { createExpense as createExpenseEndpoint } from "@/lib/api/contract/expenses";
 
-const { createExpense, updateExpense, deleteExpense } = vi.hoisted(() => ({
-  createExpense: vi.fn(),
+const { api, refresh, updateExpense, deleteExpense } = vi.hoisted(() => ({
+  api: vi.fn(),
+  refresh: vi.fn(),
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  createExpense,
   updateExpense,
   deleteExpense,
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api,
+}));
+
+const createExpense = api;
 
 function makeExpense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -34,7 +45,7 @@ function makeExpense(overrides: Partial<Expense> = {}): Expense {
 }
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -192,18 +203,65 @@ describe("TripAddExpenseModal", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
-      expect(createExpense).toHaveBeenCalledWith("trip-1", {
-        category: "activity",
-        amount: 120.5,
-        currency: "USD",
-        date: "2026-08-02",
-        note: "Visa fee",
+      expect(createExpense).toHaveBeenCalledWith(createExpenseEndpoint, {
+        params: { tripId: "trip-1" },
+        body: {
+          id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          category: "activity",
+          amount: 120.5,
+          currency: "USD",
+          date: "2026-08-02",
+          note: "Visa fee",
+        },
       })
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a toast and stays open when the save returns a conversionError", async () => {
+  it("keeps one id when a failed save is retried, and keeps the saved input if edits changed", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    createExpense.mockRejectedValueOnce(new ApiClientError(0, "timeout", "The request timed out. Try again."));
+    createExpense.mockResolvedValue({ id: "expense-1" });
+    render(<TripAddExpenseModal tripId="trip-1" defaultCurrency="USD" open onOpenChange={onOpenChange} />, {
+      wrapper: Wrapper,
+    });
+    const { toast } = await import("sonner");
+
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
+    await pickSelectOption(user, /select category/i, "Food");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("The request timed out. Try again."));
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "5");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const [first, second] = createExpense.mock.calls;
+    expect(second[1].body.id).toBe(first[1].body.id);
+    expect(second[1].body.amount).toBe(25);
+    expect(toast.info).toHaveBeenCalledWith("Your earlier expense was saved. Your recent changes were not saved.");
+  });
+
+  it("mints a new id after a rejected request", async () => {
+    const user = userEvent.setup();
+    createExpense.mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Check the submitted fields."));
+    createExpense.mockResolvedValue({ id: "expense-1" });
+    render(<TripAddExpenseModal tripId="trip-1" defaultCurrency="USD" open onOpenChange={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
+    await pickSelectOption(user, /select category/i, "Food");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(createExpense).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(createExpense).toHaveBeenCalledTimes(2));
+    expect(createExpense.mock.calls[1][1].body.id).not.toBe(createExpense.mock.calls[0][1].body.id);
+  });
+
+  it("shows a non-retry toast and closes when the save returns a conversionError", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     createExpense.mockResolvedValue({ id: "expense-1", conversionError: true });
@@ -217,8 +275,30 @@ describe("TripAddExpenseModal", () => {
     await pickSelectOption(user, /select category/i, "Food");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Couldn't convert currency — try again."));
-    await waitFor(() => expect(onOpenChange).not.toHaveBeenCalled());
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Expense saved, but the currency couldn't be converted. Edit it later to retry."
+      )
+    );
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it.each([408, 409, 429])("reuses the same id when a retry follows a %i error", async (status) => {
+    const user = userEvent.setup();
+    createExpense.mockRejectedValueOnce(new ApiClientError(status, "retryable", "Try again."));
+    createExpense.mockResolvedValue({ id: "expense-1" });
+    render(<TripAddExpenseModal tripId="trip-1" defaultCurrency="USD" open onOpenChange={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "25");
+    await pickSelectOption(user, /select category/i, "Food");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(createExpense).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(createExpense).toHaveBeenCalledTimes(2));
+    expect(createExpense.mock.calls[1][1].body.id).toBe(createExpense.mock.calls[0][1].body.id);
   });
 
   it("stays open and shows a toast when createExpense rejects", async () => {

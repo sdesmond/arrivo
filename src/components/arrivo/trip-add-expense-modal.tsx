@@ -3,15 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { format } from "date-fns";
+import type { z } from "zod";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { CategoryPicker } from "@/components/arrivo/category-picker";
 import { CurrencyAmountField } from "@/components/arrivo/currency-amount-field";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { api, ApiClientError } from "@/lib/api/client";
+import { createExpense } from "@/lib/api/contract/expenses";
 import { listSupportedCurrencies } from "@/lib/currencies";
+import { createRandomId } from "@/lib/utils";
 import { FIELD_LIMITS, validateExpenseAmountInput } from "@/lib/validation-limits";
 import { type Expense, type ExpenseCategory } from "@/data/types";
 
@@ -54,6 +59,8 @@ function FieldRow({ children, label, error }: RowProps): ReactElement {
   );
 }
 
+type CreateExpenseBody = Omit<z.input<typeof createExpense.body>, "id">;
+
 export interface TripAddExpenseModalProps {
   tripId: string;
   defaultCurrency?: string;
@@ -70,6 +77,7 @@ export function TripAddExpenseModal({
   onOpenChange,
 }: TripAddExpenseModalProps): ReactElement {
   const now = useNow();
+  const router = useRouter();
   const defaultDate = format(now, "yyyy-MM-dd");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
@@ -80,12 +88,14 @@ export function TripAddExpenseModal({
   const [categoryError, setCategoryError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const submittingRef = useRef(false);
+  const attempt = useRef<{ id: string; input: CreateExpenseBody } | null>(null);
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    attempt.current = null;
     /* eslint-disable react-hooks/set-state-in-effect */
     if (expense) {
       setAmount(String(expense.amount));
@@ -136,15 +146,36 @@ export function TripAddExpenseModal({
         note: note.trim() || undefined,
       };
 
-      const result = expense ? await updateExpense(expense.id, patch) : await createExpense(tripId, patch);
-
-      if (result?.conversionError) {
-        toast.error("Couldn't convert currency — try again.");
-        return;
+      let result: { conversionError?: boolean } | void;
+      if (expense) {
+        result = await updateExpense(expense.id, patch);
+      } else {
+        // One id per save attempt, so a retry after a timeout replays the same expense instead of adding another.
+        attempt.current ??= { id: createRandomId(), input: patch };
+        const previousInput = attempt.current.input;
+        const changed = JSON.stringify(previousInput) !== JSON.stringify(patch);
+        result = await api(createExpense, {
+          params: { tripId },
+          body: { ...previousInput, id: attempt.current.id },
+        });
+        if (changed) toast.info("Your earlier expense was saved. Your recent changes were not saved.");
+        router.refresh();
       }
 
+      attempt.current = null;
+      if (result?.conversionError)
+        toast.error("Expense saved, but the currency couldn't be converted. Edit it later to retry.");
       onOpenChange(false);
     } catch (error) {
+      if (
+        error instanceof ApiClientError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        error.status !== 409 &&
+        error.status !== 429
+      )
+        attempt.current = null;
       toast.error(error instanceof Error ? error.message : "Failed to save expense.");
     } finally {
       setSaving(false);
