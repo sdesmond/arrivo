@@ -13,7 +13,7 @@ vi.mock("./trip-write", () => ({ runTripWrite: mocks.runTripWrite, lockTrip: vi.
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
 vi.mock("./deletion-records", () => ({ refuseRecentlyDeleted: mocks.refuseRecentlyDeleted }));
 vi.mock("@/lib/reservation-date-range", () => ({ extendTripDateRange: mocks.extendTripDateRange }));
-import { createReservation, listReservations } from "./reservations";
+import { createReservation, getReservation, listReservations, updateReservation } from "./reservations";
 import { documents, expenses, reservations, trips } from "@/db/schema";
 
 const actor = { userId: "user" };
@@ -229,4 +229,263 @@ it("validates a keyed replay against the still-existing reservation", async () =
   row = undefined;
   mocks.refuseRecentlyDeleted.mockRejectedValueOnce(new Error("deleted"));
   await expect(createReservation(actor, tripId, body)).rejects.toThrow("deleted");
+});
+
+const reservationId = id;
+const stored = {
+  id: reservationId,
+  tripId,
+  type: "other",
+  provider: "Hotel",
+  startAt: new Date("2030-06-10T12:00:00Z"),
+  endAt: new Date("2030-06-11T12:00:00Z"),
+  startAddress: "1 Main St",
+  startLocationName: "Lobby",
+  startLocationLat: 10,
+  startLocationLng: 20,
+  endAddress: "2 Main St",
+  endLocationName: "Dock",
+  endLocationLat: 11,
+  endLocationLng: 21,
+  confirmationCode: "ABC",
+  serviceNumber: "42",
+  notes: "Note",
+  createdAt: new Date("2026-01-01T00:00:00Z"),
+  updatedAt: new Date("2026-01-01T00:00:00Z"),
+};
+
+function runUpdate(
+  row: Record<string, unknown> | undefined,
+  body: unknown,
+  trip: { startDate: string; endDate: string } | null = { startDate: "2030-06-10", endDate: "2030-06-11" }
+) {
+  const set = vi.fn();
+  const changed = vi.fn();
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => (table === trips ? (trip ? [trip] : []) : row ? [row] : []),
+      }),
+    }),
+    update: (): unknown => ({
+      set: (values: Record<string, unknown>) => {
+        set(values);
+        return { where: () => ({ returning: async () => [{ ...row, ...values }] }) };
+      },
+    }),
+  };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => (row ? [row] : []) }) }));
+  mocks.requireTripRole.mockResolvedValue("editor");
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, changed);
+    await operation.authorize();
+    return operation.mutate();
+  });
+  return { result: updateReservation(actor, reservationId, body), set, changed, transaction };
+}
+
+it("patches only the named fields, trims the provider and marks one change", async () => {
+  const { result, set, changed } = runUpdate(stored, { provider: " Inn ", notes: null });
+  await expect(result).resolves.toMatchObject({ id: reservationId, provider: "Inn" });
+  expect(set).toHaveBeenCalledWith({ provider: "Inn", notes: null, updatedAt: expect.any(Date) });
+  expect(changed).toHaveBeenCalledTimes(1);
+  expect(mocks.extendTripDateRange).not.toHaveBeenCalled();
+});
+
+it("clears the location name, lat and lng with a cleared address", async () => {
+  for (const startAddress of [null, ""]) {
+    const { result, set } = runUpdate(stored, { startAddress, endAddress: null });
+    await result;
+    expect(set).toHaveBeenLastCalledWith({
+      startAddress: null,
+      startLocationName: null,
+      startLocationLat: null,
+      startLocationLng: null,
+      endAddress: null,
+      endLocationName: null,
+      endLocationLat: null,
+      endLocationLng: null,
+      updatedAt: expect.any(Date),
+    });
+  }
+});
+
+it("sets a new address with its location details and ignores details sent with a cleared address", async () => {
+  const kept = runUpdate(stored, {
+    startAddress: "9 Elm St",
+    startLocationName: "",
+    startLocationLat: 1,
+    startLocationLng: 2,
+  });
+  await kept.result;
+  expect(kept.set).toHaveBeenCalledWith({
+    startAddress: "9 Elm St",
+    startLocationName: null,
+    startLocationLat: 1,
+    startLocationLng: 2,
+    updatedAt: expect.any(Date),
+  });
+  const cleared = runUpdate(stored, { endAddress: null, endLocationName: "Kept?", endLocationLat: 5 });
+  await cleared.result;
+  expect(cleared.set.mock.calls[0][0]).toMatchObject({ endLocationName: null, endLocationLat: null });
+});
+
+it("clears codes and times with null or an empty string", async () => {
+  const { result, set } = runUpdate(stored, { confirmationCode: null, serviceNumber: null, endAt: "" });
+  await result;
+  expect(set).toHaveBeenCalledWith({
+    confirmationCode: null,
+    serviceNumber: null,
+    endAt: null,
+    updatedAt: expect.any(Date),
+  });
+});
+
+it("widens the trip with normalized instants when a date moves outside it", async () => {
+  const { result, transaction } = runUpdate(stored, { startAt: "2030-06-09T00:30:00+02:00" });
+  await result;
+  expect(mocks.extendTripDateRange).toHaveBeenCalledWith(
+    transaction,
+    tripId,
+    "2030-06-10",
+    "2030-06-11",
+    "2030-06-08T22:30:00.000Z",
+    "2030-06-11T12:00:00.000Z"
+  );
+});
+
+it("does not widen when only the time of day changes", async () => {
+  const { result } = runUpdate(stored, { startAt: "2030-06-10T15:00:00Z" });
+  await result;
+  expect(mocks.extendTripDateRange).not.toHaveBeenCalled();
+});
+
+it("maps the 45-day limit to a validation failure and rethrows other widening errors", async () => {
+  mocks.extendTripDateRange.mockRejectedValueOnce(new Error("Trip cannot exceed 45 days."));
+  const limit = runUpdate(stored, { endAt: "2031-01-01T00:00:00Z" });
+  await expect(limit.result).rejects.toMatchObject({
+    name: "ValidationFailedError",
+    message: "Trip cannot exceed 45 days.",
+  });
+  expect(limit.set).not.toHaveBeenCalled();
+  mocks.extendTripDateRange.mockRejectedValueOnce(new Error("boom"));
+  await expect(runUpdate(stored, { endAt: "2031-01-01T00:00:00Z" }).result).rejects.toThrow("boom");
+});
+
+it("rejects an end before the start, an end without a start and a removed required end with no write", async () => {
+  const before = runUpdate(stored, { endAt: "2030-06-09T12:00:00Z" });
+  await expect(before.result).rejects.toMatchObject({ name: "ValidationFailedError", message: /after the start/ });
+  const orphan = runUpdate({ ...stored, startAt: null, endAt: null }, { endAt: "2030-06-10T12:00:00Z" });
+  await expect(orphan.result).rejects.toMatchObject({ message: /start date and time is required/ });
+  const required = runUpdate({ ...stored, type: "lodging" }, { endAt: null });
+  await expect(required.result).rejects.toMatchObject({ message: /end date and time is required/ });
+  const clearedStart = runUpdate(stored, { startAt: null });
+  await expect(clearedStart.result).rejects.toMatchObject({ message: /start date and time is required/ });
+  for (const attempt of [before, orphan, required, clearedStart]) expect(attempt.set).not.toHaveBeenCalled();
+});
+
+it("returns the stored reservation without a write or activity when nothing changes", async () => {
+  const same = runUpdate(stored, {
+    provider: "Hotel",
+    startAt: "2030-06-10T12:00:00.000Z",
+    notes: "Note",
+    startAddress: "1 Main St",
+    startLocationLat: 10,
+  });
+  await expect(same.result).resolves.toMatchObject({ id: reservationId, provider: "Hotel" });
+  const empty = runUpdate(stored, {});
+  await empty.result;
+  expect(same.set).not.toHaveBeenCalled();
+  expect(empty.set).not.toHaveBeenCalled();
+  expect(same.changed).not.toHaveBeenCalled();
+  expect(empty.changed).not.toHaveBeenCalled();
+});
+
+it("returns an unchanged null field without a write", async () => {
+  const { result, set } = runUpdate({ ...stored, notes: null }, { notes: null, startAt: "2030-06-10T12:00:00Z" });
+  await result;
+  expect(set).not.toHaveBeenCalled();
+});
+
+it("denies a viewer before entering the transaction and conceals unknown IDs", async () => {
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.requireTripRole.mockRejectedValue(new Error("forbidden"));
+  await expect(updateReservation(actor, reservationId, { notes: "x" })).rejects.toThrow("forbidden");
+  expect(mocks.runTripWrite).not.toHaveBeenCalled();
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [] }) }));
+  await expect(updateReservation(actor, reservationId, { notes: "x" })).rejects.toThrow();
+  expect(mocks.runTripWrite).not.toHaveBeenCalled();
+});
+
+it("rejects invalid bodies and IDs before reading", async () => {
+  await expect(updateReservation(actor, "nope", {})).rejects.toThrow();
+  await expect(updateReservation(actor, reservationId, { type: "flight" })).rejects.toThrow();
+  expect(mocks.select).not.toHaveBeenCalled();
+});
+
+it("rechecks the row and the role under the lock and fails when the row vanishes", async () => {
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.requireTripRole.mockResolvedValue("editor");
+  let current: Record<string, unknown> | undefined = { ...stored, tripId: "other-trip" };
+  const transaction = { select: () => ({ from: () => ({ where: async () => (current ? [current] : []) }) }) };
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  await expect(updateReservation(actor, reservationId, { notes: "x" })).rejects.toThrow();
+  current = undefined;
+  await expect(updateReservation(actor, reservationId, { notes: "x" })).rejects.toThrow();
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) =>
+    steps(transaction, vi.fn()).mutate()
+  );
+  await expect(updateReservation(actor, reservationId, { notes: "x" })).rejects.toThrow();
+});
+
+it("fails when the trip or the updated row disappears during the write", async () => {
+  const noTrip = runUpdate(stored, { startAt: "2030-06-01T12:00:00Z" }, null);
+  await expect(noTrip.result).rejects.toThrow();
+  const gone = runUpdate(stored, { notes: "x" });
+  gone.transaction.update = () => ({ set: () => ({ where: () => ({ returning: async () => [] }) }) });
+  await expect(gone.result).rejects.toThrow();
+});
+
+it("reads a reservation with documents and role-based expense visibility", async () => {
+  const doc = {
+    id: "doc",
+    reservationId,
+    tripId,
+    name: "Ticket",
+    kind: "other",
+    addedAt: new Date("2026-01-01T00:00:00Z"),
+  };
+  const cost = { id: "cost", reservationId, tripId, category: "misc", amount: "20", currency: "USD" };
+  mocks.select.mockImplementation(() => ({
+    from: (table: unknown) => ({
+      where: () =>
+        Object.assign(Promise.resolve(table === reservations ? [stored] : []), {
+          orderBy: async () => (table === documents ? [doc] : table === expenses ? [cost] : []),
+        }),
+    }),
+  }));
+  mocks.requireTripRole.mockResolvedValue("viewer");
+  const asViewer = await getReservation(actor, reservationId);
+  expect(asViewer).toMatchObject({ id: reservationId, documents: [{ id: "doc" }] });
+  expect(asViewer.expense).toBeUndefined();
+  mocks.requireTripRole.mockResolvedValue("manager");
+  expect((await getReservation(actor, reservationId, {})).expense).toMatchObject({ id: "cost", amount: 20 });
+  mocks.select.mockImplementation(() => ({
+    from: () => ({ where: () => Object.assign(Promise.resolve([stored]), { orderBy: async () => [] }) }),
+  }));
+  expect((await getReservation(actor, reservationId)).expense).toBeUndefined();
+});
+
+it("conceals a missing or foreign reservation on read", async () => {
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [] }) }));
+  await expect(getReservation(actor, reservationId)).rejects.toThrow();
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.requireTripRole.mockRejectedValue(new Error("not found"));
+  await expect(getReservation(actor, reservationId)).rejects.toThrow("not found");
+  await expect(getReservation(actor, "nope")).rejects.toThrow();
+  await expect(getReservation(actor, reservationId, { extra: 1 })).rejects.toThrow();
 });

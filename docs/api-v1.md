@@ -253,6 +253,18 @@ Requires `id` (client UUID), `type` (`flight`, `train`, `bus`, `ferry`, `rental-
 
 Retries using the same ID and content return the existing reservation without repeating side effects. A different payload or recently deleted ID returns 409; inaccessible resources return 404 and viewers receive 403. Invalid input returns 422. An optional `Idempotency-Key` also supports safe retries.
 
+### GET /api/v1/reservations/:reservationId
+
+**Role** viewer · **`Idempotency-Key`** no · **Success** `200` `Reservation`
+
+Returns one reservation with its attached documents. Editors and managers also receive its linked expense; viewers do not. Unknown IDs and nonmembers receive 404.
+
+### PATCH /api/v1/reservations/:reservationId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Reservation`
+
+Partial update with the same fields and limits as the create, except `id` and `type` (neither can change). A field that is absent is left alone and `null` clears it (`""` also clears `startAt` and `endAt`); `provider` can be changed but not cleared. Clearing `startAddress` or `endAddress` also clears that side's location name, latitude and longitude. The times are checked as merged with the stored ones: an end needs a start, cannot precede it, and a lodging, rental car or cruise cannot lose its end. A date outside the trip widens it, up to 45 days. A body that changes nothing returns the reservation and writes nothing. Unknown fields and failed checks return 422 with no write; viewers receive 403 and inaccessible or unknown IDs 404.
+
 ## Expenses
 
 ### GET /api/v1/trips/:tripId/expenses

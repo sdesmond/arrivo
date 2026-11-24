@@ -2,15 +2,23 @@ import "server-only";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, expenses, reservations, trips } from "@/db/schema";
-import type { Actor, IdempotentRequest, Reservation } from "@/data/types";
-import { createReservation as createContract, listReservations as listContract } from "@/lib/api/contract/reservations";
+import type { Actor, IdempotentRequest, Reservation, ReservationType } from "@/data/types";
+import {
+  createReservation as createContract,
+  getReservation as getContract,
+  listReservations as listContract,
+  updateReservation as updateContract,
+} from "@/lib/api/contract/reservations";
 import { dbDocToType, dbExpenseToType, dbReservationToType } from "@/lib/db-mappers";
+import { getNow } from "@/lib/mock-date";
 import { extendTripDateRange } from "@/lib/reservation-date-range";
+import { REQUIRES_END_AT } from "@/lib/reservation-types";
+import type { z } from "zod";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
 import { refuseRecentlyDeleted } from "./deletion-records";
 import { requireTripRole, TripNotFoundError } from "./trip-access";
-import { lockTrip, runTripWrite } from "./trip-write";
+import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { ValidationFailedError } from "./validation-failed-error";
 
 export async function listReservations(
@@ -140,6 +148,161 @@ export async function createReservation(
         .returning();
       markChanged();
       return dbReservationToType(row);
+    },
+  }));
+}
+
+type ReservationPatch = z.infer<typeof updateContract.body>;
+type ReservationRow = typeof reservations.$inferSelect;
+type ReservationChanges = Partial<Omit<typeof reservations.$inferInsert, "id" | "tripId" | "type" | "createdAt">>;
+
+const TRIP_LIMIT_MESSAGE = "Trip cannot exceed 45 days.";
+
+async function readReservation(executor: ReadExecutor, reservationId: string): Promise<ReservationRow | undefined> {
+  const [row] = await executor.select().from(reservations).where(eq(reservations.id, reservationId));
+  return row;
+}
+
+/** One reservation with its documents, and its latest expense for editors and managers. */
+export async function getReservation(actor: Actor, reservationId: string, input: unknown = {}): Promise<Reservation> {
+  reservationId = getContract.params.parse({ reservationId }).reservationId;
+  getContract.body.parse(input);
+  const row = await readReservation(db, reservationId);
+  if (!row) throw new TripNotFoundError();
+  const role = await requireTripRole(row.tripId, actor.userId, "viewer");
+  const docs = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.reservationId, reservationId))
+    .orderBy(sql`${documents.addedAt} desc nulls last`, asc(documents.id));
+  const costs =
+    role === "viewer"
+      ? []
+      : await db.select().from(expenses).where(eq(expenses.reservationId, reservationId)).orderBy(expenses.id);
+  const cost = costs.at(-1);
+  return {
+    ...dbReservationToType(row),
+    ...(cost ? { expense: dbExpenseToType(cost) } : {}),
+    documents: docs.map(dbDocToType),
+  };
+}
+
+/** An empty time and `null` both clear; a time is stored as the instant it names. */
+function patchTime(value: string | null): Date | null {
+  return value ? new Date(value) : null;
+}
+
+/** Explicit allow-list: a patch can never reach `id`, `tripId`, `type` or the timestamps. */
+function columnChanges(patch: ReservationPatch): ReservationChanges {
+  const changes: ReservationChanges = {};
+  if (patch.provider !== undefined) changes.provider = patch.provider.trim();
+  if (patch.startAt !== undefined) changes.startAt = patchTime(patch.startAt);
+  if (patch.endAt !== undefined) changes.endAt = patchTime(patch.endAt);
+  for (const side of ["start", "end"] as const) {
+    const address = patch[`${side}Address`];
+    if (address === undefined) continue;
+    const name = `${side}LocationName` as const;
+    const lat = `${side}LocationLat` as const;
+    const lng = `${side}LocationLng` as const;
+    changes[`${side}Address`] = address || null;
+    if (!address) {
+      changes[name] = null;
+      changes[lat] = null;
+      changes[lng] = null;
+      continue;
+    }
+    if (patch[name] !== undefined) changes[name] = patch[name] || null;
+    if (patch[lat] !== undefined) changes[lat] = patch[lat];
+    if (patch[lng] !== undefined) changes[lng] = patch[lng];
+  }
+  if (patch.confirmationCode !== undefined) changes.confirmationCode = patch.confirmationCode || null;
+  if (patch.serviceNumber !== undefined) changes.serviceNumber = patch.serviceNumber || null;
+  if (patch.notes !== undefined) changes.notes = patch.notes || null;
+  return changes;
+}
+
+function sameValue(stored: unknown, next: unknown): boolean {
+  if (stored instanceof Date || next instanceof Date)
+    return (stored as Date | null)?.getTime() === (next as Date | null)?.getTime();
+  return (stored ?? null) === (next ?? null);
+}
+
+/**
+ * Applies only the supplied fields under the trip lock: absent leaves a column alone and `null` clears it. Clearing an
+ * address clears its location name, latitude and longitude. The merged times are validated, and a date that leaves the
+ * trip widens it (up to 45 days). A patch that changes nothing returns the stored row and writes nothing.
+ */
+export async function updateReservation(
+  actor: Actor,
+  reservationId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<Reservation> {
+  reservationId = updateContract.params.parse({ reservationId }).reservationId;
+  const patch = updateContract.body.parse(input);
+  const found = await readReservation(db, reservationId);
+  if (!found) throw new TripNotFoundError();
+  const tripId = found.tripId;
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite<Reservation>(actor, tripId, { replay, payload: patch }, (transaction, markChanged) => ({
+    authorize: async () => {
+      await lockTrip(transaction, tripId);
+      const current = await readReservation(transaction, reservationId);
+      if (!current || current.tripId !== tripId) throw new TripNotFoundError();
+      await requireTripRole(tripId, actor.userId, "editor", transaction);
+    },
+    mutate: async () => {
+      const current = await readReservation(transaction, reservationId);
+      if (!current) throw new TripNotFoundError();
+      const changes = columnChanges(patch);
+      const changedKeys = (Object.keys(changes) as (keyof ReservationChanges)[]).filter(
+        (key) => !sameValue(current[key], changes[key])
+      );
+      if (changedKeys.length === 0) return dbReservationToType(current);
+
+      const nextStartAt = (changes.startAt === undefined ? current.startAt : changes.startAt)?.toISOString();
+      const nextEndAt = (changes.endAt === undefined ? current.endAt : changes.endAt)?.toISOString();
+      if (REQUIRES_END_AT.includes(current.type as ReservationType) && !nextEndAt)
+        throw new ValidationFailedError("An end date and time is required for this reservation type.");
+      if (nextEndAt && !nextStartAt)
+        throw new ValidationFailedError("A start date and time is required when an end date and time is set.");
+      if (nextStartAt && nextEndAt && new Date(nextEndAt).getTime() < new Date(nextStartAt).getTime())
+        throw new ValidationFailedError("The end date and time must be after the start date and time.");
+
+      const dateChanged =
+        (changedKeys.includes("startAt") &&
+          nextStartAt?.slice(0, 10) !== current.startAt?.toISOString().slice(0, 10)) ||
+        (changedKeys.includes("endAt") && nextEndAt?.slice(0, 10) !== current.endAt?.toISOString().slice(0, 10));
+      if (dateChanged) {
+        const [trip] = await transaction
+          .select({ startDate: trips.startDate, endDate: trips.endDate })
+          .from(trips)
+          .where(eq(trips.id, tripId));
+        if (!trip) throw new TripNotFoundError();
+        try {
+          await extendTripDateRange(
+            transaction,
+            tripId,
+            trip.startDate ?? undefined,
+            trip.endDate ?? undefined,
+            nextStartAt,
+            nextEndAt
+          );
+        } catch (error) {
+          if (error instanceof Error && error.message === TRIP_LIMIT_MESSAGE)
+            throw new ValidationFailedError(error.message);
+          throw error;
+        }
+      }
+
+      const [updated] = await transaction
+        .update(reservations)
+        .set({ ...changes, updatedAt: getNow() })
+        .where(eq(reservations.id, reservationId))
+        .returning();
+      if (!updated) throw new TripNotFoundError();
+      markChanged();
+      return dbReservationToType(updated);
     },
   }));
 }
