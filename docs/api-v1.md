@@ -253,6 +253,24 @@ Requires `id` (client UUID), `type` (`flight`, `train`, `bus`, `ferry`, `rental-
 
 Retries using the same ID and content return the existing reservation without repeating side effects. A different payload or recently deleted ID returns 409; inaccessible resources return 404 and viewers receive 403. Invalid input returns 422. An optional `Idempotency-Key` also supports safe retries.
 
+## Expenses
+
+### GET /api/v1/trips/:tripId/expenses
+
+**Role** editor · **`Idempotency-Key`** no · **Success** `200` `{ expenses: Expense[] }`
+
+Returns the trip's expenses, including converted totals. Viewers receive 403 and nonmembers 404.
+
+### POST /api/v1/trips/:tripId/expenses
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Expense & { conversionError?: true }`
+
+Body (strict): `id` (client UUID, required), `category` (an expense category, required), `amount` (a number above 0, at most 50,000, at most 2 decimal places), `currency` (required), `date` (`YYYY-MM-DD`), and optionally `note` (at most 500 characters), `eventId` or `reservationId`. An expense links to at most one event or reservation, and the target must belong to this trip; both set, or a missing or foreign target, returns 422 and writes nothing.
+
+The server converts the amount to the trip's budget currency and to the caller's profile currency. A failed rate lookup does not fail the request: the expense saves unconverted and the response carries `conversionError: true`. Converting again later is a separate step, so a retry with the same `id` returns the stored expense without the flag and without converting.
+
+Retries with the same `id` and content return the existing expense without a duplicate row or extra activity. A different payload or an `id` deleted within the last 24 hours returns 409 `conflict`; an `id` that belongs to a trip the caller cannot see returns 404. Invalid input returns 422 and viewers receive 403. An optional `Idempotency-Key` also supports safe retries and replays the original response, flag included.
+
 ## Days
 
 ### POST /api/v1/trips/:tripId/days

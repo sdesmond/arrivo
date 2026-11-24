@@ -8,6 +8,7 @@ const {
   eventsTable,
   expensesTable,
   recalculate,
+  recordDeletion,
   recordTripUpdated,
   requireUser,
   reservationsTable,
@@ -28,6 +29,7 @@ const {
   expensesTable: { id: "expenses.id", tripId: "expenses.tripId" },
   reservationsTable: { id: "reservations.id", tripId: "reservations.tripId" },
   recalculate: vi.fn(),
+  recordDeletion: vi.fn(),
   recordTripUpdated: vi.fn(),
   requireUser: vi.fn(),
   revalidatePath: vi.fn(),
@@ -57,6 +59,8 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/trip-activity", () => ({ recordTripUpdated }));
+
+vi.mock("@/lib/services/deletion-records", () => ({ recordDeletion }));
 
 vi.mock("@/lib/currency", () => ({
   convertDual,
@@ -118,6 +122,8 @@ describe("budget actions", () => {
     db.delete.mockReturnValue({
       where: deletedWhere,
     });
+
+    db.transaction.mockImplementation(async (callback: (transaction: typeof db) => Promise<unknown>) => callback(db));
   });
 
   it("creates an expense after auth checks and revalidates the trip", async () => {
@@ -519,8 +525,19 @@ describe("budget actions", () => {
 
     expect(assertTripAccess).toHaveBeenCalledWith("trip-1", "user-1", "editor");
     expect(deletedWhere).toHaveBeenCalledWith(expect.anything());
+    expect(recordDeletion).toHaveBeenCalledExactlyOnceWith(db, "expense", "expense-1", "user-1");
     expect(revalidatePath).toHaveBeenCalledWith("/trips/trip-1");
     expect(recordTripUpdated).toHaveBeenCalledExactlyOnceWith("user-1", "trip-1");
+  });
+
+  it("does not report the deletion when the delete fails", async () => {
+    db.select.mockReturnValueOnce(createSelectMock([{ tripId: "trip-1" }]));
+    deletedWhere.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(deleteExpense("expense-1")).rejects.toThrow("db down");
+
+    expect(recordDeletion).not.toHaveBeenCalled();
+    expect(recordTripUpdated).not.toHaveBeenCalled();
   });
 
   it("returns silently when deleting a missing expense", async () => {

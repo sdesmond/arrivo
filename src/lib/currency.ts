@@ -67,7 +67,7 @@ async function fetchRates(fromCurrency: string, toCurrencies: string[], date: st
   // Codes are encoded one by one so only the separating commas stay literal; a crafted code can't add parameters.
   const quotes = toCurrencies.map(encodeURIComponent).join(",");
   const url = `${FRANKFURTER_BASE}?date=${encodeURIComponent(date)}&base=${encodeURIComponent(fromCurrency)}&quotes=${quotes}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
 
   if (!response.ok) {
     throw new Error(`Currency conversion failed (HTTP ${response.status}).`);

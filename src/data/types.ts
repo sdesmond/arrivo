@@ -744,6 +744,9 @@ export interface Expense {
   updatedAt?: string;
 }
 
+/** An expense create's response: `conversionError` is set when the rate lookup failed and it saved unconverted. */
+export type ExpenseWithConversionFlag = Expense & { conversionError?: true };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRIP EVENT
 // ─────────────────────────────────────────────────────────────────────────────
