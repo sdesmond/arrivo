@@ -72,10 +72,12 @@ Feature: Reservations
     And the "Lodging" reservation section is expanded
     When I edit the reservation provider to "Updated Hotel Name"
     And I edit the "Check-in" anchor time to "10:00"
+    And I set the "Check-in" reservation address to the first lookup suggestion
     And I reload the page
     And the "Lodging" reservation section is expanded
     Then the reservation provider shows "Updated Hotel Name"
     And the "Check-in" anchor shows a time of "10:00"
+    And the reservation "Updated Hotel Name" shows the "Check-in" address "Paris, France"
 
   Scenario: Delete a reservation removes it, its section, and shows the empty state
     Given the trip has a Lodging reservation

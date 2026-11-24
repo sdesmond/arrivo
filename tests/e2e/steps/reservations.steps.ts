@@ -397,11 +397,23 @@ Given("the {string} reservation section is expanded", async ({ page }, sectionLa
   }
 });
 
+/** The inline edits save through PATCH /api/v1/reservations/:id; the first row on the page is the one under edit. */
+async function inlineEditPatchPath(page: Page): Promise<string> {
+  const reservationId = await page
+    .locator('[data-testid^="reservation-row-"]')
+    .first()
+    .getAttribute("data-reservation-id");
+  if (!reservationId) throw new Error("No reservation row is shown.");
+  return `/api/v1/reservations/${reservationId}`;
+}
+
 When("I edit the reservation provider to {string}", async ({ page }, newProvider: string) => {
   await page.getByRole("button", { name: "Original Hotel Name", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Provider" });
   await input.fill(newProvider);
+  const saved = waitForApiResponse(page, { method: "PATCH", path: await inlineEditPatchPath(page) });
   await input.press("Enter");
+  await saved;
   await expect(page.getByRole("button", { name: newProvider, exact: true })).toBeVisible({ timeout: 10_000 });
 });
 
@@ -417,13 +429,28 @@ When("I edit the {string} anchor time to {string}", async ({ page }, anchorLabel
       .click();
   }
   await timeInput.fill(time);
+  const saved = waitForApiResponse(page, { method: "PATCH", path: await inlineEditPatchPath(page) });
   // Click a neutral point inside the row so blur saves without navigating away.
   await row.click({ position: { x: 8, y: 8 } });
+  await saved;
   await expect(timeInput).not.toBeVisible({ timeout: 10_000 });
   const displayTime = formatTimeForDisplay(time);
   await expect(row.getByRole("button", { name: new RegExp(`\\b${displayTime}\\b`) }).first()).toBeVisible({
     timeout: 10_000,
   });
+});
+
+When("I set the {string} reservation address to the first lookup suggestion", async ({ page }, anchorLabel: string) => {
+  await page.getByRole("button", { name: `Add ${anchorLabel.toLowerCase()} address` }).click();
+  const input = page.getByPlaceholder("Enter address or place name");
+  await input.fill("Par");
+  await expect(page.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("option").first().click();
+  await expect(input).toHaveValue("Paris, France");
+  await expect(input).not.toHaveAttribute("aria-busy", "true", { timeout: 15_000 });
+  const saved = waitForApiResponse(page, { method: "PATCH", path: await inlineEditPatchPath(page) });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await saved;
 });
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
