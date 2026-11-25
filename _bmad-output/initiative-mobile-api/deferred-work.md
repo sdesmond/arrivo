@@ -345,3 +345,10 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-create-expenses-through-the-api-plan.md`
   summary: Expenses removed by cascade (event, reservation or trip deletion) are not recorded as deletion records, so a replayed id returns 404 instead of 409.
   evidence: only `deleteExpense` calls `recordDeletion`; cascades bypass it. Same gap exists for other kinds.
+
+- source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-edit-and-delete-expenses-through-the-api-plan.md`
+  summary: Server-action `deleteExpense` (still used by place-row and reservation-cost-chip) does not record a deletion, so a late create retry can recreate the expense.
+  evidence: Only the API `deleteExpense` calls `recordDeletion("expense")`; plan Never defers migrating those callers.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-edit-and-delete-expenses-through-the-api-plan.md`
+  summary: An expense saved with a failed conversion cannot be retried by re-saving unchanged values (the unchanged patch is a no-op).
+  evidence: Matrix row "Unchanged patch" returns the stored row; the unconverted-expense toast says "Edit it later to retry".
