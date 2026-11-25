@@ -8,7 +8,7 @@ import {
   deleteExpense as deleteExpenseAction,
   updateExpense,
 } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
 import { PLACEHOLDER_STYLE } from "./reservation-inline-text-field";
@@ -19,8 +19,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
+const { patchReservation } = vi.hoisted(() => ({ patchReservation: vi.fn() }));
+vi.mock("./use-reservation-patch", () => ({ useReservationPatch: () => patchReservation }));
+
 vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
-  updateReservation: vi.fn(),
   deleteReservation: vi.fn(),
 }));
 
@@ -262,7 +264,7 @@ function getDeleteLabel(reservation: Reservation, position = 1, total = 1): stri
 describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(updateReservation).mockResolvedValue(undefined);
+    vi.mocked(patchReservation).mockResolvedValue(undefined);
     vi.mocked(createExpense).mockResolvedValue({ id: "expense-new" });
     vi.mocked(updateExpense).mockResolvedValue(undefined);
     vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
@@ -321,7 +323,7 @@ describe("ReservationRow", () => {
       await user.type(screen.getByLabelText("End time"), "12:00");
       await user.tab();
 
-      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+      expect(patchReservation).toHaveBeenCalledWith("res-2", {
         startAt: "2026-08-01T10:00:00.000Z",
         endAt: "2026-08-02T12:00:00.000Z",
       });
@@ -339,7 +341,7 @@ describe("ReservationRow", () => {
       await user.tab();
       await user.tab();
 
-      expect(updateReservation).toHaveBeenCalledWith("res-2", {
+      expect(patchReservation).toHaveBeenCalledWith("res-2", {
         startAt: "2026-08-01T10:00:00.000Z",
       });
       expect(screen.getByText("Enter both a date and a time.")).toBeInTheDocument();
@@ -357,7 +359,7 @@ describe("ReservationRow", () => {
       await user.type(screen.getByLabelText("End time"), "09:00");
       await user.tab();
 
-      expect(updateReservation).not.toHaveBeenCalled();
+      expect(patchReservation).not.toHaveBeenCalled();
       expect(screen.getByText("End must be after start.")).toBeInTheDocument();
     });
   });
@@ -380,7 +382,7 @@ describe("ReservationRow", () => {
     await user.type(input, "New Hotel Name");
     await user.keyboard("{Enter}");
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { provider: "New Hotel Name" });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { provider: "New Hotel Name" });
     expect(await screen.findByRole("button", { name: "New Hotel Name" })).toBeInTheDocument();
 
     const expectedRange = formatReservationDateRange(populatedReservation.startAt, populatedReservation.endAt);
@@ -399,7 +401,7 @@ describe("ReservationRow", () => {
     await user.type(input, "  Trimmed Hotel  ");
     await user.keyboard("{Enter}");
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { provider: "Trimmed Hotel" });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { provider: "Trimmed Hotel" });
     expect(await screen.findByRole("button", { name: "Trimmed Hotel" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "  Trimmed Hotel  " })).not.toBeInTheDocument();
   });
@@ -471,7 +473,7 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "Outside" }));
 
     const expectedIso = "2026-08-01T10:00:00.000Z";
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { startAt: expectedIso });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { startAt: expectedIso });
 
     const newRange = formatReservationDateRange(expectedIso, populatedReservation.endAt);
     expect(await screen.findByRole("button", { name: newRange })).toBeInTheDocument();
@@ -503,7 +505,7 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+    expect(patchReservation).toHaveBeenCalledWith("res-1", {
       startAddress: "Updated value",
       startLocationName: "Updated place",
       startLocationLat: 40.7128,
@@ -519,7 +521,7 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "Check-in · JFK Airport" }));
     await user.click(screen.getByRole("button", { name: "dialog-remove" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { startAddress: "" });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { startAddress: null });
     expect(screen.getByRole("button", { name: "Add check-in address" })).toBeInTheDocument();
   });
 
@@ -530,7 +532,7 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "Check-out · Grand Hotel Paris" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", {
+    expect(patchReservation).toHaveBeenCalledWith("res-1", {
       endAddress: "Updated value",
       endLocationName: "Updated place",
       endLocationLat: 40.7128,
@@ -600,12 +602,23 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "ABC123" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { confirmationCode: "Updated value" });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { confirmationCode: "Updated value" });
     expect(screen.getByRole("button", { name: "Updated value" })).toBeInTheDocument();
   });
 
+  it("clears the confirmation code with null when it is removed in the dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
+
+    await user.click(screen.getByRole("button", { name: "ABC123" }));
+    await user.click(screen.getByRole("button", { name: "dialog-remove" }));
+
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { confirmationCode: null });
+    expect(await screen.findByRole("button", { name: "Add confirmation code" })).toBeInTheDocument();
+  });
+
   it("shows a toast when a dialog save fails with an Error", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(patchReservation).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
@@ -616,7 +629,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a generic toast when a dialog save fails with a non-Error", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce("oops");
+    vi.mocked(patchReservation).mockRejectedValueOnce("oops");
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
@@ -627,7 +640,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a toast when saving the end address dialog fails", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(patchReservation).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
@@ -649,7 +662,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a toast when saving the confirmation code dialog fails", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(patchReservation).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
@@ -698,7 +711,7 @@ describe("ReservationRow", () => {
     await user.type(input, "DL456");
     await user.keyboard("{Enter}");
 
-    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "DL456" });
+    expect(patchReservation).toHaveBeenCalledWith("res-3", { serviceNumber: "DL456" });
     expect(await screen.findByRole("button", { name: "DL456" })).toBeInTheDocument();
   });
 
@@ -711,12 +724,12 @@ describe("ReservationRow", () => {
     await user.clear(input);
     await user.keyboard("{Enter}");
 
-    expect(updateReservation).toHaveBeenCalledWith("res-3", { serviceNumber: undefined });
+    expect(patchReservation).toHaveBeenCalledWith("res-3", { serviceNumber: null });
     expect(await screen.findByRole("button", { name: "Add flight number" })).toBeInTheDocument();
   });
 
   it("shows a toast when saving the flight number inline edit fails", async () => {
-    vi.mocked(updateReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(patchReservation).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedFlightReservation} type={ReservationType.Flight} isLast={false} />);
 
@@ -739,7 +752,7 @@ describe("ReservationRow", () => {
     await user.type(notesInput, "Updated notes");
     await user.tab();
 
-    expect(updateReservation).toHaveBeenCalledWith("res-1", { notes: "Updated notes" });
+    expect(patchReservation).toHaveBeenCalledWith("res-1", { notes: "Updated notes" });
     expect(await screen.findByRole("button", { name: "Updated notes" })).toBeInTheDocument();
   });
 
@@ -832,7 +845,7 @@ describe("ReservationRow", () => {
 
   it("ignores a second inline date-save blur while the first save is still in flight", async () => {
     let resolveUpdate: (() => void) | undefined;
-    vi.mocked(updateReservation).mockImplementationOnce(
+    vi.mocked(patchReservation).mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           resolveUpdate = resolve;
@@ -856,7 +869,7 @@ describe("ReservationRow", () => {
     fireEvent.blur(timeInput, { relatedTarget: outsideButton });
     fireEvent.blur(timeInput, { relatedTarget: outsideButton });
 
-    expect(updateReservation).toHaveBeenCalledTimes(1);
+    expect(patchReservation).toHaveBeenCalledTimes(1);
 
     resolveUpdate?.();
     const nextRange = formatReservationDateRange("2026-08-01T10:00:00.000Z", populatedReservation.endAt);

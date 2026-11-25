@@ -1,35 +1,22 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
-import { Trash2, Wallet, MapPin, DollarSign, FileText, ChevronDown, Paperclip } from "lucide-react";
+import { useState, useTransition, useRef } from "react";
+import { Trash2, Wallet, FileText, ChevronDown, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
-import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
-import {
-  ANCHOR_LABELS,
-  SERVICE_NUMBER_LABELS,
-  formatReservationDateRange,
-} from "@/components/arrivo/reservation-type-badge";
-import { PLACEHOLDER_STYLE, ReservationInlineTextField } from "@/components/arrivo/reservation-inline-text-field";
+import { SERVICE_NUMBER_LABELS, formatReservationDateRange } from "@/components/arrivo/reservation-type-badge";
+import { ReservationInlineTextField } from "@/components/arrivo/reservation-inline-text-field";
 import { DeleteReservationAlertDialog } from "@/components/arrivo/delete-reservation-alert-dialog";
 import { ReservationDocsBlock } from "@/components/arrivo/reservation-docs-block";
 import { AddReservationDocDialog } from "@/components/arrivo/add-reservation-doc-dialog";
-import { DatePicker } from "@/components/ui/date-picker";
-import { TimePicker } from "@/components/ui/time-picker";
-import { updateReservation, deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
-import { CostDialog } from "@/components/arrivo/cost-dialog";
+import { ReservationCostChip } from "@/components/arrivo/reservation-cost-chip";
+import { ReservationDateEditor } from "@/components/arrivo/reservation-date-editor";
+import { buildSavedLocationValue, ReservationLocationChip } from "@/components/arrivo/reservation-location-chip";
+import { useReservationPatch } from "@/components/arrivo/use-reservation-patch";
+import { deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
 import { ReservationFieldDialog } from "@/components/arrivo/reservation-field-dialog";
-import {
-  ReservationType,
-  type CreateExpenseInput,
-  type Document,
-  type Expense,
-  type Reservation,
-  type SavedLocationValue,
-  type UpdateReservationPatch,
-} from "@/data/types";
-import { formatCurrencyChipAmount } from "@/lib/currencies";
-import { cn, combineDateAndTimeToIso, getLocationDisplayLabel, pluralize } from "@/lib/utils";
+import { ReservationType, type Document, type Reservation } from "@/data/types";
+import { cn, pluralize } from "@/lib/utils";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationRowProps {
@@ -43,8 +30,6 @@ export interface ReservationRowProps {
   total?: number;
 }
 
-const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
-const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)", fontSize: 13 };
 const TITLE_DISPLAY_STYLE: React.CSSProperties = {
   fontSize: "calc(var(--fs-card-title) * var(--font-scale))",
   fontWeight: 600,
@@ -57,22 +42,6 @@ const TITLE_INPUT_STYLE: React.CSSProperties = {
   width: 140,
 };
 
-function buildSavedLocationValue(
-  address: string | undefined,
-  name?: string,
-  lat?: number,
-  lng?: number
-): SavedLocationValue | undefined {
-  return address
-    ? {
-        address,
-        name,
-        lat,
-        lng,
-      }
-    : undefined;
-}
-
 export function ReservationRow({
   reservation,
   type,
@@ -83,26 +52,10 @@ export function ReservationRow({
   position = 1,
   total = 1,
 }: ReservationRowProps) {
+  const patchReservation = useReservationPatch();
   const [provider, setProvider] = useState(reservation.provider.trim());
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
-  const [startLocation, setStartLocation] = useState<SavedLocationValue | undefined>(
-    buildSavedLocationValue(
-      reservation.startAddress,
-      reservation.startLocationName,
-      reservation.startLocationLat,
-      reservation.startLocationLng
-    )
-  );
-  const [endLocation, setEndLocation] = useState<SavedLocationValue | undefined>(
-    buildSavedLocationValue(
-      reservation.endAddress,
-      reservation.endLocationName,
-      reservation.endLocationLat,
-      reservation.endLocationLng
-    )
-  );
-  const [expense, setExpense] = useState<Expense | undefined>(reservation.expense);
   const [confirmationCode, setConfirmationCode] = useState<string | undefined>(
     reservation.confirmationCode?.trim() || undefined
   );
@@ -110,29 +63,14 @@ export function ReservationRow({
     reservation.serviceNumber?.trim() || undefined
   );
   const [notes, setNotes] = useState<string | undefined>(reservation.notes?.trim() || undefined);
-  const [showStartAddressDialog, setShowStartAddressDialog] = useState(false);
-  const [showEndAddressDialog, setShowEndAddressDialog] = useState(false);
-  const [showCostDialog, setShowCostDialog] = useState(false);
   const [showConfirmationCodeDialog, setShowConfirmationCodeDialog] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [editingDates, setEditingDates] = useState(false);
-  const [startDateDraft, setStartDateDraft] = useState<string | undefined>(undefined);
-  const [startTimeDraft, setStartTimeDraft] = useState<string | undefined>(undefined);
-  const [endDateDraft, setEndDateDraft] = useState<string | undefined>(undefined);
-  const [endTimeDraft, setEndTimeDraft] = useState<string | undefined>(undefined);
-  const [dateError, setDateError] = useState<string | undefined>(undefined);
-  const costDisplay = expense ? formatCurrencyChipAmount(expense.amount, expense.currency) : "";
   const [isDeleting, startTransition] = useTransition();
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const docs = reservation.documents ?? [];
   const hasDocs = docs.length > 0;
   const deletingRef = useRef(false);
-  const savingDatesRef = useRef(false);
-  const isCalendarOpenRef = useRef(false);
-  const dateEditRef = useRef<HTMLDivElement>(null);
-  const startLocationLabel = getLocationDisplayLabel(startLocation?.name, startLocation?.address);
-  const endLocationLabel = getLocationDisplayLabel(endLocation?.name, endLocation?.address);
   const serviceNumberLabel = SERVICE_NUMBER_LABELS[type];
   const reservationDateRange = formatReservationDateRange(startAt, endAt);
   const deleteLabel = reservationDateRange
@@ -140,86 +78,6 @@ export function ReservationRow({
     : total > 1
       ? `Delete ${provider} reservation (${position} of ${total})`
       : `Delete ${provider}`;
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setExpense(reservation.expense);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [reservation.expense]);
-
-  useEffect(() => {
-    if (editingDates) {
-      dateEditRef.current?.focus();
-    }
-  }, [editingDates]);
-
-  function isoToParts(iso: string): { date: string; time: string } {
-    const date = new Date(iso);
-    return {
-      date: `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`,
-      time: `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`,
-    };
-  }
-
-  function handleOpenDateEdit() {
-    if (startAt) {
-      const { date, time } = isoToParts(startAt);
-      setStartDateDraft(date);
-      setStartTimeDraft(time);
-    } else {
-      setStartDateDraft(undefined);
-      setStartTimeDraft(undefined);
-    }
-    if (endAt) {
-      const { date, time } = isoToParts(endAt);
-      setEndDateDraft(date);
-      setEndTimeDraft(time);
-    } else {
-      setEndDateDraft(undefined);
-      setEndTimeDraft(undefined);
-    }
-    setDateError(undefined);
-    setEditingDates(true);
-  }
-
-  async function handleDoneEditingDates() {
-    setDateError(undefined);
-    const startValid = !!startDateDraft === !!startTimeDraft;
-    const endValid = !!endDateDraft === !!endTimeDraft;
-
-    const newStartAt = startValid ? (combineDateAndTimeToIso(startDateDraft, startTimeDraft) ?? "") : undefined;
-    const newEndAt = endValid ? (combineDateAndTimeToIso(endDateDraft, endTimeDraft) ?? "") : undefined;
-
-    if (newStartAt && newEndAt && new Date(newEndAt) < new Date(newStartAt)) {
-      setDateError(`${ANCHOR_LABELS[type].end} must be after ${ANCHOR_LABELS[type].start.toLowerCase()}.`);
-      return;
-    }
-
-    const patch: UpdateReservationPatch = {};
-    if (newStartAt !== undefined && newStartAt !== (startAt ?? "")) patch.startAt = newStartAt;
-    if (newEndAt !== undefined && newEndAt !== (endAt ?? "")) patch.endAt = newEndAt;
-    if (Object.keys(patch).length > 0) {
-      if (savingDatesRef.current) return;
-
-      savingDatesRef.current = true;
-      try {
-        await updateReservation(reservation.id, patch);
-        if (newStartAt !== undefined) setStartAt(newStartAt || undefined);
-        if (newEndAt !== undefined) setEndAt(newEndAt || undefined);
-      } catch (error) {
-        setDateError(error instanceof Error ? error.message : "Failed to save dates.");
-        return;
-      } finally {
-        savingDatesRef.current = false;
-      }
-    }
-
-    if (!startValid || !endValid) {
-      setDateError("Enter both a date and a time.");
-      return;
-    }
-    setEditingDates(false);
-  }
 
   function handleConfirmDelete() {
     if (deletingRef.current) return;
@@ -234,64 +92,6 @@ export function ReservationRow({
         deletingRef.current = false;
       }
     });
-  }
-
-  async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
-    try {
-      if (expense?.id) {
-        const updateResult = await updateExpense(expense.id, { ...expenseInput, reservationId: reservation.id });
-        if (updateResult?.conversionError) {
-          toast.error("Couldn't convert currency — try again.");
-        }
-        setExpense({
-          ...expense,
-          ...expenseInput,
-          reservationId: reservation.id,
-          convertedAmountTrip: expenseInput.convertedAmountTrip ?? undefined,
-          conversionRateTrip: expenseInput.conversionRateTrip ?? undefined,
-          convertedCurrencyTrip: expenseInput.convertedCurrencyTrip ?? undefined,
-          convertedAmountProfile: expenseInput.convertedAmountProfile ?? undefined,
-          conversionRateProfile: expenseInput.conversionRateProfile ?? undefined,
-          convertedCurrencyProfile: expenseInput.convertedCurrencyProfile ?? undefined,
-        });
-        return;
-      }
-
-      const createResult = await createExpense(reservation.tripId, {
-        ...expenseInput,
-        reservationId: reservation.id,
-      });
-      if (createResult.conversionError) {
-        toast.error("Couldn't convert currency — try again.");
-      }
-      setExpense({
-        id: createResult.id,
-        tripId: reservation.tripId,
-        reservationId: reservation.id,
-        category: expenseInput.category,
-        amount: expenseInput.amount,
-        currency: expenseInput.currency,
-        date: expenseInput.date,
-        note: expenseInput.note,
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save.");
-      throw error;
-    }
-  }
-
-  async function handleExpenseRemove(): Promise<void> {
-    if (!expense?.id) {
-      return;
-    }
-
-    try {
-      await deleteExpense(expense.id);
-      setExpense(undefined);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save.");
-      throw error;
-    }
   }
 
   return (
@@ -316,7 +116,7 @@ export function ReservationRow({
             displayStyle={TITLE_DISPLAY_STYLE}
             inputStyle={{ fontSize: "calc(var(--fs-card-title) * var(--font-scale))", fontWeight: 600 }}
             onSave={async (next) => {
-              await updateReservation(reservation.id, { provider: next });
+              await patchReservation(reservation.id, { provider: next });
               setProvider(next.trim());
             }}
           />
@@ -329,7 +129,7 @@ export function ReservationRow({
               displayStyle={TITLE_DISPLAY_STYLE}
               inputStyle={TITLE_INPUT_STYLE}
               onSave={async (next) => {
-                await updateReservation(reservation.id, { serviceNumber: next || undefined });
+                await patchReservation(reservation.id, { serviceNumber: next || null });
                 setServiceNumber(next || undefined);
               }}
             />
@@ -346,138 +146,45 @@ export function ReservationRow({
           <Trash2 size={15} strokeWidth={1.5} aria-hidden="true" />
         </button>
       </div>
-      <div style={{ fontSize: 13 }}>
-        {!editingDates ? (
-          <button
-            type="button"
-            onClick={handleOpenDateEdit}
-            style={startAt || endAt ? FIELD_VALUE_STYLE : PLACEHOLDER_STYLE}
-          >
-            {startAt || endAt ? formatReservationDateRange(startAt, endAt) : "Add dates"}
-          </button>
-        ) : (
-          <div
-            ref={dateEditRef}
-            tabIndex={-1}
-            className="flex flex-col gap-2"
-            style={{ outline: "none" }}
-            onBlur={(event) => {
-              if (!isCalendarOpenRef.current && !event.currentTarget.contains(event.relatedTarget)) {
-                void handleDoneEditingDates();
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setDateError(undefined);
-                setEditingDates(false);
-              }
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <span style={FIELD_LABEL_STYLE}>{ANCHOR_LABELS[type].start}</span>
-              <DatePicker
-                value={startDateDraft}
-                onChange={setStartDateDraft}
-                clearable={false}
-                onOpenChange={(open) => {
-                  isCalendarOpenRef.current = open;
-                }}
-                aria-label={`${ANCHOR_LABELS[type].start} date`}
-                aria-invalid={!!dateError}
-              />
-              <TimePicker
-                value={startTimeDraft}
-                onChange={setStartTimeDraft}
-                aria-label={`${ANCHOR_LABELS[type].start} time`}
-                aria-invalid={!!dateError}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span style={FIELD_LABEL_STYLE}>{ANCHOR_LABELS[type].end}</span>
-              <DatePicker
-                value={endDateDraft}
-                onChange={setEndDateDraft}
-                clearable={false}
-                onOpenChange={(open) => {
-                  isCalendarOpenRef.current = open;
-                }}
-                aria-label={`${ANCHOR_LABELS[type].end} date`}
-                aria-invalid={!!dateError}
-              />
-              <TimePicker
-                value={endTimeDraft}
-                onChange={setEndTimeDraft}
-                aria-label={`${ANCHOR_LABELS[type].end} time`}
-                aria-invalid={!!dateError}
-              />
-            </div>
-            {dateError && (
-              <p role="status" aria-live="polite" style={{ fontSize: 11, color: "var(--destructive)" }}>
-                {dateError}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      <ReservationDateEditor
+        reservationId={reservation.id}
+        type={type}
+        startAt={startAt}
+        endAt={endAt}
+        onSaved={(dates) => {
+          setStartAt(dates.startAt);
+          setEndAt(dates.endAt);
+        }}
+      />
       <div className="flex items-center gap-1 flex-wrap mt-2">
-        <button
-          type="button"
-          onClick={() => setShowStartAddressDialog(true)}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-          style={{
-            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: startLocation?.address ? "var(--accent-ink)" : "var(--fg-4)",
-            background: startLocation?.address ? "var(--accent-soft)" : "none",
-            border: "1px solid transparent",
-            maxWidth: 180,
-          }}
-        >
-          <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden="true" />
-          <span className="truncate">
-            {startLocation?.address
-              ? `${ANCHOR_LABELS[type].start} · ${startLocationLabel}`
-              : `Add ${ANCHOR_LABELS[type].start.toLowerCase()} address`}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowEndAddressDialog(true)}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-          style={{
-            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: endLocation?.address ? "var(--accent-ink)" : "var(--fg-4)",
-            background: endLocation?.address ? "var(--accent-soft)" : "none",
-            border: "1px solid transparent",
-            maxWidth: 180,
-          }}
-        >
-          <MapPin size={IconSize.actionChip} strokeWidth={1.5} style={{ flexShrink: 0 }} aria-hidden="true" />
-          <span className="truncate">
-            {endLocation?.address
-              ? `${ANCHOR_LABELS[type].end} · ${endLocationLabel}`
-              : `Add ${ANCHOR_LABELS[type].end.toLowerCase()} address`}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCostDialog(true)}
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors hover:bg-surface-2"
-          style={{
-            fontSize: "calc(var(--fs-action-chip) * var(--font-scale))",
-            color: expense ? "var(--accent-ink)" : "var(--fg-4)",
-            background: expense ? "var(--accent-soft)" : "none",
-            border: "1px solid transparent",
-          }}
-        >
-          {expense ? (
-            costDisplay
-          ) : (
-            <>
-              <DollarSign size={IconSize.actionChip} strokeWidth={1.5} aria-hidden="true" />
-              Add cost
-            </>
+        <ReservationLocationChip
+          reservationId={reservation.id}
+          type={type}
+          side="start"
+          initialLocation={buildSavedLocationValue(
+            reservation.startAddress,
+            reservation.startLocationName,
+            reservation.startLocationLat,
+            reservation.startLocationLng
           )}
-        </button>
+        />
+        <ReservationLocationChip
+          reservationId={reservation.id}
+          type={type}
+          side="end"
+          initialLocation={buildSavedLocationValue(
+            reservation.endAddress,
+            reservation.endLocationName,
+            reservation.endLocationLat,
+            reservation.endLocationLng
+          )}
+        />
+        <ReservationCostChip
+          reservationId={reservation.id}
+          tripId={reservation.tripId}
+          expense={reservation.expense}
+          defaultCurrency={defaultCurrency}
+        />
         <button
           type="button"
           onClick={() => setShowConfirmationCodeDialog(true)}
@@ -549,7 +256,7 @@ export function ReservationRow({
           width: "100%",
         }}
         onSave={async (next) => {
-          await updateReservation(reservation.id, { notes: next });
+          await patchReservation(reservation.id, { notes: next || null });
           setNotes(next || undefined);
         }}
       />
@@ -564,66 +271,6 @@ export function ReservationRow({
         tripDocs={tripDocs}
       />
       <ReservationFieldDialog
-        mode="location"
-        title={`${ANCHOR_LABELS[type].start} address`}
-        value={startLocation?.address}
-        locationName={startLocation?.name}
-        locationLat={startLocation?.lat}
-        locationLng={startLocation?.lng}
-        placeholder="Enter address or place name"
-        open={showStartAddressDialog}
-        onOpenChange={setShowStartAddressDialog}
-        onSave={(next) => {
-          void updateReservation(
-            reservation.id,
-            next
-              ? {
-                  startAddress: next.address,
-                  startLocationName: next.name,
-                  startLocationLat: next.lat,
-                  startLocationLng: next.lng,
-                }
-              : { startAddress: "" }
-          )
-            .then(() => setStartLocation(next))
-            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
-        }}
-      />
-      <ReservationFieldDialog
-        mode="location"
-        title={`${ANCHOR_LABELS[type].end} address`}
-        value={endLocation?.address}
-        locationName={endLocation?.name}
-        locationLat={endLocation?.lat}
-        locationLng={endLocation?.lng}
-        placeholder="Enter address or place name"
-        open={showEndAddressDialog}
-        onOpenChange={setShowEndAddressDialog}
-        onSave={(next) => {
-          void updateReservation(
-            reservation.id,
-            next
-              ? {
-                  endAddress: next.address,
-                  endLocationName: next.name,
-                  endLocationLat: next.lat,
-                  endLocationLng: next.lng,
-                }
-              : { endAddress: "" }
-          )
-            .then(() => setEndLocation(next))
-            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
-        }}
-      />
-      <CostDialog
-        expense={expense}
-        defaultCurrency={defaultCurrency}
-        open={showCostDialog}
-        onOpenChange={setShowCostDialog}
-        onSave={handleExpenseSave}
-        onRemove={handleExpenseRemove}
-      />
-      <ReservationFieldDialog
         title="Confirmation code"
         maxLength={FIELD_LIMITS.confirmationCode}
         value={confirmationCode}
@@ -631,9 +278,9 @@ export function ReservationRow({
         open={showConfirmationCodeDialog}
         onOpenChange={setShowConfirmationCodeDialog}
         onSave={(next) => {
-          void updateReservation(reservation.id, { confirmationCode: next ?? "" })
+          void patchReservation(reservation.id, { confirmationCode: next || null })
             .then(() => setConfirmationCode(next))
-            .catch((err) => toast.error(err instanceof Error ? err.message : "Failed to save."));
+            .catch((error) => toast.error(error instanceof Error ? error.message : "Failed to save."));
         }}
         inputStyle={{ fontFamily: "var(--font-mono-family, ui-monospace)" }}
       />

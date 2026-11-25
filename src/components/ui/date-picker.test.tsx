@@ -2,6 +2,7 @@ import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { format } from "date-fns";
 import { DatePicker } from "./date-picker";
 
 vi.mock("@/components/ui/popover", () => ({
@@ -11,8 +12,12 @@ vi.mock("@/components/ui/popover", () => ({
 }));
 
 vi.mock("@/components/ui/calendar", () => ({
-  Calendar: ({ onSelect }: { onSelect: (date: Date | undefined) => void }) => (
-    <button data-testid="calendar-day" onClick={() => onSelect(new Date(2026, 5, 15))}>
+  Calendar: ({ onSelect, defaultMonth }: { onSelect: (date: Date | undefined) => void; defaultMonth?: Date }) => (
+    <button
+      data-testid="calendar-day"
+      data-default-month={defaultMonth ? format(defaultMonth, "yyyy-MM") : ""}
+      onClick={() => onSelect(new Date(2026, 5, 15))}
+    >
       Select June 15
     </button>
   ),
@@ -35,6 +40,16 @@ describe("DatePicker", () => {
   it("shows formatted date when value is set", () => {
     render(<DatePicker value="2026-05-19" onChange={onChange} />);
     expect(screen.getByText("May 19, 2026")).toBeInTheDocument();
+  });
+
+  it("opens the calendar on the month of the selected date", () => {
+    render(<DatePicker value="2031-03-20" onChange={onChange} />);
+    expect(screen.getByTestId("calendar-day")).toHaveAttribute("data-default-month", "2031-03");
+  });
+
+  it("leaves the calendar on its own default month when nothing is selected", () => {
+    render(<DatePicker onChange={onChange} />);
+    expect(screen.getByTestId("calendar-day")).toHaveAttribute("data-default-month", "");
   });
 
   it("calls onChange with ISO string when a date is selected", async () => {

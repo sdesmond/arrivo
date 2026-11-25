@@ -4,118 +4,15 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { requireUser, assertTripAccess } from "@/lib/auth-helpers";
 import { db } from "@/db";
-import { reservations, documents, trips } from "@/db/schema";
+import { reservations, documents } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import type { CollaboratorRole, ReservationType, UpdateReservationPatch } from "@/data/types";
-import { parseInput, updateReservationSchema } from "@/lib/validation-schemas";
+import type { CollaboratorRole } from "@/data/types";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE, type DbTransaction } from "@/lib/server-action-locks";
 import { resolveDocumentTripId } from "@/lib/document-ancestry";
 import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { requireTripRole, TripForbiddenError, TripNotFoundError } from "@/lib/services/trip-access";
-import { REQUIRES_END_AT } from "@/lib/reservation-types";
 import { recordTripUpdated } from "@/lib/trip-activity";
 import { recordDeletion } from "@/lib/services/deletion-records";
-import { extendTripDateRange } from "@/lib/reservation-date-range";
-
-export async function updateReservation(reservationId: string, rawPatch: UpdateReservationPatch): Promise<void> {
-  const user = await requireUser();
-  const patch = parseInput(updateReservationSchema, rawPatch);
-
-  const [existingReservation] = await db
-    .select({ tripId: reservations.tripId })
-    .from(reservations)
-    .where(eq(reservations.id, reservationId));
-  if (!existingReservation) {
-    throw new Error("Reservation not found.");
-  }
-
-  await assertTripAccess(existingReservation.tripId, user.id!, "editor");
-
-  await db.transaction(async (transaction) => {
-    await lockTripForUpdate(transaction, existingReservation.tripId);
-
-    const [existing] = await transaction.select().from(reservations).where(eq(reservations.id, reservationId));
-    if (!existing) {
-      throw new Error("Reservation not found.");
-    }
-
-    const type = existing.type as ReservationType;
-    const nextStartAt = patch.startAt !== undefined ? patch.startAt || undefined : existing.startAt?.toISOString();
-    const nextEndAt = patch.endAt !== undefined ? patch.endAt || undefined : existing.endAt?.toISOString();
-    const existingStartDate = existing.startAt?.toISOString().slice(0, 10);
-    const existingEndDate = existing.endAt?.toISOString().slice(0, 10);
-    const nextStartDate = nextStartAt?.slice(0, 10);
-    const nextEndDate = nextEndAt?.slice(0, 10);
-    const reservationDateChanged =
-      (patch.startAt !== undefined && nextStartDate !== existingStartDate) ||
-      (patch.endAt !== undefined && nextEndDate !== existingEndDate);
-
-    if (REQUIRES_END_AT.includes(type) && !nextEndAt) {
-      throw new Error("An end date and time is required for this reservation type.");
-    }
-
-    if (nextEndAt && !nextStartAt) {
-      throw new Error("A start date and time is required when an end date and time is set.");
-    }
-
-    if (nextStartAt && nextEndAt && new Date(nextEndAt).getTime() < new Date(nextStartAt).getTime()) {
-      throw new Error("The end date and time must be after the start date and time.");
-    }
-
-    const [trip] = await transaction
-      .select({ startDate: trips.startDate, endDate: trips.endDate })
-      .from(trips)
-      .where(eq(trips.id, existing.tripId));
-
-    if (reservationDateChanged) {
-      await extendTripDateRange(
-        transaction,
-        existing.tripId,
-        trip.startDate ?? undefined,
-        trip.endDate ?? undefined,
-        nextStartAt,
-        nextEndAt
-      );
-    }
-
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
-    if (patch.provider !== undefined) updates.provider = patch.provider.trim();
-    if (patch.startAt !== undefined) updates.startAt = patch.startAt ? new Date(patch.startAt) : null;
-    if (patch.endAt !== undefined) updates.endAt = patch.endAt ? new Date(patch.endAt) : null;
-    if (patch.startAddress !== undefined) {
-      updates.startAddress = patch.startAddress || null;
-      if (!patch.startAddress) {
-        updates.startLocationName = null;
-        updates.startLocationLat = null;
-        updates.startLocationLng = null;
-      } else {
-        if (patch.startLocationName !== undefined) updates.startLocationName = patch.startLocationName || null;
-        if (patch.startLocationLat !== undefined) updates.startLocationLat = patch.startLocationLat;
-        if (patch.startLocationLng !== undefined) updates.startLocationLng = patch.startLocationLng;
-      }
-    }
-    if (patch.endAddress !== undefined) {
-      updates.endAddress = patch.endAddress || null;
-      if (!patch.endAddress) {
-        updates.endLocationName = null;
-        updates.endLocationLat = null;
-        updates.endLocationLng = null;
-      } else {
-        if (patch.endLocationName !== undefined) updates.endLocationName = patch.endLocationName || null;
-        if (patch.endLocationLat !== undefined) updates.endLocationLat = patch.endLocationLat;
-        if (patch.endLocationLng !== undefined) updates.endLocationLng = patch.endLocationLng;
-      }
-    }
-    if (patch.confirmationCode !== undefined) updates.confirmationCode = patch.confirmationCode || null;
-    if (patch.serviceNumber !== undefined) updates.serviceNumber = patch.serviceNumber || null;
-    if (patch.notes !== undefined) updates.notes = patch.notes || null;
-
-    await transaction.update(reservations).set(updates).where(eq(reservations.id, reservationId));
-  });
-
-  recordTripUpdated(user.id!, existingReservation.tripId);
-  revalidatePath(`/trips/${existingReservation.tripId}`);
-}
 
 /** Rechecks the role inside the transaction; a lost or denied role is concealed as not found. */
 async function assertLockedTripAccess(

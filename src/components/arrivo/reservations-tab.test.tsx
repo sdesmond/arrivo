@@ -72,9 +72,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
-  updateReservation: vi.fn(),
-}));
+vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({}));
 
 const NOW_ISO = "2026-06-15T12:00:00.000Z";
 const mockOnOpenEditDates = vi.fn();
