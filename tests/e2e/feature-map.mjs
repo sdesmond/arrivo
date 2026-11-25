@@ -1103,6 +1103,7 @@ export const FEATURE_MAP = [
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
     "src/lib/api/contract/expenses.ts",
     "src/app/api/v1/trips/*/expenses/**",
+    "src/app/api/v1/expenses/**",
   ]),
   entry("viewer-trip-access", [
     "src/components/arrivo/trip-cover-controls.tsx",

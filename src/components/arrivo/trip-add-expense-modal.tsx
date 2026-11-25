@@ -6,7 +6,6 @@ import { format } from "date-fns";
 import type { z } from "zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { CategoryPicker } from "@/components/arrivo/category-picker";
 import { CurrencyAmountField } from "@/components/arrivo/currency-amount-field";
@@ -14,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, ApiClientError } from "@/lib/api/client";
-import { createExpense } from "@/lib/api/contract/expenses";
+import { createExpense, deleteExpense, updateExpense } from "@/lib/api/contract/expenses";
 import { listSupportedCurrencies } from "@/lib/currencies";
 import { createRandomId } from "@/lib/utils";
 import { FIELD_LIMITS, validateExpenseAmountInput } from "@/lib/validation-limits";
@@ -148,7 +147,12 @@ export function TripAddExpenseModal({
 
       let result: { conversionError?: boolean } | void;
       if (expense) {
-        result = await updateExpense(expense.id, patch);
+        // `null` clears the note: an absent field would leave it alone.
+        result = await api(updateExpense, {
+          params: { expenseId: expense.id },
+          body: { ...patch, note: patch.note ?? null },
+        });
+        router.refresh();
       } else {
         // One id per save attempt, so a retry after a timeout replays the same expense instead of adding another.
         attempt.current ??= { id: createRandomId(), input: patch };
@@ -192,7 +196,8 @@ export function TripAddExpenseModal({
     setSaving(true);
 
     try {
-      await deleteExpense(expense.id);
+      await api(deleteExpense, { params: { expenseId: expense.id }, body: {} });
+      router.refresh();
       onOpenChange(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to remove expense.");
