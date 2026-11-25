@@ -87,3 +87,15 @@ it("rejects unknown fields, the type, invalid values and an end before the start
     updateReservation.body.safeParse({ startAt: "2026-01-01T12:00:00.000Z", endAt: "2026-01-02T12:00:00.000Z" }).success
   ).toBe(true);
 });
+
+it("defines an idempotent reservation DELETE with an empty body", async () => {
+  const { deleteReservation } = await import("./reservations");
+  expect(deleteReservation).toMatchObject({
+    method: "DELETE",
+    path: "/api/v1/reservations/:reservationId",
+    status: 204,
+  });
+  expect(deleteReservation.params.parse({ reservationId: id.toUpperCase() })).toEqual({ reservationId: id });
+  expect(deleteReservation.body.safeParse({}).success).toBe(true);
+  expect(deleteReservation.body.safeParse({ extra: 1 }).success).toBe(false);
+});

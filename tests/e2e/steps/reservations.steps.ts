@@ -19,7 +19,6 @@ import { apiClient } from "../anonymous-api";
 import { withE2EDb } from "../e2e-db";
 import { holdScenarioTripLock, type HeldTripLock } from "../document-scope-concurrency";
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
-import { waitForServerActionResponse } from "../server-action";
 import { After, Given, When, Then } from "../fixtures";
 import { reloadPage } from "../page-reload";
 
@@ -36,6 +35,7 @@ interface DocumentScopeRace {
 }
 const documentScopeRaces = new WeakMap<Page, DocumentScopeRace>();
 const recordedFileUrls = new WeakMap<Page, string>();
+const deletingReservations = new WeakMap<Page, string>();
 
 interface ReservationApiState {
   id: string;
@@ -476,16 +476,25 @@ Then("the {string} anchor shows a time of {string}", async ({ page }, anchorLabe
 });
 
 When("I delete the reservation {string}", async ({ page }, provider: string) => {
-  await page.getByRole("button", { name: `Delete ${provider}` }).click();
+  const button = page.getByRole("button", { name: `Delete ${provider}` });
+  const id = await button.locator("xpath=ancestor::*[@data-reservation-id]").getAttribute("data-reservation-id");
+  if (!id) throw new Error("Reservation ID missing");
+  deletingReservations.set(page, id);
+  await button.click();
 });
 
 When("I confirm the deletion", async ({ page }) => {
   // exact: true avoids matching the row's "Delete {provider}" icon button.
   // focus+Enter matches the established pattern for drawer/dialog footer buttons to sidestep
   // the dev-only mock-date overlay (fixed bottom-right, z-index 9999).
+  const saved = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/reservations/${deletingReservations.get(page)}`,
+  });
   const button = page.getByRole("button", { name: "Delete", exact: true });
   await button.focus();
   await button.press("Enter");
+  await saved;
 });
 
 Then("the reservation {string} is no longer shown", async ({ page }, provider: string) => {
@@ -652,8 +661,11 @@ When("I return to reservation documents", async ({ page }) => {
   if ((await section.getAttribute("aria-expanded")) === "false") await section.click();
 });
 
-When("I confirm the deletion and wait for it to save", async ({ page, scenario }) => {
-  const saved = waitForServerActionResponse(page, { pathIncludes: `/trips/${scenario.currentTrip!.id}` });
+When("I confirm the deletion and wait for it to save", async ({ page }) => {
+  const saved = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/reservations/${deletingReservations.get(page)}`,
+  });
   const button = page.getByRole("button", { name: "Delete", exact: true });
   await button.focus();
   await button.press("Enter");
@@ -707,10 +719,14 @@ When("I start promoting the reservation doc {string} over the API", async ({ pag
   race(page).promotion = promotion;
 });
 
-When("I start deleting the reservation {string} and leave it waiting", async ({ page, scenario }, provider: string) => {
-  await page.getByRole("button", { name: `Delete ${provider}` }).click();
-  const saved = waitForServerActionResponse(page, {
-    pathIncludes: `/trips/${scenario.currentTrip!.id}`,
+When("I start deleting the reservation {string} and leave it waiting", async ({ page }, provider: string) => {
+  const trigger = page.getByRole("button", { name: `Delete ${provider}` });
+  const id = await trigger.locator("xpath=ancestor::*[@data-reservation-id]").getAttribute("data-reservation-id");
+  if (!id) throw new Error("Reservation ID missing");
+  await trigger.click();
+  const saved = waitForApiResponse(page, {
+    method: "DELETE",
+    path: `/api/v1/reservations/${id}`,
     timeoutMs: RACE_TIMEOUT_MS,
   });
   const button = page.getByRole("button", { name: "Delete", exact: true });
@@ -770,4 +786,62 @@ Then("the reservation document {string} and its noted file are gone", async ({ p
     )
     .toBe(0);
   expect((await page.request.get(url)).status()).toBe(404);
+});
+
+const reservationReplayStatuses = new WeakMap<Page, number[]>();
+When(
+  "I delete a reservation and its expenses by {string} and retry their creates",
+  async ({ page, scenario }, method: string) => {
+    const trip = scenario.currentTrip!;
+    const reservationId = randomUUID();
+    const expenseId = randomUUID();
+    const reservationBody = {
+      id: reservationId,
+      type: "other",
+      provider: "Replay reservation",
+      startAt: `${trip.endDate}T12:00:00.000Z`,
+    };
+    const expenseBody = {
+      id: expenseId,
+      reservationId,
+      category: "misc",
+      amount: 10,
+      currency: "USD",
+      date: trip.endDate,
+    };
+    const client = await apiClient(page);
+    const headers = reservationApiHeaders(page);
+    const reservationPath = `/api/v1/trips/${trip.id}/reservations`;
+    const expensePath = `/api/v1/trips/${trip.id}/expenses`;
+    expect((await client.post(reservationPath, { headers, data: reservationBody })).status()).toBe(200);
+    expect((await client.post(expensePath, { headers, data: expenseBody })).status()).toBe(200);
+    if (method === "direct") {
+      const path = `/api/v1/reservations/${reservationId}`;
+      expect((await client.delete(path, { headers, data: {} })).status()).toBe(204);
+      expect((await client.delete(path, { headers, data: {} })).status()).toBe(204);
+    } else {
+      const path = `/api/v1/trips/${trip.id}`;
+      const endDate = offsetDate(trip.endDate!, -1);
+      const preview = await client.patch(path, { headers, data: { endDate } });
+      expect(preview.status()).toBe(409);
+      const { error } = await preview.json();
+      const applied = await client.patch(path, {
+        headers,
+        data: { endDate, resolution: "delete-events", confirmation: error.confirmation },
+      });
+      expect(applied.status()).toBe(200);
+    }
+    const reservationRetry = await client.post(reservationPath, { headers, data: reservationBody });
+    const expenseRetry = await client.post(expensePath, { headers, data: expenseBody });
+    reservationReplayStatuses.set(page, [reservationRetry.status(), expenseRetry.status()]);
+    expect(
+      await withE2EDb((database) => database.select().from(reservations).where(eq(reservations.id, reservationId)))
+    ).toHaveLength(0);
+    expect(
+      await withE2EDb((database) => database.select().from(expenses).where(eq(expenses.id, expenseId)))
+    ).toHaveLength(0);
+  }
+);
+Then("both deleted IDs are rejected without resurrection", async ({ page }) => {
+  expect(reservationReplayStatuses.get(page)).toEqual([409, 409]);
 });

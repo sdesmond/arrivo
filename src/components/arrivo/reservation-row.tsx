@@ -13,7 +13,9 @@ import { ReservationCostChip } from "@/components/arrivo/reservation-cost-chip";
 import { ReservationDateEditor } from "@/components/arrivo/reservation-date-editor";
 import { buildSavedLocationValue, ReservationLocationChip } from "@/components/arrivo/reservation-location-chip";
 import { useReservationPatch } from "@/components/arrivo/use-reservation-patch";
-import { deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { deleteReservation } from "@/lib/api/contract/reservations";
+import { api } from "@/lib/api/client";
+import { useRouter } from "next/navigation";
 import { ReservationFieldDialog } from "@/components/arrivo/reservation-field-dialog";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { cn, pluralize } from "@/lib/utils";
@@ -53,6 +55,7 @@ export function ReservationRow({
   total = 1,
 }: ReservationRowProps) {
   const patchReservation = useReservationPatch();
+  const router = useRouter();
   const [provider, setProvider] = useState(reservation.provider.trim());
   const [startAt, setStartAt] = useState<string | undefined>(reservation.startAt);
   const [endAt, setEndAt] = useState<string | undefined>(reservation.endAt);
@@ -84,7 +87,8 @@ export function ReservationRow({
     deletingRef.current = true;
     startTransition(async () => {
       try {
-        await deleteReservation(reservation.id);
+        await api(deleteReservation, { params: { reservationId: reservation.id }, body: {} });
+        router.refresh();
         setConfirmOpen(false);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to delete reservation.");

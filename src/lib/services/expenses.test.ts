@@ -263,3 +263,16 @@ it("requires editor access before listing and maps the rows", async () => {
   expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, "user", "editor");
   expect(orderArgs).toEqual([expenses.date, expenses.createdAt, expenses.id]);
 });
+
+it("rejects a keyed expense replay after cascade deletion before checking its missing reservation", async () => {
+  const { transaction, state } = fakeTransaction();
+  mocks.refuseRecentlyDeleted.mockRejectedValue(new Error("expense deleted"));
+  let validateReplay!: (value: unknown) => Promise<void>;
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    validateReplay = steps(transaction, vi.fn()).validateReplay;
+  });
+  await createExpense(actor, tripId, { ...body, reservationId: linkId });
+  await expect(validateReplay({ createdAt: createdAt.toISOString() })).rejects.toThrow("expense deleted");
+  expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(transaction, "expense", id);
+  expect(state.inserted).toBeUndefined();
+});

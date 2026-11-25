@@ -5,6 +5,7 @@ import {
   days,
   documents,
   events,
+  expenses,
   itineraryChecklists,
   itineraryNotes,
   reservations,
@@ -331,6 +332,17 @@ export async function applyTripDateChange(
     }
     if (removedContent.reservationIds.length > 0) {
       documentUrls.push(...removedContent.reservationDocumentUrls);
+      const linkedExpenses = await transaction
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(inArray(expenses.reservationId, removedContent.reservationIds));
+      await recordDeletions(transaction, "reservation", removedContent.reservationIds, userId);
+      await recordDeletions(
+        transaction,
+        "expense",
+        linkedExpenses.map((expense) => expense.id),
+        userId
+      );
       await transaction
         .delete(reservations)
         .where(and(eq(reservations.tripId, tripId), inArray(reservations.id, removedContent.reservationIds)));

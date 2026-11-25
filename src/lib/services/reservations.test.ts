@@ -4,16 +4,38 @@ const mocks = vi.hoisted(() => ({
   runTripWrite: vi.fn(),
   select: vi.fn(),
   lockClientIds: vi.fn(),
+  lockTrip: vi.fn(),
   refuseRecentlyDeleted: vi.fn(),
   extendTripDateRange: vi.fn(),
+  recordDeletion: vi.fn(),
+  recordDeletions: vi.fn(),
+  queue: vi.fn(),
+  cleanup: vi.fn(),
+  ancestry: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: { select: mocks.select } }));
-vi.mock("./trip-access", () => ({ requireTripRole: mocks.requireTripRole, TripNotFoundError: class extends Error {} }));
-vi.mock("./trip-write", () => ({ runTripWrite: mocks.runTripWrite, lockTrip: vi.fn() }));
+vi.mock("./trip-access", () => ({
+  requireTripRole: mocks.requireTripRole,
+  TripNotFoundError: class extends Error {},
+  TripForbiddenError: class extends Error {},
+}));
+vi.mock("./trip-write", () => ({ runTripWrite: mocks.runTripWrite, lockTrip: mocks.lockTrip }));
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
-vi.mock("./deletion-records", () => ({ refuseRecentlyDeleted: mocks.refuseRecentlyDeleted }));
+vi.mock("./deletion-records", () => ({
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+  recordDeletion: mocks.recordDeletion,
+  recordDeletions: mocks.recordDeletions,
+}));
+vi.mock("@/lib/file-cleanup", () => ({ queueFileDeletions: mocks.queue, removeQueuedFiles: mocks.cleanup }));
+vi.mock("@/lib/document-ancestry", () => ({ resolveDocumentTripId: mocks.ancestry }));
 vi.mock("@/lib/reservation-date-range", () => ({ extendTripDateRange: mocks.extendTripDateRange }));
-import { createReservation, getReservation, listReservations, updateReservation } from "./reservations";
+import {
+  createReservation,
+  deleteReservation,
+  getReservation,
+  listReservations,
+  updateReservation,
+} from "./reservations";
 import { documents, expenses, reservations, trips } from "@/db/schema";
 
 const actor = { userId: "user" };
@@ -488,4 +510,166 @@ it("conceals a missing or foreign reservation on read", async () => {
   await expect(getReservation(actor, reservationId)).rejects.toThrow("not found");
   await expect(getReservation(actor, "nope")).rejects.toThrow();
   await expect(getReservation(actor, reservationId, { extra: 1 })).rejects.toThrow();
+});
+
+it("records reservation, all expenses and documents before the cascade and cleans up after commit", async () => {
+  const order: string[] = [];
+  const document = { id: "doc", url: "/file" };
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () =>
+          table === reservations ? [stored] : table === documents ? [document] : [{ id: "cost-1" }, { id: "cost-2" }],
+      }),
+    }),
+    delete: () => ({
+      where: async () => {
+        order.push("delete");
+      },
+    }),
+  };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.ancestry.mockResolvedValue(tripId);
+  mocks.queue.mockResolvedValue([{ id: "queue", url: "/file" }]);
+  mocks.recordDeletion.mockImplementation(async () => {
+    order.push("reservation");
+  });
+  mocks.recordDeletions.mockImplementation(async (_tx, kind) => {
+    order.push(kind);
+  });
+  mocks.cleanup.mockImplementation(async () => {
+    order.push("cleanup");
+  });
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    const result = await operation.mutate();
+    order.push("commit");
+    return result;
+  });
+  await expect(deleteReservation(actor, id)).resolves.toBeNull();
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, "expense", ["cost-1", "cost-2"], actor.userId);
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, "document", ["doc"], actor.userId);
+  expect(order).toEqual(["reservation", "expense", "document", "delete", "commit", "cleanup"]);
+});
+
+it("treats a missing reservation as an effect-free retry", async () => {
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [] }) }));
+  await expect(deleteReservation(actor, id)).resolves.toBeNull();
+  expect(mocks.runTripWrite).not.toHaveBeenCalled();
+  expect(mocks.cleanup).not.toHaveBeenCalled();
+});
+
+it("aborts without cleanup when ancestry or file queue fails", async () => {
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () =>
+          table === reservations ? [stored] : table === documents ? [{ id: "doc", url: "/file" }] : [],
+      }),
+    }),
+    delete: vi.fn(),
+  };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  mocks.ancestry.mockResolvedValueOnce("foreign");
+  await expect(deleteReservation(actor, id)).rejects.toThrow();
+  expect(mocks.queue).not.toHaveBeenCalled();
+  mocks.ancestry.mockResolvedValue(tripId);
+  mocks.queue.mockRejectedValueOnce(new Error("queue failed"));
+  await expect(deleteReservation(actor, id)).rejects.toThrow("queue failed");
+  expect(transaction.delete).not.toHaveBeenCalled();
+  expect(mocks.cleanup).not.toHaveBeenCalled();
+});
+
+it("keeps a committed deletion when file cleanup fails", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const transaction = {
+    select: () => ({ from: (table: unknown) => ({ where: async () => (table === reservations ? [stored] : []) }) }),
+    delete: () => ({ where: async () => undefined }),
+  };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.queue.mockResolvedValue([]);
+  mocks.cleanup.mockRejectedValue(new Error("storage unavailable"));
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  await expect(deleteReservation(actor, id)).resolves.toBeNull();
+  expect(warn).toHaveBeenCalled();
+  warn.mockRestore();
+});
+
+it("denies preflight and conceals a role revoked under the trip lock", async () => {
+  const { TripForbiddenError, TripNotFoundError } = await import("./trip-access");
+  const transaction = { select: () => ({ from: () => ({ where: async () => [stored] }) }) };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  mocks.requireTripRole.mockRejectedValueOnce(new TripForbiddenError("editor"));
+  await expect(deleteReservation(actor, id)).rejects.toBeInstanceOf(TripForbiddenError);
+  expect(mocks.runTripWrite).not.toHaveBeenCalled();
+  mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("editor"));
+  await expect(deleteReservation(actor, id)).rejects.toBeInstanceOf(TripNotFoundError);
+  expect(mocks.queue).not.toHaveBeenCalled();
+});
+
+it("skips cleanup if the deletion transaction rolls back", async () => {
+  const transaction = {
+    select: () => ({ from: (table: unknown) => ({ where: async () => (table === reservations ? [stored] : []) }) }),
+    delete: () => ({
+      where: async () => {
+        throw new Error("rollback");
+      },
+    }),
+  };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  mocks.queue.mockResolvedValue([]);
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  await expect(deleteReservation(actor, id)).rejects.toThrow("rollback");
+  expect(mocks.cleanup).not.toHaveBeenCalled();
+});
+
+it("handles a concurrent deletion and missing trip without effects, but propagates other lock failures", async () => {
+  const { TripNotFoundError } = await import("./trip-access");
+  const transaction = { select: () => ({ from: () => ({ where: async () => [] }) }), delete: vi.fn() };
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  const changed = vi.fn();
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, changed);
+    await operation.authorize();
+    return operation.mutate();
+  });
+  await expect(deleteReservation(actor, id)).resolves.toBeNull();
+  mocks.lockTrip.mockRejectedValueOnce(new TripNotFoundError());
+  await expect(deleteReservation(actor, id)).resolves.toBeNull();
+  mocks.lockTrip.mockRejectedValueOnce(new Error("lock timeout"));
+  await expect(deleteReservation(actor, id)).rejects.toThrow("lock timeout");
+  expect(transaction.delete).not.toHaveBeenCalled();
+  expect(changed).not.toHaveBeenCalled();
+  expect(mocks.cleanup).not.toHaveBeenCalled();
+});
+
+it("conceals a reservation moved to a foreign trip while waiting for the lock", async () => {
+  mocks.select.mockImplementation(() => ({ from: () => ({ where: async () => [stored] }) }));
+  const transaction = { select: () => ({ from: () => ({ where: async () => [{ ...stored, tripId: "foreign" }] }) }) };
+  mocks.runTripWrite.mockImplementation(async (_actor, _tripId, _options, steps) => {
+    const operation = steps(transaction, vi.fn());
+    await operation.authorize();
+    return operation.mutate();
+  });
+  await expect(deleteReservation(actor, id)).rejects.toThrow();
+  expect(mocks.queue).not.toHaveBeenCalled();
 });

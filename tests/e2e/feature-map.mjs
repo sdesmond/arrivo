@@ -386,7 +386,6 @@ export const FEATURE_MAP = [
     "src/app/api/v1/itinerary-notes/**",
     "tests/e2e/api-response.ts",
     "src/app/(app)/trips/[tripId]/budget/actions.ts",
-    "src/app/(app)/trips/[tripId]/reservations/actions.ts",
     "src/components/arrivo/app-activity.tsx",
     "src/components/arrivo/app-activity-viewer.tsx",
     "src/components/arrivo/app-users-list.tsx",

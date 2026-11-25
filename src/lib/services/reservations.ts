@@ -5,6 +5,7 @@ import { documents, expenses, reservations, trips } from "@/db/schema";
 import type { Actor, IdempotentRequest, Reservation, ReservationType } from "@/data/types";
 import {
   createReservation as createContract,
+  deleteReservation as deleteContract,
   getReservation as getContract,
   listReservations as listContract,
   updateReservation as updateContract,
@@ -16,10 +17,12 @@ import { REQUIRES_END_AT } from "@/lib/reservation-types";
 import type { z } from "zod";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
-import { refuseRecentlyDeleted } from "./deletion-records";
-import { requireTripRole, TripNotFoundError } from "./trip-access";
+import { recordDeletion, recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
+import { requireTripRole, TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { lockTrip, runTripWrite, type ReadExecutor } from "./trip-write";
 import { ValidationFailedError } from "./validation-failed-error";
+import { resolveDocumentTripId } from "@/lib/document-ancestry";
+import { queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 
 export async function listReservations(
   actor: Actor,
@@ -161,6 +164,80 @@ const TRIP_LIMIT_MESSAGE = "Trip cannot exceed 45 days.";
 async function readReservation(executor: ReadExecutor, reservationId: string): Promise<ReservationRow | undefined> {
   const [row] = await executor.select().from(reservations).where(eq(reservations.id, reservationId));
   return row;
+}
+
+/** Deletes attached rows under the trip lock and removes queued files only after commit. */
+export async function deleteReservation(actor: Actor, reservationId: string, input: unknown = {}): Promise<null> {
+  reservationId = deleteContract.params.parse({ reservationId }).reservationId;
+  deleteContract.body.parse(input);
+  const found = await readReservation(db, reservationId);
+  if (!found) return null;
+  const tripId = found.tripId;
+  await requireTripRole(tripId, actor.userId, "editor");
+  let queued: QueuedFileDeletion[] = [];
+  let deleted = false;
+  let tripGone = false;
+  await runTripWrite<null>(actor, tripId, { payload: {} }, (transaction, markChanged) => ({
+    authorize: async () => {
+      try {
+        await lockTrip(transaction, tripId);
+      } catch (error) {
+        if (!(error instanceof TripNotFoundError)) throw error;
+        tripGone = true;
+        return;
+      }
+      try {
+        await requireTripRole(tripId, actor.userId, "editor", transaction);
+      } catch (error) {
+        if (error instanceof TripForbiddenError) throw new TripNotFoundError();
+        throw error;
+      }
+      const current = await readReservation(transaction, reservationId);
+      if (current && current.tripId !== tripId) throw new TripNotFoundError();
+    },
+    mutate: async () => {
+      if (tripGone) return null;
+      const current = await readReservation(transaction, reservationId);
+      if (!current) return null;
+      const attached = await transaction.select().from(documents).where(eq(documents.reservationId, reservationId));
+      for (const document of attached) {
+        if ((await resolveDocumentTripId(transaction, document)) !== tripId) throw new TripNotFoundError();
+      }
+      const linkedExpenses = await transaction
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(eq(expenses.reservationId, reservationId));
+      queued = await queueFileDeletions(
+        transaction,
+        attached.map((document) => document.url).filter((url): url is string => !!url)
+      );
+      await recordDeletion(transaction, "reservation", reservationId, actor.userId);
+      await recordDeletions(
+        transaction,
+        "expense",
+        linkedExpenses.map((expense) => expense.id),
+        actor.userId
+      );
+      await recordDeletions(
+        transaction,
+        "document",
+        attached.map((document) => document.id),
+        actor.userId
+      );
+      await transaction.delete(reservations).where(eq(reservations.id, reservationId));
+      deleted = true;
+      markChanged();
+      return null;
+    },
+  }));
+  if (deleted) {
+    try {
+      await removeQueuedFiles(queued);
+    } catch (error) {
+      console.warn("Could not remove deleted reservation files", error);
+    }
+  }
+  return null;
 }
 
 /** One reservation with its documents, and its latest expense for editors and managers. */

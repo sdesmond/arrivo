@@ -47,6 +47,14 @@ const reservationParams = z.object({ reservationId: z.uuid().toLowerCase() });
 const reservationPath = "/api/v1/reservations/:reservationId";
 const fields = updateReservationSchema.shape;
 
+export const deleteReservation = defineEndpoint<null>()({
+  method: "DELETE",
+  path: reservationPath,
+  status: 204,
+  params: reservationParams,
+  body: z.strictObject({}),
+});
+
 export const getReservation = defineEndpoint<Reservation>()({
   method: "GET",
   path: reservationPath,
