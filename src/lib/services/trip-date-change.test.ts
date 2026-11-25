@@ -5,6 +5,7 @@ import {
   days,
   documents,
   events,
+  expenses,
   itineraryChecklists,
   itineraryNotes,
   reservations,
@@ -26,6 +27,7 @@ interface Fixture {
   checklistRows?: Array<{ id: string }>;
   eventDocs?: Array<{ id?: string; eventId: string | null; url: string | null }>;
   existingDays: DayRow[];
+  expenseRows?: Array<{ id: string }>;
   noteRows?: Array<{ id: string }>;
   reservationDocs?: Array<{ id?: string; eventId: string | null; url: string | null }>;
   reservationRows?: Array<{ id: string; provider: string; type: string; startAt: Date | null; endAt: Date | null }>;
@@ -37,6 +39,7 @@ function createTransaction({
   checklistRows = [],
   eventDocs = [],
   existingDays,
+  expenseRows = [],
   noteRows = [],
   reservationDocs = [],
   reservationRows = [],
@@ -65,6 +68,7 @@ function createTransaction({
         if (table === itineraryNotes) return { where: async () => noteRows };
         if (table === itineraryChecklists) return { where: async () => checklistRows };
         if (table === checklistItems) return { where: async () => checklistItemRows };
+        if (table === expenses) return { where: async () => expenseRows };
         if (table === reservations) return { where: async () => reservationRows };
         throw new Error("Unexpected table read in test fixture.");
       },
@@ -181,6 +185,7 @@ describe("applyTripDateChange", () => {
         existingDays: twoDays,
         removedEvents: [dinner],
         eventDocs: [{ id: "doc-event", eventId: "event-1", url: "/api/storage/event.pdf" }],
+        expenseRows: [{ id: "cost-1" }, { id: "cost-2" }],
         reservationDocs: [{ id: "doc-reservation", eventId: null, url: "/api/storage/reservation.pdf" }],
         reservationRows: [
           {
@@ -209,6 +214,8 @@ describe("applyTripDateChange", () => {
     });
     expect(operations.deletes).toEqual([events, reservations, days]);
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "event", ["event-1"], "user-1");
+    expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "reservation", ["res-1"], "user-1");
+    expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "expense", ["cost-1", "cost-2"], "user-1");
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "day", ["day-2"], "user-1");
     // Event and reservation documents go with their rows; both kinds take client ids.
     expect(recordDeletions).toHaveBeenCalledWith(
@@ -429,4 +436,26 @@ describe("applyTripDateChange", () => {
     );
     expect(mixed.error).toBeInstanceOf(ConflictError);
   });
+});
+
+it("keeps affected reservations and expenses without recording their deletion when keeping content", async () => {
+  const { error, operations } = await applyChange(
+    {
+      existingDays: twoDays,
+      reservationRows: [
+        { id: "res-1", provider: "Hotel", type: "other", startAt: new Date("2026-08-02T10:00:00Z"), endAt: null },
+      ],
+      expenseRows: [{ id: "cost-1" }],
+    },
+    { ...shrink, resolution: TripDateConflictResolution.KeepAsUnscheduled }
+  );
+  expect(error).toBeUndefined();
+  expect(operations.deletes).not.toContain(reservations);
+  expect(recordDeletions).not.toHaveBeenCalledWith(
+    expect.anything(),
+    "reservation",
+    expect.anything(),
+    expect.anything()
+  );
+  expect(recordDeletions).not.toHaveBeenCalledWith(expect.anything(), "expense", expect.anything(), expect.anything());
 });

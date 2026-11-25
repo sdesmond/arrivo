@@ -25,6 +25,15 @@ Feature: Reservations
     When I create and retry a keyed reservation outside the trip dates
     Then the reservation retries return one reservation and one widened itinerary
 
+  Scenario Outline: Deleted reservation and expense IDs cannot be replayed
+    When I delete a reservation and its expenses by "<method>" and retry their creates
+    Then both deleted IDs are rejected without resurrection
+
+    Examples:
+      | method |
+      | direct |
+      | pruning |
+
   Scenario: A reservation UUID racing across trips belongs to one trip
     When I race one reservation UUID across two visible trips
     Then exactly one trip receives the reservation
@@ -95,11 +104,15 @@ Feature: Reservations
     Then after reload the reservation shows uploaded document "test-doc.pdf"
 
   Scenario: Delete a reservation with an attached document
-    Given the trip has a Lodging reservation with an attached document
+    Given the trip has a Lodging reservation
     And the "Lodging" reservation section is expanded
+    When I attach a file to the reservation "Original Hotel Name"
+    And I note the stored file of the reservation doc "test-doc.pdf"
     When I delete the reservation "Original Hotel Name"
     And I confirm the deletion
     Then the reservation "Original Hotel Name" is no longer shown
+    When I reload the page
+    Then the reservation document "test-doc.pdf" and its noted file are gone
 
   Scenario: Pick an existing trip document for a reservation
     Given the trip has a Lodging reservation and a trip-level document "E2E Trip Pick Doc"

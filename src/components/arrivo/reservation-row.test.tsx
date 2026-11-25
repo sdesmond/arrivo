@@ -8,7 +8,9 @@ import {
   deleteExpense as deleteExpenseAction,
   updateExpense,
 } from "@/app/(app)/trips/[tripId]/budget/actions";
-import { deleteReservation } from "@/app/(app)/trips/[tripId]/reservations/actions";
+import { deleteReservation } from "@/lib/api/contract/reservations";
+import { api } from "@/lib/api/client";
+import * as navigation from "next/navigation";
 import { ReservationType, type Document, type Reservation } from "@/data/types";
 import { formatReservationDateRange } from "./reservation-type-badge";
 import { PLACEHOLDER_STYLE } from "./reservation-inline-text-field";
@@ -22,9 +24,7 @@ vi.mock("sonner", () => ({
 const { patchReservation } = vi.hoisted(() => ({ patchReservation: vi.fn() }));
 vi.mock("./use-reservation-patch", () => ({ useReservationPatch: () => patchReservation }));
 
-vi.mock("@/app/(app)/trips/[tripId]/reservations/actions", () => ({
-  deleteReservation: vi.fn(),
-}));
+vi.mock("@/lib/api/client", () => ({ api: vi.fn() }));
 
 vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
   createExpense: vi.fn(),
@@ -829,18 +829,22 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "dismiss-dialog" }));
 
     expect(screen.queryByText(/Delete\s+Grand Hotel\?/)).not.toBeInTheDocument();
-    expect(deleteReservation).not.toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
   });
 
   it("calls deleteReservation with the reservation id when confirmed", async () => {
-    vi.mocked(deleteReservation).mockResolvedValueOnce(undefined);
+    vi.mocked(api).mockResolvedValueOnce(null);
+    const refresh = vi.fn();
+    const router = navigation.useRouter();
+    vi.spyOn(navigation, "useRouter").mockReturnValue({ ...router, refresh });
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
     await user.click(screen.getByRole("button", { name: getDeleteLabel(populatedReservation) }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(deleteReservation).toHaveBeenCalledWith("res-1");
+    expect(api).toHaveBeenCalledWith(deleteReservation, { params: { reservationId: "res-1" }, body: {} });
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("ignores a second inline date-save blur while the first save is still in flight", async () => {
@@ -877,7 +881,7 @@ describe("ReservationRow", () => {
   });
 
   it("closes the dialog after a successful delete", async () => {
-    vi.mocked(deleteReservation).mockResolvedValueOnce(undefined);
+    vi.mocked(api).mockResolvedValueOnce(null);
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
@@ -890,7 +894,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a toast error and keeps the dialog open when deleteReservation throws", async () => {
-    vi.mocked(deleteReservation).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 
