@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   runTripWrite: vi.fn(),
@@ -7,17 +7,23 @@ const mocks = vi.hoisted(() => ({
   lockTrip: vi.fn(),
   refuseRecentlyDeleted: vi.fn(),
   computeConversions: vi.fn(),
+  recordDeletion: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: { select: mocks.select } }));
 vi.mock("./trip-access", () => ({
   requireTripRole: mocks.requireTripRole,
-  TripNotFoundError: class extends Error {},
+  TripNotFoundError: class TripNotFoundError extends Error {},
+  TripForbiddenError: class TripForbiddenError extends Error {},
 }));
 vi.mock("./trip-write", () => ({ runTripWrite: mocks.runTripWrite, lockTrip: mocks.lockTrip }));
 vi.mock("./client-ids", () => ({ lockClientIds: mocks.lockClientIds }));
-vi.mock("./deletion-records", () => ({ refuseRecentlyDeleted: mocks.refuseRecentlyDeleted }));
+vi.mock("./deletion-records", () => ({
+  refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
+  recordDeletion: mocks.recordDeletion,
+}));
 vi.mock("./expense-conversions", () => ({ computeConversions: mocks.computeConversions }));
-import { createExpense, listExpenses } from "./expenses";
+import { createExpense, deleteExpense, listExpenses, updateExpense } from "./expenses";
+import { TripForbiddenError, TripNotFoundError } from "./trip-access";
 import { events, expenses, reservations } from "@/db/schema";
 
 const actor = { userId: "user" };
@@ -275,4 +281,272 @@ it("rejects a keyed expense replay after cascade deletion before checking its mi
   await expect(validateReplay({ createdAt: createdAt.toISOString() })).rejects.toThrow("expense deleted");
   expect(mocks.refuseRecentlyDeleted).toHaveBeenCalledWith(transaction, "expense", id);
   expect(state.inserted).toBeUndefined();
+});
+
+const stored = {
+  id,
+  tripId,
+  eventId: null,
+  reservationId: null,
+  category: "food",
+  amount: "12.50",
+  currency: "EUR",
+  date: "2026-08-01",
+  note: "Lunch",
+  convertedAmountTrip: "13.5",
+  createdAt,
+};
+const otherTrip = "323e4567-e89b-12d3-a456-426614174000";
+
+/** A transaction holding one expense, recording its update and delete. */
+function editTransaction(options: { row?: Record<string, unknown>; event?: boolean; reservation?: boolean } = {}) {
+  const row = "row" in options ? options.row : stored;
+  const state = { set: undefined as Record<string, unknown> | undefined, deleted: false };
+  const transaction = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: async () => {
+          if (table === expenses) return row ? [row] : [];
+          if (table === events) return options.event ? [{ id: linkId }] : [];
+          if (table === reservations) return options.reservation ? [{ id: linkId }] : [];
+          return [];
+        },
+      }),
+    }),
+    update: () => ({
+      set: (values: Record<string, unknown>) => {
+        state.set = values;
+        return { where: () => ({ returning: async () => [{ ...row, ...values }] }) };
+      },
+    }),
+    delete: () => ({
+      where: async () => {
+        state.deleted = true;
+      },
+    }),
+  };
+  return { transaction, state };
+}
+
+function readsOutside(row: Record<string, unknown> | undefined) {
+  mocks.select.mockReturnValue({ from: () => ({ where: async () => (row ? [row] : []) }) });
+}
+
+describe("updateExpense", () => {
+  beforeEach(() => readsOutside(stored));
+
+  it("keeps the stored conversion and does no rate lookup for a note-only edit", async () => {
+    const { transaction, state } = editTransaction();
+    const changed = run(transaction);
+    await expect(updateExpense(actor, id, { note: " Dinner " })).resolves.toMatchObject({
+      note: "Dinner",
+      convertedAmountTrip: 13.5,
+    });
+    expect(mocks.computeConversions).not.toHaveBeenCalled();
+    expect(state.set).toEqual({ note: "Dinner", updatedAt: expect.any(Date) });
+    expect(mocks.lockTrip).toHaveBeenCalledWith(transaction, tripId);
+    expect(mocks.requireTripRole).toHaveBeenCalledWith(tripId, "user", "editor", transaction);
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
+  it("recomputes conversions when the amount, currency or date changes", async () => {
+    const cases: [Record<string, unknown>, unknown[]][] = [
+      [{ amount: 20 }, [20, "EUR", "2026-08-01"]],
+      [{ currency: " usd " }, [12.5, "USD", "2026-08-01"]],
+      [{ date: "2026-08-02" }, [12.5, "EUR", "2026-08-02"]],
+    ];
+    for (const [patch, args] of cases) {
+      mocks.computeConversions.mockClear();
+      const { transaction, state } = editTransaction();
+      run(transaction);
+      await updateExpense(actor, id, patch);
+      expect(mocks.computeConversions).toHaveBeenCalledWith(tripId, "user", ...args, transaction);
+      expect(state.set).toMatchObject(nullFields);
+    }
+  });
+
+  it("saves unconverted and flags a failed rate lookup", async () => {
+    mocks.computeConversions.mockResolvedValue({ fields: nullFields, conversionError: true });
+    const { transaction } = editTransaction();
+    run(transaction);
+    await expect(updateExpense(actor, id, { amount: 20 })).resolves.toMatchObject({ conversionError: true });
+  });
+
+  it("returns the stored row and writes nothing for an unchanged or empty patch", async () => {
+    for (const patch of [{}, { amount: 12.5, currency: "eur", note: "Lunch", eventId: null }]) {
+      const { transaction, state } = editTransaction();
+      const changed = run(transaction);
+      await expect(updateExpense(actor, id, patch)).resolves.toMatchObject({ id, amount: 12.5 });
+      expect(state.set).toBeUndefined();
+      expect(changed).not.toHaveBeenCalled();
+    }
+    expect(mocks.computeConversions).not.toHaveBeenCalled();
+  });
+
+  it("links and clears links and the note", async () => {
+    const linked = editTransaction({ event: true });
+    run(linked.transaction);
+    await updateExpense(actor, id, { eventId: linkId });
+    expect(linked.state.set).toMatchObject({ eventId: linkId });
+    const cleared = editTransaction({ row: { ...stored, eventId: linkId } });
+    run(cleared.transaction);
+    await updateExpense(actor, id, { eventId: null, note: null, reservationId: null });
+    expect(cleared.state.set).toMatchObject({ eventId: null, note: null });
+    expect(cleared.state.set).not.toHaveProperty("reservationId");
+    const reserved = editTransaction({ reservation: true });
+    run(reserved.transaction);
+    await updateExpense(actor, id, { reservationId: linkId });
+    expect(reserved.state.set).toMatchObject({ reservationId: linkId });
+  });
+
+  it("rejects a foreign link with no write", async () => {
+    for (const [patch, message] of [
+      [{ eventId: linkId }, "Event not found."],
+      [{ reservationId: linkId }, "Reservation not found."],
+    ] as const) {
+      const { transaction, state } = editTransaction();
+      const changed = run(transaction);
+      await expect(updateExpense(actor, id, patch)).rejects.toThrow(message);
+      expect(state.set).toBeUndefined();
+      expect(changed).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects a merged double link with no write", async () => {
+    readsOutside({ ...stored, eventId: linkId });
+    const { transaction, state } = editTransaction({
+      row: { ...stored, eventId: linkId },
+      event: true,
+      reservation: true,
+    });
+    const changed = run(transaction);
+    await expect(updateExpense(actor, id, { reservationId: linkId })).rejects.toThrow(
+      "both an event and a reservation"
+    );
+    expect(state.set).toBeUndefined();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid patch before reading", async () => {
+    await expect(updateExpense(actor, id, { amount: 0 })).rejects.toThrow();
+    await expect(updateExpense(actor, id, { eventId: linkId, reservationId: linkId })).rejects.toThrow();
+    await expect(updateExpense(actor, "bad", {})).rejects.toThrow();
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
+
+  it("conceals a missing expense and denies a non-editor before the transaction", async () => {
+    readsOutside(undefined);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+    readsOutside(stored);
+    mocks.requireTripRole.mockRejectedValue(new Error("denied"));
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toThrow("denied");
+    expect(mocks.runTripWrite).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the row and the role under the lock", async () => {
+    const { transaction: missing, state: missingState } = editTransaction({ row: undefined });
+    run(missing);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(missingState.set).toBeUndefined();
+
+    const { transaction: moved, state: movedState } = editTransaction({ row: { ...stored, tripId: otherTrip } });
+    run(moved);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(movedState.set).toBeUndefined();
+
+    mocks.requireTripRole.mockReset();
+    mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("viewer"));
+    const { transaction: revoked, state: revokedState } = editTransaction();
+    run(revoked);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(revokedState.set).toBeUndefined();
+
+    mocks.requireTripRole.mockReset();
+    mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new Error("other"));
+    run(editTransaction().transaction);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toThrow("other");
+  });
+
+  it("is not found when the row disappears before the update lands", async () => {
+    const { transaction } = editTransaction();
+    transaction.update = () => ({ set: () => ({ where: () => ({ returning: async () => [] }) }) });
+    run(transaction);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+  });
+
+  it("is not found when the row is gone inside the mutation", async () => {
+    let reads = 0;
+    const { transaction } = editTransaction();
+    transaction.select = () => ({
+      from: () => ({ where: async () => (reads++ === 0 ? [stored] : []) }),
+    });
+    run(transaction);
+    await expect(updateExpense(actor, id, { note: "x" })).rejects.toBeInstanceOf(TripNotFoundError);
+  });
+});
+
+describe("deleteExpense", () => {
+  beforeEach(() => readsOutside(stored));
+
+  it("deletes under the lock, records the id and counts one change", async () => {
+    const { transaction, state } = editTransaction();
+    const changed = run(transaction);
+    await expect(deleteExpense(actor, id)).resolves.toBeNull();
+    expect(state.deleted).toBe(true);
+    expect(mocks.recordDeletion).toHaveBeenCalledWith(transaction, "expense", id, "user");
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(mocks.lockTrip).toHaveBeenCalledWith(transaction, tripId);
+  });
+
+  it("succeeds with no effects when the expense is already gone", async () => {
+    readsOutside(undefined);
+    await expect(deleteExpense(actor, id)).resolves.toBeNull();
+    expect(mocks.runTripWrite).not.toHaveBeenCalled();
+    readsOutside(stored);
+    const { transaction, state } = editTransaction({ row: undefined });
+    const changed = run(transaction);
+    await expect(deleteExpense(actor, id)).resolves.toBeNull();
+    expect(state.deleted).toBe(false);
+    expect(mocks.recordDeletion).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the trip vanished under the lock", async () => {
+    mocks.lockTrip.mockRejectedValueOnce(new TripNotFoundError());
+    const { transaction, state } = editTransaction();
+    run(transaction);
+    await expect(deleteExpense(actor, id)).resolves.toBeNull();
+    expect(state.deleted).toBe(false);
+    mocks.lockTrip.mockRejectedValueOnce(new Error("boom"));
+    await expect(deleteExpense(actor, id)).rejects.toThrow("boom");
+  });
+
+  it("conceals a role revoked under the lock and denies a non-editor outside it", async () => {
+    mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new TripForbiddenError("viewer"));
+    const { transaction, state } = editTransaction();
+    run(transaction);
+    await expect(deleteExpense(actor, id)).rejects.toBeInstanceOf(TripNotFoundError);
+    expect(state.deleted).toBe(false);
+    mocks.requireTripRole.mockReset();
+    mocks.requireTripRole.mockResolvedValueOnce("editor").mockRejectedValueOnce(new Error("other"));
+    await expect(deleteExpense(actor, id)).rejects.toThrow("other");
+    mocks.requireTripRole.mockReset();
+    mocks.requireTripRole.mockRejectedValue(new Error("denied"));
+    mocks.runTripWrite.mockClear();
+    await expect(deleteExpense(actor, id)).rejects.toThrow("denied");
+    expect(mocks.runTripWrite).not.toHaveBeenCalled();
+  });
+
+  it("conceals an expense that moved to another trip", async () => {
+    const { transaction } = editTransaction({ row: { ...stored, tripId: otherTrip } });
+    run(transaction);
+    await expect(deleteExpense(actor, id)).rejects.toBeInstanceOf(TripNotFoundError);
+  });
+
+  it("rejects a malformed id or body before reading", async () => {
+    mocks.select.mockClear();
+    await expect(deleteExpense(actor, "bad")).rejects.toThrow();
+    await expect(deleteExpense(actor, id, { extra: 1 })).rejects.toThrow();
+    expect(mocks.select).not.toHaveBeenCalled();
+  });
 });

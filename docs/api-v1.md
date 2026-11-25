@@ -289,6 +289,18 @@ The server converts the amount to the trip's budget currency and to the caller's
 
 Retries with the same `id` and content return the existing expense without a duplicate row or extra activity. A different payload or an `id` deleted within the last 24 hours returns 409 `conflict`; an `id` that belongs to a trip the caller cannot see returns 404. Invalid input returns 422 and viewers receive 403. An optional `Idempotency-Key` also supports safe retries and replays the original response, flag included.
 
+### PATCH /api/v1/expenses/:expenseId
+
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Expense & { conversionError?: true }`
+
+Partial update with the create's fields and limits, except `id`. A field that is absent is left alone; `null` clears `note`, `eventId` or `reservationId`. `currency` is trimmed and uppercased. The merged result links to at most one event or reservation, and a new target must belong to the expense's trip; both links, or a missing or foreign target, return 422 and write nothing. Conversions are recomputed only when the amount, currency or date differs from the stored value; a note-only or link-only edit keeps the stored converted totals and does no rate lookup. A failed lookup still saves, unconverted, and the response carries `conversionError: true`. A body that changes nothing (including `{}`) returns the stored expense and writes nothing. Unknown fields and failed checks return 422; viewers receive 403, and unknown or inaccessible expenses, or a role revoked while waiting for the trip lock, 404.
+
+### DELETE /api/v1/expenses/:expenseId
+
+**Role** editor · **`Idempotency-Key`** no · **Success** `204`
+
+Send `{}`. Deletes the expense and records its ID as deleted. Repeating a deletion returns 204 with no further effect. Viewers receive 403, and inaccessible expenses or a role revoked while waiting for the trip lock 404. An expense ID deleted directly, or removed with its event (event deletion, a trip date change with `delete-events`, or removing a day with its events), cannot be reused by a create during the 24-hour retention window: the create returns 409 `conflict`.
+
 ## Days
 
 ### POST /api/v1/trips/:tripId/days

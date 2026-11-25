@@ -48,6 +48,7 @@ function createTransaction({
   let documentReads = 0;
   const operations = {
     deletes: [] as unknown[],
+    order: [] as string[],
     inserts: [] as Array<{ table: unknown; values: unknown }>,
     updates: [] as Array<{ table: unknown; values: unknown }>,
   };
@@ -68,7 +69,13 @@ function createTransaction({
         if (table === itineraryNotes) return { where: async () => noteRows };
         if (table === itineraryChecklists) return { where: async () => checklistRows };
         if (table === checklistItems) return { where: async () => checklistItemRows };
-        if (table === expenses) return { where: async () => expenseRows };
+        if (table === expenses)
+          return {
+            where: async () => {
+              operations.order.push("select-expenses");
+              return expenseRows;
+            },
+          };
         if (table === reservations) return { where: async () => reservationRows };
         throw new Error("Unexpected table read in test fixture.");
       },
@@ -83,6 +90,9 @@ function createTransaction({
     delete: (table: unknown) => ({
       where: async () => {
         operations.deletes.push(table);
+        operations.order.push(
+          table === events ? "delete-events" : table === reservations ? "delete-reservations" : "delete-other"
+        );
       },
     }),
     insert: (table: unknown) => ({
@@ -215,6 +225,15 @@ describe("applyTripDateChange", () => {
     expect(operations.deletes).toEqual([events, reservations, days]);
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "event", ["event-1"], "user-1");
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "reservation", ["res-1"], "user-1");
+    // Each expense lookup runs before the delete that cascades them.
+    expect(operations.order.filter((step) => step !== "delete-other")).toEqual([
+      "select-expenses",
+      "delete-events",
+      "select-expenses",
+      "delete-reservations",
+    ]);
+    // Once for the event-linked expenses and once for the reservation-linked ones, both before their cascades.
+    expect(recordDeletions.mock.calls.filter((call) => call[1] === "expense")).toHaveLength(2);
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "expense", ["cost-1", "cost-2"], "user-1");
     expect(recordDeletions).toHaveBeenCalledWith(expect.anything(), "day", ["day-2"], "user-1");
     // Event and reservation documents go with their rows; both kinds take client ids.

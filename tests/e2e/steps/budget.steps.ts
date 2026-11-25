@@ -1,6 +1,12 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { When, Then } from "../fixtures";
 import { waitForApiResponse } from "../api-response";
+
+const createdExpenseIds = new WeakMap<Page, string>();
+
+function expensePath(page: Page): string {
+  return `/api/v1/expenses/${createdExpenseIds.get(page)}`;
+}
 
 When("I open the Budget tab", async ({ page }) => {
   await page.getByRole("button", { name: "Budget", exact: true }).click();
@@ -32,8 +38,35 @@ When("I save the Misc Expense", async ({ page, scenario }) => {
     path: `/api/v1/trips/${scenario.currentTrip!.id}/expenses`,
   });
   await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
-  await created;
+  const { id } = (await (await created).json()) as { id: string };
+  createdExpenseIds.set(page, id);
   await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+When("I open the Misc Expense in the {string} category", async ({ page }, category: string) => {
+  await page
+    .getByRole("table", { name: "Expenses" })
+    .getByRole("row", { name: new RegExp(category) })
+    .click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "Edit Misc Expense" })).toBeVisible();
+});
+
+When("I save the edited Misc Expense", async ({ page }) => {
+  const updated = waitForApiResponse(page, { method: "PATCH", path: expensePath(page) });
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await updated;
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+When("I remove the Misc Expense", async ({ page }) => {
+  const removed = waitForApiResponse(page, { method: "DELETE", path: expensePath(page) });
+  await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+  await removed;
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+Then("the Budget tab shows no {string} category tile", async ({ page }, category: string) => {
+  await expect(page.locator('[data-slot="category-tile-grid"]').getByText(category, { exact: true })).toHaveCount(0);
 });
 
 Then("the Budget tab shows {string} as Actual spent", async ({ page }, amount: string) => {

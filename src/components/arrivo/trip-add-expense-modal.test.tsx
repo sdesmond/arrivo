@@ -8,18 +8,15 @@ import type { Expense } from "@/data/types";
 import { pickSelectOption } from "@/test-utils/pick-select-option";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 import { ApiClientError } from "@/lib/api/client";
-import { createExpense as createExpenseEndpoint } from "@/lib/api/contract/expenses";
+import {
+  createExpense as createExpenseEndpoint,
+  deleteExpense as deleteExpenseEndpoint,
+  updateExpense as updateExpenseEndpoint,
+} from "@/lib/api/contract/expenses";
 
-const { api, refresh, updateExpense, deleteExpense } = vi.hoisted(() => ({
+const { api, refresh } = vi.hoisted(() => ({
   api: vi.fn(),
   refresh: vi.fn(),
-  updateExpense: vi.fn(),
-  deleteExpense: vi.fn(),
-}));
-
-vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  updateExpense,
-  deleteExpense,
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -30,6 +27,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => ({
 }));
 
 const createExpense = api;
+const updateExpense = api;
+const deleteExpense = api;
 
 function makeExpense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -447,15 +446,39 @@ describe("TripAddExpenseModal", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() =>
-        expect(updateExpense).toHaveBeenCalledWith("expense-9", {
-          category: ExpenseCategory.Misc,
-          amount: 75,
-          currency: "USD",
-          date: "2026-08-02",
-          note: "Visa fee",
+        expect(updateExpense).toHaveBeenCalledWith(updateExpenseEndpoint, {
+          params: { expenseId: "expense-9" },
+          body: {
+            category: ExpenseCategory.Misc,
+            amount: 75,
+            currency: "USD",
+            date: "2026-08-02",
+            note: "Visa fee",
+          },
         })
       );
+      expect(refresh).toHaveBeenCalled();
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
+
+    it("sends a null note when the note is cleared and toasts a conversion error", async () => {
+      const user = userEvent.setup();
+      const expense = makeExpense({ id: "expense-9" });
+      updateExpense.mockResolvedValue({ ...expense, conversionError: true });
+      render(<TripAddExpenseModal tripId="trip-1" expense={expense} open onOpenChange={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      await user.clear(screen.getByRole("textbox", { name: "Note" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(updateExpense.mock.calls[0][1].body.note).toBeNull());
+      const { toast } = await import("sonner");
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Expense saved, but the currency couldn't be converted. Edit it later to retry."
+        )
+      );
     });
 
     it("calls deleteExpense with expense.id on Remove in edit mode", async () => {
@@ -469,7 +492,13 @@ describe("TripAddExpenseModal", () => {
 
       await user.click(screen.getByRole("button", { name: "Remove" }));
 
-      await waitFor(() => expect(deleteExpense).toHaveBeenCalledWith("expense-9"));
+      await waitFor(() =>
+        expect(deleteExpense).toHaveBeenCalledWith(deleteExpenseEndpoint, {
+          params: { expenseId: "expense-9" },
+          body: {},
+        })
+      );
+      expect(refresh).toHaveBeenCalled();
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     });
 

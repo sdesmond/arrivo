@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { days, documents, events, idempotencyKeys, pendingFileDeletions } from "@/db/schema";
+import { days, documents, events, expenses, idempotencyKeys, pendingFileDeletions } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
   recordDeletion: vi.fn(),
+  recordDeletions: vi.fn(),
   refuseRecentlyDeleted: vi.fn(),
   now: new Date("2026-06-01T12:00:00.000Z"),
 }));
@@ -36,6 +37,7 @@ vi.mock("./timeline-positions", () => ({
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ del: mocks.storageDelete }) }));
 vi.mock("./deletion-records", () => ({
   recordDeletion: mocks.recordDeletion,
+  recordDeletions: mocks.recordDeletions,
   refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
 }));
 
@@ -72,6 +74,7 @@ let eventReads: (typeof baseRow | { position: number })[][];
 let dayRows: { tripId: string }[];
 let dayReads: { tripId: string }[][];
 let docRows: { url: string | null }[];
+let expenseRows: { id: string }[];
 let inserted: Record<string, unknown>[];
 let insertedRow: typeof baseRow;
 let returned: (typeof baseRow)[];
@@ -95,6 +98,7 @@ beforeEach(() => {
   dayRows = [{ tripId }];
   dayReads = [];
   docRows = [];
+  expenseRows = [];
   inserted = [];
   insertedRow = { ...baseRow, id: "923e4567-e89b-12d3-a456-426614174000", name: "Created", position: 4 };
   returned = [{ ...baseRow, name: "Updated" }];
@@ -117,6 +121,10 @@ beforeEach(() => {
         }
         if (table === days) return dayReads.length > 0 ? dayReads.shift()! : dayRows;
         if (table === documents) return docRows;
+        if (table === expenses) {
+          if (expenseRows.length > 0) calls.push("select-expenses"); // only marked when it matters, keeping other exact sequences intact
+          return expenseRows;
+        }
         expect(table).toBe(events);
         return eventReads.length > 0 ? eventReads.shift()! : rows;
       },
@@ -817,4 +825,15 @@ it("records the deletion inside the delete transaction, and none for an event al
   rows = [];
   await deleteEvent(actor, eventId, { tripId });
   expect(mocks.recordDeletion).not.toHaveBeenCalled();
+});
+
+it("selects and records the expenses the event cascade deletes before deleting the event", async () => {
+  expenseRows = [{ id: "e1" }, { id: "e2" }];
+  mocks.recordDeletions.mockImplementationOnce(async () => {
+    calls.push("record-expenses");
+  });
+  await deleteEvent(actor, eventId, { tripId });
+  expect(mocks.recordDeletions).toHaveBeenCalledExactlyOnceWith(mocks, "expense", ["e1", "e2"], "user");
+  expect(calls.indexOf("select-expenses")).toBeGreaterThan(-1);
+  expect(calls.indexOf("select-expenses")).toBeLessThan(calls.indexOf("delete-event"));
 });

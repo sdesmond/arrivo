@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/db";
-import { days, documents, events, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import { days, documents, events, expenses, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
 import { asc, eq, inArray } from "drizzle-orm";
 import type { Actor, DayItemOrder, DayRecord, IdempotentRequest } from "@/data/types";
 import { dbDayToType } from "@/lib/db-mappers";
@@ -16,7 +16,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
-import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
+import { recordDeletion, recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ValidationFailedError } from "./validation-failed-error";
 import { applyDayOrder } from "./timeline-positions";
@@ -251,6 +251,23 @@ export async function deleteDay(
           queued = await queueFileDeletions(
             transaction,
             eventDocuments.map((document) => document.url).filter((url): url is string => !!url)
+          );
+        }
+        if (dayEvents.length > 0) {
+          const eventExpenses = await transaction
+            .select({ id: expenses.id })
+            .from(expenses)
+            .where(
+              inArray(
+                expenses.eventId,
+                dayEvents.map((event) => event.id)
+              )
+            );
+          await recordDeletions(
+            transaction,
+            "expense",
+            eventExpenses.map((expense) => expense.id),
+            actor.userId
           );
         }
         await transaction.delete(days).where(eq(days.id, dayId));
