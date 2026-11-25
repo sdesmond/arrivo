@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createExpense, listExpenses } from "./expenses";
+import { createExpense, deleteExpense, listExpenses, updateExpense } from "./expenses";
 
 const id = "123e4567-e89b-12d3-a456-426614174000";
 const base = { id, category: "food", amount: 12.5, currency: "EUR", date: "2026-08-01" };
@@ -60,4 +60,42 @@ it("explains the shared validation failures", () => {
   expect(messages({ ...base, eventId: id, reservationId: id })).toContain(
     "Expense cannot be linked to both an event and a reservation."
   );
+});
+
+it("defines the expense patch and delete endpoints", () => {
+  expect(updateExpense.method).toBe("PATCH");
+  expect(updateExpense.path).toBe("/api/v1/expenses/:expenseId");
+  expect(updateExpense.params.parse({ expenseId: id.toUpperCase() })).toEqual({ expenseId: id });
+  expect(deleteExpense.method).toBe("DELETE");
+  expect(deleteExpense.status).toBe(204);
+  expect(deleteExpense.body.safeParse({}).success).toBe(true);
+  expect(deleteExpense.body.safeParse({ extra: 1 }).success).toBe(false);
+});
+
+it("accepts partial patches with nullable note and links", () => {
+  for (const body of [
+    {},
+    { note: null },
+    { eventId: null, reservationId: null },
+    { amount: 5, currency: "usd", date: "2026-08-02", category: "misc" },
+    { eventId: id.toUpperCase() },
+  ])
+    expect(updateExpense.body.safeParse(body).success).toBe(true);
+  expect(updateExpense.body.parse({ eventId: id.toUpperCase() })).toEqual({ eventId: id });
+});
+
+it("rejects invalid patches", () => {
+  for (const body of [
+    { amount: 0 },
+    { amount: 1.234 },
+    { amount: null },
+    { currency: "ZZZ" },
+    { currency: null },
+    { category: "teleport" },
+    { date: "2026-02-30" },
+    { note: "x".repeat(501) },
+    { id },
+    { eventId: id, reservationId: id },
+  ])
+    expect(updateExpense.body.safeParse(body).success).toBe(false);
 });
