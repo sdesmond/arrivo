@@ -3,6 +3,7 @@ import {
   days,
   documents,
   events,
+  expenses,
   idempotencyKeys,
   itineraryChecklists,
   itineraryNotes,
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
   recordDeletion: vi.fn(),
+  recordDeletions: vi.fn(),
   refuseRecentlyDeleted: vi.fn(),
   applyDayOrder: vi.fn(),
   storageDelete: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock("./timeline-positions", () => ({ applyDayOrder: mocks.applyDayOrder }));
 vi.mock("@/lib/storage/storage-adapter", () => ({ getStorageAdapter: () => ({ del: mocks.storageDelete }) }));
 vi.mock("./deletion-records", () => ({
   recordDeletion: mocks.recordDeletion,
+  recordDeletions: mocks.recordDeletions,
   refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
 }));
 import { ConflictError } from "./conflict-error";
@@ -93,6 +96,7 @@ let eventRows: { id: string }[];
 let noteRows: { id: string }[];
 let checklistRows: { id: string }[];
 let docRows: { url: string | null }[];
+let expenseRows: { id: string }[];
 let returnedDay: DayRow[];
 let insertedDays: Record<string, unknown>[];
 let sets: { table: unknown; values: Record<string, unknown> }[];
@@ -108,6 +112,7 @@ beforeEach(() => {
   noteRows = [];
   checklistRows = [];
   docRows = [];
+  expenseRows = [];
   returnedDay = [dayRow(3, { label: "Updated" })];
   insertedDays = [];
   sets = [];
@@ -122,6 +127,10 @@ beforeEach(() => {
     if (table === trips) return tripRows;
     if (table === events) return eventRows;
     if (table === documents) return docRows;
+    if (table === expenses) {
+      if (expenseRows.length > 0) calls.push("select-expenses"); // only marked when it matters, keeping other exact sequences intact
+      return expenseRows;
+    }
     if (table === itineraryNotes) return noteRows;
     expect(table).toBe(itineraryChecklists);
     return checklistRows;
@@ -818,5 +827,18 @@ describe("deleted day ids", () => {
     dayRows = [];
     await deleteDay(actor, dayId, { tripId });
     expect(mocks.recordDeletion).not.toHaveBeenCalled();
+  });
+
+  it("records the expenses its events cascade-delete, and none for an empty day", async () => {
+    eventRows = [{ id: "event-1" }];
+    expenseRows = [{ id: "cost-1" }, { id: "cost-2" }];
+    await deleteDay(actor, dayId, { tripId, confirmDestructive: true });
+    expect(mocks.recordDeletions).toHaveBeenCalledExactlyOnceWith(mocks, "expense", ["cost-1", "cost-2"], "user");
+    expect(calls.indexOf("select-expenses")).toBeGreaterThan(-1);
+    expect(calls.indexOf("select-expenses")).toBeLessThan(calls.indexOf("delete-day"));
+    mocks.recordDeletions.mockClear();
+    eventRows = [];
+    await deleteDay(actor, dayId, { tripId });
+    expect(mocks.recordDeletions).not.toHaveBeenCalled();
   });
 });

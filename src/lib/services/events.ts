@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/db";
-import { documents, events } from "@/db/schema";
+import { documents, events, expenses } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { Actor, IdempotentRequest, TripEvent } from "@/data/types";
 import { dbEventToType } from "@/lib/db-mappers";
@@ -9,7 +9,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
-import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
+import { recordDeletion, recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { appendPosition, shiftFromPosition } from "./timeline-positions";
 import {
   createEvent as createContract,
@@ -249,8 +249,18 @@ export async function deleteEvent(
         queued = await queueFileDeletions(transaction, urls);
         await transaction.delete(documents).where(eq(documents.eventId, eventId));
       }
+      const linkedExpenses = await transaction
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(eq(expenses.eventId, eventId));
       await transaction.delete(events).where(eq(events.id, eventId));
       await recordDeletion(transaction, "event", eventId, actor.userId);
+      await recordDeletions(
+        transaction,
+        "expense",
+        linkedExpenses.map((expense) => expense.id),
+        actor.userId
+      );
       markChanged();
       return null;
     },

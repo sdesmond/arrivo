@@ -327,6 +327,16 @@ export async function applyTripDateChange(
     if (removedContent.events.length > 0) {
       const eventIds = removedContent.events.map((event) => event.id);
       documentUrls.push(...removedContent.eventDocumentUrls);
+      const eventExpenses = await transaction
+        .select({ id: expenses.id })
+        .from(expenses)
+        .where(inArray(expenses.eventId, eventIds));
+      await recordDeletions(
+        transaction,
+        "expense",
+        eventExpenses.map((expense) => expense.id),
+        userId
+      );
       await transaction.delete(events).where(inArray(events.id, eventIds));
       await recordDeletions(transaction, "event", eventIds, userId);
     }
