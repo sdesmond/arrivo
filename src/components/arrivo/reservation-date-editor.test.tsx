@@ -9,12 +9,19 @@ vi.mock("@/components/ui/date-picker", () => ({
     value,
     onChange,
     "aria-label": ariaLabel,
+    style,
   }: {
     value?: string;
     onChange: (value: string | undefined) => void;
     "aria-label"?: string;
+    style?: React.CSSProperties;
   }) => (
-    <input aria-label={ariaLabel} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} />
+    <input
+      aria-label={ariaLabel}
+      style={style}
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value || undefined)}
+    />
   ),
 }));
 vi.mock("@/components/ui/time-picker", () => ({
@@ -22,12 +29,19 @@ vi.mock("@/components/ui/time-picker", () => ({
     value,
     onChange,
     "aria-label": ariaLabel,
+    style,
   }: {
     value?: string;
     onChange: (value: string | undefined) => void;
     "aria-label"?: string;
+    style?: React.CSSProperties;
   }) => (
-    <input aria-label={ariaLabel} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} />
+    <input
+      aria-label={ariaLabel}
+      style={style}
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value || undefined)}
+    />
   ),
 }));
 
@@ -44,6 +58,15 @@ const props = {
 beforeEach(() => {
   vi.resetAllMocks();
   patchReservation.mockResolvedValue(undefined);
+});
+
+it("scales every expanded date and time control with the font-size setting", async () => {
+  const user = userEvent.setup();
+  render(<ReservationDateEditor {...props} onSaved={vi.fn()} />);
+  await user.click(screen.getByRole("button", { name: /Aug/ }));
+  for (const label of ["Start date", "Start time", "End date", "End time"]) {
+    expect(screen.getByLabelText(label).style.fontSize).toBe("calc(13px * var(--font-scale))");
+  }
 });
 
 it.each([

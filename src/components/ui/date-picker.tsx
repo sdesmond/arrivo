@@ -14,6 +14,7 @@ export interface DatePickerProps {
   placeholder?: string;
   disabled?: boolean;
   clearable?: boolean;
+  style?: React.CSSProperties;
   onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
   "aria-describedby"?: string;
@@ -26,6 +27,7 @@ export function DatePicker({
   placeholder = "Pick a date",
   disabled,
   clearable = true,
+  style,
   onOpenChange,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
@@ -48,7 +50,7 @@ export function DatePicker({
           aria-describedby={ariaDescribedBy}
           aria-invalid={ariaInvalid}
           className={cn(buttonVariants({ variant: "outline" }), "flex-1 justify-start font-normal")}
-          style={{ color: value ? "var(--fg)" : "var(--fg-3)" }}
+          style={{ color: value ? "var(--fg)" : "var(--fg-3)", ...style }}
         >
           <CalendarIcon size={16} strokeWidth={1.5} className="mr-2 shrink-0" />
           {value ? format(selected!, "MMMM d, yyyy") : placeholder}

@@ -22,6 +22,11 @@ describe("TimePicker", () => {
     expect(getInput().className).not.toContain("h-9");
   });
 
+  it("applies a caller style such as a scaled font size", () => {
+    render(<TimePicker onChange={onChange} style={{ fontSize: "calc(13px * var(--font-scale))" }} />);
+    expect(getInput().style.fontSize).toBe("calc(13px * var(--font-scale))");
+  });
+
   it("renders a time input with empty value when none given", () => {
     render(<TimePicker onChange={onChange} />);
     expect(getInput()).not.toBeNull();

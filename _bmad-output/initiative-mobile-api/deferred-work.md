@@ -359,7 +359,7 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Expanded reservation date controls need a touch-target and font scaling audit.
   evidence: Shared TimePicker uses a 36px Input and independent responsive font sizing. The sweep sized the collapsed trigger.
-  completed: 2026-11-26 on `refactor/lib-without-app-imports` (touch target only): `TimePicker` is now `h-11` (44px), which covers the reservation date editor, time dialog and anchor fieldset; test in `time-picker.test.tsx`. Font scaling stays open: the Input still uses `text-base md:text-sm`, independent of `--font-scale`.
+  completed: 2026-11-26 on `refactor/lib-without-app-imports`; `TimePicker` is `h-11` (44px) and `TimePicker` and `DatePicker` take a `style`, which the reservation date editor uses to give all four controls its `calc(13px * var(--font-scale))` size. Tests: `time-picker.test.tsx`, `date-picker.test.tsx`, `reservation-date-editor.test.tsx`.
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Escape leaves focus outside the date trigger.
   evidence: ReservationDateEditor unmounts the focused editor without moving focus to the collapsed trigger.

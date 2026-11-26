@@ -79,6 +79,19 @@ describe("DatePicker", () => {
     expect(screen.queryByRole("button", { name: /clear date/i })).not.toBeInTheDocument();
   });
 
+  it("merges a caller style into the trigger without losing its colour", () => {
+    render(
+      <DatePicker
+        onChange={onChange}
+        aria-label="Departure date"
+        style={{ fontSize: "calc(13px * var(--font-scale))" }}
+      />
+    );
+    const trigger = screen.getByLabelText("Departure date");
+    expect(trigger.style.fontSize).toBe("calc(13px * var(--font-scale))");
+    expect(trigger.style.color).toBe("var(--fg-3)");
+  });
+
   it("forwards aria-label and aria-invalid to the trigger", () => {
     render(<DatePicker onChange={onChange} aria-label="Departure date" aria-invalid />);
     const trigger = screen.getByLabelText("Departure date");

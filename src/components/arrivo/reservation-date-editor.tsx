@@ -20,6 +20,8 @@ export interface ReservationDateEditorProps {
 const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68 };
 const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)" };
 const TEXT_SIZE = "calc(13px * var(--font-scale))";
+// Pickers carry their own text size, so give them the editor size to follow the font-size setting.
+const CONTROL_STYLE: React.CSSProperties = { fontSize: TEXT_SIZE };
 
 function isoToParts(iso: string): { date: string; time: string } {
   const date = new Date(iso);
@@ -140,6 +142,7 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
           <div className="flex items-center gap-2">
             <span style={FIELD_LABEL_STYLE}>{ANCHOR_LABELS[type].start}</span>
             <DatePicker
+              style={CONTROL_STYLE}
               value={startDateDraft}
               onChange={setStartDateDraft}
               clearable={false}
@@ -150,6 +153,7 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
               aria-invalid={!!dateError}
             />
             <TimePicker
+              style={CONTROL_STYLE}
               value={startTimeDraft}
               onChange={setStartTimeDraft}
               aria-label={`${ANCHOR_LABELS[type].start} time`}
@@ -159,6 +163,7 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
           <div className="flex items-center gap-2">
             <span style={FIELD_LABEL_STYLE}>{ANCHOR_LABELS[type].end}</span>
             <DatePicker
+              style={CONTROL_STYLE}
               value={endDateDraft}
               onChange={setEndDateDraft}
               clearable={false}
@@ -169,6 +174,7 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
               aria-invalid={!!dateError}
             />
             <TimePicker
+              style={CONTROL_STYLE}
               value={endTimeDraft}
               onChange={setEndTimeDraft}
               aria-label={`${ANCHOR_LABELS[type].end} time`}
