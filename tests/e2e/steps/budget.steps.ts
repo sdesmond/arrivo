@@ -2,9 +2,10 @@ import { expect, type Page } from "@playwright/test";
 import { Given, When, Then } from "../fixtures";
 import { waitForApiResponse } from "../api-response";
 import { ExpenseCategory } from "../../../src/data/types";
-import { expenses } from "../../../src/db/schema";
-import { eq } from "drizzle-orm";
+import { expenses, reservations, trips } from "../../../src/db/schema";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { withE2EDb } from "../e2e-db";
+import { reloadPage } from "../page-reload";
 
 const createdExpenseIds = new WeakMap<Page, string>();
 
@@ -77,6 +78,11 @@ Then("the Budget tab shows {string} as Actual spent", async ({ page }, amount: s
   await expect(page.getByText(amount, { exact: true }).first()).toBeVisible();
 });
 
+Then("the Budget summary totals {string} as Actual spent", async ({ page }, amount: string) => {
+  const summary = page.getByText("Actual spent", { exact: true }).locator("..");
+  await expect(summary.locator(":scope > div:first-of-type > p")).toHaveText(amount);
+});
+
 Then("the Budget tab shows {string} as Budget", async ({ page }, amount: string) => {
   const escapedAmount = amount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   await expect(
@@ -112,6 +118,35 @@ Given("a trip with stale USD and EUR expenses", async ({ page, scenario }) => {
   );
   await scenario.gotoCurrentTrip(page);
 });
+
+Given("the reservation trip has a USD budget", async ({ page, scenario }) => {
+  await withE2EDb((database) =>
+    database
+      .update(trips)
+      .set({ budgetCurrency: "USD", budgetTotal: "500" })
+      .where(eq(trips.id, scenario.currentTrip!.id))
+  );
+  await reloadPage(page);
+  await page.getByRole("button", { name: "Reservations", exact: true }).click();
+});
+
+When("the linked USD reservation cost needs recalculation", async ({ scenario }) => {
+  const aged = await withE2EDb((database) =>
+    database
+      .update(expenses)
+      .set({ date: "2025-01-01", updatedAt: new Date("2020-01-01") })
+      .where(
+        and(
+          eq(expenses.tripId, scenario.currentTrip!.id),
+          eq(expenses.currency, "USD"),
+          isNotNull(expenses.reservationId)
+        )
+      )
+      .returning({ id: expenses.id })
+  );
+  expect(aged).toHaveLength(1);
+});
+
 When("I change its budget currency to EUR without conversion", async ({ page, scenario }) => {
   await page.getByRole("button", { name: "Budget", exact: true }).click();
   await page.getByRole("button", { name: "Edit budget" }).click();
@@ -148,6 +183,56 @@ Then("the recalculated budget conversions are persisted", async ({ scenario }) =
   expect([Number(native.convertedAmountTrip), Number(native.conversionRateTrip), native.convertedCurrencyTrip]).toEqual(
     [35, 1, "EUR"]
   );
+});
+
+function expectMiscExpense(row: typeof expenses.$inferSelect, id: string | undefined) {
+  expect(row).toMatchObject({
+    id,
+    category: ExpenseCategory.Misc,
+    currency: "EUR",
+    reservationId: null,
+    eventId: null,
+  });
+  expect([
+    Number(row.amount),
+    Number(row.convertedAmountTrip),
+    Number(row.conversionRateTrip),
+    row.convertedCurrencyTrip,
+  ]).toEqual([35, 35, 1, "EUR"]);
+}
+
+Then("the recalculated reservation and Misc expenses are persisted", async ({ page, scenario }) => {
+  const tripId = scenario.currentTrip!.id;
+  const { lodgings, rows } = await withE2EDb(async (database) => ({
+    lodgings: await database.select().from(reservations).where(eq(reservations.tripId, tripId)),
+    rows: await database.select().from(expenses).where(eq(expenses.tripId, tripId)),
+  }));
+  expect(lodgings).toHaveLength(1);
+  expect(lodgings[0]).toMatchObject({ type: "lodging", provider: "Revised Hotel Name" });
+  expect(rows).toHaveLength(2);
+  const linked = rows.find((row) => row.reservationId === lodgings[0].id)!;
+  expect(linked).toMatchObject({ category: ExpenseCategory.Food, currency: "USD", eventId: null });
+  expect([
+    Number(linked.amount),
+    Number(linked.convertedAmountTrip),
+    Number(linked.conversionRateTrip),
+    linked.convertedCurrencyTrip,
+  ]).toEqual([100, 92, 0.92, "EUR"]);
+  const miscId = createdExpenseIds.get(page);
+  expectMiscExpense(
+    rows.find((row) => row.id === miscId)!,
+    miscId
+  );
+});
+
+Then("only the original Misc expense survives", async ({ page, scenario }) => {
+  const rows = await withE2EDb((database) =>
+    database.select().from(expenses).where(eq(expenses.tripId, scenario.currentTrip!.id))
+  );
+  expect(rows).toHaveLength(1);
+  expectMiscExpense(rows[0], createdExpenseIds.get(page));
+  const table = page.getByRole("table", { name: "Expenses" });
+  await expect(table.getByRole("row", { name: /Misc.*€35\.00/ })).toBeVisible();
 });
 
 Then("the stale conversion indication is cleared", async ({ page }) => {

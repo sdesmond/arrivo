@@ -2875,6 +2875,9 @@ Feature: Absolute checklist checked-state API
     Then both trip snapshots share one ETag
     When I fetch the trip snapshot with the earlier ETag
     Then the trip snapshot answers 304 without a body
+    When the trip is renamed through the snapshot API
+    And I fetch the trip snapshot with the earlier ETag
+    Then the trip snapshot ETag differs from the earlier one
 
   Scenario Outline: Trip snapshot access by role
     Given my checklist API role is "<role>"

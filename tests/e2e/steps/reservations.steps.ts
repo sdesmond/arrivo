@@ -1,7 +1,7 @@
 import { findScenarioDocument } from "../document-fixture";
 import { expect, type APIResponse, type Page } from "@playwright/test";
-import { and, eq } from "drizzle-orm";
-import { readFile } from "node:fs/promises";
+import { and, eq, sql } from "drizzle-orm";
+import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
@@ -9,6 +9,7 @@ import {
   days,
   documents,
   expenses,
+  idempotencyKeys,
   pendingFileDeletions,
   reservations,
   trips,
@@ -42,7 +43,7 @@ interface DocumentScopeRace {
   deletionError?: Error;
 }
 const documentScopeRaces = new WeakMap<Page, DocumentScopeRace>();
-const recordedFileUrls = new WeakMap<Page, string>();
+const recordedFiles = new WeakMap<Page, { id: string; url: string; storageKey: string }>();
 const deletingReservations = new WeakMap<Page, string>();
 
 interface ReservationApiState {
@@ -751,19 +752,28 @@ Then("the promotion answered {int} and the reservation deletion saved", async ({
 });
 
 When("I note the stored file of the reservation doc {string}", async ({ page, scenario }, name: string) => {
-  recordedFileUrls.set(page, (await scenarioDocument(scenario.currentTrip!.id, name)).url!);
+  const { id, url } = await scenarioDocument(scenario.currentTrip!.id, name);
+  expect(url).toMatch(/^\/api\/storage\/.+/);
+  const storageKey = url!.replace(/^\/api\/storage\//, "");
+  expect((await stat(join(resolve(E2E_STORAGE_DIRECTORY), storageKey))).isFile()).toBe(true);
+  recordedFiles.set(page, { id, url: url!, storageKey });
 });
 
 Then("the reservation document {string} and its noted file are gone", async ({ page, scenario }, name: string) => {
-  const url = recordedFileUrls.get(page);
-  if (!url) throw new Error("The stored file was not noted.");
+  const file = recordedFiles.get(page);
+  if (!file) throw new Error("The stored file was not noted.");
+  const { id, url, storageKey } = file;
+  expect(
+    await withE2EDb((database) => database.select({ id: documents.id }).from(documents).where(eq(documents.id, id)))
+  ).toHaveLength(0);
   expect(await findScenarioDocument(scenario.currentTrip!.id, name)).toBeUndefined();
   await expect
     .poll(async () => {
       try {
-        await readFile(join(resolve(E2E_STORAGE_DIRECTORY), url.replace(/^\/api\/storage\//, "")));
+        await stat(join(resolve(E2E_STORAGE_DIRECTORY), storageKey));
         return true;
-      } catch {
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         return false;
       }
     })
@@ -780,6 +790,15 @@ Then("the reservation document {string} and its noted file are gone", async ({ p
     )
     .toBe(0);
   expect((await page.request.get(url)).status()).toBe(404);
+});
+
+Then("the deleted reservation no longer exists", async ({ page }) => {
+  const id = deletingReservations.get(page)!;
+  expect(
+    await withE2EDb((database) =>
+      database.select({ id: reservations.id }).from(reservations).where(eq(reservations.id, id))
+    )
+  ).toHaveLength(0);
 });
 
 const reservationReplayStatuses = new WeakMap<Page, number[]>();
@@ -838,6 +857,137 @@ When(
 );
 Then("both deleted IDs are rejected without resurrection", async ({ page }) => {
   expect(reservationReplayStatuses.get(page)).toEqual([409, 409]);
+});
+
+const directlyDeletedExpenses = new WeakMap<Page, { id: string; retry: APIResponse }>();
+
+When("I directly delete an expense and retry its create", async ({ page, scenario }) => {
+  const trip = scenario.currentTrip!;
+  const id = randomUUID();
+  const client = await apiClient(page);
+  const headers = reservationApiHeaders(page);
+  const collection = `/api/v1/trips/${trip.id}/expenses`;
+  const data = { id, category: "misc", amount: 10, currency: "USD", date: trip.endDate };
+  expect((await client.post(collection, { headers, data })).status()).toBe(200);
+  expect((await client.delete(`/api/v1/expenses/${id}`, { headers, data: {} })).status()).toBe(204);
+  directlyDeletedExpenses.set(page, { id, retry: await client.post(collection, { headers, data }) });
+});
+
+Then("the directly deleted expense ID is rejected without resurrection", async ({ page, scenario }) => {
+  const { id, retry } = directlyDeletedExpenses.get(page)!;
+  expect(retry.status()).toBe(409);
+  expect(await retry.json()).toMatchObject({
+    error: { code: "conflict", message: expect.stringContaining("expense was deleted") },
+  });
+  const tripId = scenario.currentTrip!.id;
+  const { survivingTrip, resurrected, deletion } = await withE2EDb(async (database) => ({
+    survivingTrip: await database.select({ id: trips.id }).from(trips).where(eq(trips.id, tripId)),
+    resurrected: await database.select({ id: expenses.id }).from(expenses).where(eq(expenses.id, id)),
+    deletion: await database
+      .select({ key: idempotencyKeys.key })
+      .from(idempotencyKeys)
+      .where(
+        and(eq(idempotencyKeys.key, `deleted:expense:${id}`), eq(idempotencyKeys.userId, scenario.currentUser!.id))
+      ),
+  }));
+  expect(survivingTrip).toHaveLength(1);
+  expect(resurrected).toHaveLength(0);
+  expect(deletion).toHaveLength(1);
+});
+
+interface ReservationKeyReplay {
+  original: unknown;
+  live: unknown;
+  expired: unknown;
+  providerAfterLive: string | null;
+  providerAfterExpiry: string | null;
+  originalRecord: unknown;
+  liveRecord: unknown;
+  replacement: unknown;
+  agedExpiry: string;
+}
+const reservationKeyReplays = new WeakMap<Page, ReservationKeyReplay>();
+
+When("I patch a reservation with a key and retry before and after expiry", async ({ page, scenario }) => {
+  const tripId = scenario.currentTrip!.id;
+  const [reservation] = await withE2EDb((database) =>
+    database.select({ id: reservations.id }).from(reservations).where(eq(reservations.tripId, tripId))
+  );
+  const provider = async () =>
+    withE2EDb(async (database) => {
+      const [row] = await database
+        .select({ provider: reservations.provider })
+        .from(reservations)
+        .where(eq(reservations.id, reservation.id));
+      return row.provider;
+    });
+
+  const key = randomUUID();
+  const scope = and(eq(idempotencyKeys.key, `api:v1:${key}`), eq(idempotencyKeys.userId, scenario.currentUser!.id));
+  const record = async () =>
+    withE2EDb(async (database) => {
+      const rows = await database.select({ result: idempotencyKeys.result }).from(idempotencyKeys).where(scope);
+      expect(rows).toHaveLength(1);
+      return rows[0].result;
+    });
+  const client = await apiClient(page);
+  const path = `/api/v1/reservations/${reservation.id}`;
+  const request = { headers: reservationApiHeaders(page, key), data: { provider: "Keyed Hotel Name" } };
+  const patchWithKey = async (): Promise<unknown> => {
+    const response = await client.patch(path, request);
+    expect(response.status()).toBe(200);
+    return response.json();
+  };
+
+  try {
+    const original = await patchWithKey();
+    const originalRecord = await record();
+    const changed = await client.patch(path, {
+      headers: reservationApiHeaders(page),
+      data: { provider: "Later Hotel Name" },
+    });
+    expect(changed.status()).toBe(200);
+    expect(await provider()).toBe("Later Hotel Name");
+    const live = await patchWithKey();
+    const providerAfterLive = await provider();
+    const liveRecord = await record();
+    const agedExpiry = new Date(Date.now() - 1_000).toISOString();
+    const aged = await withE2EDb((database) =>
+      database
+        .update(idempotencyKeys)
+        .set({ result: sql`jsonb_set(${idempotencyKeys.result}, '{expiresAt}', to_jsonb(${agedExpiry}::text))` })
+        .where(scope)
+        .returning({ key: idempotencyKeys.key })
+    );
+    expect(aged).toHaveLength(1);
+    const expired = await patchWithKey();
+    reservationKeyReplays.set(page, {
+      original,
+      live,
+      expired,
+      providerAfterLive,
+      providerAfterExpiry: await provider(),
+      originalRecord,
+      liveRecord,
+      replacement: await record(),
+      agedExpiry,
+    });
+  } finally {
+    await withE2EDb((database) => database.delete(idempotencyKeys).where(scope));
+  }
+});
+
+Then("the live reservation key replays and the expired key replaces its record", async ({ page }) => {
+  const replay = reservationKeyReplays.get(page)!;
+  expect(replay.original).toMatchObject({ provider: "Keyed Hotel Name" });
+  expect(replay.live).toEqual(replay.original);
+  expect(replay.providerAfterLive).toBe("Later Hotel Name");
+  expect(replay.liveRecord).toEqual(replay.originalRecord);
+  expect(replay.expired).toMatchObject({ provider: "Keyed Hotel Name" });
+  expect(replay.providerAfterExpiry).toBe("Keyed Hotel Name");
+  const replacement = replay.replacement as { expiresAt: string; response: unknown };
+  expect(Date.parse(replacement.expiresAt)).toBeGreaterThan(Date.parse(replay.agedExpiry));
+  expect(replacement.response).toEqual(replay.expired);
 });
 
 function reservationCostRow(page: Page) {

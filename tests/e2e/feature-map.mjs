@@ -821,6 +821,17 @@ export const FEATURE_MAP = [
   ]),
   entry("reservations", [
     "tests/e2e/steps/api.steps.ts",
+    "tests/e2e/steps/budget.steps.ts",
+    // The lodging lifecycle opens Budget, edits its currency, and recalculates expenses.
+    "src/components/arrivo/trip-budget-tab.tsx",
+    "src/components/arrivo/trip-add-expense-modal.tsx",
+    "src/components/arrivo/expense-table.tsx",
+    "src/components/arrivo/budget-progress-bar.tsx",
+    "src/components/arrivo/status-badge.tsx",
+    "src/components/arrivo/trip-currency-change-dialog.tsx",
+    "src/app/(app)/trips/[tripId]/trip-detail-tabs.ts",
+    "src/lib/budget.ts",
+    "src/lib/currency.ts",
     // Row costs create, edit and remove their linked expense through the expense endpoints.
     "src/components/arrivo/cost-dialog.tsx",
     "src/lib/services/expenses.ts",
