@@ -345,10 +345,12 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-create-expenses-through-the-api-plan.md`
   summary: Expenses removed by cascade (event, reservation or trip deletion) are not recorded as deletion records, so a replayed id returns 404 instead of 409.
   evidence: only `deleteExpense` calls `recordDeletion`; cascades bypass it. Same gap exists for other kinds.
+  completed: 2026-11-26 on `story/7-5-edit-delete-expenses-api`, `story/7-8-refactor-sweep` and `story/7-9-verify-reservations-budget`; event, day and date-change deletes record their expenses (`45ee28ea`), reservation deletes and cascades are recorded (`af1bb18d`, `8067bf1c`), and 7.9 proves five parent-cascade examples (`api.feature` "Cascade-deleted client IDs cannot be recreated under a live parent").
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-edit-and-delete-expenses-through-the-api-plan.md`
   summary: Server-action `deleteExpense` (still used by place-row and reservation-cost-chip) does not record a deletion, so a late create retry can recreate the expense.
   evidence: Only the API `deleteExpense` calls `recordDeletion("expense")`; plan Never defers migrating those callers.
+  completed: 2026-11-26 on `story/7-6-move-linked-expense-callers-to-the-api`; `place-row` and `reservation-cost-chip` call the expense API and no `"use server"` file mentions expenses or reservations, so only the API `deleteExpense` (which records the deletion) remains.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-edit-and-delete-expenses-through-the-api-plan.md`
   summary: An expense saved with a failed conversion cannot be retried by re-saving unchanged values (the unchanged patch is a no-op).
   evidence: Matrix row "Unchanged patch" returns the stored row; the unconverted-expense toast says "Edit it later to retry".
@@ -366,6 +368,10 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Audit deletion records for trips deleted during account removal.
   evidence: Account deletion deletes trips directly and can remove children linked by foreign keys outside the removed account's trips.
+  completed: 2026-11-26 on `fix/account-deletion-records`; `removeAccount` now finds each deleted trip's rows with the same `selectTripCascade` that `deleteTrip` uses (it follows every foreign key, so legacy cross-trip children are covered) and records them under the deleted account's id, and the account's own keys delete now skips `deleted:` records. Tests: `account-deletion.test.ts`, `trip-cascade.test.ts`, `admin-account-deletion.feature` "Deleting an account remembers its trip's rows". The concurrency item below stays open.
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Add deterministic concurrency coverage for cross-trip foreign-key cascades.
   evidence: The browser outline verifies sequential retries after DELETE. An interleaved upload through a surviving trip would verify that removing a parent row lock permits an unrecorded deletion.
+- source_plan: `fix/account-deletion-records` (validator run, 2026-11-26)
+  summary: Two E2E scenarios failed in the full affected run but passed alone: `trip-live-refresh.feature` "A contributor viewing the trip is redirected when it is deleted elsewhere" and `trips.feature` "Changing the trip's transit mode via the Getting Around section".
+  evidence: Two full affected runs (947 and 949 passed). The transit scenario failed in both ("aria-pressed" Expected "true", Received "false"); the redirect scenario failed once (a locator expected 0 elements, received 2). Each passed 3 of 3 alone and with their whole features (18 passed). No baseline run on a clean `feature/api-v1`, so not confirmed pre-existing; suspected load timing.

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { collaborators, documents, idempotencyKeys, invitations, trips, users } from "@/db/schema";
@@ -18,6 +18,9 @@ import {
   previewAccountDeletionAsAdmin,
   type AccountDeletionDatabase,
 } from "./account-deletion";
+
+const cascadeMocks = vi.hoisted(() => ({ selectTripCascade: vi.fn(), recordTripCascade: vi.fn() }));
+vi.mock("@/lib/services/trip-cascade", () => cascadeMocks);
 
 const dialect = new PgDialect();
 const ME = "user-1";
@@ -101,8 +104,18 @@ function createDatabase(fixture: Fixture = {}) {
     ],
     [trips, fixture.ownedTrips ?? []],
     [collaborators, fixture.members ?? []],
-    [documents, fixture.tripDocuments ?? []],
   ]);
+  // The helper that finds each deleted trip's rows is covered in trip-cascade.test.ts; give the first trip the files.
+  let cascadeReads = 0;
+  cascadeMocks.selectTripCascade.mockReset();
+  cascadeMocks.recordTripCascade.mockReset();
+  cascadeMocks.selectTripCascade.mockImplementation(async (_transaction: unknown, tripId: string) => ({
+    files:
+      cascadeReads++ === 0
+        ? (fixture.tripDocuments ?? []).map((file, index) => ({ id: `document-${index}`, ...file }))
+        : [],
+    removed: { day: [{ id: `${tripId}-day` }] },
+  }));
   const returningResults = new Map<unknown, unknown[]>([
     [invitations, fixture.rescindedInvitations ?? []],
     [collaborators, fixture.departedMemberships ?? []],
@@ -418,8 +431,47 @@ describe("deleteOwnAccount — shared trip handoff", () => {
 
     const removal = writes.find((write) => write.op === "delete" && write.table === idempotencyKeys);
     const query = dialect.sqlToQuery(removal!.condition!);
-    expect(query.sql).toBe('"idempotency_keys"."user_id" = $1');
-    expect(query.params).toEqual([ME]);
+    expect(query.sql).toBe('("idempotency_keys"."user_id" = $1 and "idempotency_keys"."key" not like $2)');
+    expect(query.params).toEqual([ME, "deleted:%"]);
+  });
+
+  it("keeps deletion records so a retried create cannot bring a deleted trip's rows back", async () => {
+    const { database, events } = createDatabase({ ownedTrips: [SOLO_TRIP] });
+
+    await deleteOwnAccount(database, ME, [], 0);
+
+    expect(cascadeMocks.selectTripCascade).toHaveBeenCalledWith(expect.anything(), SOLO_TRIP.id);
+    expect(cascadeMocks.recordTripCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      SOLO_TRIP.id,
+      expect.objectContaining({ removed: { day: [{ id: `${SOLO_TRIP.id}-day` }] } }),
+      ME
+    );
+    const calls = cascadeMocks.recordTripCascade.mock.invocationCallOrder[0];
+    expect(calls).toBeGreaterThan(cascadeMocks.selectTripCascade.mock.invocationCallOrder[0]);
+    // Found before the delete removes them, recorded after it, and both before the account's own rows go.
+    expect(events.indexOf("delete:trips")).toBeGreaterThanOrEqual(0);
+    expect(events.indexOf("delete:users")).toBe(events.length - 1);
+  });
+
+  it("records nothing for a trip that is handed to someone else", async () => {
+    const { database } = createDatabase({ ownedTrips: [SHARED_TRIP], members: SHARED_TRIP_MEMBERS });
+
+    await deleteOwnAccount(
+      database,
+      ME,
+      [
+        {
+          tripId: SHARED_TRIP.id,
+          action: TripDeletionAction.Transfer,
+          newOwnerUserId: "00000000-0000-4000-8000-000000000003",
+        },
+      ],
+      0
+    );
+
+    expect(cascadeMocks.selectTripCascade).not.toHaveBeenCalled();
+    expect(cascadeMocks.recordTripCascade).not.toHaveBeenCalled();
   });
 
   it("removes the user's collaborator rows and then the user last", async () => {
@@ -806,6 +858,13 @@ describe("deleteAccountAsAdmin", () => {
       },
     });
     expect(writes.some((write) => write.op === "delete" && write.table === trips)).toBe(true);
+    // Admin deletion shares the removal, so its trips leave deletion records under the deleted account too.
+    expect(cascadeMocks.recordTripCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      SHARED_TRIP.id,
+      expect.anything(),
+      TARGET_ID
+    );
   });
 
   it("deletes a pending account through the same flow", async () => {

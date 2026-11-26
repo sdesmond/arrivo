@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notLike } from "drizzle-orm";
 import type { db } from "@/db";
-import { collaborators, documents, idempotencyKeys, invitations, trips, users } from "@/db/schema";
+import { collaborators, idempotencyKeys, invitations, trips, users } from "@/db/schema";
 import {
   AccountDeletionFailure,
   AdminDeletionFailure,
@@ -24,6 +24,8 @@ import {
   LastCompletedAdminError,
   lockAppAndUsersForUpdate,
 } from "@/lib/account-lifecycle-locks";
+import { DELETION_RECORD_NAMESPACE } from "@/lib/services/deletion-records";
+import { recordTripCascade, selectTripCascade, type TripCascade } from "@/lib/services/trip-cascade";
 import { lockTripForUpdate, TRIP_NOT_FOUND_MESSAGE } from "@/lib/server-action-locks";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { areDeletionChoicesValid, buildSharedOwnedTrips } from "@/lib/trip-ownership";
@@ -195,16 +197,14 @@ async function removeAccount(transaction: DbTransaction, removal: AccountRemoval
   const deletedTrips = ownedTrips.filter((trip) => !heirByTripId.has(trip.id));
   const deletedTripIds = deletedTrips.map((trip) => trip.id);
 
-  const deletedTripDocuments =
-    deletedTripIds.length > 0
-      ? await transaction
-          .select({ url: documents.url })
-          .from(documents)
-          .where(inArray(documents.tripId, deletedTripIds))
-      : [];
+  // Found before the trips go (their rows cascade) and recorded after, so a create retried with a deleted row's client
+  // id conflicts. The records go under the deleted account's id and survive it: see the keys delete below.
+  const cascades: [string, TripCascade][] = [];
+  for (const tripId of deletedTripIds) cascades.push([tripId, await selectTripCascade(transaction, tripId)]);
   if (deletedTripIds.length > 0) {
     await transaction.delete(trips).where(inArray(trips.id, deletedTripIds));
   }
+  for (const [tripId, cascade] of cascades) await recordTripCascade(transaction, tripId, cascade, account.id);
 
   for (const [tripId, heirUserId] of heirByTripId) {
     if (clearCreators) {
@@ -221,9 +221,11 @@ async function removeAccount(transaction: DbTransaction, removal: AccountRemoval
     .delete(collaborators)
     .where(eq(collaborators.userId, account.id))
     .returning({ tripId: collaborators.tripId });
-  // Replay and deletion records hold the account's request results; `user_id` has no foreign key, so they go here
-  // rather than waiting for the 24-hour sweep.
-  await transaction.delete(idempotencyKeys).where(eq(idempotencyKeys.userId, account.id));
+  // Replay records hold the account's request results; `user_id` has no foreign key, so they go here rather than
+  // waiting for the 24-hour sweep. Deletion records hold only a resource id, and a retried create must still hit them.
+  await transaction
+    .delete(idempotencyKeys)
+    .where(and(eq(idempotencyKeys.userId, account.id), notLike(idempotencyKeys.key, `${DELETION_RECORD_NAMESPACE}%`)));
   await transaction.delete(users).where(eq(users.id, account.id));
 
   return {
@@ -237,7 +239,7 @@ async function removeAccount(transaction: DbTransaction, removal: AccountRemoval
     ),
     remainingTripIds: departedMemberships.map((membership) => membership.tripId),
     storageUrls: [
-      ...deletedTripDocuments.map((tripDocument) => tripDocument.url),
+      ...cascades.flatMap(([, cascade]) => cascade.files.map((file) => file.url)),
       ...deletedTrips.map((trip) => trip.coverImageUrl),
       avatarUrl,
     ].filter((url): url is string => !!url),

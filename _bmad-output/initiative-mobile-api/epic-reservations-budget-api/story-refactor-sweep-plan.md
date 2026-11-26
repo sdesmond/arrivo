@@ -3,7 +3,7 @@ title: "Reservation and budget refactor sweep"
 type: refactor
 ticket: 8
 created: "2026-11-25"
-status: built
+status: done
 baseline_revision: "0f565cccbedb0f04a0c084574138aa162b0811ae"
 route: full
 route_source: auto
