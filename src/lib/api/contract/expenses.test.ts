@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createExpense, deleteExpense, listExpenses, updateExpense } from "./expenses";
+import { createExpense, deleteExpense, listExpenses, recalculateExpenses, updateExpense } from "./expenses";
 
 const id = "123e4567-e89b-12d3-a456-426614174000";
 const base = { id, category: "food", amount: 12.5, currency: "EUR", date: "2026-08-01" };
@@ -98,4 +98,11 @@ it("rejects invalid patches", () => {
     { eventId: id, reservationId: id },
   ])
     expect(updateExpense.body.safeParse(body).success).toBe(false);
+});
+
+it("defines a strict empty recalculation request", () => {
+  expect(recalculateExpenses.method).toBe("POST");
+  expect(recalculateExpenses.path).toBe("/api/v1/trips/:tripId/expenses/recalculate");
+  expect(recalculateExpenses.body.safeParse({}).success).toBe(true);
+  expect(recalculateExpenses.body.safeParse({ currency: "EUR" }).success).toBe(false);
 });

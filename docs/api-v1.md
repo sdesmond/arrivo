@@ -291,6 +291,12 @@ The server converts the amount to the trip's budget currency and to the caller's
 
 Retries with the same `id` and content return the existing expense without a duplicate row or extra activity. A different payload or an `id` deleted within the last 24 hours returns 409 `conflict`; an `id` that belongs to a trip the caller cannot see returns 404. Invalid input returns 422 and viewers receive 403. An optional `Idempotency-Key` also supports safe retries and replays the original response, flag included.
 
+### POST /api/v1/trips/:tripId/expenses/recalculate
+
+**Role** editor Â· **`Idempotency-Key`** yes Â· **Success** `200` `{ recalculated: true }`
+
+Send `{}`. Recalculates every expense against the trip's persisted budget currency, including native amounts at rate 1. Profile conversions are unchanged. The operation locks the trip and rechecks access; a failed lookup or write rolls back the entire operation. With no budget currency, it succeeds only when no expenses need recalculation. Viewers receive 403 and inaccessible trips receive 404.
+
 ### PATCH /api/v1/expenses/:expenseId
 
 **Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Expense & { conversionError?: true }`

@@ -97,3 +97,11 @@ export const deleteExpense = defineEndpoint<null>()({
   params: expenseParams,
   body: z.strictObject({}),
 });
+
+/** Recalculates trip-currency conversions using the persisted budget currency. */
+export const recalculateExpenses = defineEndpoint<{ recalculated: true }>()({
+  method: "POST",
+  path: "/api/v1/trips/:tripId/expenses/recalculate",
+  params,
+  body: z.strictObject({}),
+});

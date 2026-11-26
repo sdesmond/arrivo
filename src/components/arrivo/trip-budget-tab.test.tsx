@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as navigation from "next/navigation";
 
 const { recalculateConversions } = vi.hoisted(() => ({
   recalculateConversions: vi.fn(),
 }));
 
-vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  recalculateConversions,
-}));
+vi.mock("@/lib/api/client", () => ({ api: recalculateConversions }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -562,6 +561,9 @@ describe("TripBudgetTab", () => {
 
       const recalculatingButton = screen.getByRole("button", { name: "Recalculating..." });
       expect(recalculatingButton).toBeDisabled();
+      recalculateConversions.mockClear();
+      await user.click(recalculatingButton);
+      expect(recalculateConversions).not.toHaveBeenCalled();
 
       resolveRecalculation();
       await waitFor(() => expect(screen.getByRole("button", { name: "Recalculate Conversions" })).toBeEnabled());
@@ -582,13 +584,19 @@ describe("TripBudgetTab", () => {
 
       await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
 
-      expect(recalculateConversions).toHaveBeenCalledWith("trip-1");
+      expect(recalculateConversions).toHaveBeenCalledWith(
+        expect.objectContaining({ path: "/api/v1/trips/:tripId/expenses/recalculate" }),
+        { params: { tripId: "trip-1" }, body: {} }
+      );
     });
 
     it("shows a success toast on completion", async () => {
       const user = userEvent.setup();
       recalculateConversions.mockResolvedValue({ recalculated: true });
       const { toast } = await import("sonner");
+      const refresh = vi.fn();
+      const router = navigation.useRouter();
+      const routerSpy = vi.spyOn(navigation, "useRouter").mockReturnValue({ ...router, refresh });
       const expenses = [makeExpense({ id: "a", currency: "GBP" })];
       render(
         <TripBudgetTab
@@ -602,12 +610,17 @@ describe("TripBudgetTab", () => {
       await user.click(screen.getByRole("button", { name: "Recalculate Conversions" }));
 
       await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Conversions recalculated."));
+      expect(refresh).toHaveBeenCalledOnce();
+      routerSpy.mockRestore();
     });
 
     it("shows an error toast on failure", async () => {
       const user = userEvent.setup();
       recalculateConversions.mockRejectedValue(new Error("Currency conversion failed (HTTP 503)."));
       const { toast } = await import("sonner");
+      const refresh = vi.fn();
+      const router = navigation.useRouter();
+      const routerSpy = vi.spyOn(navigation, "useRouter").mockReturnValue({ ...router, refresh });
       const expenses = [makeExpense({ id: "a", currency: "GBP" })];
       render(
         <TripBudgetTab
@@ -623,6 +636,9 @@ describe("TripBudgetTab", () => {
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith("Recalculation failed — no amounts were changed. Try again.")
       );
+      expect(screen.getByRole("button", { name: "Recalculate Conversions" })).toBeEnabled();
+      expect(refresh).not.toHaveBeenCalled();
+      routerSpy.mockRestore();
     });
   });
 

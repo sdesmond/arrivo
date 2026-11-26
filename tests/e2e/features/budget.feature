@@ -47,3 +47,15 @@ Feature: Budget
     And I reload the browser page
     And I open the Budget tab
     Then the Budget tab shows no "Food" category tile
+
+  Scenario: Recalculated conversions persist after changing trip currency
+    Given a trip with stale USD and EUR expenses
+    When I change its budget currency to EUR without conversion
+    And I open the Budget tab
+    And I recalculate budget conversions
+    Then the Budget tab shows "€127.00" as Actual spent
+    And the stale conversion indication is cleared
+    When I reload the browser page
+    And I open the Budget tab
+    Then the Budget tab shows "€127.00" as Actual spent
+    And the recalculated budget conversions are persisted
