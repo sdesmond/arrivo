@@ -1,4 +1,3 @@
-import "server-only";
 import { and, eq, gt } from "drizzle-orm";
 import { idempotencyKeys } from "@/db/schema";
 import { IDEMPOTENCY_RETENTION_MS } from "@/lib/idempotency-retention";
