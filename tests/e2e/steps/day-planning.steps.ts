@@ -16,6 +16,13 @@ import {
   e2eTripDateTime,
 } from "../e2e-seed-data";
 import { waitForApiResponse } from "../api-response";
+import {
+  addLinkedCost,
+  editLinkedCost,
+  expectLinkedCostChip,
+  expectNoLinkedCost,
+  removeLinkedCost,
+} from "../linked-cost";
 import { Given, When, Then, Before } from "../fixtures";
 import { reloadPage } from "../page-reload";
 
@@ -1901,4 +1908,56 @@ Then("mixed trip changes are stored together", async ({ page, scenario }) => {
   );
   expect(trip.name).toBe("Mixed edit");
   expect(trip.endDate).toBe(E2E_TRIP_START_DATE);
+});
+
+function placeCostRow(page: Page, eventName: string): Locator {
+  return page.locator('[id^="event-"]').filter({ hasText: eventName }).first();
+}
+
+When(
+  "I add a {string} {string} cost in the {string} category to the event {string}",
+  async ({ page, scenario }, amount: string, currency: string, category: string, eventName: string) => {
+    await addLinkedCost(page, placeCostRow(page, eventName), scenario.currentTrip!.id, { amount, currency, category });
+  }
+);
+
+When(
+  "I change the cost of the event {string} from {string} {string} to {string}",
+  async ({ page }, eventName: string, currency: string, current: string, amount: string) => {
+    await editLinkedCost(
+      page,
+      placeCostRow(page, eventName),
+      formatCurrencyChipAmount(Number(current), currency),
+      amount
+    );
+  }
+);
+
+When(
+  "I remove the cost of {string} {string} from the event {string}",
+  async ({ page }, currency: string, current: string, eventName: string) => {
+    await removeLinkedCost(page, placeCostRow(page, eventName), formatCurrencyChipAmount(Number(current), currency));
+  }
+);
+
+When("I reload the browser page and reopen the first day", async ({ page }) => {
+  await reloadPage(page);
+  await page.waitForLoadState("domcontentloaded");
+  await openFirstDay(page);
+});
+
+Then(
+  "the event {string} shows a cost of {string} {string}",
+  async ({ page }, eventName: string, currency: string, amount: string) => {
+    await expectLinkedCostChip(placeCostRow(page, eventName), amount, currency);
+  }
+);
+
+Then("the event {string} shows no cost", async ({ page }, eventName: string) => {
+  await expectNoLinkedCost(placeCostRow(page, eventName));
+});
+
+When("I return to the Itinerary tab and reopen the first day", async ({ page }) => {
+  await page.getByRole("button", { name: "Itinerary", exact: true }).click();
+  await openFirstDay(page);
 });

@@ -14,8 +14,16 @@ import {
   trips,
 } from "../../../src/db/schema";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
+import { formatCurrencyChipAmount } from "../../../src/lib/currencies";
 import { waitForApiResponse } from "../api-response";
 import { apiClient } from "../anonymous-api";
+import {
+  addLinkedCost,
+  editLinkedCost,
+  expectLinkedCostChip,
+  expectNoLinkedCost,
+  removeLinkedCost,
+} from "../linked-cost";
 import { withE2EDb } from "../e2e-db";
 import { holdScenarioTripLock, type HeldTripLock } from "../document-scope-concurrency";
 import { e2eTripDate, e2eTripDateTime } from "../e2e-seed-data";
@@ -844,4 +852,34 @@ When(
 );
 Then("both deleted IDs are rejected without resurrection", async ({ page }) => {
   expect(reservationReplayStatuses.get(page)).toEqual([409, 409]);
+});
+
+function reservationCostRow(page: Page) {
+  return page.locator("body");
+}
+
+When(
+  "I add a {string} {string} cost in the {string} category to the reservation",
+  async ({ page, scenario }, amount: string, currency: string, category: string) => {
+    await addLinkedCost(page, reservationCostRow(page), scenario.currentTrip!.id, { amount, currency, category });
+  }
+);
+
+When(
+  "I change the reservation cost from {string} {string} to {string}",
+  async ({ page }, currency: string, current: string, amount: string) => {
+    await editLinkedCost(page, reservationCostRow(page), formatCurrencyChipAmount(Number(current), currency), amount);
+  }
+);
+
+When("I remove the reservation cost of {string} {string}", async ({ page }, currency: string, current: string) => {
+  await removeLinkedCost(page, reservationCostRow(page), formatCurrencyChipAmount(Number(current), currency));
+});
+
+Then("the reservation shows a cost of {string} {string}", async ({ page }, currency: string, amount: string) => {
+  await expectLinkedCostChip(reservationCostRow(page), amount, currency);
+});
+
+Then("the reservation shows no cost", async ({ page }) => {
+  await expectNoLinkedCost(reservationCostRow(page));
 });

@@ -88,6 +88,33 @@ Feature: Reservations
     And the "Check-in" anchor shows a time of "10:00"
     And the reservation "Updated Hotel Name" shows the "Check-in" address "Paris, France"
 
+  Scenario: Add, edit and remove a reservation cost and keep the Budget tab in sync
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    When I add a "20.00" "EUR" cost in the "Food" category to the reservation
+    Then the reservation shows a cost of "EUR" "20.00"
+    When I reload the browser page
+    And the "Lodging" reservation section is expanded
+    Then the reservation shows a cost of "EUR" "20.00"
+    When I open the Budget tab
+    Then the Budget tab shows "€20.00" as Actual spent
+    When I am on the Reservations tab
+    And the "Lodging" reservation section is expanded
+    And I change the reservation cost from "EUR" "20.00" to "35.00"
+    And I reload the browser page
+    And the "Lodging" reservation section is expanded
+    Then the reservation shows a cost of "EUR" "35.00"
+    When I open the Budget tab
+    Then the Budget tab shows "€35.00" as Actual spent
+    When I am on the Reservations tab
+    And the "Lodging" reservation section is expanded
+    And I remove the reservation cost of "EUR" "35.00"
+    And I reload the browser page
+    And the "Lodging" reservation section is expanded
+    Then the reservation shows no cost
+    When I open the Budget tab
+    Then the Budget tab shows no "Food" category tile
+
   Scenario: Delete a reservation removes it, its section, and shows the empty state
     Given the trip has a Lodging reservation
     And the "Lodging" reservation section is expanded
