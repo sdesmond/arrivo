@@ -3,7 +3,7 @@ title: "Delete reservations through the API"
 type: feature
 ticket: 4
 created: "2026-11-24"
-status: built
+status: done
 baseline_revision: b8f46cd1e4c297e4941ac52e286a0cc4a5e9da32
 route: full
 route_source: auto

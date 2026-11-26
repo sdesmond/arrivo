@@ -3,7 +3,7 @@ title: "Recalculate expense conversions through the API"
 type: feature
 ticket: 7
 created: "2026-11-25"
-status: built
+status: done
 baseline_revision: "fc06219757c44a2e14e5597e5a6c9bf9dcfdc371"
 route: full
 route_source: auto

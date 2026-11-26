@@ -3,7 +3,7 @@ title: Verify reservations and budget end to end
 type: chore
 ticket: 9
 created: "2026-11-25"
-status: built
+status: done
 baseline_revision: "dbbe043c6b47e475a4edd740480286409f7b14b3"
 route: full
 route_source: auto

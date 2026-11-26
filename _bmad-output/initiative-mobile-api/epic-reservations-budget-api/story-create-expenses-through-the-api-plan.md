@@ -3,7 +3,7 @@ title: "Create expenses through the API"
 type: feature
 ticket: 2
 created: "2026-11-24"
-status: built
+status: done
 baseline_revision: "4d9dff7cfd219a5402ac40c7c51aae09d9185c98"
 route: full
 route_source: auto

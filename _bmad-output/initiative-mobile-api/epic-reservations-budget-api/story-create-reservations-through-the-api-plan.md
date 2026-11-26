@@ -3,7 +3,7 @@ title: "Create reservations through the API"
 type: feature
 ticket: 1
 created: 2026-11-23
-status: built
+status: done
 baseline_revision: f96829d63e9f423d3259400c47790aabfa89cb51
 route: full
 route_source: auto

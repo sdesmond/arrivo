@@ -3,7 +3,7 @@ title: "Move linked-expense callers to the API"
 type: feature
 ticket: 6
 created: "2026-11-25"
-status: built
+status: done
 baseline_revision: "893c6942848be989b5e4b9b8b3898398070bd544"
 route: full
 route_source: auto

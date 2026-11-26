@@ -3,7 +3,7 @@ title: "Edit and delete expenses through the API"
 type: feature
 ticket: 5
 created: "2026-11-25"
-status: built
+status: done
 baseline_revision: "9ff280ace5dbdb3aa3d7457d951959dea5d8d66c"
 route: full
 route_source: auto
