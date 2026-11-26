@@ -16,6 +16,12 @@ describe("TimePicker", () => {
     vi.clearAllMocks();
   });
 
+  it("is at least 44px tall (h-11) and not the Input default h-9", () => {
+    render(<TimePicker onChange={onChange} />);
+    expect(getInput().className).toContain("h-11");
+    expect(getInput().className).not.toContain("h-9");
+  });
+
   it("renders a time input with empty value when none given", () => {
     render(<TimePicker onChange={onChange} />);
     expect(getInput()).not.toBeNull();

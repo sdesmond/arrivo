@@ -28,7 +28,7 @@ export function TimePicker({
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
-      className="w-auto appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+      className="h-11 w-auto appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
       onChange={(event) => onChange(event.target.value || undefined)}
     />
   );
