@@ -562,6 +562,13 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("day-planning", [
+    // Row costs create, edit and remove their linked expense through the expense endpoints.
+    "src/lib/services/expenses.ts",
+    "src/lib/services/expense-conversions.ts",
+    "src/lib/api/contract/expenses.ts",
+    "src/app/api/v1/trips/*/expenses/**",
+    "src/app/api/v1/expenses/**",
+    "tests/e2e/linked-cost.ts",
     "src/lib/trip-metadata-save.ts",
     "src/lib/services/trips.ts",
     "src/lib/services/trip-date-change.ts",
@@ -811,6 +818,14 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
   ]),
   entry("reservations", [
+    // Row costs create, edit and remove their linked expense through the expense endpoints.
+    "src/components/arrivo/cost-dialog.tsx",
+    "src/lib/services/expenses.ts",
+    "src/lib/services/expense-conversions.ts",
+    "src/lib/api/contract/expenses.ts",
+    "src/app/api/v1/trips/*/expenses/**",
+    "src/app/api/v1/expenses/**",
+    "tests/e2e/linked-cost.ts",
     "src/lib/reservation-date-range.ts",
     "src/lib/reservation-types.ts",
     "src/lib/services/reservations.ts",

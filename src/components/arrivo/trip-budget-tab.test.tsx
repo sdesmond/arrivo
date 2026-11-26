@@ -2,13 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { createExpense, recalculateConversions } = vi.hoisted(() => ({
-  createExpense: vi.fn(),
+const { recalculateConversions } = vi.hoisted(() => ({
   recalculateConversions: vi.fn(),
 }));
 
 vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  createExpense,
   recalculateConversions,
 }));
 

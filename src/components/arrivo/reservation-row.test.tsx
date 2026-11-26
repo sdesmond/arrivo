@@ -3,11 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ReservationRow } from "./reservation-row";
-import {
-  createExpense,
-  deleteExpense as deleteExpenseAction,
-  updateExpense,
-} from "@/app/(app)/trips/[tripId]/budget/actions";
+import { deleteExpense, updateExpense } from "@/lib/api/contract/expenses";
 import { deleteReservation } from "@/lib/api/contract/reservations";
 import { api } from "@/lib/api/client";
 import * as navigation from "next/navigation";
@@ -24,12 +20,9 @@ vi.mock("sonner", () => ({
 const { patchReservation } = vi.hoisted(() => ({ patchReservation: vi.fn() }));
 vi.mock("./use-reservation-patch", () => ({ useReservationPatch: () => patchReservation }));
 
-vi.mock("@/lib/api/client", () => ({ api: vi.fn() }));
-
-vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  createExpense: vi.fn(),
-  deleteExpense: vi.fn(),
-  updateExpense: vi.fn(),
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api: vi.fn(),
 }));
 
 vi.mock("./reservation-docs-block", () => ({
@@ -265,9 +258,7 @@ describe("ReservationRow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(patchReservation).mockResolvedValue(undefined);
-    vi.mocked(createExpense).mockResolvedValue({ id: "expense-new" });
-    vi.mocked(updateExpense).mockResolvedValue(undefined);
-    vi.mocked(deleteExpenseAction).mockResolvedValue(undefined);
+    vi.mocked(api).mockResolvedValue(undefined);
   });
 
   it("renders all fields with values for a populated reservation", () => {
@@ -548,14 +539,17 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "$499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-save" }));
 
-    expect(updateExpense).toHaveBeenCalledWith(
-      "expense-1",
+    expect(api).toHaveBeenCalledWith(
+      updateExpense,
       expect.objectContaining({
-        reservationId: "res-1",
-        category: "food",
-        amount: 199.99,
-        currency: "USD",
-        date: "2026-08-01",
+        params: { expenseId: "expense-1" },
+        body: expect.objectContaining({
+          reservationId: "res-1",
+          category: "food",
+          amount: 199.99,
+          currency: "USD",
+          date: "2026-08-01",
+        }),
       })
     );
     expect(
@@ -572,7 +566,7 @@ describe("ReservationRow", () => {
     await user.click(screen.getByRole("button", { name: "$499.00" }));
     await user.click(screen.getByRole("button", { name: "dialog-remove" }));
 
-    expect(deleteExpenseAction).toHaveBeenCalledWith("expense-1");
+    expect(api).toHaveBeenCalledWith(deleteExpense, { params: { expenseId: "expense-1" }, body: {} });
     expect(screen.getByRole("button", { name: "Add cost" })).toBeInTheDocument();
   });
 
@@ -651,7 +645,7 @@ describe("ReservationRow", () => {
   });
 
   it("shows a toast when saving the cost dialog fails", async () => {
-    vi.mocked(updateExpense).mockRejectedValueOnce(new Error("Network error"));
+    vi.mocked(api).mockRejectedValueOnce(new Error("Network error"));
     const user = userEvent.setup();
     render(<ReservationRow reservation={populatedReservation} type={ReservationType.Lodging} isLast={false} />);
 

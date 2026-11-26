@@ -204,6 +204,27 @@ Feature: Day Planning
     When I delete the displaced events
     Then the removed day's events are deleted after the date change
 
+  Scenario: Add, edit and remove a place cost and keep the Budget tab in sync
+    Given a day has an event named "Cost tracked stop"
+    When I add a "20.00" "EUR" cost in the "Food" category to the event "Cost tracked stop"
+    Then the event "Cost tracked stop" shows a cost of "EUR" "20.00"
+    When I reload the browser page and reopen the first day
+    Then the event "Cost tracked stop" shows a cost of "EUR" "20.00"
+    When I open the Budget tab
+    Then the Budget tab shows "€20.00" as Actual spent
+    When I return to the Itinerary tab and reopen the first day
+    And I change the cost of the event "Cost tracked stop" from "EUR" "20.00" to "35.00"
+    And I reload the browser page and reopen the first day
+    Then the event "Cost tracked stop" shows a cost of "EUR" "35.00"
+    When I open the Budget tab
+    Then the Budget tab shows "€35.00" as Actual spent
+    When I return to the Itinerary tab and reopen the first day
+    And I remove the cost of "EUR" "35.00" from the event "Cost tracked stop"
+    And I reload the browser page and reopen the first day
+    Then the event "Cost tracked stop" shows no cost
+    When I open the Budget tab
+    Then the Budget tab shows no "Food" category tile
+
   @action-bar-geometry
   Scenario: Action bar controls measure at least 44x44px on a mobile viewport
     Given the viewport is 375 by 812

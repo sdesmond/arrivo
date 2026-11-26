@@ -273,6 +273,8 @@ Partial update with the same fields and limits as the create, except `id` and `t
 
 ## Expenses
 
+The web app uses these endpoints for every expense write, including the cost on a reservation row (`reservationId`) and on a place row (`eventId`).
+
 ### GET /api/v1/trips/:tripId/expenses
 
 **Role** editor · **`Idempotency-Key`** no · **Success** `200` `{ expenses: Expense[] }`

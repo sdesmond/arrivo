@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { IconSize } from "@/lib/size-tokens";
-import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { useRefreshAfterWrite } from "@/lib/api/use-refresh-after-write";
+import { createExpense, deleteExpense, updateExpense } from "@/lib/api/contract/expenses";
 import { CostDialog } from "@/components/arrivo/cost-dialog";
 import type { CreateExpenseInput, Expense } from "@/data/types";
 import { formatCurrencyChipAmount } from "@/lib/currencies";
+import { createRandomId } from "@/lib/utils";
 
 export interface ReservationCostChipProps {
   reservationId: string;
@@ -22,7 +25,10 @@ export function ReservationCostChip({
   expense: initialExpense,
   defaultCurrency,
 }: ReservationCostChipProps) {
+  const refreshAfterWrite = useRefreshAfterWrite();
   const [expense, setExpense] = useState<Expense | undefined>(initialExpense);
+  // One id per create attempt, so a retry after a timeout replays the same expense instead of adding another.
+  const createAttempt = useRef<{ id: string; body: string } | null>(null);
   const [showCostDialog, setShowCostDialog] = useState(false);
   const costDisplay = expense ? formatCurrencyChipAmount(expense.amount, expense.currency) : "";
 
@@ -33,9 +39,22 @@ export function ReservationCostChip({
   }, [initialExpense]);
 
   async function handleExpenseSave(expenseInput: CreateExpenseInput): Promise<void> {
+    // Conversion fields are computed server-side; the API body is strict.
+    const fields = {
+      category: expenseInput.category,
+      amount: expenseInput.amount,
+      currency: expenseInput.currency,
+      date: expenseInput.date,
+      note: expenseInput.note,
+    };
+
     try {
       if (expense?.id) {
-        const updateResult = await updateExpense(expense.id, { ...expenseInput, reservationId });
+        const updateResult = await api(updateExpense, {
+          params: { expenseId: expense.id },
+          body: { ...fields, note: fields.note ?? null, reservationId },
+        });
+        refreshAfterWrite();
         if (updateResult?.conversionError) {
           toast.error("Couldn't convert currency — try again.");
         }
@@ -53,10 +72,14 @@ export function ReservationCostChip({
         return;
       }
 
-      const createResult = await createExpense(tripId, {
-        ...expenseInput,
-        reservationId,
+      const bodyKey = JSON.stringify(fields);
+      if (createAttempt.current?.body !== bodyKey) createAttempt.current = { id: createRandomId(), body: bodyKey };
+      const createResult = await api(createExpense, {
+        params: { tripId },
+        body: { ...fields, id: createAttempt.current.id, reservationId },
       });
+      createAttempt.current = null;
+      refreshAfterWrite();
       if (createResult.conversionError) {
         toast.error("Couldn't convert currency — try again.");
       }
@@ -71,6 +94,14 @@ export function ReservationCostChip({
         note: expenseInput.note,
       });
     } catch (error) {
+      const definitive =
+        error instanceof ApiClientError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        error.status !== 409 &&
+        error.status !== 429;
+      if (definitive) createAttempt.current = null;
       toast.error(error instanceof Error ? error.message : "Failed to save.");
       throw error;
     }
@@ -82,7 +113,8 @@ export function ReservationCostChip({
     }
 
     try {
-      await deleteExpense(expense.id);
+      await api(deleteExpense, { params: { expenseId: expense.id }, body: {} });
+      refreshAfterWrite();
       setExpense(undefined);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save.");

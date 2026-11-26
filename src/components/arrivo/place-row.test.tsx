@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { createExpense, deleteExpense, updateExpense } = vi.hoisted(() => ({
-  createExpense: vi.fn(),
-  deleteExpense: vi.fn(),
-  updateExpense: vi.fn(),
-}));
+const { api, refresh } = vi.hoisted(() => ({ api: vi.fn(), refresh: vi.fn() }));
 
-vi.mock("@/app/(app)/trips/[tripId]/budget/actions", () => ({
-  createExpense,
-  deleteExpense,
-  updateExpense,
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api,
 }));
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
@@ -175,6 +172,8 @@ import { PlaceRow } from "./place-row";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import { MockDateProvider } from "@/components/providers/mock-date-provider";
 import { ExpenseCategory, type TripEvent } from "@/data/types";
+import { ApiClientError } from "@/lib/api/client";
+import { createExpense, deleteExpense, updateExpense } from "@/lib/api/contract/expenses";
 import {
   ANCHOR_LABELS,
   RESERVATION_TYPE_META,
@@ -642,22 +641,24 @@ describe("PlaceRow", () => {
 
   it("cost dialog save creates a linked expense", async () => {
     const user = userEvent.setup();
-    vi.mocked(createExpense).mockResolvedValueOnce({ id: "expense-1" });
+    api.mockResolvedValueOnce({ id: "expense-1" });
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, {
       wrapper: Wrapper,
     });
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: "cost-save" }));
-    expect(createExpense).toHaveBeenCalledWith(
-      "trip-1",
-      expect.objectContaining({
+    expect(api).toHaveBeenCalledWith(createExpense, {
+      params: { tripId: "trip-1" },
+      body: {
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/),
         eventId: "ev-1",
         category: "food",
         amount: 99,
         currency: "USD",
         date: "2026-08-01",
-      })
-    );
+      },
+    });
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("clicking doc count button toggles docs block", async () => {
@@ -1168,20 +1169,21 @@ describe("PlaceRow", () => {
 
   it("cost save updates the existing expense instead of creating a new one", async () => {
     const user = userEvent.setup();
-    vi.mocked(updateExpense).mockResolvedValueOnce(undefined);
+    api.mockResolvedValueOnce(undefined);
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-save" }));
 
-    expect(updateExpense).toHaveBeenCalledWith(
-      "expense-1",
-      expect.objectContaining({ eventId: "ev-1", amount: 99, currency: "USD" })
-    );
-    expect(createExpense).not.toHaveBeenCalled();
+    expect(api).toHaveBeenCalledTimes(1);
+    expect(api).toHaveBeenCalledWith(updateExpense, {
+      params: { expenseId: "expense-1" },
+      body: { category: "food", amount: 99, currency: "USD", date: "2026-08-01", note: null, eventId: "ev-1" },
+    });
+    expect(refresh).toHaveBeenCalled();
   });
 
-  it("cost save without a tripId surfaces a toast and skips the server action", async () => {
+  it("cost save without a tripId surfaces a toast and skips the API call", async () => {
     const user = userEvent.setup();
     const place: TripEvent = { ...basePlace, tripId: undefined };
     render(<PlaceRow place={place} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
@@ -1190,30 +1192,88 @@ describe("PlaceRow", () => {
     await user.click(screen.getByRole("button", { name: "cost-save" }));
 
     expect(toastError).toHaveBeenCalledWith("Failed to save cost.");
-    expect(createExpense).not.toHaveBeenCalled();
-    expect(updateExpense).not.toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
   });
 
-  it("cost save surfaces the error message when the create action fails", async () => {
+  it("cost save surfaces the error message when the create call fails", async () => {
     const user = userEvent.setup();
-    vi.mocked(createExpense).mockRejectedValueOnce(new Error("save boom"));
+    api.mockRejectedValueOnce(new ApiClientError(500, "internal", "save boom"));
     render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: "cost-save" }));
 
     expect(toastError).toHaveBeenCalledWith("save boom");
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /add cost/i })).toBeInTheDocument();
+  });
+
+  it("cost save reuses the client id on retry and starts a new one after a 4xx", async () => {
+    const user = userEvent.setup();
+    api
+      .mockRejectedValueOnce(new ApiClientError(0, "timeout", "Timed out."))
+      .mockRejectedValueOnce(new ApiClientError(422, "validation_failed", "Check the submitted fields."))
+      .mockResolvedValueOnce({ id: "expense-1" });
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    const ids = api.mock.calls.map((call) => call[1].body.id);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[1]);
+  });
+
+  it.each([408, 409, 429, 500])("cost save keeps the client id after a %i failure", async (status) => {
+    const user = userEvent.setup();
+    api
+      .mockRejectedValueOnce(new ApiClientError(status, "failed", "Try again."))
+      .mockResolvedValueOnce({ id: "expense-1" });
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    const ids = api.mock.calls.map((call) => call[1].body.id);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
+  it("cost save toasts the conversion failure but keeps the saved cost", async () => {
+    const user = userEvent.setup();
+    api.mockResolvedValueOnce({ id: "expense-1", conversionError: true });
+    render(<PlaceRow place={basePlace} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    expect(toastError).toHaveBeenCalledWith("Couldn't convert currency — try again.");
+    expect(screen.queryByRole("button", { name: /add cost/i })).not.toBeInTheDocument();
+  });
+
+  it("cost update toasts the conversion failure", async () => {
+    const user = userEvent.setup();
+    api.mockResolvedValueOnce({ conversionError: true });
+    render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    await user.click(screen.getByRole("button", { name: "$10.00" }));
+    await user.click(screen.getByRole("button", { name: "cost-save" }));
+
+    expect(toastError).toHaveBeenCalledWith("Couldn't convert currency — try again.");
   });
 
   it("cost remove deletes the expense and clears the amount", async () => {
     const user = userEvent.setup();
-    vi.mocked(deleteExpense).mockResolvedValueOnce(undefined);
+    api.mockResolvedValueOnce(null);
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
-    expect(deleteExpense).toHaveBeenCalledWith("expense-1");
+    expect(api).toHaveBeenCalledWith(deleteExpense, { params: { expenseId: "expense-1" }, body: {} });
+    expect(refresh).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "$10.00" })).not.toBeInTheDocument();
   });
 
@@ -1224,18 +1284,19 @@ describe("PlaceRow", () => {
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
-    expect(deleteExpense).not.toHaveBeenCalled();
+    expect(api).not.toHaveBeenCalled();
   });
 
-  it("cost remove surfaces the error message when the delete action fails", async () => {
+  it("cost remove surfaces the error message when the delete call fails", async () => {
     const user = userEvent.setup();
-    vi.mocked(deleteExpense).mockRejectedValueOnce(new Error("remove boom"));
+    api.mockRejectedValueOnce(new ApiClientError(500, "internal", "remove boom"));
     render(<PlaceRow place={placeWithExpense} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole("button", { name: "$10.00" }));
     await user.click(screen.getByRole("button", { name: "cost-remove" }));
 
     expect(toastError).toHaveBeenCalledWith("remove boom");
+    expect(screen.getByRole("button", { name: "$10.00" })).toBeInTheDocument();
   });
 
   it("passes hasScheduleConflict through to the action bar's conflict icon", () => {

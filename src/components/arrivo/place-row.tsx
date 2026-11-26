@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { createExpense, deleteExpense, updateExpense } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { useRefreshAfterWrite } from "@/lib/api/use-refresh-after-write";
+import { createExpense, deleteExpense, updateExpense } from "@/lib/api/contract/expenses";
 import {
   type CreateExpenseInput,
   type Document,
@@ -11,7 +13,7 @@ import {
   type TripEvent,
   type EventUpdateIntent,
 } from "@/data/types";
-import { cn, isEventNow } from "@/lib/utils";
+import { cn, createRandomId, isEventNow } from "@/lib/utils";
 import { openExternalMaps } from "@/lib/open-external-maps";
 import { useNow } from "@/components/providers/mock-date-provider";
 import { DocsBlock } from "./docs-block";
@@ -84,7 +86,10 @@ export function PlaceRow({
   const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [showAddDocDialog, setShowAddDocDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const refreshAfterWrite = useRefreshAfterWrite();
   const [expense, setExpense] = useState<Expense | undefined>(place.expense);
+  // One id per create attempt, so a retry after a timeout replays the same expense instead of adding another.
+  const createAttempt = useRef<{ id: string; body: string } | null>(null);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -154,14 +159,22 @@ export function PlaceRow({
       return;
     }
 
-    const linkedExpenseInput = {
-      ...expenseInput,
-      eventId: place.id,
+    // Conversion fields are computed server-side; the API body is strict.
+    const fields = {
+      category: expenseInput.category,
+      amount: expenseInput.amount,
+      currency: expenseInput.currency,
+      date: expenseInput.date,
+      note: expenseInput.note,
     };
 
     try {
       if (expense?.id) {
-        const updateResult = await updateExpense(expense.id, linkedExpenseInput);
+        const updateResult = await api(updateExpense, {
+          params: { expenseId: expense.id },
+          body: { ...fields, note: fields.note ?? null, eventId: place.id },
+        });
+        refreshAfterWrite();
         if (updateResult?.conversionError) {
           toast.error("Couldn't convert currency — try again.");
         }
@@ -179,7 +192,14 @@ export function PlaceRow({
         return;
       }
 
-      const createResult = await createExpense(place.tripId, linkedExpenseInput);
+      const bodyKey = JSON.stringify(fields);
+      if (createAttempt.current?.body !== bodyKey) createAttempt.current = { id: createRandomId(), body: bodyKey };
+      const createResult = await api(createExpense, {
+        params: { tripId: place.tripId },
+        body: { ...fields, id: createAttempt.current.id, eventId: place.id },
+      });
+      createAttempt.current = null;
+      refreshAfterWrite();
       if (createResult.conversionError) {
         toast.error("Couldn't convert currency — try again.");
       }
@@ -194,6 +214,14 @@ export function PlaceRow({
         note: expenseInput.note,
       });
     } catch (error) {
+      const definitive =
+        error instanceof ApiClientError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 408 &&
+        error.status !== 409 &&
+        error.status !== 429;
+      if (definitive) createAttempt.current = null;
       toast.error(error instanceof Error ? error.message : "Failed to save cost.");
       throw error;
     }
@@ -205,7 +233,8 @@ export function PlaceRow({
     }
 
     try {
-      await deleteExpense(expense.id);
+      await api(deleteExpense, { params: { expenseId: expense.id }, body: {} });
+      refreshAfterWrite();
       setExpense(undefined);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to remove cost.");

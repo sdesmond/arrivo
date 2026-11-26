@@ -1433,22 +1433,6 @@ export interface CreateExpenseInput {
   convertedCurrencyProfile?: string | null;
 }
 
-export interface UpdateExpensePatch {
-  eventId?: string | null;
-  reservationId?: string | null;
-  category?: ExpenseCategory;
-  amount?: number;
-  currency?: string;
-  date?: string;
-  note?: string | null;
-  convertedAmountTrip?: number | null;
-  conversionRateTrip?: number | null;
-  convertedCurrencyTrip?: string | null;
-  convertedAmountProfile?: number | null;
-  conversionRateProfile?: number | null;
-  convertedCurrencyProfile?: string | null;
-}
-
 export interface AddPackingItemInput {
   name: string;
   isLabel?: boolean;
