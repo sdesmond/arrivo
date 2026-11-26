@@ -195,6 +195,7 @@ Before starting any new development task, you MUST ask the user whether they wan
 - Unit test files live **next to their source file** (`foo.tsx` → `foo.test.tsx`); never under a separate `__tests__/` directory
 - Any edit in `src/lib/**` or `src/components/arrivo/**` must include the matching colocated test edit in the same change
 - E2E goes in `tests/e2e/` only — Gherkin features in `features/`, step definitions in `steps/`
+- Put new `/api/v1` E2E steps in the `api-<resource>.steps.ts` file for that resource (see `tests/e2e/steps/README.md`); never grow a catch-all step file, and move helpers shared by two files to `tests/e2e/api-support.ts`
 - Any new or materially changed user-facing flow must include the `.feature` update and matching step-definition update in the same change
 - Use Vitest (`vitest`, `@testing-library/react`) for unit/component tests
 - Use `playwright-bdd` + Playwright for E2E — write scenarios in `.feature` files, implement in step `.ts` files
