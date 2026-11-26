@@ -1,6 +1,10 @@
 import { expect, type Page } from "@playwright/test";
-import { When, Then } from "../fixtures";
+import { Given, When, Then } from "../fixtures";
 import { waitForApiResponse } from "../api-response";
+import { ExpenseCategory } from "../../../src/data/types";
+import { expenses } from "../../../src/db/schema";
+import { eq } from "drizzle-orm";
+import { withE2EDb } from "../e2e-db";
 
 const createdExpenseIds = new WeakMap<Page, string>();
 
@@ -85,4 +89,67 @@ Then("the Budget tab shows {string} as Budget", async ({ page }, amount: string)
 
 Then("the Budget tab shows a {string} category tile", async ({ page }, category: string) => {
   await expect(page.locator('[data-slot="category-tile-grid"]').getByText(category, { exact: true })).toBeVisible();
+});
+
+Given("a trip with stale USD and EUR expenses", async ({ page, scenario }) => {
+  await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        trip: { budgetCurrency: "USD", budgetTotal: 500 },
+        expenses: [
+          { category: ExpenseCategory.Food, amount: 100, currency: "USD", date: "2025-01-01" },
+          { category: ExpenseCategory.Misc, amount: 35, currency: "EUR", date: "2025-01-01" },
+        ],
+      },
+    },
+  });
+  await withE2EDb((database) =>
+    database
+      .update(expenses)
+      .set({ updatedAt: new Date("2020-01-01") })
+      .where(eq(expenses.tripId, scenario.currentTrip!.id))
+  );
+  await scenario.gotoCurrentTrip(page);
+});
+When("I change its budget currency to EUR without conversion", async ({ page, scenario }) => {
+  await page.getByRole("button", { name: "Budget", exact: true }).click();
+  await page.getByRole("button", { name: "Edit budget" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: /Currency:/i }).click();
+  await page.getByRole("textbox", { name: "Search currencies" }).fill("EUR");
+  await page.getByRole("option", { name: /EUR$/i }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
+  const saved = waitForApiResponse(page, { method: "PATCH", path: `/api/v1/trips/${scenario.currentTrip!.id}` });
+  await page.getByRole("button", { name: "Leave As Is" }).click();
+  await saved;
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+When("I recalculate budget conversions", async ({ page, scenario }) => {
+  const response = waitForApiResponse(page, {
+    method: "POST",
+    path: `/api/v1/trips/${scenario.currentTrip!.id}/expenses/recalculate`,
+  });
+  await page.getByRole("button", { name: "Recalculate Conversions" }).click();
+  await response;
+});
+Then("the recalculated budget conversions are persisted", async ({ scenario }) => {
+  const rows = await withE2EDb((database) =>
+    database.select().from(expenses).where(eq(expenses.tripId, scenario.currentTrip!.id))
+  );
+  const foreign = rows.find((row) => row.currency === "USD")!;
+  const native = rows.find((row) => row.currency === "EUR")!;
+  expect([
+    Number(foreign.convertedAmountTrip),
+    Number(foreign.conversionRateTrip),
+    foreign.convertedCurrencyTrip,
+  ]).toEqual([92, 0.92, "EUR"]);
+  expect([Number(native.convertedAmountTrip), Number(native.conversionRateTrip), native.convertedCurrencyTrip]).toEqual(
+    [35, 1, "EUR"]
+  );
+});
+
+Then("the stale conversion indication is cleared", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Recalculate Conversions" })).toHaveCount(0);
 });

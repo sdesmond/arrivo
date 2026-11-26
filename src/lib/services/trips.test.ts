@@ -951,3 +951,17 @@ it.each([
   expect(mocks.purge).not.toHaveBeenCalled();
   expect(mocks.removeFiles).not.toHaveBeenCalled();
 });
+
+it("does not update trip metadata if an expense write fails", async () => {
+  mocks.recalculate.mockResolvedValue([{ expenseId: "foreign", convertedAmount: 92, rate: 0.92 }]);
+  mocks.set.mockReturnValueOnce({
+    where: async () => {
+      throw new Error("expense update failed");
+    },
+  });
+  await expect(
+    updateTrip(actor, tripId, { name: "New", budgetCurrency: "EUR", convertCurrency: true })
+  ).rejects.toThrow("expense update failed");
+  expect(mocks.update).not.toHaveBeenCalledWith(trips);
+  expect(mocks.markChanged).not.toHaveBeenCalled();
+});

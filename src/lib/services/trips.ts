@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { db } from "@/db";
-import { collaborators, days, documents, events, reservations, trips, expenses } from "@/db/schema";
+import { collaborators, days, documents, events, reservations, trips } from "@/db/schema";
 import type { Actor, IdempotentRequest, Trip, TripDetailPayload, TripListEntry } from "@/data/types";
 import { LiveSyncEventType, TransitMode } from "@/data/types";
 import {
@@ -15,8 +15,8 @@ import {
 } from "@/lib/api/contract/trips";
 import { withIdempotency } from "@/lib/api/idempotency";
 import { isSupportedCurrencyCode, normalizeCurrencyCode } from "@/lib/currencies";
-import { dbExpenseToType, dbTripToType, isTransitMode } from "@/lib/db-mappers";
-import { recalculateAll } from "@/lib/currency";
+import { dbTripToType, isTransitMode } from "@/lib/db-mappers";
+import { recalculateTripExpenses } from "./expense-conversions";
 import { createTripInTransaction } from "@/lib/membership-writes";
 import { getNow } from "@/lib/mock-date";
 import { getTripDetail, listTripsForUser } from "@/lib/queries";
@@ -116,24 +116,7 @@ export async function updateTrip(
           dateColumns = { startDate: change.startDate, endDate: change.endDate };
         }
         if (convertCurrency && patch.budgetCurrency) {
-          const rows = await transaction.select().from(expenses).where(eq(expenses.tripId, tripId));
-          const results = await recalculateAll(rows.map(dbExpenseToType), patch.budgetCurrency);
-          const nativeResults = rows
-            .filter((expense) => expense.currency.toUpperCase() === patch.budgetCurrency)
-            .map((expense) => ({ expenseId: expense.id, convertedAmount: expense.amount, rate: 1 }));
-          await Promise.all(
-            [...results, ...nativeResults].map((result) =>
-              transaction
-                .update(expenses)
-                .set({
-                  convertedAmountTrip: result.convertedAmount.toString(),
-                  conversionRateTrip: result.rate.toString(),
-                  convertedCurrencyTrip: patch.budgetCurrency,
-                  updatedAt: new Date(),
-                })
-                .where(eq(expenses.id, result.expenseId))
-            )
-          );
+          await recalculateTripExpenses(transaction, tripId, patch.budgetCurrency);
         }
         if (Object.keys(patch).length === 0 && !dateColumns) return dbTripToType(current);
         const [updated] = await transaction

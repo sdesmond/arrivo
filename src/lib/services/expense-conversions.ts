@@ -1,8 +1,14 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { trips, users } from "@/db/schema";
-import { convertDual } from "@/lib/currency";
+import { expenses, trips, users } from "@/db/schema";
+import { convertDual, recalculate, recalculateAll } from "@/lib/currency";
+import { dbExpenseToType } from "@/lib/db-mappers";
+import type { Actor, IdempotentRequest } from "@/data/types";
+import type { DbTransaction } from "@/lib/server-action-locks";
+import { recalculateExpenses as contract } from "@/lib/api/contract/expenses";
+import { requireTripRole, TripNotFoundError } from "./trip-access";
+import { lockTrip, runTripWrite } from "./trip-write";
 
 export interface ConversionFields {
   convertedAmountTrip: string | null;
@@ -77,4 +83,62 @@ export async function computeConversions(
   } catch {
     return { fields: { ...NULL_CONVERSIONS }, conversionError: true };
   }
+}
+
+/** Recalculate every trip conversion in the caller's transaction. */
+export async function recalculateTripExpenses(
+  transaction: DbTransaction,
+  tripId: string,
+  currency: string | null
+): Promise<number> {
+  const rows = await transaction.select().from(expenses).where(eq(expenses.tripId, tripId));
+  const mapped = rows.map(dbExpenseToType);
+  if (!currency) {
+    await recalculate(mapped, "");
+    return 0;
+  }
+  const target = currency.toUpperCase();
+  const results = await recalculateAll(mapped, target);
+  const native = rows
+    .filter((row) => row.currency.toUpperCase() === target)
+    .map((row) => ({ expenseId: row.id, convertedAmount: row.amount, rate: 1 }));
+  const updates = [...results, ...native];
+  for (const result of updates) {
+    await transaction
+      .update(expenses)
+      .set({
+        convertedAmountTrip: result.convertedAmount.toString(),
+        conversionRateTrip: result.rate.toString(),
+        convertedCurrencyTrip: target,
+        updatedAt: new Date(),
+      })
+      .where(eq(expenses.id, result.expenseId));
+  }
+  return updates.length;
+}
+
+export async function recalculateExpenseConversions(
+  actor: Actor,
+  tripId: string,
+  input: unknown,
+  replay?: IdempotentRequest
+): Promise<{ recalculated: true }> {
+  tripId = contract.params.parse({ tripId }).tripId;
+  const body = contract.body.parse(input);
+  await requireTripRole(tripId, actor.userId, "editor");
+  return runTripWrite(actor, tripId, { replay, payload: body }, (transaction, markChanged) => ({
+    authorize: async () => {
+      await lockTrip(transaction, tripId);
+      await requireTripRole(tripId, actor.userId, "editor", transaction);
+    },
+    mutate: async () => {
+      const [trip] = await transaction
+        .select({ budgetCurrency: trips.budgetCurrency })
+        .from(trips)
+        .where(eq(trips.id, tripId));
+      if (!trip) throw new TripNotFoundError();
+      if (await recalculateTripExpenses(transaction, tripId, trip.budgetCurrency)) markChanged();
+      return { recalculated: true as const };
+    },
+  }));
 }

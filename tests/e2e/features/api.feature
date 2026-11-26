@@ -2704,6 +2704,27 @@ Feature: Absolute checklist checked-state API
     When I PATCH trip currency to EUR with conversion using the failing key
     Then trip currency conversion is rolled back
 
+  Scenario: Recalculation and currency PATCH persist identical mixed conversions
+    When I recalculate and PATCH equivalent mixed-currency trips
+    Then both trips have identical trip conversion fields
+
+  Scenario: Expense recalculation rolls back if replay recording fails
+    Given my checklist API role is "editor"
+    And a USD expense exists for trip currency conversion
+    And the trip currency is set to EUR for recalculation
+    And the checklist API replay record write is set to fail
+    When I POST expense recalculation with the failing key
+    Then expense recalculation is rolled back
+
+  Scenario: Expense recalculation replay rechecks access
+    Given my checklist API role is "editor"
+    And a USD expense exists for trip currency conversion
+    And the trip currency is set to EUR for recalculation
+    When I POST expense recalculation with a key
+    And my checklist API role is "viewer"
+    And I POST expense recalculation with a key
+    Then expense recalculation replay is denied
+
   Scenario: Trip date PATCH previews removed content without writing
     Given a final-day event with a stored document for the trip date API
     And my checklist API role is "editor"

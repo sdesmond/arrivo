@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Loader2 } from "lucide-react";
@@ -12,7 +13,8 @@ import { StatusBadge } from "@/components/arrivo/status-badge";
 import { TripAddExpenseModal } from "@/components/arrivo/trip-add-expense-modal";
 import { ExpenseTable } from "@/components/arrivo/expense-table";
 import { useNow } from "@/components/providers/mock-date-provider";
-import { recalculateConversions } from "@/app/(app)/trips/[tripId]/budget/actions";
+import { api } from "@/lib/api/client";
+import { recalculateExpenses } from "@/lib/api/contract/expenses";
 import {
   calculateActual,
   calculateBudgetStatus,
@@ -64,6 +66,7 @@ export function TripBudgetTab({
   onOpenEditBudget,
   onEditExpense,
 }: TripBudgetTabProps): ReactElement {
+  const router = useRouter();
   const tripCurrency = resolveTripCurrency(budget, expenses, defaultExpenseCurrency);
   const actual = calculateActual(expenses, tripCurrency);
   const breakdown = calculateCategoryBreakdown(expenses, tripCurrency);
@@ -92,7 +95,8 @@ export function TripBudgetTab({
   async function handleRecalculate(): Promise<void> {
     setIsRecalculating(true);
     try {
-      await recalculateConversions(tripId);
+      await api(recalculateExpenses, { params: { tripId }, body: {} });
+      router.refresh();
       toast.success("Conversions recalculated.");
     } catch {
       toast.error("Recalculation failed — no amounts were changed. Try again.");
