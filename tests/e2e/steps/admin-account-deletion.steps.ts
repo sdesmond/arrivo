@@ -1,6 +1,14 @@
 import { expect, type Page } from "@playwright/test";
-import { and, eq } from "drizzle-orm";
-import { activityEvents, collaborators, trips, users } from "../../../src/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  activityEvents,
+  collaborators,
+  expenses,
+  idempotencyKeys,
+  reservations,
+  trips,
+  users,
+} from "../../../src/db/schema";
 import {
   CollaboratorRole,
   UserRole,
@@ -72,6 +80,41 @@ Given("a completed account owns a private trip shared with only a viewer", async
 });
 Given("a completed account owns a private trip shared with two editors", async ({ scenario }) => {
   await seedOwnedTrip(scenario, [CollaboratorRole.Editor, CollaboratorRole.Editor]);
+});
+
+const TRIP_ROWS_KEY = "adminDeletionTripRows";
+
+Given("that trip has a reservation with a cost", async ({ scenario }) => {
+  const { trip } = seededOf(scenario);
+  const rows = await withE2EDb(async (database) => {
+    const [reservation] = await database
+      .insert(reservations)
+      .values({ tripId: trip.id, type: "lodging", provider: scenario.uniqueName("Hotel") })
+      .returning({ id: reservations.id });
+    const [expense] = await database
+      .insert(expenses)
+      .values({
+        tripId: trip.id,
+        reservationId: reservation.id,
+        category: "Lodging",
+        amount: "120.00",
+        currency: "USD",
+        date: "2026-06-01",
+      })
+      .returning({ id: expenses.id });
+    return { reservationId: reservation.id, expenseId: expense.id };
+  });
+  scenario.setValue(TRIP_ROWS_KEY, rows);
+});
+
+Then("deletion records remember the trip, its reservation and its cost", async ({ scenario }) => {
+  const { trip } = seededOf(scenario);
+  const { reservationId, expenseId } = scenario.getValue<{ reservationId: string; expenseId: string }>(TRIP_ROWS_KEY)!;
+  const keys = [`deleted:trip:${trip.id}`, `deleted:reservation:${reservationId}`, `deleted:expense:${expenseId}`];
+  const recorded = await withE2EDb((database) =>
+    database.select({ key: idempotencyKeys.key }).from(idempotencyKeys).where(inArray(idempotencyKeys.key, keys))
+  );
+  expect(recorded.map(({ key }) => key).sort()).toEqual([...keys].sort());
 });
 
 async function reviewDeletionOf(page: Page, scenario: Scenario, username: string) {

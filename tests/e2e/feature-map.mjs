@@ -75,6 +75,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/packing-template-items/**",
     "tests/e2e/steps/api-packing-templates.steps.ts",
     "src/lib/services/trips.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/services/trip-date-change.ts",
     "src/app/(app)/trips/date-sync.ts",
     "src/app/(app)/trips/create-trip-days.ts",
@@ -241,6 +242,7 @@ export const FEATURE_MAP = [
     "src/lib/account-setup-completion.ts",
     "src/lib/setup-link-regeneration.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/account-deletion-effects.ts",
     "src/app/(app)/admin/users/**",
     "src/app/account-setup/**",
@@ -265,6 +267,7 @@ export const FEATURE_MAP = [
     "tests/e2e/onboarding-browser.ts",
     "tests/e2e/admin-account-deletion-fixture.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/account-deletion-effects.ts",
     // Deletion effects remove the account's stored files.
     "src/lib/storage/**",
@@ -294,6 +297,7 @@ export const FEATURE_MAP = [
   entry("password-reset", [
     ...PASSWORD_RULES,
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/app/(app)/profile/actions.ts",
     "src/app/(app)/profile/security-actions.ts",
     "src/lib/credential-authorizations.ts",
@@ -406,6 +410,7 @@ export const FEATURE_MAP = [
     "src/lib/account-role-changes.ts",
     "src/lib/account-creation.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/app/(auth)/actions.ts",
     "src/app/(app)/profile/actions.ts",
     "src/app/(app)/admin/users/actions.ts",
@@ -469,6 +474,7 @@ export const FEATURE_MAP = [
     "src/lib/account-role-changes.ts",
     "src/lib/account-lifecycle-locks.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "tests/e2e/role-service-fixture.ts",
   ]),
   entry("integrated-recovery-and-deletion", [
@@ -483,6 +489,7 @@ export const FEATURE_MAP = [
     "src/lib/admin-recovery-completion.ts",
     "src/lib/admin-recovery-session.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/account-deletion-effects.ts",
     "src/lib/storage/**",
     "src/lib/account-lifecycle-locks.ts",
@@ -498,6 +505,7 @@ export const FEATURE_MAP = [
   ]),
   entry("admin-account-deletion", [
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/account-deletion-effects.ts",
     "src/lib/storage/**",
     "src/lib/account-lifecycle-locks.ts",
@@ -512,6 +520,7 @@ export const FEATURE_MAP = [
   entry("deletion-concurrency", [
     "src/app/(app)/trips/actions.ts",
     "src/lib/account-deletion.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/account-lifecycle-locks.ts",
     "src/lib/membership-writes.ts",
     "src/lib/invitation-resend.ts",
@@ -847,6 +856,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/reservations/*/route.ts",
     "src/lib/trip-metadata-save.ts",
     "src/lib/services/trips.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/services/trip-date-change.ts",
     "src/app/api/v1/trips/*/route.ts",
     "src/lib/api/**",
@@ -981,6 +991,7 @@ export const FEATURE_MAP = [
   entry("trip-delete", [
     "src/components/arrivo/delete-trip-alert-dialog.tsx",
     "src/lib/services/trips.ts",
+    "src/lib/services/trip-cascade.ts",
     "src/lib/api/contract/trips.ts",
     "src/app/api/v1/trips/*/route.ts",
     "src/app/(app)/trips/use-trips-page-handlers.ts",

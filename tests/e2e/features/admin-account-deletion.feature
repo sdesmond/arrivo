@@ -22,6 +22,16 @@ Feature: Admin deletes accounts and their trips pass on privately
     When I confirm the reviewed deletion
     Then the completed account is gone and its trip no longer exists
 
+  Scenario: Deleting an account remembers its trip's rows so a retried create cannot bring them back
+    Given I am signed in as an app "admin"
+    And a completed account owns a private trip shared with only a viewer
+    And that trip has a reservation with a cost
+    When I request app management at "/admin/users"
+    And I review deleting the completed account
+    And I confirm the reviewed deletion
+    Then the completed account is gone and its trip no longer exists
+    And deletion records remember the trip, its reservation and its cost
+
   Scenario: A different successor needs a renewed confirmation even when the counts match
     Given I am signed in as an app "admin"
     And a completed account owns a private trip shared with two editors
