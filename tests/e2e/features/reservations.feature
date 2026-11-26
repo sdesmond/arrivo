@@ -25,6 +25,15 @@ Feature: Reservations
     When I create and retry a keyed reservation outside the trip dates
     Then the reservation retries return one reservation and one widened itinerary
 
+  Scenario: A live reservation key replays and an expired key writes again
+    Given the trip has a Lodging reservation
+    When I patch a reservation with a key and retry before and after expiry
+    Then the live reservation key replays and the expired key replaces its record
+
+  Scenario: A directly deleted expense ID cannot be replayed
+    When I directly delete an expense and retry its create
+    Then the directly deleted expense ID is rejected without resurrection
+
   Scenario Outline: Deleted reservation and expense IDs cannot be replayed
     When I delete a reservation and its expenses by "<method>" and retry their creates
     Then both deleted IDs are rejected without resurrection
@@ -126,6 +135,52 @@ Feature: Reservations
     Then the reservation shows no cost
     When I open the Budget tab
     Then the Budget tab shows no "Food" category tile
+
+  Scenario: A lodging reservation and its budget survive reload until the lodging is deleted
+    Given the reservation trip has a USD budget
+    When I click "Add Reservation"
+    And I select the "Lodging" reservation type
+    And I fill in the reservation provider with "Original Hotel Name"
+    And I set the "Check-in" date to trip day 1
+    And I set the "Check-in" time to "09:00"
+    And I set the "Check-out" date to trip day 1
+    And I set the "Check-out" time to "11:00"
+    And I click "Save" on the reservation drawer
+    And the "Lodging" reservation section is expanded
+    And I edit the reservation provider to "Revised Hotel Name"
+    And I attach a file to the reservation "Revised Hotel Name"
+    And I note the stored file of the reservation doc "test-doc.pdf"
+    And I add a "100.00" "USD" cost in the "Food" category to the reservation
+    And I open the Budget tab
+    And I click the Add Misc Expense button
+    And I choose "EUR" as the expense currency
+    And I enter "35.00" as the expense amount
+    And I choose "Misc" as the expense category
+    And I save the Misc Expense
+    And I change its budget currency to EUR without conversion
+    And the linked USD reservation cost needs recalculation
+    And I reload the browser page
+    And I open the Budget tab
+    And I recalculate budget conversions
+    And I reload the browser page
+    And I open the Budget tab
+    Then the Budget summary totals "€127.00" as Actual spent
+    And the recalculated reservation and Misc expenses are persisted
+    And the stale conversion indication is cleared
+    And after reload the reservation shows uploaded document "test-doc.pdf"
+    And the reservation provider shows "Revised Hotel Name"
+    And the reservation shows a cost of "USD" "100.00"
+    When I delete the reservation "Revised Hotel Name"
+    And I confirm the deletion and wait for it to save
+    And I reload the browser page
+    And I am on the Reservations tab
+    Then the reservation "Revised Hotel Name" is no longer shown
+    And I see the "No reservations yet" empty state
+    And the reservation document "test-doc.pdf" and its noted file are gone
+    And the deleted reservation no longer exists
+    When I open the Budget tab
+    Then the Budget summary totals "€35.00" as Actual spent
+    And only the original Misc expense survives
 
   Scenario: Delete a reservation removes it, its section, and shows the empty state
     Given the trip has a Lodging reservation
