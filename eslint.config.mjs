@@ -31,6 +31,17 @@ const applicationStorageImportRestrictions = {
   patterns: blobImportRestrictions.patterns,
 };
 
+const libImportRestrictions = {
+  paths: applicationStorageImportRestrictions.paths,
+  patterns: [
+    ...applicationStorageImportRestrictions.patterns,
+    {
+      group: ["@/app", "@/app/**"],
+      message: "src/lib must not import route-folder code from src/app; move the shared module under src/lib.",
+    },
+  ],
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -77,6 +88,12 @@ const eslintConfig = defineConfig([
     files: ["src/**/*.{js,mjs,ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", applicationStorageImportRestrictions],
+    },
+  },
+  {
+    files: ["src/lib/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", libImportRestrictions],
     },
   },
   {

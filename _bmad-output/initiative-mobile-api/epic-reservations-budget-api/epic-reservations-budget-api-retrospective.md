@@ -24,7 +24,7 @@ Nine tickets, build order 7.1 to 7.9, one linear PR chain (#579-#587) onto `feat
 | 7.8    | Refactor sweep                                  | built (`review`)       |
 | 7.9    | Verify reservations and budget end to end       | built (`review`)       |
 
-Eight tickets are still at `built`, listed here for you to mark done (see Action items).
+**Closed 2026-11-26.** All nine tickets are `done` and the epic is `done`. The table above and the `built` wording are as of the retro run. Action items 1-4 are resolved: tickets marked done, stale deferred entries completed, account-deletion audit fixed (#588), AV2 fixed by the `api.steps.ts` split (#589), AV1 fixed by moving `create-trip-days` and `date-sync` into `src/lib` with an ESLint rule. Still deferred: conversion retry on unchanged re-save, date-editor Escape focus, second/millisecond precision, deterministic cross-trip cascade concurrency test.
 
 **Ranges.** The plans' baselines form one chain, so each plan's range runs to the next baseline and 7.9's runs to `HEAD` (inferred). Whole epic: `f96829d6..HEAD`, 32 commits, 9 merges (all measured), 102 files (`git_evidence.py`, 72 under `src`: +5,100 / -3,345). Baselines: 7.1 `f96829d6`, 7.2 `4d9dff7c`, 7.3 `59eef24c`, 7.4 `b8f46cd1`, 7.5 `9ff280ac`, 7.6 `893c6942`, 7.7 `fc062197`, 7.8 `0f565ccc`, 7.9 `dbbe043c`.
 

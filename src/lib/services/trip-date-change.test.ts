@@ -359,6 +359,7 @@ describe("applyTripDateChange", () => {
     );
     expect(result).toEqual({ startDate: "2026-07-31", endDate: "2026-08-02", documentUrls: [] });
     expect(operations.inserts).toHaveLength(1);
+    expect(operations.inserts[0].values).toMatchObject([{ dayNumber: 1, label: "Day 1", date: "2026-07-31" }]);
     expect(operations.updates.map((entry) => entry.values)).toEqual([
       { dayNumber: 1001, label: "Temp Day 1" },
       { dayNumber: 1002, label: "Temp Day 2" },

@@ -15,12 +15,8 @@ import type { ReservationType, TripDateChangeConfirmation, TripDateChangePreview
 import { TripDateConflictResolution } from "@/data/types";
 import type { DbTransaction } from "@/lib/server-action-locks";
 import { stableStringify, toLocalDateKey } from "@/lib/utils";
-import { buildDayRows } from "@/app/(app)/trips/create-trip-days";
-import {
-  buildTripDateChangeConfirmation,
-  buildTripDateSyncPlan,
-  resolveTripDateRange,
-} from "@/app/(app)/trips/date-sync";
+import { buildDayRows } from "@/lib/create-trip-days";
+import { buildTripDateChangeConfirmation, buildTripDateSyncPlan, resolveTripDateRange } from "@/lib/date-sync";
 import { ConfirmationRequiredError } from "./confirmation-required-error";
 import { ConflictError } from "./conflict-error";
 import { recordDeletions } from "./deletion-records";

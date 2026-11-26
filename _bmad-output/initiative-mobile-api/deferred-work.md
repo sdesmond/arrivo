@@ -297,6 +297,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV1: Services import route-folder code: `src/lib/services/trips.ts` and `trip-date-change.ts` import `@/app/(app)/trips/create-trip-days` and `date-sync`.
   evidence: First `src/lib` to `src/app` imports, introduced in epic 5. Move both modules under `src/lib/` and add an ESLint `no-restricted-imports` rule blocking `@/app/**` from `src/lib/**`.
+  completed: 2026-11-26 on `refactor/lib-without-app-imports`; both modules now live at `src/lib/create-trip-days.ts` and `src/lib/date-sync.ts` (tests moved beside them), and `eslint.config.mjs` blocks `@/app` imports from `src/lib/**`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV2: `tests/e2e/steps/api.steps.ts` is about 4,600 lines (+817 in epic 5); packing API steps went into the shared file.
@@ -358,6 +359,7 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Expanded reservation date controls need a touch-target and font scaling audit.
   evidence: Shared TimePicker uses a 36px Input and independent responsive font sizing. The sweep sized the collapsed trigger.
+  completed: 2026-11-26 on `refactor/lib-without-app-imports`; `TimePicker` is `h-11` (44px) and `TimePicker` and `DatePicker` take a `style`, which the reservation date editor uses to give all four controls its `calc(13px * var(--font-scale))` size. Tests: `time-picker.test.tsx`, `date-picker.test.tsx`, `reservation-date-editor.test.tsx`.
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Escape leaves focus outside the date trigger.
   evidence: ReservationDateEditor unmounts the focused editor without moving focus to the collapsed trigger.
@@ -375,3 +377,6 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `fix/account-deletion-records` (validator run, 2026-11-26)
   summary: Two E2E scenarios failed in the full affected run but passed alone: `trip-live-refresh.feature` "A contributor viewing the trip is redirected when it is deleted elsewhere" and `trips.feature` "Changing the trip's transit mode via the Getting Around section".
   evidence: Two full affected runs (947 and 949 passed). The transit scenario failed in both ("aria-pressed" Expected "true", Received "false"); the redirect scenario failed once (a locator expected 0 elements, received 2). Each passed 3 of 3 alone and with their whole features (18 passed). No baseline run on a clean `feature/api-v1`, so not confirmed pre-existing; suspected load timing.
+- source_plan: `refactor/lib-without-app-imports` (full E2E run, 2026-11-26)
+  summary: Full suite run: 1355 passed, 2 failed, both passed alone. `trips.feature` "Changing the trip's transit mode via the Getting Around section" failed again (third full run in a row), and `budget.feature` "Recalculated conversions persist after changing trip currency" failed at "And I recalculate budget conversions".
+  evidence: Isolated re-run of both with `node scripts/run-e2e.mjs --server=kill "--grep=..."`: 3 passed (the budget scenario has two examples). 7.9 recorded one budget recalculation scenario failing once under load. Not established why; the transit scenario is now the most frequent load failure and the likeliest first thing to investigate.

@@ -7,6 +7,7 @@ export interface TimePickerProps {
   value?: string;
   onChange: (value: string | undefined) => void;
   disabled?: boolean;
+  style?: React.CSSProperties;
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
@@ -16,6 +17,7 @@ export function TimePicker({
   value,
   onChange,
   disabled,
+  style,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
@@ -25,10 +27,11 @@ export function TimePicker({
       type="time"
       value={value ?? ""}
       disabled={disabled}
+      style={style}
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
-      className="w-auto appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+      className="h-11 w-auto appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
       onChange={(event) => onChange(event.target.value || undefined)}
     />
   );
