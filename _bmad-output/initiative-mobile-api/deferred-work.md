@@ -297,6 +297,7 @@
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV1: Services import route-folder code: `src/lib/services/trips.ts` and `trip-date-change.ts` import `@/app/(app)/trips/create-trip-days` and `date-sync`.
   evidence: First `src/lib` to `src/app` imports, introduced in epic 5. Move both modules under `src/lib/` and add an ESLint `no-restricted-imports` rule blocking `@/app/**` from `src/lib/**`.
+  completed: 2026-11-26 on `refactor/lib-without-app-imports`; both modules now live at `src/lib/create-trip-days.ts` and `src/lib/date-sync.ts` (tests moved beside them), and `eslint.config.mjs` blocks `@/app` imports from `src/lib/**`.
 
 - source_plan: `_bmad-output/initiative-mobile-api/epic-trips-packing-api/epic-trips-packing-api-retrospective.md`
   summary: AV2: `tests/e2e/steps/api.steps.ts` is about 4,600 lines (+817 in epic 5); packing API steps went into the shared file.
@@ -358,6 +359,7 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Expanded reservation date controls need a touch-target and font scaling audit.
   evidence: Shared TimePicker uses a 36px Input and independent responsive font sizing. The sweep sized the collapsed trigger.
+  completed: 2026-11-26 on `refactor/lib-without-app-imports` (touch target only): `TimePicker` is now `h-11` (44px), which covers the reservation date editor, time dialog and anchor fieldset; test in `time-picker.test.tsx`. Font scaling stays open: the Input still uses `text-base md:text-sm`, independent of `--font-scale`.
 - source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
   summary: Escape leaves focus outside the date trigger.
   evidence: ReservationDateEditor unmounts the focused editor without moving focus to the collapsed trigger.

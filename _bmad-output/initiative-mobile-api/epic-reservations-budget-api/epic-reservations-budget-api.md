@@ -6,6 +6,7 @@ covers: [R4, R7]
 after: []
 assignee: ""
 risk: medium
+status: done
 ---
 
 # Reservations and budget through the API
