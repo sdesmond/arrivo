@@ -525,6 +525,11 @@ it("builds one day per date and writes budgets as strings", async () => {
   const { tripValues, days } = preparedValues();
   expect(tripValues.budgetTotal).toBe("0");
   expect(days).toHaveLength(3);
+  expect((days as Array<{ dayNumber: number; label: string }>).map((day) => [day.dayNumber, day.label])).toEqual([
+    [1, "Day 1"],
+    [2, "Day 2"],
+    [3, "Day 3"],
+  ]);
 });
 
 it("keeps a failed cover save from failing the create", async () => {
