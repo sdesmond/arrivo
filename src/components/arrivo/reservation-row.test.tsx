@@ -297,7 +297,7 @@ describe("ReservationRow", () => {
 
     expect(screen.getByRole("button", { name: "Add dates" })).toHaveStyle({
       color: PLACEHOLDER_STYLE.color!,
-      fontSize: "13px",
+      fontSize: "calc(13px * var(--font-scale))",
       fontStyle: PLACEHOLDER_STYLE.fontStyle!,
     });
   });
@@ -321,7 +321,7 @@ describe("ReservationRow", () => {
       expect(screen.queryByLabelText("Start date")).not.toBeInTheDocument();
     });
 
-    it("saves a valid start change even when the end draft is incomplete, without closing the editor", async () => {
+    it("blocks saving a valid start change when the end draft is incomplete and keeps the editor open", async () => {
       const user = userEvent.setup();
       render(<ReservationRow reservation={emptyReservation} type={ReservationType.Other} isLast />);
 
@@ -332,9 +332,7 @@ describe("ReservationRow", () => {
       await user.tab();
       await user.tab();
 
-      expect(patchReservation).toHaveBeenCalledWith("res-2", {
-        startAt: "2026-08-01T10:00:00.000Z",
-      });
+      expect(patchReservation).not.toHaveBeenCalled();
       expect(screen.getByText("Enter both a date and a time.")).toBeInTheDocument();
       expect(screen.getByLabelText("Start date")).toBeInTheDocument();
     });

@@ -73,7 +73,7 @@ let rows: (typeof baseRow)[];
 let eventReads: (typeof baseRow | { position: number })[][];
 let dayRows: { tripId: string }[];
 let dayReads: { tripId: string }[][];
-let docRows: { url: string | null }[];
+let docRows: { id?: string; url: string | null }[];
 let expenseRows: { id: string }[];
 let inserted: Record<string, unknown>[];
 let insertedRow: typeof baseRow;
@@ -114,19 +114,25 @@ beforeEach(() => {
   }));
   mocks.select.mockReturnValue({
     from: (table: unknown) => ({
-      where: async () => {
-        if (table === idempotencyKeys) {
-          calls.push("lookup");
-          return stored;
-        }
-        if (table === days) return dayReads.length > 0 ? dayReads.shift()! : dayRows;
-        if (table === documents) return docRows;
-        if (table === expenses) {
-          if (expenseRows.length > 0) calls.push("select-expenses"); // only marked when it matters, keeping other exact sequences intact
-          return expenseRows;
-        }
-        expect(table).toBe(events);
-        return eventReads.length > 0 ? eventReads.shift()! : rows;
+      where: () => {
+        const read = async () => {
+          if (table === idempotencyKeys) {
+            calls.push("lookup");
+            return stored;
+          }
+          if (table === days) return dayReads.length > 0 ? dayReads.shift()! : dayRows;
+          if (table === documents) return docRows;
+          if (table === expenses) {
+            if (expenseRows.length > 0) calls.push("select-expenses"); // only marked when it matters, keeping other exact sequences intact
+            return expenseRows;
+          }
+          expect(table).toBe(events);
+          return eventReads.length > 0 ? eventReads.shift()! : rows;
+        };
+        return {
+          then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) => read().then(resolve, reject),
+          for: read,
+        };
       },
     }),
   });
@@ -689,10 +695,14 @@ it("deletes the event and its documents, then removes the files only after the c
 });
 
 it("discards documents when keepDocuments is false", async () => {
-  docRows = [{ url: "/uploads/a.pdf" }];
+  docRows = [
+    { id: "discarded-doc", url: "/uploads/a.pdf" },
+    { id: "no-file", url: null },
+  ];
   await deleteEvent(actor, eventId, { tripId, keepDocuments: false });
   expect(calls).toContain("delete-documents");
   expect(mocks.storageDelete).toHaveBeenCalledOnce();
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "document", ["discarded-doc", "no-file"], "user");
 });
 
 it("keeps documents as trip documents and deletes no file", async () => {
@@ -703,6 +713,7 @@ it("keeps documents as trip documents and deletes no file", async () => {
   expect(calls).not.toContain("queue");
   expect(calls).toContain("delete-event");
   expect(mocks.storageDelete).not.toHaveBeenCalled();
+  expect(mocks.recordDeletions).not.toHaveBeenCalledWith(mocks, "document", expect.anything(), "user");
   expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
 });
 

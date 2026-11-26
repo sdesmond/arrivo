@@ -3,7 +3,21 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { db } from "@/db";
-import { collaborators, days, documents, events, reservations, trips } from "@/db/schema";
+import {
+  checklistItems,
+  collaborators,
+  days,
+  documents,
+  events,
+  expenses,
+  itineraryChecklists,
+  itineraryNotes,
+  notes,
+  packingItems,
+  reservations,
+  tripPackingLists,
+  trips,
+} from "@/db/schema";
 import type { Actor, IdempotentRequest, Trip, TripDetailPayload, TripListEntry } from "@/data/types";
 import { LiveSyncEventType, TransitMode } from "@/data/types";
 import {
@@ -28,7 +42,7 @@ import { buildDatelessDayRow, buildDayRows } from "@/app/(app)/trips/create-trip
 import { resolveTripDateRange } from "@/app/(app)/trips/date-sync";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
-import { recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
+import { recordDeletions, refuseRecentlyDeleted, type DeletionRecordResource } from "./deletion-records";
 import { generateTripCover } from "./trip-cover-generation";
 import { discardStoredFile, queueFileDeletions, removeQueuedFiles, type QueuedFileDeletion } from "@/lib/file-cleanup";
 import { isOwnTripCoverFile } from "@/lib/url-policy";
@@ -321,21 +335,46 @@ export async function deleteTrip(
           },
           mutate: async () => {
             if (!deleted) return null;
-            const eventIds = transaction
-              .select({ id: events.id })
-              .from(events)
-              .where(
-                or(
-                  eq(events.tripId, tripId),
-                  inArray(events.dayId, transaction.select({ id: days.id }).from(days).where(eq(days.tripId, tripId)))
-                )
-              );
+            // Lock parents before finding their children. Legacy associations can point across trips, so the
+            // trip lock alone cannot serialize every writer and the cascade must follow each foreign key.
+            const tripDays = await transaction
+              .select({ id: days.id })
+              .from(days)
+              .where(eq(days.tripId, tripId))
+              .for("update");
+            const dayIds = transaction.select({ id: days.id }).from(days).where(eq(days.tripId, tripId));
+            const eventScope = or(eq(events.tripId, tripId), inArray(events.dayId, dayIds));
+            const tripEvents = await transaction.select({ id: events.id }).from(events).where(eventScope).for("update");
+            const eventIds = transaction.select({ id: events.id }).from(events).where(eventScope);
+            const tripReservations = await transaction
+              .select({ id: reservations.id })
+              .from(reservations)
+              .where(eq(reservations.tripId, tripId))
+              .for("update");
             const reservationIds = transaction
               .select({ id: reservations.id })
               .from(reservations)
               .where(eq(reservations.tripId, tripId));
+            const tripChecklists = await transaction
+              .select({ id: itineraryChecklists.id })
+              .from(itineraryChecklists)
+              .where(inArray(itineraryChecklists.dayId, dayIds))
+              .for("update");
+            const tripLists = await transaction
+              .select({ id: tripPackingLists.id })
+              .from(tripPackingLists)
+              .where(eq(tripPackingLists.tripId, tripId))
+              .for("update");
+            const listIds = transaction
+              .select({ id: tripPackingLists.id })
+              .from(tripPackingLists)
+              .where(eq(tripPackingLists.tripId, tripId));
+            const checklistIds = transaction
+              .select({ id: itineraryChecklists.id })
+              .from(itineraryChecklists)
+              .where(inArray(itineraryChecklists.dayId, dayIds));
             const files = await transaction
-              .select({ url: documents.url })
+              .select({ id: documents.id, url: documents.url })
               .from(documents)
               .where(
                 or(
@@ -343,7 +382,33 @@ export async function deleteTrip(
                   inArray(documents.eventId, eventIds),
                   inArray(documents.reservationId, reservationIds)
                 )
-              );
+              )
+              .for("update");
+            const tripExpenses = await transaction
+              .select({ id: expenses.id })
+              .from(expenses)
+              .where(
+                or(
+                  eq(expenses.tripId, tripId),
+                  inArray(expenses.eventId, eventIds),
+                  inArray(expenses.reservationId, reservationIds)
+                )
+              )
+              .for("update");
+            const tripPackingItems = await transaction
+              .select({ id: packingItems.id })
+              .from(packingItems)
+              .where(or(eq(packingItems.tripId, tripId), inArray(packingItems.listId, listIds)))
+              .for("update");
+            const tripChecklistItems = await transaction
+              .select({ id: checklistItems.id })
+              .from(checklistItems)
+              .where(inArray(checklistItems.checklistId, checklistIds));
+            const dayNotes = await transaction
+              .select({ id: itineraryNotes.id })
+              .from(itineraryNotes)
+              .where(inArray(itineraryNotes.dayId, dayIds));
+            const tripNotes = await transaction.select({ id: notes.id }).from(notes).where(eq(notes.tripId, tripId));
             const [tripRow] = await transaction
               .select({ coverImageUrl: trips.coverImageUrl })
               .from(trips)
@@ -359,8 +424,31 @@ export async function deleteTrip(
               ...coverFiles,
             ]);
             await transaction.delete(trips).where(eq(trips.id, tripId));
-            // Children need a live trip to be created, so recording the refused trip id covers them too.
-            await recordDeletions(transaction, "trip", [tripId], actor.userId);
+            const removed: Record<
+              Exclude<DeletionRecordResource, "packing-template" | "packing-template-item">,
+              { id: string }[]
+            > = {
+              trip: [{ id: tripId }],
+              day: tripDays,
+              event: tripEvents,
+              reservation: tripReservations,
+              document: files,
+              expense: tripExpenses,
+              "itinerary-note": dayNotes,
+              checklist: tripChecklists,
+              "checklist-item": tripChecklistItems,
+              "trip-note": tripNotes,
+              "packing-list": tripLists,
+              "packing-item": tripPackingItems,
+            };
+            for (const [resource, rows] of Object.entries(removed) as [keyof typeof removed, { id: string }[]][]) {
+              await recordDeletions(
+                transaction,
+                resource,
+                rows.map(({ id }) => id),
+                actor.userId
+              );
+            }
             return null;
           },
         }

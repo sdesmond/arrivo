@@ -40,7 +40,8 @@ Feature: Reservations
 
   Scenario Outline: Reservation GET respects member visibility
     Given a reservation with a document and expense for API visibility
-    When I request reservations as a "<role>"
+    And my reservation API role is "<role>"
+    When I request reservations
     Then the reservation API visibility matches "<role>"
 
     Examples:
@@ -87,6 +88,17 @@ Feature: Reservations
     Then the reservation provider shows "Updated Hotel Name"
     And the "Check-in" anchor shows a time of "10:00"
     And the reservation "Updated Hotel Name" shows the "Check-in" address "Paris, France"
+
+  Scenario: Leaving an incomplete inline date draft preserves both saved anchors
+    Given the trip has a Lodging reservation
+    And the "Lodging" reservation section is expanded
+    Then the collapsed date editor trigger meets minimum sizing and scales its text
+    When I clear the check-in time and change the check-out time
+    Then the date editor reports an incomplete draft and retains both edits without attempting a PATCH
+    When I reload the page
+    And the "Lodging" reservation section is expanded
+    Then the "Check-in" anchor shows a time of "15:00"
+    And the "Check-out" anchor shows a time of "11:00"
 
   Scenario: Add, edit and remove a reservation cost and keep the Budget tab in sync
     Given the trip has a Lodging reservation

@@ -1,5 +1,19 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { collaborators, documents, trips, expenses } from "@/db/schema";
+import {
+  checklistItems,
+  collaborators,
+  days,
+  documents,
+  events,
+  expenses,
+  itineraryChecklists,
+  itineraryNotes,
+  notes,
+  packingItems,
+  reservations,
+  tripPackingLists,
+  trips,
+} from "@/db/schema";
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(),
   lock: vi.fn(),
@@ -738,17 +752,40 @@ it("lists the caller's trips with status computed from the server clock", async 
   await expect(listTrips(actor, { status: "past" })).rejects.toThrow();
 });
 
+function lockableRows(rows: unknown[]) {
+  return Object.assign(Promise.resolve(rows), { for: async () => rows });
+}
+
 it("deletes under a lock, queues files, then publishes and cleans up after commit", async () => {
   stubCreate();
+  const identities = new Map<unknown, string>([
+    [days, "day"],
+    [events, "event"],
+    [reservations, "reservation"],
+    [expenses, "expense"],
+    [itineraryNotes, "itinerary-note"],
+    [itineraryChecklists, "checklist"],
+    [checklistItems, "checklist-item"],
+    [notes, "trip-note"],
+    [tripPackingLists, "packing-list"],
+    [packingItems, "packing-item"],
+  ]);
   const transaction = {
     select: () => ({
       from: (table: unknown) => ({
-        where: async () =>
-          table === documents
-            ? [{ url: "/file" }, { url: null }]
-            : table === collaborators
-              ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
-              : [],
+        where: () =>
+          lockableRows(
+            table === documents
+              ? [
+                  { id: "document", url: "/file" },
+                  { id: "no-file", url: null },
+                ]
+              : table === collaborators
+                ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
+                : identities.has(table)
+                  ? [{ id: identities.get(table) }]
+                  : []
+          ),
       }),
     }),
     delete: mocks.remove,
@@ -768,6 +805,10 @@ it("deletes under a lock, queues files, then publishes and cleans up after commi
   expect(mocks.remove).toHaveBeenCalledWith(trips);
   // A late create retry with this client id must conflict instead of recreating the trip.
   expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, "trip", [tripId], "user");
+  for (const resource of identities.values()) {
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, resource, [resource], "user");
+  }
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(transaction, "document", ["document", "no-file"], "user");
   expect(mocks.publishTrip).toHaveBeenCalledOnce();
   expect(mocks.publishUser).toHaveBeenCalledExactlyOnceWith("other", { type: "trip-deleted", tripId });
   expect(mocks.purge).toHaveBeenCalledOnce();
@@ -796,8 +837,10 @@ it.each([
   const transaction = {
     select: () => ({
       from: (table: unknown) => ({
-        where: async () =>
-          table === documents ? [{ url: "/file" }] : table === trips ? [{ coverImageUrl: coverFor(tripId) }] : [],
+        where: () =>
+          lockableRows(
+            table === documents ? [{ url: "/file" }] : table === trips ? [{ coverImageUrl: coverFor(tripId) }] : []
+          ),
       }),
     }),
     delete: mocks.remove,
@@ -816,7 +859,7 @@ it("answers the deletion while storage cleanup is still held open", async () => 
   stubCreate();
   const transaction = {
     select: () => ({
-      from: (table: unknown) => ({ where: async () => (table === documents ? [{ url: "/file" }] : []) }),
+      from: (table: unknown) => ({ where: () => lockableRows(table === documents ? [{ url: "/file" }] : []) }),
     }),
     delete: mocks.remove,
   };
@@ -842,7 +885,7 @@ it("keeps committed deletion successful when cleanup cannot be scheduled", async
   stubCreate();
   const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
   const transaction = {
-    select: () => ({ from: () => ({ where: async () => [] }) }),
+    select: () => ({ from: () => ({ where: () => lockableRows([]) }) }),
     delete: mocks.remove,
   };
   mocks.remove.mockReturnValue({ where: async () => undefined });
@@ -878,12 +921,14 @@ it("publishes nothing when the deletion transaction rolls back", async () => {
   const transaction = {
     select: () => ({
       from: (table: unknown) => ({
-        where: async () =>
-          table === documents
-            ? [{ url: "/file" }, { url: null }]
-            : table === collaborators
-              ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
-              : [],
+        where: () =>
+          lockableRows(
+            table === documents
+              ? [{ url: "/file" }, { url: null }]
+              : table === collaborators
+                ? [{ userId: "user" }, { userId: "other" }, { userId: null }]
+                : []
+          ),
       }),
     }),
     delete: mocks.remove,

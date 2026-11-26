@@ -65,6 +65,9 @@ const PASSWORD_RULES = [
 
 export const FEATURE_MAP = [
   entry("api", [
+    "src/app/api/v1/reservations/*/route.ts",
+    "src/app/api/v1/trips/*/reservations/**",
+    "src/lib/services/reservations.ts",
     "src/lib/services/packing-templates.ts",
     "src/lib/services/packing-template-items.ts",
     "src/lib/api/contract/packing-templates.ts",
@@ -817,6 +820,7 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
   ]),
   entry("reservations", [
+    "tests/e2e/steps/api.steps.ts",
     // Row costs create, edit and remove their linked expense through the expense endpoints.
     "src/components/arrivo/cost-dialog.tsx",
     "src/lib/services/expenses.ts",

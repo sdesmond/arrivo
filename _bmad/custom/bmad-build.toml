@@ -4,3 +4,7 @@
 
 [workflow]
 review = "auto"
+
+persistent_facts = [
+  "Every build plan's Verification section must include a Build-validator result field. Include a Pending field in new plans. Before marking a plan built, record the actual outcomes for lint, TypeScript, production build, coverage, and affected E2E, or state the specific blocker for any check that could not run. The project validator owns this gate. Use its recorded results."
+]

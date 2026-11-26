@@ -17,7 +17,7 @@ import { requireTripRole, TripNotFoundError } from "./trip-access";
 import { lockTrip, readDayTripId, runTripWrite, type ReadExecutor } from "./trip-write";
 import { lockClientIds } from "./client-ids";
 import { ConflictError } from "./conflict-error";
-import { recordDeletion, refuseRecentlyDeleted } from "./deletion-records";
+import { recordDeletion, recordDeletions, refuseRecentlyDeleted } from "./deletion-records";
 import { shiftFromPosition } from "./timeline-positions";
 import {
   createChecklist as createContract,
@@ -277,9 +277,23 @@ export async function deleteChecklist(
       if (current && current.tripId !== tripId) throw new TripNotFoundError();
     },
     mutate: async () => {
-      const current = await readChecklist(transaction, checklistId);
+      const [current] = await transaction
+        .select({ id: itineraryChecklists.id })
+        .from(itineraryChecklists)
+        .where(eq(itineraryChecklists.id, checklistId))
+        .for("update");
       if (current) {
+        const items = await transaction
+          .select({ id: checklistItems.id })
+          .from(checklistItems)
+          .where(eq(checklistItems.checklistId, checklistId));
         await transaction.delete(itineraryChecklists).where(eq(itineraryChecklists.id, checklistId));
+        await recordDeletions(
+          transaction,
+          "checklist-item",
+          items.map(({ id }) => id),
+          actor.userId
+        );
         await recordDeletion(transaction, "checklist", checklistId, actor.userId);
         markChanged();
       }

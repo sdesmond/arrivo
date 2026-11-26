@@ -429,10 +429,23 @@ export async function deletePackingList(
         if (list && list.tripId !== tripId) throw new TripNotFoundError();
       },
       mutate: async () => {
-        if (await readList(transaction, listId)) {
-          await transaction.delete(packingItems).where(eq(packingItems.listId, listId));
+        const [list] = await transaction
+          .select({ id: tripPackingLists.id })
+          .from(tripPackingLists)
+          .where(eq(tripPackingLists.id, listId))
+          .for("update");
+        if (list) {
+          const items = await transaction
+            .delete(packingItems)
+            .where(eq(packingItems.listId, listId))
+            .returning({ id: packingItems.id });
           await transaction.delete(tripPackingLists).where(eq(tripPackingLists.id, listId));
-          // Items go with the list; an item create aimed at the missing list already fails, so the list suffices.
+          await recordDeletions(
+            transaction,
+            "packing-item",
+            items.map(({ id }) => id),
+            actor.userId
+          );
           await recordDeletions(transaction, "packing-list", [listId], actor.userId);
           markChanged();
         }

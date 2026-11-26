@@ -1,6 +1,15 @@
 import "server-only";
 import { db } from "@/db";
-import { days, documents, events, expenses, itineraryChecklists, itineraryNotes, trips } from "@/db/schema";
+import {
+  checklistItems,
+  days,
+  documents,
+  events,
+  expenses,
+  itineraryChecklists,
+  itineraryNotes,
+  trips,
+} from "@/db/schema";
 import { asc, eq, inArray } from "drizzle-orm";
 import type { Actor, DayItemOrder, DayRecord, IdempotentRequest } from "@/data/types";
 import { dbDayToType } from "@/lib/db-mappers";
@@ -217,7 +226,8 @@ export async function deleteDay(
       },
       mutate: async () => {
         queued = [];
-        if (!(await readDay(transaction, dayId))) return null;
+        const [day] = await transaction.select({ id: days.id }).from(days).where(eq(days.id, dayId)).for("update");
+        if (!day) return null;
         const tripDays = await transaction
           .select()
           .from(days)
@@ -225,7 +235,11 @@ export async function deleteDay(
           .orderBy(asc(days.dayNumber));
         if (tripDays.at(-1)?.id !== dayId) throw new ConflictError("Only the last day can be removed.");
         if (tripDays.length === 1) throw new ConflictError("Cannot remove the only remaining day.");
-        const dayEvents = await transaction.select({ id: events.id }).from(events).where(eq(events.dayId, dayId));
+        const dayEvents = await transaction
+          .select({ id: events.id })
+          .from(events)
+          .where(eq(events.dayId, dayId))
+          .for("update");
         const dayNotes = await transaction
           .select({ id: itineraryNotes.id })
           .from(itineraryNotes)
@@ -233,40 +247,74 @@ export async function deleteDay(
         const dayChecklists = await transaction
           .select({ id: itineraryChecklists.id })
           .from(itineraryChecklists)
-          .where(eq(itineraryChecklists.dayId, dayId));
+          .where(eq(itineraryChecklists.dayId, dayId))
+          .for("update");
         const hasContent = dayEvents.length > 0 || dayNotes.length > 0 || dayChecklists.length > 0;
         if (hasContent && !body.confirmDestructive) {
           throw new ConfirmationRequiredError("This day has planned content. Confirm to remove it.");
         }
         if (dayEvents.length > 0) {
+          const eventIds = transaction.select({ id: events.id }).from(events).where(eq(events.dayId, dayId));
           const eventDocuments = await transaction
-            .select({ url: documents.url })
+            .select({ id: documents.id, url: documents.url })
             .from(documents)
-            .where(
-              inArray(
-                documents.eventId,
-                dayEvents.map((event) => event.id)
-              )
-            );
+            .where(inArray(documents.eventId, eventIds))
+            .for("update");
           queued = await queueFileDeletions(
             transaction,
             eventDocuments.map((document) => document.url).filter((url): url is string => !!url)
           );
-        }
-        if (dayEvents.length > 0) {
           const eventExpenses = await transaction
             .select({ id: expenses.id })
             .from(expenses)
-            .where(
-              inArray(
-                expenses.eventId,
-                dayEvents.map((event) => event.id)
-              )
-            );
+            .where(inArray(expenses.eventId, eventIds))
+            .for("update");
+          await recordDeletions(
+            transaction,
+            "event",
+            dayEvents.map(({ id }) => id),
+            actor.userId
+          );
+          await recordDeletions(
+            transaction,
+            "document",
+            eventDocuments.map(({ id }) => id),
+            actor.userId
+          );
           await recordDeletions(
             transaction,
             "expense",
             eventExpenses.map((expense) => expense.id),
+            actor.userId
+          );
+        }
+        if (dayNotes.length > 0) {
+          await recordDeletions(
+            transaction,
+            "itinerary-note",
+            dayNotes.map(({ id }) => id),
+            actor.userId
+          );
+        }
+        if (dayChecklists.length > 0) {
+          const checklistIds = transaction
+            .select({ id: itineraryChecklists.id })
+            .from(itineraryChecklists)
+            .where(eq(itineraryChecklists.dayId, dayId));
+          const items = await transaction
+            .select({ id: checklistItems.id })
+            .from(checklistItems)
+            .where(inArray(checklistItems.checklistId, checklistIds));
+          await recordDeletions(
+            transaction,
+            "checklist",
+            dayChecklists.map(({ id }) => id),
+            actor.userId
+          );
+          await recordDeletions(
+            transaction,
+            "checklist-item",
+            items.map(({ id }) => id),
             actor.userId
           );
         }

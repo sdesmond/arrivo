@@ -24,9 +24,10 @@ import {
   packingTemplates,
   tripPackingLists,
   trips,
+  reservations,
 } from "../../../src/db/schema";
 import { runSharedTableDdl, withE2EDb } from "../e2e-db";
-import { E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
+import { e2eTripDateTime, E2E_TRIP_FOURTH_DATE } from "../e2e-seed-data";
 import { ExpenseCategory } from "../../../src/data/types";
 import { E2E_STORAGE_DIRECTORY } from "../../../scripts/e2e-storage.mjs";
 import { waitForApiResponse } from "../api-response";
@@ -4933,4 +4934,378 @@ Then("both trips have identical trip conversion fields", async ({ page }) => {
     expect.objectContaining({ currency: "EUR", target: "EUR", amount: expect.any(String), rate: expect.any(String) }),
     expect.objectContaining({ currency: "USD", target: "EUR", amount: expect.any(String), rate: expect.any(String) }),
   ]);
+});
+
+const reservationReadStates = new WeakMap<Page, { tripId: string; id: string; response?: APIResponse }>();
+
+Given("a reservation with a document and expense for API visibility", async ({ page, scenario }) => {
+  const { trip } = await scenario.materialize({
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        reservations: [
+          {
+            type: "other",
+            provider: "API visibility",
+            startAt: e2eTripDateTime(0, "15:00:00.000"),
+            endAt: e2eTripDateTime(2, "11:00:00.000"),
+          },
+        ],
+        documents: [{ name: "Ticket", kind: "other", url: "/test/ticket", reservationProvider: "API visibility" }],
+      },
+      setCurrent: false,
+    },
+  });
+  const [row] = await withE2EDb((database) =>
+    database.select().from(reservations).where(eq(reservations.tripId, trip!.id))
+  );
+  await withE2EDb((database) =>
+    database.insert(expenses).values({
+      tripId: trip!.id,
+      reservationId: row.id,
+      category: "misc",
+      amount: "42.00",
+      currency: "USD",
+      date: "2030-01-01",
+    })
+  );
+  reservationReadStates.set(page, { tripId: trip!.id, id: row.id });
+});
+
+Given("my reservation API role is {string}", async ({ page, scenario }, role: string) => {
+  const state = reservationReadStates.get(page)!;
+  const { user } = await scenario.materialize({ user: { setCurrent: false } });
+  if (role !== "nonmember")
+    await withE2EDb((database) =>
+      database.insert(collaborators).values({
+        tripId: state.tripId,
+        userId: user!.id,
+        name: user!.name,
+        initials: user!.initials,
+        role,
+        isCreator: false,
+      })
+    );
+  await scenario.signInAsUser(page, user!.username);
+});
+
+When("I request reservations", async ({ page }) => {
+  const state = reservationReadStates.get(page)!;
+  state.response = await (
+    await apiClient(page)
+  ).get(`/api/v1/trips/${state.tripId}/reservations`, { headers: headers(page) });
+});
+
+Then("the reservation API visibility matches {string}", async ({ page }, role: string) => {
+  const state = reservationReadStates.get(page)!;
+  expect(state.response!.status()).toBe(role === "nonmember" ? 404 : 200);
+  if (role === "nonmember") return;
+  const body = await state.response!.json();
+  expect(body.reservations).toHaveLength(1);
+  expect(body.reservations[0]).toMatchObject({
+    id: state.id,
+    provider: "API visibility",
+    documents: [{ name: "Ticket" }],
+  });
+  if (role === "viewer") expect(body.reservations[0].expense).toBeUndefined();
+  else expect(body.reservations[0].expense).toMatchObject({ amount: 42, currency: "USD" });
+});
+
+When("I attempt to clear the reservation end via the API", async ({ page }) => {
+  const state = reservationReadStates.get(page)!;
+  state.response = await (
+    await apiClient(page)
+  ).patch(`/api/v1/reservations/${state.id}`, {
+    headers: headers(page),
+    data: { endAt: null },
+  });
+});
+
+Then("the reservation API rejects the clear as forbidden", async ({ page }) => {
+  const response = reservationReadStates.get(page)!.response!;
+  expect(response.status()).toBe(403);
+  expect(await response.json()).toMatchObject({ error: { code: "forbidden" } });
+});
+
+Then("the reservation API accepts the clear", async ({ page }) => {
+  const state = reservationReadStates.get(page)!;
+  expect(state.response!.status()).toBe(200);
+  const body = await state.response!.json();
+  expect(body.id).toBe(state.id);
+  expect(body).not.toHaveProperty("endAt");
+});
+
+async function getReservationItem(page: Page) {
+  const { id } = reservationReadStates.get(page)!;
+  const response = await (await apiClient(page)).get(`/api/v1/reservations/${id}`, { headers: headers(page) });
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body).toMatchObject({ id, startAt: e2eTripDateTime(0, "15:00:00.000") });
+  return body;
+}
+
+Then("the reservation item GET shows the original end and hides the expense", async ({ page }) => {
+  const body = await getReservationItem(page);
+  expect(body.endAt).toBe(e2eTripDateTime(2, "11:00:00.000"));
+  expect(body).not.toHaveProperty("expense");
+});
+
+Then("the reservation item GET shows the original end and linked expense", async ({ page }) => {
+  const body = await getReservationItem(page);
+  expect(body.endAt).toBe(e2eTripDateTime(2, "11:00:00.000"));
+  expect(body.expense).toMatchObject({ amount: 42, currency: "USD" });
+});
+
+Then("the reservation item GET omits the cleared end and shows the linked expense", async ({ page }) => {
+  const body = await getReservationItem(page);
+  expect(body).not.toHaveProperty("endAt");
+  expect(body.expense).toMatchObject({ amount: 42, currency: "USD" });
+});
+
+interface CascadeReplayRow {
+  resource: string;
+  id: string;
+  path?: string;
+  data?: Record<string, unknown>;
+}
+
+const cascadeReplayGraphs = new WeakMap<
+  Page,
+  {
+    tripId: string;
+    survivorId: string;
+    cases: Record<string, { path: string; rows: CascadeReplayRow[] }>;
+    expected?: CascadeReplayRow[];
+  }
+>();
+
+Given("a scenario-owned cascade replay graph", async ({ page, scenario }) => {
+  const { trip: target } = await scenario.materialize({
+    trip: { mother: "threeDayTrip", setCurrent: false },
+  });
+  const survivorId = scenario.currentTrip!.id;
+  const tripId = target!.id;
+  await withE2EDb(async (database) => {
+    const [day] = await database
+      .select()
+      .from(days)
+      .where(and(eq(days.tripId, tripId), eq(days.dayNumber, 3)));
+    const [survivorDay] = await database
+      .select()
+      .from(days)
+      .where(and(eq(days.tripId, survivorId), eq(days.dayNumber, 1)));
+    const [survivorChecklist] = await database
+      .select()
+      .from(itineraryChecklists)
+      .where(eq(itineraryChecklists.dayId, survivorDay.id));
+    const [event] = await database
+      .insert(events)
+      .values({
+        tripId: survivorId,
+        dayId: day.id,
+        name: "Legacy cross-trip event",
+        position: 0,
+      })
+      .returning({ id: events.id });
+    const [reservation] = await database
+      .insert(reservations)
+      .values({
+        tripId,
+        type: "other",
+        provider: "Cascade reservation",
+      })
+      .returning({ id: reservations.id });
+    const [document] = await database
+      .insert(documents)
+      .values({
+        tripId: survivorId,
+        eventId: event.id,
+        name: "Cascade document",
+        kind: "pdf",
+      })
+      .returning({ id: documents.id });
+    const [expense] = await database
+      .insert(expenses)
+      .values({
+        tripId: survivorId,
+        eventId: event.id,
+        category: "misc",
+        amount: "1",
+        currency: "USD",
+        date: "2030-01-01",
+      })
+      .returning({ id: expenses.id });
+    const [reservationDocument] = await database
+      .insert(documents)
+      .values({
+        tripId: survivorId,
+        reservationId: reservation.id,
+        name: "Cross-trip reservation document",
+        kind: "pdf",
+      })
+      .returning({ id: documents.id });
+    const [reservationExpense] = await database
+      .insert(expenses)
+      .values({
+        tripId: survivorId,
+        reservationId: reservation.id,
+        category: "misc",
+        amount: "1",
+        currency: "USD",
+        date: "2030-01-01",
+      })
+      .returning({ id: expenses.id });
+    const [checklist] = await database
+      .insert(itineraryChecklists)
+      .values({
+        dayId: day.id,
+        position: 1,
+      })
+      .returning({ id: itineraryChecklists.id });
+    const [checklistItem] = await database
+      .insert(checklistItems)
+      .values({
+        checklistId: checklist.id,
+        content: "Cascade checklist item",
+      })
+      .returning({ id: checklistItems.id });
+    const [note] = await database
+      .insert(itineraryNotes)
+      .values({
+        dayId: day.id,
+        position: 2,
+        content: "Cascade itinerary note",
+      })
+      .returning({ id: itineraryNotes.id });
+    const [tripNote] = await database
+      .insert(notes)
+      .values({
+        tripId,
+        position: 0,
+        title: "Cascade trip note",
+        body: "",
+      })
+      .returning({ id: notes.id });
+    const [list] = await database
+      .insert(tripPackingLists)
+      .values({
+        tripId,
+        position: 0,
+        name: "Cascade packing list",
+      })
+      .returning({ id: tripPackingLists.id });
+    const [packingItem] = await database
+      .insert(packingItems)
+      .values({
+        tripId: survivorId,
+        listId: list.id,
+        position: 0,
+        name: "Legacy cross-trip packing item",
+      })
+      .returning({ id: packingItems.id });
+
+    const documentReplay = { resource: "document", id: document.id };
+    const expenseReplay = {
+      resource: "expense",
+      id: expense.id,
+      path: `/api/v1/trips/${survivorId}/expenses`,
+      data: { category: ExpenseCategory.Misc, amount: 42, currency: "USD", date: "2030-01-01" },
+    };
+    const eventRows = [
+      { resource: "event", id: event.id, path: `/api/v1/days/${survivorDay.id}/events`, data: { name: "Retry" } },
+      documentReplay,
+      expenseReplay,
+    ];
+    const checklistRows = [
+      { resource: "checklist", id: checklist.id },
+      {
+        resource: "checklist-item",
+        id: checklistItem.id,
+        path: `/api/v1/checklists/${survivorChecklist.id}/items`,
+        data: { content: "Retry" },
+      },
+    ];
+    const dayRows = [
+      { resource: "day", id: day.id },
+      { resource: "itinerary-note", id: note.id },
+      ...eventRows,
+      ...checklistRows,
+    ];
+    const packingRows = [
+      { resource: "packing-list", id: list.id },
+      {
+        resource: "packing-item",
+        id: packingItem.id,
+        path: `/api/v1/trips/${survivorId}/packing-items`,
+        data: { name: "Retry", listId: null },
+      },
+    ];
+    cascadeReplayGraphs.set(page, {
+      tripId,
+      survivorId,
+      cases: {
+        event: { path: `/api/v1/events/${event.id}`, rows: eventRows },
+        day: { path: `/api/v1/days/${day.id}`, rows: dayRows },
+        checklist: { path: `/api/v1/checklists/${checklist.id}`, rows: checklistRows },
+        packing: { path: `/api/v1/packing-lists/${list.id}`, rows: packingRows },
+        trip: {
+          path: `/api/v1/trips/${tripId}`,
+          rows: [
+            { resource: "trip", id: tripId },
+            { resource: "reservation", id: reservation.id },
+            { resource: "document", id: reservationDocument.id },
+            { ...expenseReplay, id: reservationExpense.id },
+            { resource: "trip-note", id: tripNote.id },
+            ...dayRows,
+            ...packingRows,
+          ],
+        },
+      },
+    });
+  });
+});
+
+When("I delete the cascade replay {string} through the API", async ({ page }, parent: string) => {
+  const graph = cascadeReplayGraphs.get(page)!;
+  const { path, rows } = graph.cases[parent];
+  const data =
+    parent === "trip"
+      ? {}
+      : {
+          tripId: parent === "event" ? graph.survivorId : graph.tripId,
+          ...(parent === "day" ? { confirmDestructive: true } : {}),
+        };
+  const response = await (await apiClient(page)).delete(path, { headers: headers(page), data });
+  expect(response.status()).toBe(204);
+  graph.expected = rows;
+});
+
+Then("the cascade replay IDs are recorded and cannot be recreated", async ({ page }) => {
+  const graph = cascadeReplayGraphs.get(page)!;
+  const expected = graph.expected!;
+  const keys = expected.map(({ resource, id }) => `deleted:${resource}:${id}`).sort();
+  const recorded = await withE2EDb((database) =>
+    database.select({ key: idempotencyKeys.key }).from(idempotencyKeys).where(inArray(idempotencyKeys.key, keys))
+  );
+  expect(recorded.map(({ key }) => key).sort()).toEqual(keys);
+  const client = await apiClient(page);
+  for (const { resource, id, path, data } of expected) {
+    if (path) {
+      const response = await client.post(path, { headers: headers(page), data: { id, ...data } });
+      expect(response.status()).toBe(409);
+      expect((await response.json()).error.code).toBe("conflict");
+    }
+    if (resource === "document") {
+      const { origin } = headers(page);
+      const response = await client.post(`/api/v1/trips/${graph.survivorId}/documents`, {
+        headers: { "x-arrivo-client": "web", origin },
+        multipart: {
+          id,
+          file: { name: "retry.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%%EOF") },
+        },
+      });
+      expect(response.status()).toBe(409);
+      expect((await response.json()).error.code).toBe("conflict");
+    }
+  }
 });
