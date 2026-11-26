@@ -25,6 +25,7 @@ function fakeTransaction(rows: { key: string }[] = []) {
   const calls = {
     table: undefined as unknown,
     values: undefined as unknown,
+    batches: [] as unknown[][],
     upsert: undefined as unknown,
     where: undefined as SQL | undefined,
     limit: undefined as number | undefined,
@@ -33,8 +34,9 @@ function fakeTransaction(rows: { key: string }[] = []) {
     insert: (table: unknown) => {
       calls.table = table;
       return {
-        values: (values: unknown) => {
+        values: (values: unknown[]) => {
           calls.values = values;
+          calls.batches.push(values);
           return {
             onConflictDoUpdate: async (upsert: unknown) => {
               calls.upsert = upsert;
@@ -103,6 +105,18 @@ it("writes nothing for an empty list", async () => {
   const { transaction, calls } = fakeTransaction();
   await recordDeletions(transaction, "day", [], "user-1");
   expect(calls.table).toBeUndefined();
+});
+
+it("batches a cascade whose rows would exceed the database parameter limit", async () => {
+  const { transaction, calls } = fakeTransaction();
+  const ids = Array.from({ length: 16_384 }, (_, index) => `item-${index}`);
+  await recordDeletions(transaction, "packing-item", ids, "user-1");
+
+  expect(calls.batches.length).toBeGreaterThan(1);
+  for (const batch of calls.batches) expect(batch.length * 4 + 1).toBeLessThan(65_534);
+  expect(calls.batches.flat()).toEqual(
+    ids.map((id) => ({ key: `deleted:packing-item:${id}`, userId: "user-1", result: {}, createdAt: now }))
+  );
 });
 
 it.each([

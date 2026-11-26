@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  checklistItems,
   days,
   documents,
   events,
@@ -95,7 +96,8 @@ let tripRows: { startDate: string | null }[];
 let eventRows: { id: string }[];
 let noteRows: { id: string }[];
 let checklistRows: { id: string }[];
-let docRows: { url: string | null }[];
+let checklistItemRows: { id: string }[];
+let docRows: { id?: string; url: string | null }[];
 let expenseRows: { id: string }[];
 let returnedDay: DayRow[];
 let insertedDays: Record<string, unknown>[];
@@ -111,6 +113,7 @@ beforeEach(() => {
   eventRows = [];
   noteRows = [];
   checklistRows = [];
+  checklistItemRows = [];
   docRows = [];
   expenseRows = [];
   returnedDay = [dayRow(3, { label: "Updated" })];
@@ -132,6 +135,7 @@ beforeEach(() => {
       return expenseRows;
     }
     if (table === itineraryNotes) return noteRows;
+    if (table === checklistItems) return checklistItemRows;
     expect(table).toBe(itineraryChecklists);
     return checklistRows;
   }
@@ -141,6 +145,7 @@ beforeEach(() => {
         // Lazy: a read that is never awaited must not consume a queued result.
         then: (resolve: (value: unknown) => void, reject: (reason: unknown) => void) =>
           Promise.resolve(rowsFor(table)).then(resolve, reject),
+        for: async () => rowsFor(table),
         orderBy: async () => allDays,
       }),
     }),
@@ -685,7 +690,13 @@ describe("deleteDay", () => {
   it("removes a confirmed populated day, queues its files, and deletes them only after the commit", async () => {
     eventRows = [{ id: "event" }];
     noteRows = [{ id: "note" }];
-    docRows = [{ url: "/uploads/a.pdf" }, { url: null }, { url: "/uploads/b.pdf" }];
+    checklistRows = [{ id: "checklist" }];
+    checklistItemRows = [{ id: "item" }];
+    docRows = [
+      { id: "doc-a", url: "/uploads/a.pdf" },
+      { id: "no-file", url: null },
+      { id: "doc-b", url: "/uploads/b.pdf" },
+    ];
     await expect(deleteDay(actor, dayId, { tripId, confirmDestructive: true })).resolves.toBeNull();
     expect(calls.slice(0, 4)).toEqual(["trip-lock", "queue", "delete-day", "commit"]);
     expect(calls.slice(4).filter((step) => step === "cleanup")).toHaveLength(2);
@@ -693,6 +704,11 @@ describe("deleteDay", () => {
     expect(mocks.storageDelete).toHaveBeenCalledWith("/uploads/a.pdf");
     expect(mocks.storageDelete).toHaveBeenCalledWith("/uploads/b.pdf");
     expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "event", ["event"], "user");
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "document", ["doc-a", "no-file", "doc-b"], "user");
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "itinerary-note", ["note"], "user");
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "checklist", ["checklist"], "user");
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "checklist-item", ["item"], "user");
   });
 
   it("removes a confirmed day whose content has no files without queueing any", async () => {
@@ -833,7 +849,7 @@ describe("deleted day ids", () => {
     eventRows = [{ id: "event-1" }];
     expenseRows = [{ id: "cost-1" }, { id: "cost-2" }];
     await deleteDay(actor, dayId, { tripId, confirmDestructive: true });
-    expect(mocks.recordDeletions).toHaveBeenCalledExactlyOnceWith(mocks, "expense", ["cost-1", "cost-2"], "user");
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "expense", ["cost-1", "cost-2"], "user");
     expect(calls.indexOf("select-expenses")).toBeGreaterThan(-1);
     expect(calls.indexOf("select-expenses")).toBeLessThan(calls.indexOf("delete-day"));
     mocks.recordDeletions.mockClear();

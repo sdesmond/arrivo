@@ -11,6 +11,8 @@ import { ConflictError } from "./conflict-error";
  * instead of bringing the resource back. They share `idempotency_keys`, so the retention sweep removes them.
  */
 export const DELETION_RECORD_NAMESPACE = "deleted:";
+// Four bound values per row and one for the conflict update must fit in a single statement.
+const DELETION_RECORD_BATCH_SIZE = 10_000;
 
 /** Resources whose creates accept a client id and record their deletions. */
 export type DeletionRecordResource =
@@ -62,10 +64,16 @@ export async function recordDeletions(
 ): Promise<void> {
   if (ids.length === 0) return;
   const now = getNow();
-  await transaction
-    .insert(idempotencyKeys)
-    .values(ids.map((id) => ({ key: recordKey(resource, id), userId, result: {}, createdAt: now })))
-    .onConflictDoUpdate({ target: [idempotencyKeys.key, idempotencyKeys.userId], set: { createdAt: now } });
+  for (let offset = 0; offset < ids.length; offset += DELETION_RECORD_BATCH_SIZE) {
+    await transaction
+      .insert(idempotencyKeys)
+      .values(
+        ids
+          .slice(offset, offset + DELETION_RECORD_BATCH_SIZE)
+          .map((id) => ({ key: recordKey(resource, id), userId, result: {}, createdAt: now }))
+      )
+      .onConflictDoUpdate({ target: [idempotencyKeys.key, idempotencyKeys.userId], set: { createdAt: now } });
+  }
 }
 
 /** Call inside the deleting transaction, so the record commits or rolls back with the delete. */

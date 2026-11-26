@@ -237,22 +237,37 @@ export async function deleteEvent(
     },
     mutate: async () => {
       queued = [];
-      if (!(await readEvent(transaction, eventId))) return null;
+      const [event] = await transaction
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for("update");
+      if (!event) return null;
       if (body.keepDocuments) {
         await transaction.update(documents).set({ eventId: null, tripId }).where(eq(documents.eventId, eventId));
       } else {
         const eventDocuments = await transaction
-          .select({ url: documents.url })
+          .select({ id: documents.id, url: documents.url })
           .from(documents)
-          .where(eq(documents.eventId, eventId));
+          .where(eq(documents.eventId, eventId))
+          .for("update");
         const urls = eventDocuments.map((document) => document.url).filter((url): url is string => !!url);
         queued = await queueFileDeletions(transaction, urls);
         await transaction.delete(documents).where(eq(documents.eventId, eventId));
+        if (eventDocuments.length > 0) {
+          await recordDeletions(
+            transaction,
+            "document",
+            eventDocuments.map(({ id }) => id),
+            actor.userId
+          );
+        }
       }
       const linkedExpenses = await transaction
         .select({ id: expenses.id })
         .from(expenses)
-        .where(eq(expenses.eventId, eventId));
+        .where(eq(expenses.eventId, eventId))
+        .for("update");
       await transaction.delete(events).where(eq(events.id, eventId));
       await recordDeletion(transaction, "event", eventId, actor.userId);
       await recordDeletions(

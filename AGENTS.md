@@ -111,6 +111,8 @@ These skills enforce project standards. Use them as described below.
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `build-validator` | After completing the final code for a change. It runs ESLint, TypeScript checking, Vitest coverage, the production build, and (affected) Playwright E2E. It **self-skips via a fingerprint marker**: re-invoking on an unchanged tree is a no-op, so you never need to guard against double-runs — just invoke it and it decides whether real work is needed |
 
+Every build plan must include a `Build-validator result` field in its Verification section. Before marking a plan built, record the actual outcomes for lint, TypeScript, production build, coverage, and affected E2E, or state the specific blocker for any check that could not run. The project validator owns this gate.
+
 **Pre-implementation gate — NON-NEGOTIABLE:**
 Before presenting a **story file or implementation-ready plan file** to the user, you MUST run the plan-reviewer. This gate applies only to fully fleshed-out artifacts that will be handed directly to a developer — not to PRDs, UX specs, architecture docs, brainstorming outputs, or other intermediate planning artifacts.
 

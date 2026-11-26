@@ -448,7 +448,10 @@ function listStore(list: ReturnType<typeof listRow> | undefined, extra: unknown[
   const queue = [...extra];
   mocks.select.mockReturnValue({
     from: (table: unknown) => ({
-      where: async () => (table === tripPackingLists ? (list ? [list] : []) : (queue.shift() ?? [])),
+      where: () => {
+        const rows = table === tripPackingLists ? (list ? [list] : []) : (queue.shift() ?? []);
+        return Object.assign(Promise.resolve(rows), { for: async () => rows });
+      },
     }),
   });
 }
@@ -528,8 +531,10 @@ it("fails a rename whose update returns no row", async () => {
 it("deletes a list with its items, then emits effects", async () => {
   const { deletePackingList } = await import("./packing");
   listStore(listRow());
+  deletedChildren = [{ id: itemId }];
   await expect(deletePackingList(actor, listId, { tripId })).resolves.toBeNull();
   expect(mocks.delete.mock.calls.map((call) => call[0])).toEqual([packingItems, tripPackingLists]);
+  expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "packing-item", [itemId], actor.userId);
   expect(mocks.requireTripRole).toHaveBeenLastCalledWith(tripId, actor.userId, "editor", mocks);
   expect(mocks.afterTripWrite).toHaveBeenCalledWith(actor, tripId, ["/trips"]);
 });

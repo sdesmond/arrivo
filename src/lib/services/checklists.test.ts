@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   requireTripRole: vi.fn(),
   afterTripWrite: vi.fn(),
   recordDeletion: vi.fn(),
+  recordDeletions: vi.fn(),
   refuseRecentlyDeleted: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: mocks }));
@@ -38,6 +39,7 @@ vi.mock("./trip-access", async (original) => ({
 vi.mock("./trip-write-effects", () => ({ afterTripWrite: mocks.afterTripWrite }));
 vi.mock("./deletion-records", () => ({
   recordDeletion: mocks.recordDeletion,
+  recordDeletions: mocks.recordDeletions,
   refuseRecentlyDeleted: mocks.refuseRecentlyDeleted,
 }));
 import { ConflictError } from "./conflict-error";
@@ -422,7 +424,7 @@ describe("checklist lifecycle", () => {
         };
         const chain = {
           innerJoin: () => chain,
-          where: () => Object.assign(Promise.resolve(result()), { orderBy: orderItems }),
+          where: () => Object.assign(Promise.resolve(result()), { orderBy: orderItems, for: async () => result() }),
         };
         return chain;
       },
@@ -640,8 +642,10 @@ describe("checklist lifecycle", () => {
   });
   it("deletes existing rows and returns a serializable empty result", async () => {
     existing = [checklistRow];
+    items = [firstItem];
     await expect(deleteChecklist(actor, checklistId, { tripId })).resolves.toBeNull();
     expect(mocks.delete).toHaveBeenCalledWith(itineraryChecklists);
+    expect(mocks.recordDeletions).toHaveBeenCalledWith(mocks, "checklist-item", [firstItem.id], actor.userId);
     expect(mocks.afterTripWrite).toHaveBeenCalledOnce();
   });
   it("authorizes missing-row deletes without effects", async () => {

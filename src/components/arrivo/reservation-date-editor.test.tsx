@@ -46,6 +46,44 @@ beforeEach(() => {
   patchReservation.mockResolvedValue(undefined);
 });
 
+it.each([
+  ["Start", "End"],
+  ["End", "Start"],
+])("retains an incomplete %s draft without saving a changed %s time", async (incomplete, changed) => {
+  const onSaved = vi.fn();
+  const user = userEvent.setup();
+  render(<ReservationDateEditor {...props} onSaved={onSaved} />);
+  await user.click(screen.getByRole("button", { name: /Aug/ }));
+  expect(screen.getByLabelText("Start date").parentElement?.parentElement).toHaveFocus();
+  const incompleteTime = screen.getByLabelText(`${incomplete} time`);
+  const changedTime = screen.getByLabelText(`${changed} time`);
+  await user.clear(incompleteTime);
+  await user.clear(changedTime);
+  await user.type(changedTime, "13:00");
+  await user.click(document.body);
+
+  expect(screen.getByRole("status")).toHaveTextContent("Enter both a date and a time.");
+  expect(incompleteTime).toHaveValue("");
+  expect(changedTime).toHaveValue("13:00");
+  expect(patchReservation).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+});
+
+it("saves a complete date pair on keyboard exit", async () => {
+  const onSaved = vi.fn();
+  const user = userEvent.setup();
+  render(<ReservationDateEditor {...props} onSaved={onSaved} />);
+  await user.click(screen.getByRole("button", { name: /Aug/ }));
+  await user.clear(screen.getByLabelText("End time"));
+  await user.type(screen.getByLabelText("End time"), "13:00");
+  await user.tab();
+
+  const endAt = "2026-08-02T13:00:00.000Z";
+  expect(patchReservation).toHaveBeenCalledWith("res-1", { endAt });
+  expect(onSaved).toHaveBeenCalledWith({ startAt: props.startAt, endAt });
+  expect(screen.queryByLabelText("End time")).not.toBeInTheDocument();
+});
+
 it("sends a cleared time as null and reports the resolved dates", async () => {
   const onSaved = vi.fn();
   const user = userEvent.setup();

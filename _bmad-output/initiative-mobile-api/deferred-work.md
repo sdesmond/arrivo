@@ -352,3 +352,20 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `_bmad-output/initiative-mobile-api/epic-reservations-budget-api/story-edit-and-delete-expenses-through-the-api-plan.md`
   summary: An expense saved with a failed conversion cannot be retried by re-saving unchanged values (the unchanged patch is a no-op).
   evidence: Matrix row "Unchanged patch" returns the stored row; the unconverted-expense toast says "Edit it later to retry".
+
+- source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
+  summary: Expanded reservation date controls need a touch-target and font scaling audit.
+  evidence: Shared TimePicker uses a 36px Input and independent responsive font sizing. The sweep sized the collapsed trigger.
+- source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
+  summary: Escape leaves focus outside the date trigger.
+  evidence: ReservationDateEditor unmounts the focused editor without moving focus to the collapsed trigger.
+- source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
+  summary: Preserve second and millisecond precision when leaving an unchanged reservation date draft.
+  evidence: ReservationDateEditor converts initial dates to hour and minute drafts, then compares minute-precision ISO values to the original timestamps on blur.
+
+- source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
+  summary: Audit deletion records for trips deleted during account removal.
+  evidence: Account deletion deletes trips directly and can remove children linked by foreign keys outside the removed account's trips.
+- source_plan: epic-reservations-budget-api/story-refactor-sweep-plan.md
+  summary: Add deterministic concurrency coverage for cross-trip foreign-key cascades.
+  evidence: The browser outline verifies sequential retries after DELETE. An interleaved upload through a surviving trip would verify that removing a parent row lock permits an unrecorded deletion.

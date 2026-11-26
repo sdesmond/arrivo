@@ -17,8 +17,9 @@ export interface ReservationDateEditorProps {
   onSaved: (dates: { startAt?: string; endAt?: string }) => void;
 }
 
-const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68, fontSize: 13 };
-const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)", fontSize: 13 };
+const FIELD_LABEL_STYLE: React.CSSProperties = { color: "var(--fg-3)", minWidth: 68 };
+const FIELD_VALUE_STYLE: React.CSSProperties = { color: "var(--fg-2)" };
+const TEXT_SIZE = "calc(13px * var(--font-scale))";
 
 function isoToParts(iso: string): { date: string; time: string } {
   const date = new Date(iso);
@@ -69,21 +70,23 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
 
   async function handleDoneEditingDates() {
     setDateError(undefined);
-    const startValid = !!startDateDraft === !!startTimeDraft;
-    const endValid = !!endDateDraft === !!endTimeDraft;
+    if (!!startDateDraft !== !!startTimeDraft || !!endDateDraft !== !!endTimeDraft) {
+      setDateError("Enter both a date and a time.");
+      return;
+    }
 
-    const newStartAt = startValid ? (combineDateAndTimeToIso(startDateDraft, startTimeDraft) ?? "") : undefined;
-    const newEndAt = endValid ? (combineDateAndTimeToIso(endDateDraft, endTimeDraft) ?? "") : undefined;
+    const newStartAt = combineDateAndTimeToIso(startDateDraft, startTimeDraft) ?? "";
+    const newEndAt = combineDateAndTimeToIso(endDateDraft, endTimeDraft) ?? "";
 
     if (newStartAt && newEndAt && new Date(newEndAt) < new Date(newStartAt)) {
       setDateError(`${ANCHOR_LABELS[type].end} must be after ${ANCHOR_LABELS[type].start.toLowerCase()}.`);
       return;
     }
 
-    // A cleared time is sent as null; an unchanged or half-filled one is left out.
+    // Send null for a cleared pair and omit unchanged pairs.
     const patch: ReservationPatchBody = {};
-    if (newStartAt !== undefined && newStartAt !== (startAt ?? "")) patch.startAt = newStartAt || null;
-    if (newEndAt !== undefined && newEndAt !== (endAt ?? "")) patch.endAt = newEndAt || null;
+    if (newStartAt !== (startAt ?? "")) patch.startAt = newStartAt || null;
+    if (newEndAt !== (endAt ?? "")) patch.endAt = newEndAt || null;
     if (Object.keys(patch).length > 0) {
       if (savingDatesRef.current) return;
 
@@ -91,8 +94,8 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
       try {
         await patchReservation(reservationId, patch);
         onSaved({
-          startAt: newStartAt !== undefined ? newStartAt || undefined : startAt,
-          endAt: newEndAt !== undefined ? newEndAt || undefined : endAt,
+          startAt: newStartAt || undefined,
+          endAt: newEndAt || undefined,
         });
       } catch (error) {
         setDateError(error instanceof Error ? error.message : "Failed to save dates.");
@@ -102,20 +105,17 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
       }
     }
 
-    if (!startValid || !endValid) {
-      setDateError("Enter both a date and a time.");
-      return;
-    }
     setEditingDates(false);
   }
 
   return (
-    <div style={{ fontSize: 13 }}>
+    <div style={{ fontSize: TEXT_SIZE }}>
       {!editingDates ? (
         <button
           type="button"
+          className="min-h-11 min-w-11"
           onClick={handleOpenDateEdit}
-          style={startAt || endAt ? FIELD_VALUE_STYLE : PLACEHOLDER_STYLE}
+          style={{ ...(startAt || endAt ? FIELD_VALUE_STYLE : PLACEHOLDER_STYLE), fontSize: TEXT_SIZE }}
         >
           {startAt || endAt ? formatReservationDateRange(startAt, endAt) : "Add dates"}
         </button>
@@ -176,7 +176,11 @@ export function ReservationDateEditor({ reservationId, type, startAt, endAt, onS
             />
           </div>
           {dateError && (
-            <p role="status" aria-live="polite" style={{ fontSize: 11, color: "var(--destructive)" }}>
+            <p
+              role="status"
+              aria-live="polite"
+              style={{ fontSize: "calc(11px * var(--font-scale))", color: "var(--destructive)" }}
+            >
               {dateError}
             </p>
           )}

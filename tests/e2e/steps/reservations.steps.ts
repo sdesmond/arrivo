@@ -55,70 +55,6 @@ interface ReservationApiState {
   originalDayCount?: number;
 }
 const reservationApiStates = new WeakMap<Page, ReservationApiState>();
-const reservationReadStates = new WeakMap<Page, { tripId: string; id: string; response?: APIResponse }>();
-
-Given("a reservation with a document and expense for API visibility", async ({ page, scenario }) => {
-  const { trip } = await scenario.materialize({
-    trip: {
-      mother: "threeDayTrip",
-      overrides: {
-        reservations: [{ type: "other", provider: "API visibility" }],
-        documents: [{ name: "Ticket", kind: "other", url: "/test/ticket", reservationProvider: "API visibility" }],
-      },
-      setCurrent: false,
-    },
-  });
-  const [row] = await withE2EDb((database) =>
-    database.select().from(reservations).where(eq(reservations.tripId, trip!.id))
-  );
-  await withE2EDb((database) =>
-    database.insert(expenses).values({
-      tripId: trip!.id,
-      reservationId: row.id,
-      category: "misc",
-      amount: "42.00",
-      currency: "USD",
-      date: "2030-01-01",
-    })
-  );
-  reservationReadStates.set(page, { tripId: trip!.id, id: row.id });
-});
-
-When("I request reservations as a {string}", async ({ page, scenario }, role: string) => {
-  const state = reservationReadStates.get(page)!;
-  const { user } = await scenario.materialize({ user: { setCurrent: false } });
-  if (role !== "nonmember")
-    await withE2EDb((database) =>
-      database.insert(collaborators).values({
-        tripId: state.tripId,
-        userId: user!.id,
-        name: user!.name,
-        initials: user!.initials,
-        role,
-        isCreator: false,
-      })
-    );
-  await scenario.signInAsUser(page, user!.username);
-  state.response = await (
-    await apiClient(page)
-  ).get(`/api/v1/trips/${state.tripId}/reservations`, { headers: reservationApiHeaders(page) });
-});
-
-Then("the reservation API visibility matches {string}", async ({ page }, role: string) => {
-  const state = reservationReadStates.get(page)!;
-  expect(state.response!.status()).toBe(role === "nonmember" ? 404 : 200);
-  if (role === "nonmember") return;
-  const body = await state.response!.json();
-  expect(body.reservations).toHaveLength(1);
-  expect(body.reservations[0]).toMatchObject({
-    id: state.id,
-    provider: "API visibility",
-    documents: [{ name: "Ticket" }],
-  });
-  if (role === "viewer") expect(body.reservations[0].expense).toBeUndefined();
-  else expect(body.reservations[0].expense).toMatchObject({ amount: 42, currency: "USD" });
-});
-
 function reservationApiHeaders(page: Page, key?: string) {
   return { "x-arrivo-client": "web", origin: new URL(page.url()).origin, ...(key ? { "Idempotency-Key": key } : {}) };
 }
@@ -460,6 +396,56 @@ When("I set the {string} reservation address to the first lookup suggestion", as
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await saved;
 });
+
+function collapsedDateEditorTrigger(page: Page) {
+  return page
+    .locator('[data-testid^="reservation-row-"]')
+    .first()
+    .getByRole("button", { name: /^\w+ \d+,\s*\d+:\d+\s*(AM|PM)/ });
+}
+
+Then("the collapsed date editor trigger meets minimum sizing and scales its text", async ({ page }) => {
+  const trigger = collapsedDateEditorTrigger(page);
+  await expect(trigger).toBeVisible();
+  const { width, height, scaledFontSize } = await trigger.evaluate((element) => {
+    const { width, height } = element.getBoundingClientRect();
+    element.style.setProperty("--font-scale", "2");
+    const scaledFontSize = window.getComputedStyle(element).fontSize;
+    element.style.removeProperty("--font-scale");
+    return { width, height, scaledFontSize };
+  });
+  expect(width).toBeGreaterThanOrEqual(44);
+  expect(height).toBeGreaterThanOrEqual(44);
+  expect(scaledFontSize).toBe("26px");
+});
+
+const inlineDatePatchAttempts = new WeakMap<Page, string[]>();
+
+When("I clear the check-in time and change the check-out time", async ({ page }) => {
+  const path = await inlineEditPatchPath(page);
+  const patchAttempts: string[] = [];
+  inlineDatePatchAttempts.set(page, patchAttempts);
+  page.on("request", (request) => {
+    if (request.method() === "PATCH" && new URL(request.url()).pathname === path) {
+      patchAttempts.push(request.url());
+    }
+  });
+  const row = page.locator('[data-testid^="reservation-row-"]').first();
+  await collapsedDateEditorTrigger(page).click();
+  await row.getByLabel("Check-in time").fill("");
+  await row.getByLabel("Check-out time").fill("12:30");
+  await row.click({ position: { x: 8, y: 8 } });
+});
+
+Then(
+  "the date editor reports an incomplete draft and retains both edits without attempting a PATCH",
+  async ({ page }) => {
+    await expect(page.getByRole("status").filter({ hasText: "Enter both a date and a time." })).toBeVisible();
+    await expect(page.getByLabel("Check-in time")).toHaveValue("");
+    await expect(page.getByLabel("Check-out time")).toHaveValue("12:30");
+    expect(inlineDatePatchAttempts.get(page)).toEqual([]);
+  }
+);
 
 Then("the reservation provider shows {string}", async ({ page }, provider: string) => {
   await expect(page.getByRole("button", { name: provider, exact: true })).toBeVisible({ timeout: 10_000 });

@@ -3,6 +3,31 @@ Feature: Absolute checklist checked-state API
   Background:
     Given a scenario-owned checklist API item
 
+  Scenario Outline: Cascade-deleted client IDs cannot be recreated under a live parent
+    Given a scenario-owned cascade replay graph
+    When I delete the cascade replay <parent> through the API
+    Then the cascade replay IDs are recorded and cannot be recreated
+
+    Examples:
+      | parent       |
+      | "event"      |
+      | "day"        |
+      | "checklist"  |
+      | "packing"    |
+      | "trip"       |
+
+  Scenario: Reservation item GET and PATCH honor the actor's role and persist a cleared end
+    Given a reservation with a document and expense for API visibility
+    And my reservation API role is "viewer"
+    When I attempt to clear the reservation end via the API
+    Then the reservation API rejects the clear as forbidden
+    And the reservation item GET shows the original end and hides the expense
+    Given my reservation API role is "editor"
+    Then the reservation item GET shows the original end and linked expense
+    When I attempt to clear the reservation end via the API
+    Then the reservation API accepts the clear
+    And the reservation item GET omits the cleared end and shows the linked expense
+
   Scenario Outline: Cached itinerary replay denies access lost after a successful write
     Given the mixed day for the day order API
     And scenario-owned trip notes for the trip note API
