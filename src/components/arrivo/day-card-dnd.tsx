@@ -6,16 +6,29 @@ import {
   DragOverlay,
   closestCenter,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
+  type Announcements,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { PlaceRow } from "./place-row";
 import { NoteItem } from "./note-item";
 import { ChecklistItem } from "./checklist-item";
-import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
+import {
+  SortablePlaceRow,
+  SortableNoteItem,
+  SortableChecklistItem,
+  DragGripPreview,
+  getRowLabel,
+} from "./day-card-sortables";
 import { GapZone, type GapZoneProps } from "./gap-zone";
 import {
   type Checklist,
@@ -32,8 +45,7 @@ export type TimelineItem =
   | { kind: "checklist"; data: Checklist; position: number };
 
 export type RenderEntry =
-  | { type: "timeline"; item: TimelineItem; idx: number }
-  | { type: "draft"; draftKind: ItineraryItemType };
+  { type: "timeline"; item: TimelineItem; idx: number } | { type: "draft"; draftKind: ItineraryItemType };
 
 export interface DayCardDndProps {
   dayNumber: number;
@@ -95,7 +107,10 @@ export function DayCardDnd({
   onToggleChecklistItem,
 }: DayCardDndProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   function handleDragStart({ active }: DragStartEvent) {
     setActiveId(String(active.id));
@@ -125,6 +140,33 @@ export function DayCardDnd({
     return item.kind === "event" && !!item.data.linkedReservationId;
   }
 
+  const sortableIds = timelineItems.filter((item) => !isLinkedTimelineEvent(item)).map((item) => item.data.id);
+
+  function labelFor(id: string | number): string {
+    const item = timelineItems.find((candidate) => candidate.data.id === id);
+    if (item?.kind === "event") return getRowLabel(item.data.name, "event");
+    if (item?.kind === "note") return getRowLabel(item.data.content, "note");
+    return getRowLabel(item?.data.title, "checklist");
+  }
+
+  function positionOf(id: string | number): string {
+    return `position ${sortableIds.indexOf(String(id)) + 1} of ${sortableIds.length}`;
+  }
+
+  // dnd-kit's default announcements read out raw row ids
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `Picked up ${labelFor(active.id)}, ${positionOf(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over
+        ? `${labelFor(active.id)} moved to ${positionOf(over.id)}.`
+        : `${labelFor(active.id)} is not over a position.`,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `${labelFor(active.id)} dropped at ${positionOf(over.id)}.`
+        : `${labelFor(active.id)} returned to ${positionOf(active.id)}.`,
+    onDragCancel: ({ active }) => `Reorder cancelled. ${labelFor(active.id)} returned to ${positionOf(active.id)}.`,
+  };
+
   function insertPositionAfter(idx: number): number {
     for (let index = idx; index >= 0; index--) {
       const candidate = timelineItems[index];
@@ -137,17 +179,13 @@ export function DayCardDnd({
     <DndContext
       id={`day-${dayNumber}`}
       sensors={sensors}
+      accessibility={{ announcements }}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext
-        items={timelineItems
-          .filter((item) => !(item.kind === "event" && item.data.linkedReservationId))
-          .map((item) => item.data.id)}
-        strategy={verticalListSortingStrategy}
-      >
+      <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
         {renderEntries.map((entry, renderIdx) => {
           const isLast = renderIdx === renderEntries.length - 1;
           const key = entry.type === "draft" ? "draft" : entry.item.data.id;
@@ -244,11 +282,12 @@ export function DayCardDnd({
               dayDate={dayDate}
               onUpdate={() => {}}
               onDelete={() => {}}
+              dragHandle={<DragGripPreview />}
             />
           ) : activeItem.kind === "note" ? (
-            <NoteItem note={activeItem.data} displayOnly />
+            <NoteItem note={activeItem.data} displayOnly dragHandle={<DragGripPreview />} />
           ) : (
-            <ChecklistItem checklist={activeItem.data} displayOnly />
+            <ChecklistItem checklist={activeItem.data} displayOnly dragHandle={<DragGripPreview />} />
           )
         ) : null}
       </DragOverlay>

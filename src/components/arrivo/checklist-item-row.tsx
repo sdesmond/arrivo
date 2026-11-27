@@ -80,6 +80,7 @@ export function ChecklistItemRow({ item, onToggle, onUpdate, onDelete }: Checkli
           }}
           style={{
             flex: 1,
+            minWidth: 0,
             fontSize: "calc(13px * var(--font-scale))",
             color: "var(--fg-2)",
             background: "transparent",
