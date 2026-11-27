@@ -1,0 +1,103 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Search and retrieve locations through the API"
+description = "Tracer: extract the three Mapbox search actions into src/lib/services/locations.ts in the cover-search.ts style (empty-input refusal, E2E_MAPBOX_STUB, missing token, mapboxSearch rate limit, 10s timeout, provider failure mapped to an API error envelope), add a locations contract and GET /api/v1/locations/search (mode destination|address, sessionToken) and GET /api/v1/locations/retrieve, document both, add them to the existing mapboxSearch rate-limit row in docs/api-v1.md, register api/v1/locations/** and services/locations.ts in feature-map.mjs, and switch use-location-autocomplete so new-trip, trip-edit-destination and location-lookup-input callers use the endpoints."
+verify = "In create-trip.feature (destination scenario) and day-planning.feature, pick the stubbed Paris suggestion on the production build and see it saved after reload; service and route tests cover empty input, missing token, provider failure, rate limit and an unauthenticated request."
+covers = ["R4", "R7"]
+after = ["1.10", "7.9"]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Day route summary through the API"
+description = "Add a routing contract and POST /api/v1/trips/:tripId/routing/day-summary as a read-only query endpoint that never takes Idempotency-Key, keeping the events[] body, MAX_ROUTE_EVENTS, the mapboxRouting limit, route_cache, in-flight dedupe and unavailable-not-error provider failures; map events from another trip to the v1 404 instead of today's 500; document it and add the mapboxRouting rate-limit row; register api/v1/trips/*/routing/** in feature-map.mjs; switch use-day-route-summary through api(), leaving route-client.ts and the legacy handlers in place for story 4 to delete."
+verify = "day-route-strip.feature and the map-tab.feature scenario where slow route lookups finish after View in Itinerary pass on the production build; route tests cover a foreign event as 404, a viewer allowed, an invalid body as 400 and an unavailable provider."
+covers = ["R4", "R7"]
+after = [1]
+hitl = false
+risk = "high"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Schedule conflicts through the API"
+description = "Expose POST /api/v1/trips/:tripId/routing/conflicts on the routing contract with the same query-endpoint rules and foreign-event 404, document it, and switch use-schedule-conflicts through api(), leaving the legacy conflicts handler for story 4 to delete."
+verify = "schedule-conflict.feature passes with route_cache seeded per scenario; route tests cover a foreign event as 404 and an unavailable provider producing no conflict badge."
+covers = ["R4", "R7"]
+after = [2]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Event distance through the API and remove legacy routing handlers"
+description = "Expose POST /api/v1/trips/:tripId/routing/distance on the routing contract, document it, switch use-route-for-event (polling, visibility pause, request-id stale drop) through api(), then delete src/app/api/trips/[tripId]/routing/** and the bespoke fetch in route-client.ts, and repoint the day-route-strip, linked-events, map-tab and schedule-conflict feature-map paths."
+verify = "Add a linked-events.feature scenario where the now-card shows a seeded route_cache distance and passes after reload on the production build; use-route-for-event tests prove a late response from an earlier request is dropped; no file under src/app/api/trips/*/routing remains."
+covers = ["R4", "R7"]
+after = [3]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Move the cover picker to the location endpoints"
+description = "Switch cover-image-picker-search-tab search and retrieve to the location endpoints, move LocationSuggestion, LocationLookupSuggestion and RetrievedLocation into the locations contract, delete searchLocations, searchAddressLocations and retrieveLocation from trips/actions.ts with their tests, and remove the feature-map paths that only covered them."
+verify = "Add a trip-cover-overflow.feature scenario that chooses a map cover from a searched destination and reloads; no \"use server\" file in src mentions Mapbox search or retrieve."
+covers = ["R4", "R7"]
+after = [1]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Serve static map covers through the API"
+description = "Move the /api/mapbox/static image proxy to GET /api/v1/maps/static with its auth, mapboxStatic limit, coordinate validation and private one-hour cache kept, served through apiRoute if it can return a non-JSON body or else as a recorded handler-coverage exemption; rewrite stored old-prefix trips.coverImageUrl values to the new path when read in db-mappers.ts (no migration, per initiative Done when 4); make url-policy isValidCoverImageUrl, services/covers.ts, contract/covers.ts and trip-cover-controls accept and emit only the new prefix; point the picker at it; delete the old route, register api/v1/maps/** under trip-cover-overflow, and document it."
+verify = "Mapper and url-policy tests prove an old-prefix stored value reads back as the new path and an old-prefix write is refused; a trip-cover-overflow.feature scenario chooses a map cover and sees it render after reload."
+covers = ["R4", "R7"]
+after = [5]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Refactor sweep"
+description = "Resolve cleanup identified in stories 1-6 and their deferred review findings with public contracts unchanged."
+verify = "Rerun the targeted checks the cleanup diff names and verify each deferred finding has a recorded disposition."
+covers = ["R7"]
+after = [1, 2, 3, 4, 5, 6]
+hitl = false
+risk = "low"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Verify locations and routing end to end"
+description = "Exercise destination and address search, map cover selection, day summary, conflicts and event distance together on the production build with scenario-owned trips, plus a cross-story invariant pass: provider failure and timeout handling, stale-response drops, concurrent route requests not undoing navigation, foreign-trip and unauthenticated denial, and rate-limit responses."
+verify = "Run the combined scenario and reload, and record in the plan a table of each invariant with the test that proves it."
+covers = ["R4", "R7"]
+after = [7]
+hitl = false
+risk = "medium"
+notes = ["Base branch: feature/api-v1. Build each story on its own branch created from the latest feature/api-v1; open its PR with feature/api-v1 as the base/target. Do not build or commit stories directly on feature/api-v1, and do not target main. After opening the PR, switch back to feature/api-v1; before creating the next story branch, pull the latest feature/api-v1."]
+references = ["_bmad-output/initiative-mobile-api/AGENTS.md"]
