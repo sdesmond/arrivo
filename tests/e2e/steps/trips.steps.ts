@@ -61,10 +61,9 @@ When("I save", async ({ page, scenario }) => {
   await page.getByRole("button", { name: "Save changes" }).click();
   // Count, not visibility: the drawer and any popover inside it run their exit animations together.
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  // The sheet seeds its draft from the trip prop only while closed, so reopening before the revalidated trip
-  // lands (the dialog closes first) shows the old values. Wait for the API response, then two frames for React.
+  // The saved trip reaches the page through the router refresh that follows this response; a sheet reopened before
+  // then adopts it when it lands, so the next step's assertion (which retries) sees it without waiting here.
   await saved;
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });
 
 Then("the trip should display {string}", async ({ page }, name: string) => {

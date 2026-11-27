@@ -365,6 +365,56 @@ describe("TripEditSheet", () => {
     expect(screen.getByDisplayValue("Tokyo Adventure")).toBeInTheDocument();
   });
 
+  it("adopts a trip update that lands while open when the draft is untouched", () => {
+    // Reopening right after a save can beat the router refresh that carries the saved trip.
+    const savedTrip: Trip = { ...baseTrip, name: "Kyoto Journey", transitMode: TransitMode.Walk };
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={savedTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    expect(screen.getByDisplayValue("Kyoto Journey")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+  });
+
+  it("keeps the user's edits when a trip update lands while open", async () => {
+    const user = userEvent.setup();
+    const updatedTrip: Trip = { ...baseTrip, transitMode: TransitMode.Walk };
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    const nameInput = screen.getByDisplayValue("Tokyo Adventure");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Kyoto Journey");
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={updatedTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    expect(screen.getByDisplayValue("Kyoto Journey")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps a typed but unselected destination when a trip update lands while open", async () => {
+    const user = userEvent.setup();
+    const updatedTrip: Trip = { ...baseTrip, transitMode: TransitMode.Walk };
+    const { rerender } = render(
+      <TripEditSheet currencyOptions={currencyOptions} trip={baseTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    await user.type(screen.getByTestId("destination-input"), "Osa");
+    rerender(
+      <TripEditSheet currencyOptions={currencyOptions} trip={updatedTrip} open onClose={vi.fn()} onSave={vi.fn()} />
+    );
+
+    expect(screen.getByTestId("destination-input")).toHaveValue("Osa");
+    expect(screen.getByRole("button", { name: "Drive" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("renders nothing when trip is null", () => {
     const { container } = render(
       <TripEditSheet currencyOptions={currencyOptions} trip={null} open onClose={vi.fn()} onSave={vi.fn()} />

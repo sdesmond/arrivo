@@ -70,12 +70,15 @@ export function TripEditSheet({
     { name: string | null; country: string | null; countryCode: string | null } | undefined
   >(undefined);
   const [pendingCurrencyPatch, setPendingCurrencyPatch] = useState<UpdateTripPatch | null>(null);
+  // The trip the draft was last seeded from, so a trip update that lands while the sheet is open can be told apart.
+  const [seededTrip, setSeededTrip] = useState<Trip | null>(trip);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const isBusy = saving || isDeleting;
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!open) {
       setDraft(createTripDraft(trip));
+      setSeededTrip(trip);
       setDeleteDialogOpen(false);
       setDestinationInput(trip?.destinationName ?? "");
       setDestinationPatch(undefined);
@@ -83,6 +86,21 @@ export function TripEditSheet({
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, trip]);
+
+  // Reopening right after a save can beat the router refresh that carries the saved trip, so the sheet opens on the
+  // old values. When the refreshed trip arrives, adopt it unless the person has already started editing.
+  if (open && trip !== seededTrip) {
+    const untouched =
+      destinationPatch === undefined &&
+      pendingCurrencyPatch === null &&
+      destinationInput === (seededTrip?.destinationName ?? "") &&
+      JSON.stringify(draft) === JSON.stringify(createTripDraft(seededTrip));
+    setSeededTrip(trip);
+    if (untouched) {
+      setDraft(createTripDraft(trip));
+      setDestinationInput(trip?.destinationName ?? "");
+    }
+  }
 
   if (!draft) return null;
   const nameError = draft.name.trim() ? "" : "Enter a trip name.";
