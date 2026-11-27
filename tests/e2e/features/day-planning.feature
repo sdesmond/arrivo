@@ -45,6 +45,11 @@ Feature: Day Planning
     When I drag the checklist above the note by its handle
     Then the checklist should still be above the note after a reload
 
+  @trip-with-sortable-note-and-checklist
+  Scenario: User reorders a checklist above a note with the keyboard
+    When I move the checklist above the note using the keyboard
+    Then the checklist should still be above the note after a reload
+
   Scenario: User adds, edits, and deletes a note
     Given I am on the trip detail page
     When I add a note "Pick up sunscreen at duty free"

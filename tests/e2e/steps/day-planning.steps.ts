@@ -522,6 +522,22 @@ Then("the note and checklist drag handles are visible before their content witho
   await expectLeadingHandleAtRest(page, note, note.getByText("Reorder note"));
   const checklist = page.locator('[id^="checklist-"]').filter({ hasText: "Reorder checklist" });
   await expectLeadingHandleAtRest(page, checklist, checklist.getByText("Reorder checklist"));
+  await expectControlAtLeast44px(checklist.locator("button").first());
+});
+
+When("I move the checklist above the note using the keyboard", async ({ page }) => {
+  const dragHandle = page.getByRole("button", { name: "Reorder Reorder checklist", exact: true });
+  const announcement = page.locator('[id^="DndLiveRegion"]');
+  await dragHandle.focus();
+  await page.keyboard.press("Space");
+  // dnd-kit starts listening for arrow keys only after the lift, so wait for each announcement
+  await expect(announcement.filter({ hasText: "Reorder checklist" })).toContainText("position 2 of 2");
+  await page.keyboard.press("ArrowUp");
+  await expect(announcement.filter({ hasText: "Reorder checklist" })).toContainText("position 1 of 2");
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+  await page.keyboard.press("Space");
+  await reorderResponse;
+  await expect(dragHandle).toBeFocused();
 });
 
 When("I drag the checklist above the note by its handle", async ({ page }) => {
@@ -628,7 +644,7 @@ Then("the note {string} should not be visible", async ({ page }, content: string
 
 When("I edit the note {string} to {string}", async ({ page }, oldContent: string, newContent: string) => {
   const noteEl = page.locator('[id^="note-"]').filter({ hasText: oldContent }).first();
-  await noteEl.getByRole("button", { name: oldContent }).click();
+  await noteEl.getByRole("button", { name: oldContent, exact: true }).click();
   const textarea = noteEl.locator("textarea");
   await textarea.fill(newContent);
   await page.keyboard.press("Enter");
