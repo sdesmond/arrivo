@@ -152,47 +152,88 @@ describe("NoteItem", () => {
     expect(onCreate).toHaveBeenCalledWith("Pack sunscreen");
   });
 
-  it("renders dragHandle when provided", () => {
-    render(<NoteItem note={note} dragHandle={<span data-testid="drag-handle">grip</span>} />);
-    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  const handle = <span data-testid="drag-handle">grip</span>;
+
+  function noteRow(): HTMLElement {
+    return document.getElementById("note-note-1") as HTMLElement;
+  }
+
+  function expectNoGripOrLeftInset(container: HTMLElement) {
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    // The note icon stays the first thing in the row, so no empty column precedes it
+    expect(container.firstElementChild?.firstElementChild?.querySelector("svg")).toBeInTheDocument();
+  }
+
+  it("renders an always-visible drag handle in a leading slot before the content", () => {
+    render(<NoteItem note={note} dragHandle={handle} />);
+    const grip = screen.getByTestId("drag-handle");
+    const slot = grip.parentElement as HTMLElement;
+
+    expect(slot).toBe(noteRow().firstElementChild);
+    expect(slot).toHaveClass("size-11", "shrink-0");
+    expect(slot.style.color).toBe("var(--fg-4)");
+    for (let element: HTMLElement | null = grip; element; element = element.parentElement) {
+      expect(element.className).not.toContain("opacity-");
+    }
+    expect(grip.compareDocumentPosition(screen.getByRole("button", { name: note.content }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
-  it("centres the drag handle and delete button in one group with 44px targets", () => {
-    render(<NoteItem note={note} onDelete={vi.fn()} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+  it("keeps a 44px Delete on the right, apart from the drag handle", () => {
+    render(<NoteItem note={note} onDelete={vi.fn()} dragHandle={handle} />);
     const deleteButton = screen.getByTitle("Delete note");
     const group = deleteButton.parentElement as HTMLElement;
 
-    expect(group).toHaveClass("absolute", "flex", "items-center", "sm:focus-within:opacity-100");
-    expect(screen.getByTestId("drag-handle").parentElement).toBe(group);
+    expect(group).toHaveClass("absolute", "right-1", "flex", "items-center", "sm:focus-within:opacity-100");
+    expect(group).not.toContainElement(screen.getByTestId("drag-handle"));
     expect(deleteButton).toHaveClass("size-11", "items-center", "justify-center");
     expect(deleteButton.querySelector("svg")).toHaveAttribute("width", String(IconSize.rowAction));
-    expect(document.getElementById("note-note-1")).toHaveClass("pr-24");
+    expect(noteRow()).toHaveClass("pr-12");
+    expect(noteRow()).not.toHaveClass("pr-24");
   });
 
-  it("reserves room for the delete button alone when there is no drag handle", () => {
-    render(<NoteItem note={note} onDelete={vi.fn()} />);
-    expect(document.getElementById("note-note-1")).toHaveClass("pr-12");
-  });
+  it("hides the grip while editing but keeps the left inset and drops the right inset", async () => {
+    const user = userEvent.setup();
+    render(<NoteItem note={note} dragHandle={handle} />);
+    await user.click(screen.getByRole("button", { name: note.content }));
 
-  it("does NOT render dragHandle slot when isDraft", () => {
-    const draftNote: ItineraryNote = { id: "draft", content: "", position: 0 };
-    render(
-      <NoteItem
-        note={draftNote}
-        isDraft
-        onCreate={vi.fn()}
-        onCancelDraft={vi.fn()}
-        dragHandle={<span data-testid="drag-handle">grip</span>}
-      />
-    );
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    expect(noteRow().firstElementChild).toHaveClass("size-11", "shrink-0");
+    expect(noteRow().firstElementChild).toBeEmptyDOMElement();
+    expect(noteRow()).not.toHaveClass("pr-12");
+    expect(screen.getByRole("textbox")).toHaveClass("min-w-0");
+  });
+
+  it("renders no leading slot when there is no drag handle", () => {
+    const { container } = render(<NoteItem note={note} />);
+    expectNoGripOrLeftInset(container);
+    expect(noteRow()).toHaveClass("pr-12");
+  });
+
+  it("renders no drag handle or left inset when isDraft", () => {
+    const draftNote: ItineraryNote = { id: "draft", content: "", position: 0 };
+    const { container } = render(
+      <NoteItem note={draftNote} isDraft onCreate={vi.fn()} onCancelDraft={vi.fn()} dragHandle={handle} />
+    );
+    expectNoGripOrLeftInset(container);
+  });
+
+  it("renders no drag handle or left inset when display-only", () => {
+    const { container } = render(<NoteItem note={note} displayOnly dragHandle={handle} />);
+    expectNoGripOrLeftInset(container);
+  });
+
+  it("lets long unbroken content wrap", () => {
+    render(<NoteItem note={note} />);
+    expect(screen.getByText(note.content)).toHaveClass("min-w-0", "wrap-anywhere");
   });
 });
 
 describe("NoteItem for a viewer", () => {
   it("shows the note as text without edit, drag or delete controls", async () => {
     const user = userEvent.setup();
-    render(
+    const { container } = render(
       <TripEditAccessProvider canEdit={false}>
         <NoteItem
           note={note}
@@ -205,6 +246,8 @@ describe("NoteItem for a viewer", () => {
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    expect(container.firstElementChild?.firstElementChild?.querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByText("Remember to bring sunscreen")).toHaveClass("min-w-0", "wrap-anywhere");
     await user.click(screen.getByText("Remember to bring sunscreen"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });

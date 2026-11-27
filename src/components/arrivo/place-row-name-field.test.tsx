@@ -22,6 +22,11 @@ describe("PlaceRowNameField", () => {
     expect(screen.getByText("Tokyo Tower")).toBeInTheDocument();
   });
 
+  it("lets a long unbroken name wrap", () => {
+    render(<PlaceRowNameField {...defaultProps} />);
+    expect(screen.getByRole("button", { name: "Tokyo Tower" })).toHaveClass("min-w-0", "wrap-anywhere");
+  });
+
   it("renders input when editing", () => {
     render(<PlaceRowNameField {...defaultProps} isEditingName draftName="Tokyo Tower" />);
     expect(screen.getByDisplayValue("Tokyo Tower")).toBeInTheDocument();
@@ -89,6 +94,7 @@ describe("PlaceRowNameField for a viewer", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Tokyo Tower" })).not.toBeInTheDocument();
+    expect(screen.getByText("Tokyo Tower")).toHaveClass("min-w-0", "wrap-anywhere");
     await user.click(screen.getByText("Tokyo Tower"));
     fireEvent.keyDown(screen.getByText("Tokyo Tower"), { key: "Enter" });
     expect(onStartEdit).not.toHaveBeenCalled();

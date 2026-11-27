@@ -15,6 +15,7 @@ import {
   e2eTripDateTime,
 } from "../e2e-seed-data";
 import { Given, When, Then, Before } from "../fixtures";
+import { waitForServerActionResponse } from "../server-action";
 
 async function openFirstDay(page: Page): Promise<void> {
   const dayToggles = page.locator("button").filter({ hasText: /\d+ stops/ });
@@ -151,6 +152,22 @@ Before({ tags: "@trip-with-reorder-events" }, async ({ scenario }) => {
         events: [
           { ...E2E_EVENT_REORDER_FIRST, dayNumber: 1 },
           { ...E2E_EVENT_REORDER_SECOND, dayNumber: 1 },
+        ],
+      },
+      setCurrent: true,
+    },
+  });
+});
+
+Before({ tags: "@trip-with-sortable-note-and-checklist" }, async ({ scenario }) => {
+  await scenario.materialize({
+    user: { setCurrent: true },
+    trip: {
+      mother: "threeDayTrip",
+      overrides: {
+        notes: [{ dayNumber: 1, position: 0, content: "Reorder note" }],
+        checklists: [
+          { dayNumber: 1, position: 1, title: "Reorder checklist", items: [{ text: "Sunscreen", position: 0 }] },
         ],
       },
       setCurrent: true,
@@ -470,10 +487,76 @@ Given("a day has events {string} and {string} in order", async ({ page }, first:
   await expect(page.locator('[id^="event-"]').filter({ hasText: second }).first()).toBeVisible();
 });
 
+async function expectLeadingHandleAtRest(page: Page, row: Locator, content: Locator) {
+  const dragHandle = row.getByTitle("Drag to reorder");
+  // Park the pointer away from every row so no hover state can reveal the handle
+  await page.mouse.move(0, 0);
+  await expectControlAtLeast44px(dragHandle);
+
+  // toBeVisible ignores opacity, so multiply it down the ancestor chain
+  await expect
+    .poll(() =>
+      dragHandle.evaluate((element) => {
+        let opacity = 1;
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          opacity *= Number(getComputedStyle(node).opacity);
+        }
+        return opacity;
+      })
+    )
+    .toBe(1);
+
+  const handleBox = await dragHandle.boundingBox();
+  const contentBox = await content.boundingBox();
+  if (!handleBox || !contentBox) throw new Error("Could not locate the drag handle and row content");
+  expect(handleBox.x + handleBox.width).toBeLessThanOrEqual(contentBox.x);
+}
+
+Then("the drag handle for {string} is visible before its title without hovering", async ({ page }, name: string) => {
+  const row = page.locator('[id^="event-"]').filter({ hasText: name }).first();
+  await expectLeadingHandleAtRest(page, row, row.getByRole("button", { name, exact: true }));
+});
+
+Then("the note and checklist drag handles are visible before their content without hovering", async ({ page }) => {
+  const note = page.locator('[id^="note-"]').filter({ hasText: "Reorder note" });
+  await expectLeadingHandleAtRest(page, note, note.getByText("Reorder note"));
+  const checklist = page.locator('[id^="checklist-"]').filter({ hasText: "Reorder checklist" });
+  await expectLeadingHandleAtRest(page, checklist, checklist.getByText("Reorder checklist"));
+});
+
+When("I drag the checklist above the note by its handle", async ({ page }) => {
+  const dragHandle = page.locator('[id^="checklist-"]').getByTitle("Drag to reorder");
+  await dragHandle.scrollIntoViewIfNeeded();
+  const handleBox = await dragHandle.boundingBox();
+  const noteBox = await page.locator('[id^="note-"]').boundingBox();
+  if (!handleBox || !noteBox) throw new Error("Could not locate drag elements");
+
+  // A real mouse gesture, so a header painted over the handle would fail this step
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(noteBox.x + noteBox.width / 2, noteBox.y + noteBox.height / 2, { steps: 10 });
+  const reorderResponse = waitForServerActionResponse(page, { pathIncludes: "/trips/" });
+  await page.mouse.up();
+  await reorderResponse;
+});
+
+Then("the checklist should still be above the note after a reload", async ({ page }) => {
+  await page.reload();
+  await openFirstDay(page);
+  const checklist = page.locator('[id^="checklist-"]');
+  const note = page.locator('[id^="note-"]');
+  await expect(checklist).toBeVisible({ timeout: 10_000 });
+  await expect(note).toBeVisible();
+  await expect(async () => {
+    const checklistBox = await checklist.boundingBox();
+    const noteBox = await note.boundingBox();
+    expect(checklistBox!.y).toBeLessThan(noteBox!.y);
+  }).toPass({ timeout: 10_000 });
+});
+
 When("I drag {string} above {string}", async ({ page }, source: string, target: string) => {
   const sourceRow = page.locator('[id^="event-"]').filter({ hasText: source }).first();
   const targetRow = page.locator('[id^="event-"]').filter({ hasText: target }).first();
-  await sourceRow.hover();
   const dragHandle = sourceRow.locator('[aria-roledescription="sortable"]');
   await expect(dragHandle).toBeAttached({ timeout: 10_000 });
   await dragHandle.scrollIntoViewIfNeeded();
@@ -576,7 +659,8 @@ Then("the checklist should be visible on the timeline", async ({ page }) => {
 
 When("I check all items in the checklist", async ({ page }) => {
   const checklist = getLatestChecklist(page);
-  const header = checklist.getByRole("button").first();
+  // The first <button> element is the header; the drag handle before it is a span with a button role
+  const header = checklist.locator("button").first();
   const isExpanded = await checklist
     .locator('[placeholder="Add an item…"]')
     .isVisible()
@@ -615,7 +699,7 @@ When("I collapse the checklist", async ({ page }) => {
   }
   const isExpanded = await addInput.isVisible().catch(() => false);
   if (isExpanded) {
-    await checklist.getByRole("button").first().click();
+    await checklist.locator("button").first().click();
   }
 });
 

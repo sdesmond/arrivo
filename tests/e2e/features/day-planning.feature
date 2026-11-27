@@ -35,8 +35,15 @@ Feature: Day Planning
   @trip-with-reorder-events
   Scenario: User reorders events by dragging
     Given a day has events "Drag First" and "Drag Second" in order
+    Then the drag handle for "Drag Second" is visible before its title without hovering
     When I drag "Drag Second" above "Drag First"
     Then the order should be "Drag Second" then "Drag First"
+
+  @trip-with-sortable-note-and-checklist
+  Scenario: User reorders a checklist above a note by its leading handle
+    Then the note and checklist drag handles are visible before their content without hovering
+    When I drag the checklist above the note by its handle
+    Then the checklist should still be above the note after a reload
 
   Scenario: User adds, edits, and deletes a note
     Given I am on the trip detail page

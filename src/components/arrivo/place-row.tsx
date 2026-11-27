@@ -90,6 +90,7 @@ export function PlaceRow({
   const hasDocs = (place.docs?.length ?? 0) > 0;
   const isNow = isEventNow(place, now);
   const isLinkedEvent = !!place.linkedReservationId && !!place.reservationType;
+  const showDragHandle = !!dragHandle && canEdit && !isDraft && !isLinkedEvent;
   const isCombinedLinkedEvent = isLinkedEvent && !!place.startAt && !!place.endAt;
   const reservationMeta = place.reservationType
     ? (RESERVATION_TYPE_META[place.reservationType] ?? RESERVATION_TYPE_META.other)
@@ -224,6 +225,13 @@ export function PlaceRow({
           border: isNow && !isLinkedEvent ? "1px solid var(--accent-brand)" : "1px solid transparent",
         }}
       >
+        {/* The negative margins pull the 44px grip into the row's padding, level with the title. */}
+        {showDragHandle && (
+          <div className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-4)" }}>
+            {dragHandle}
+          </div>
+        )}
+
         {/* Event icon */}
         <div className="flex flex-col items-center shrink-0 pt-0.5" style={{ width: 16 }}>
           {isLinkedEvent && LinkedIcon ? (
@@ -282,7 +290,7 @@ export function PlaceRow({
               />
 
               {/* Note area */}
-              <div className="mt-1.5">
+              <div className="mt-1.5 wrap-anywhere">
                 <PlaceRowNoteEditor
                   note={place.note}
                   isEditingNote={isEditingNote}
@@ -322,7 +330,6 @@ export function PlaceRow({
 
         {!isLinkedEvent && (
           <PlaceRowTrailingActions
-            dragHandle={dragHandle}
             onDelete={() => {
               if (hasDocs) {
                 setShowDeleteDialog(true);

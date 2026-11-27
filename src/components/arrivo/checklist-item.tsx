@@ -49,6 +49,7 @@ export function ChecklistItem({
     setPrevInitiallyExpanded(initiallyExpanded);
     if (initiallyExpanded) setIsExpanded(true);
   }
+  const showDragHandle = !!dragHandle && canEdit && !isDraft && !displayOnly;
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(checklist.title ?? "");
   const [itemInput, setItemInput] = useState("");
@@ -133,11 +134,17 @@ export function ChecklistItem({
       className="group relative"
       style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}
     >
-      {/* Header */}
+      {/* Header. The grip sits beside the expand button, not inside it, so it never toggles. */}
+      {showDragHandle && (
+        <span className="absolute left-1 top-0 flex size-11" style={{ color: "var(--fg-4)" }}>
+          {dragHandle}
+        </span>
+      )}
       <button
         className={cn(
           "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
-          !isDraft && canEdit && (dragHandle ? "pr-24" : "pr-12")
+          showDragHandle && "pl-13",
+          !isDraft && canEdit && "pr-12"
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
         onClick={() => {
@@ -145,7 +152,8 @@ export function ChecklistItem({
         }}
       >
         <span
-          className="flex items-center justify-center shrink-0"
+          // Keeps the icon on the grip's line when a long title wraps.
+          className={cn("flex items-center justify-center shrink-0", showDragHandle && "self-start")}
           style={{
             width: 22,
             height: 22,
@@ -157,6 +165,7 @@ export function ChecklistItem({
           <ListChecks size={12} strokeWidth={1.5} />
         </span>
         <span
+          className="min-w-0 wrap-anywhere"
           style={{
             flex: 1,
             color: "var(--fg-2)",
@@ -199,7 +208,15 @@ export function ChecklistItem({
 
       {/* Expanded body */}
       {(isExpanded || isDraft) && (
-        <div style={{ paddingLeft: 37, paddingRight: 8, paddingBottom: 8 }}>
+        <div
+          className="wrap-anywhere"
+          style={{
+            // 2.5rem is what the grip adds to the header's left padding (pl-3 to pl-13)
+            paddingLeft: showDragHandle ? "calc(37px + 2.5rem)" : 37,
+            paddingRight: 8,
+            paddingBottom: 8,
+          }}
+        >
           {/* Title area */}
           {isEditingTitle ? (
             <input
@@ -302,13 +319,12 @@ export function ChecklistItem({
         </div>
       )}
 
-      {/* Drag handle + delete share one centred group; always visible on mobile, hover/focus on desktop */}
+      {/* Delete is always visible on mobile, revealed on hover or focus on desktop */}
       {canEdit && !isDraft && (
         <div
           className="absolute right-1 top-0 flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
           style={{ color: "var(--fg-4)" }}
         >
-          {dragHandle}
           <button
             onClick={() => onDelete?.(checklist.id)}
             className="flex size-11 shrink-0 items-center justify-center rounded"

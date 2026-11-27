@@ -684,35 +684,111 @@ describe("ChecklistItem — empty self-destruct (Story 2.5)", () => {
     const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
     expect(container.querySelector("#checklist-cl-1")).toBeInTheDocument();
   });
+});
 
-  it("renders dragHandle when provided", () => {
-    render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={<span data-testid="drag-handle">grip</span>} />);
-    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+describe("ChecklistItem — drag handle", () => {
+  const handle = <span data-testid="drag-handle">grip</span>;
+  const titled: Checklist = { ...CHECKLIST_WITH_ITEMS, title: "Packing list" };
+
+  function headerButton(container: HTMLElement): HTMLElement {
+    return container.querySelector(":scope > div > button") as HTMLElement;
+  }
+
+  function expandedBody(): HTMLElement {
+    return screen.getByPlaceholderText("Add an item…").parentElement as HTMLElement;
+  }
+
+  it("renders an always-visible grip before and outside the expand button", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={handle} />);
+    const grip = screen.getByTestId("drag-handle");
+    const slot = grip.parentElement as HTMLElement;
+    const header = headerButton(container);
+
+    expect(header).not.toContainElement(grip);
+    expect(grip.compareDocumentPosition(header)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(slot).toHaveClass("absolute", "left-1", "top-0", "size-11");
+    expect(slot.style.color).toBe("var(--fg-4)");
+    for (let element: HTMLElement | null = grip; element; element = element.parentElement) {
+      expect(element.className).not.toContain("opacity-");
+    }
+    expect(header).toHaveClass("pl-13", "pr-12");
+    expect(header).not.toHaveClass("pr-24");
   });
 
-  it("centres the drag handle and delete button in one group with 44px targets", () => {
-    render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={<span data-testid="drag-handle">grip</span>} />);
+  it("toggles expansion from the header but not from the grip", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={handle} />);
+
+    await user.click(screen.getByTestId("drag-handle"));
+    expect(screen.queryByPlaceholderText("Add an item…")).not.toBeInTheDocument();
+    await user.click(headerButton(container));
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
+    await user.click(screen.getByTestId("drag-handle"));
+    expect(screen.getByPlaceholderText("Add an item…")).toBeInTheDocument();
+  });
+
+  it("keeps a 44px Delete on the right, apart from the drag handle", () => {
+    render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={handle} />);
     const deleteButton = screen.getByTitle("Delete checklist");
     const group = deleteButton.parentElement as HTMLElement;
 
-    expect(group).toHaveClass("absolute", "flex", "items-center", "sm:focus-within:opacity-100");
-    expect(screen.getByTestId("drag-handle").parentElement).toBe(group);
+    expect(group).toHaveClass("absolute", "right-1", "flex", "items-center", "sm:focus-within:opacity-100");
+    expect(group).toHaveClass("sm:opacity-0", "sm:group-hover:opacity-100");
+    expect(group).not.toContainElement(screen.getByTestId("drag-handle"));
     expect(deleteButton).toHaveClass("size-11", "items-center", "justify-center");
     // Trash2 is mocked in this file, so the size prop lands as a raw attribute
     expect(screen.getByTestId("trash-icon")).toHaveAttribute("size", String(IconSize.rowAction));
-    expect(document.querySelector("#checklist-cl-1 > button")).toHaveClass("pr-24");
   });
 
-  it("reserves room for the delete button alone when there is no drag handle", () => {
-    render(<ChecklistItem checklist={BASE_CHECKLIST} />);
-    expect(document.querySelector("#checklist-cl-1 > button")).toHaveClass("pr-12");
+  it("shifts the expanded body by the header's grip inset", () => {
+    render(<ChecklistItem checklist={titled} initiallyExpanded dragHandle={handle} />);
+    expect(expandedBody().style.paddingLeft).toBe("calc(37px + 2.5rem)");
   });
 
-  it("does NOT render dragHandle slot when isDraft", () => {
-    render(
-      <ChecklistItem checklist={BASE_CHECKLIST} isDraft dragHandle={<span data-testid="drag-handle">grip</span>} />
-    );
+  it("keeps the current indentation without a drag handle", () => {
+    const { container } = render(<ChecklistItem checklist={titled} initiallyExpanded />);
+    expect(expandedBody().style.paddingLeft).toBe("37px");
+    expect(headerButton(container)).toHaveClass("px-3", "pr-12");
+    expect(headerButton(container)).not.toHaveClass("pl-13");
+  });
+
+  it.each([
+    ["a draft", { isDraft: true }],
+    ["display-only", { displayOnly: true, initiallyExpanded: true }],
+  ])("renders no grip or inset when %s", (_label, props) => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} {...props} dragHandle={handle} />);
+
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    expect(headerButton(container)).not.toHaveClass("pl-13");
+    expect(expandedBody().style.paddingLeft).toBe("37px");
+  });
+
+  it("top-aligns the list icon with the grip only when a grip shows", () => {
+    const { container, rerender } = render(<ChecklistItem checklist={BASE_CHECKLIST} dragHandle={handle} />);
+    expect(headerButton(container).firstElementChild).toHaveClass("self-start");
+
+    rerender(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    expect(headerButton(container).firstElementChild).not.toHaveClass("self-start");
+  });
+
+  it("lets long header labels and body content wrap", () => {
+    const title = "x".repeat(200);
+    render(<ChecklistItem checklist={{ ...BASE_CHECKLIST, title }} />);
+    expect(screen.getByText(title)).toHaveClass("min-w-0", "wrap-anywhere");
+
+    fireEvent.click(screen.getByText(title));
+    expect(expandedBody()).toHaveClass("wrap-anywhere");
+  });
+
+  it("still edits the title with a grip showing", async () => {
+    const user = userEvent.setup();
+    const onTitleUpdate = vi.fn();
+    render(<ChecklistItem checklist={titled} initiallyExpanded onTitleUpdate={onTitleUpdate} dragHandle={handle} />);
+
+    await user.click(screen.getByRole("button", { name: "Packing list" }));
+    await user.clear(screen.getByPlaceholderText("Add title..."));
+    await user.type(screen.getByPlaceholderText("Add title..."), "Beach bag{Enter}");
+    expect(onTitleUpdate).toHaveBeenCalledWith("cl-1", "Beach bag");
   });
 });
 
@@ -737,6 +813,8 @@ describe("ChecklistItem for a viewer", () => {
     expect(screen.queryByTitle("Delete checklist")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Delete item")).not.toBeInTheDocument();
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /checklist/i })).not.toHaveClass("pl-13");
+    expect(screen.getByText("Packing list").parentElement?.style.paddingLeft).toBe("37px");
     await user.click(screen.getByText("Packing list"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });

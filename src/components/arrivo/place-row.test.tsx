@@ -614,7 +614,7 @@ describe("PlaceRow", () => {
     expect(screen.getByTestId("add-doc-dialog")).toBeInTheDocument();
   });
 
-  it("renders dragHandle when provided", () => {
+  it("renders an always-visible drag handle in a leading slot before the row icon", () => {
     render(
       <PlaceRow
         place={basePlace}
@@ -624,7 +624,44 @@ describe("PlaceRow", () => {
       />,
       { wrapper: Wrapper }
     );
-    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+    const handle = screen.getByTestId("drag-handle");
+    const slot = handle.parentElement as HTMLElement;
+
+    expect(slot).toBe(slot.parentElement?.firstElementChild);
+    expect(slot).toHaveClass("size-11", "shrink-0");
+    expect(slot.style.color).toBe("var(--fg-4)");
+    for (let element: HTMLElement | null = handle; element; element = element.parentElement) {
+      expect(element.className).not.toContain("opacity-");
+    }
+    expect(handle.compareDocumentPosition(screen.getAllByTestId("map-pin-icon")[0])).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(handle.compareDocumentPosition(screen.getByRole("button", { name: "Tokyo Tower" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(screen.getByTitle("Delete event").parentElement).not.toContainElement(handle);
+  });
+
+  const unusedHandle = <span data-testid="drag-handle" />;
+
+  it.each([
+    ["no drag handle is given", { place: basePlace }, "map-pin-icon"],
+    ["the row is a draft", { place: basePlace, isDraft: true, dragHandle: unusedHandle }, "map-pin-icon"],
+    ["the event is a linked reservation", { place: linkedPlace, dragHandle: unusedHandle }, "hotel-icon"],
+  ])("renders no drag handle or leading slot when %s", (_label, props, iconTestId) => {
+    const { container } = render(<PlaceRow {...props} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+    const row = container.firstElementChild?.firstElementChild as HTMLElement;
+
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
+    // The action bar repeats the pin, so take the first match: the row icon
+    expect(row.firstElementChild).toContainElement(screen.getAllByTestId(iconTestId)[0]);
+  });
+
+  it("lets a long unbroken note wrap inside the content column", () => {
+    const note = "x".repeat(200);
+    render(<PlaceRow place={{ ...basePlace, note }} onUpdate={vi.fn()} onDelete={vi.fn()} />, { wrapper: Wrapper });
+
+    expect(screen.getByText(note).parentElement).toHaveClass("wrap-anywhere");
   });
 
   it("trash button has mobile-always-visible and desktop-hover-only CSS classes", () => {
@@ -635,22 +672,6 @@ describe("PlaceRow", () => {
     expect(actionGroup.className).toContain("opacity-100");
     expect(actionGroup.className).toContain("sm:opacity-0");
     expect(actionGroup.className).toContain("sm:group-hover:opacity-100");
-  });
-
-  it("drag handle wrapper has mobile-always-visible and desktop-hover-only CSS classes", () => {
-    render(
-      <PlaceRow
-        place={basePlace}
-        onUpdate={vi.fn()}
-        onDelete={vi.fn()}
-        dragHandle={<span data-testid="drag-handle">drag</span>}
-      />,
-      { wrapper: Wrapper }
-    );
-    const dragHandleWrapper = screen.getByTestId("drag-handle").parentElement;
-    expect(dragHandleWrapper?.className).toContain("opacity-100");
-    expect(dragHandleWrapper?.className).toContain("sm:opacity-0");
-    expect(dragHandleWrapper?.className).toContain("sm:group-hover:opacity-100");
   });
 
   it("isLast prop omits the connector line", () => {
@@ -1139,8 +1160,8 @@ describe("PlaceRow", () => {
 });
 
 describe("PlaceRow for a viewer", () => {
-  it("hides the drag handle and Delete event", () => {
-    render(
+  it("hides the drag handle, its leading slot and Delete event", () => {
+    const { container } = render(
       <PlaceRow
         place={basePlace}
         onUpdate={vi.fn()}
@@ -1151,6 +1172,8 @@ describe("PlaceRow for a viewer", () => {
     );
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Delete event")).not.toBeInTheDocument();
+    const row = container.firstElementChild?.firstElementChild as HTMLElement;
+    expect(row.firstElementChild).toContainElement(screen.getAllByTestId("map-pin-icon")[0]);
   });
 
   it("lists attached documents without offering to add one", async () => {
