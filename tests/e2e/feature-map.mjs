@@ -292,6 +292,11 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/profile.steps.ts",
     "tests/e2e/steps/app-users.steps.ts",
   ]),
+  entry("update-notice", [
+    "src/lib/update-check.ts",
+    "src/app/api/admin/update-status/route.ts",
+    "src/components/arrivo/update-notice.tsx",
+  ]),
   entry("account-menu", [
     "src/components/arrivo/account-menu.tsx",
     "src/components/arrivo/admin-section-nav.tsx",

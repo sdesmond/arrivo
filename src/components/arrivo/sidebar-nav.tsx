@@ -8,6 +8,7 @@ import { getAvatarTint } from "@/lib/trip-tints";
 import { ProfileAvatar } from "./profile-avatar";
 import { ArrivoBrand } from "./arrivo-brand";
 import { NavItem } from "./nav-item";
+import { UpdateNotice } from "./update-notice";
 import type { UserProfile } from "@/data/types";
 
 const NAV_ITEMS = [
@@ -70,6 +71,8 @@ export function SidebarNav({ user, invitationCount, isAdmin = false }: SidebarNa
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {isAdmin && <UpdateNotice />}
 
       {/* Footer */}
       <div className="flex items-center gap-2 px-3 py-3" style={{ borderTop: "1px solid var(--line)" }}>

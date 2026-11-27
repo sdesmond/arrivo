@@ -53,6 +53,7 @@ All settings are environment variables on the `app` service. After you change on
 | `NEXTAUTH_SECRET`     | generated        | Signs sign-in sessions. Leave it unset: one is generated on first start and kept in `storage/.arrivo/auth-secret`                                                         |
 | `DATA_ENCRYPTION_KEY` | generated        | Encrypts passport numbers, Known Traveler Numbers and two-factor secrets. Leave it unset: one is generated in `storage/.arrivo/data-key`                                  |
 | `NEXTAUTH_URL`        | unset            | Address users open Arrivo at, using the public reverse-proxy address if applicable. Required for account links; also controls sign-in redirects. `AUTH_URL` is a fallback |
+| `UPDATE_CHECK`        | on               | Admins see a notice when a newer release is out ([Updating](#updating)). `false` stops the check                                                                          |
 
 Without the Mapbox and Unsplash keys Arrivo still runs; those features are just unavailable.
 Browsers receive the Mapbox token, so never use a secret (`sk.`) token.
@@ -176,6 +177,12 @@ In a container manager, use its action that pulls the latest image and redeploys
 
 The app applies any database changes as it starts. Take a backup first when upgrading across
 releases (see below).
+
+When a newer release is out, admins see **Version X.Y.Z available** at the bottom of the desktop
+sidebar, linking to its release notes. To find out, the server asks GitHub for the latest release when
+an admin opens the app, at most once a day (hourly after a failed attempt). The request carries nothing
+about your instance, though GitHub sees the server's IP address as with any request. Set
+`UPDATE_CHECK=false` to turn it off.
 
 Accounts sign in with a username. If you're updating from a release where they signed in with an email,
 each account's username is the part of its email before the `@` (with `-2`, `-3`… added where two

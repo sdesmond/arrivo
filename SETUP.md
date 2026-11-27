@@ -102,6 +102,7 @@ touches any other account in the database.
 | `HIDE_OVERLAY`           | Hides the Next.js dev overlay indicator                              | `true`                                               |
 | `STORAGE_PROVIDER`       | Active file-storage adapter                                          | `local`                                              |
 | `STORAGE_LOCAL_ROOT_DIR` | Local adapter root directory                                         | `./.dev-storage`                                     |
+| `UPDATE_CHECK`           | `false` stops the new-release check against GitHub                   | `true`                                               |
 
 Set `NEXTAUTH_URL` to the address users open in their browser, including `http://` or `https://` and any
 nonstandard port. If Arrivo is behind a reverse proxy, tunnel, or similar gateway, use its public address
