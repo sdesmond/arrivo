@@ -4,8 +4,16 @@
 
 ## [0.10.0] - 2026-11-27
 
+### Upgrading
+
+- The server now checks GitHub for new releases. It is on by default, including on existing installs, and sends
+  nothing about your instance. To turn it off, add `UPDATE_CHECK: "false"` under the `app` service's `environment` in
+  your `docker-compose.yml`. Nothing else is needed to update.
+
 ### Added
 
+- When a newer release is out, admins see **Version X.Y.Z available** at the bottom of the desktop sidebar, linking to
+  its release notes. The server asks GitHub at most once a day, or hourly after a failed check.
 - Itinerary events, notes and checklists can be reordered from the keyboard: focus a row's drag handle, press Space or
   Enter, move with the arrow keys, then press Space, Enter or Tab to drop, or Escape to cancel. Screen readers
   announce the row and its position.
