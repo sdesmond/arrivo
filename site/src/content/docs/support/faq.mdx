@@ -9,7 +9,7 @@ Yes. Arrivo is open source under AGPL-3.0, with no subscription, paid tier or tr
 
 ## Does Arrivo track me or show ads?
 
-No. The app has no analytics, telemetry or tracking code, and no ads, and the Docker image turns off Next.js telemetry. Some features call outside services when you use them: Mapbox for maps and place search, Unsplash for cover photo search, and Frankfurter for exchange rates. Your admin controls whether the Mapbox and Unsplash keys are set. See [Self-hosting](/arrivo/self-hosting/#configuration).
+No. The app has no analytics, telemetry or tracking code, and no ads, and the Docker image turns off Next.js telemetry. Some features call outside services when you use them: Mapbox for maps and place search, Unsplash for cover photo search, and Frankfurter for exchange rates. Your admin controls whether the Mapbox and Unsplash keys are set. The server also asks GitHub whether a newer release is out, sending nothing about your instance; your admin can turn that off with `UPDATE_CHECK=false`. See [Self-hosting](/arrivo/self-hosting/#configuration).
 
 ## Who can see my trips?
 
@@ -17,7 +17,7 @@ Only you and the people you share them with. Documents are private to the trip. 
 
 ## Where is my data stored?
 
-On the server running Arrivo: trips in its PostgreSQL database, and uploaded documents and covers in its storage folder. There is no hosted Arrivo service. If your admin enables map and cover-photo search, those lookups go to Mapbox and Unsplash. See [Self-hosting](/arrivo/self-hosting/).
+On the server running Arrivo: trips in its PostgreSQL database, and uploaded documents and covers in its storage folder. There is no hosted Arrivo service. If your admin enables map and cover-photo search, those lookups go to Mapbox and Unsplash. Exchange rates come from Frankfurter, and the check for new releases goes to GitHub. See [Self-hosting](/arrivo/self-hosting/).
 
 ## Why is the Map tab empty?
 
