@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
@@ -32,6 +32,18 @@ export function NoteItem({
   const canEdit = useCanEditTrip();
   const [isEditing, setIsEditing] = useState(isDraft ?? false);
   const [draft, setDraft] = useState(note.content);
+  const hasDragSlot = !!dragHandle && canEdit && !isDraft;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // `rows` only counts newlines, so measure to keep wrapped lines visible while editing
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    if (textarea.scrollHeight === 0) return;
+    const borderHeight = textarea.offsetHeight - textarea.clientHeight;
+    textarea.style.height = `${textarea.scrollHeight + borderHeight}px`;
+  }, [draft, isEditing]);
 
   function startEdit() {
     setDraft(note.content);
@@ -61,12 +73,16 @@ export function NoteItem({
   return (
     <div
       id={displayOnly ? undefined : `note-${note.id}`}
-      className={cn(
-        "group flex items-start gap-3 px-3 py-2.5 relative",
-        canEdit && !isEditing && (dragHandle && !isDraft ? "pr-24" : "pr-12")
-      )}
+      className={cn("group flex items-start gap-3 px-3 py-2.5 relative", canEdit && !isEditing && "pr-12")}
       style={{ fontSize: "calc(13px * var(--font-scale))", color: "var(--fg-2)" }}
     >
+      {/* The slot stays while editing so the content doesn't shift when the grip hides. */}
+      {hasDragSlot && (
+        <span className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-3)" }}>
+          {!isEditing && dragHandle}
+        </span>
+      )}
+
       <span
         className="flex items-center justify-center shrink-0 mt-0.5"
         style={{
@@ -82,6 +98,7 @@ export function NoteItem({
 
       {isEditing ? (
         <textarea
+          ref={textareaRef}
           autoFocus
           placeholder="Add a note…"
           value={draft}
@@ -99,6 +116,7 @@ export function NoteItem({
             }
           }}
           rows={Math.max(1, draft.split("\n").length)}
+          className="min-w-0"
           style={{
             flex: 1,
             fontSize: "calc(13px * var(--font-scale))",
@@ -109,12 +127,15 @@ export function NoteItem({
             outline: "none",
             fontFamily: "inherit",
             resize: "none",
+            overflow: "hidden",
             lineHeight: 1.5,
             padding: "2px 0",
           }}
         />
       ) : !canEdit ? (
-        <span style={{ flex: 1, lineHeight: 1.5, paddingTop: 2 }}>{note.content}</span>
+        <span className="min-w-0 wrap-anywhere" style={{ flex: 1, lineHeight: 1.5, paddingTop: 2 }}>
+          {note.content}
+        </span>
       ) : (
         <span
           role="button"
@@ -123,19 +144,19 @@ export function NoteItem({
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") startEdit();
           }}
+          className="min-w-0 wrap-anywhere"
           style={{ flex: 1, lineHeight: 1.5, paddingTop: 2, cursor: "text" }}
         >
           {note.content}
         </span>
       )}
 
-      {/* Drag handle + delete share one centred group; always visible on mobile, hover/focus on desktop */}
+      {/* Delete is always visible on mobile, revealed on hover or focus on desktop */}
       {canEdit && !isEditing && (
         <div
           className="absolute right-1 top-0 flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
           style={{ color: "var(--fg-4)" }}
         >
-          {!isDraft && dragHandle}
           <button
             onClick={() => onDelete?.(note.id)}
             className="flex size-11 shrink-0 items-center justify-center rounded"

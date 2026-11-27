@@ -7,7 +7,17 @@ interface SortableContextCapture {
   lastItems: string[];
 }
 
+interface DragAnnouncementEvent {
+  active: { id: string };
+  over: { id: string } | null;
+}
+
+type DragAnnouncement = (event: DragAnnouncementEvent) => string;
+
 interface DndHandlerCapture {
+  accessibility?: {
+    announcements: Record<"onDragStart" | "onDragOver" | "onDragEnd" | "onDragCancel", DragAnnouncement>;
+  };
   onDragStart?: (event: { active: { id: string } }) => void;
   onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
 }
@@ -19,6 +29,7 @@ interface SortableContextProps {
 
 interface MockPlaceRowProps {
   place: { id: string; name: string; linkedReservationId?: string };
+  dragHandle?: ReactNode;
   onLinkedEventTap?: (linkedReservationId: string) => void;
   hasScheduleConflict?: boolean;
 }
@@ -31,25 +42,35 @@ interface MockSortablePlaceRowProps {
 
 const sortableContextCapture = vi.hoisted<SortableContextCapture>(() => ({ lastItems: [] }));
 const dndHandlerCapture = vi.hoisted<DndHandlerCapture>(() => ({}));
+const sensorMocks = vi.hoisted(() => ({
+  PointerSensor: vi.fn(),
+  KeyboardSensor: vi.fn(),
+  useSensor: vi.fn<(sensor: unknown, options?: unknown) => object>(() => ({})),
+  sortableKeyboardCoordinates: vi.fn(),
+}));
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({
     children,
+    accessibility,
     onDragStart,
     onDragEnd,
   }: {
     children: ReactNode;
+    accessibility?: DndHandlerCapture["accessibility"];
     onDragStart?: (event: { active: { id: string } }) => void;
     onDragEnd?: (event: { active: { id: string }; over: { id: string } | null }) => void;
   }) => {
+    dndHandlerCapture.accessibility = accessibility;
     dndHandlerCapture.onDragStart = onDragStart;
     dndHandlerCapture.onDragEnd = onDragEnd;
     return <>{children}</>;
   },
   DragOverlay: ({ children }: { children: ReactNode }) => <>{children}</>,
   closestCenter: vi.fn(),
-  PointerSensor: vi.fn(),
-  useSensor: vi.fn(() => ({})),
+  PointerSensor: sensorMocks.PointerSensor,
+  KeyboardSensor: sensorMocks.KeyboardSensor,
+  useSensor: sensorMocks.useSensor,
   useSensors: vi.fn(() => []),
 }));
 
@@ -59,6 +80,7 @@ vi.mock("@dnd-kit/sortable", () => ({
     return <>{children}</>;
   },
   verticalListSortingStrategy: {},
+  sortableKeyboardCoordinates: sensorMocks.sortableKeyboardCoordinates,
   arrayMove: vi.fn(<ItemType,>(items: ItemType[], from: number, to: number) => {
     const result = [...items];
     const [moved] = result.splice(from, 1);
@@ -68,17 +90,20 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 
 vi.mock("./place-row", () => ({
-  PlaceRow: ({ place, onLinkedEventTap, hasScheduleConflict }: MockPlaceRowProps) => (
+  PlaceRow: ({ place, dragHandle, onLinkedEventTap, hasScheduleConflict }: MockPlaceRowProps) => (
     <button
       data-has-conflict={String(!!hasScheduleConflict)}
       onClick={() => place.linkedReservationId && onLinkedEventTap?.(place.linkedReservationId)}
     >
       direct-place-row-{place.id}
+      {dragHandle}
     </button>
   ),
 }));
 
-vi.mock("./day-card-sortables", () => ({
+vi.mock("./day-card-sortables", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./day-card-sortables")>()),
+  DragGripPreview: () => <span data-testid="drag-grip-preview" />,
   SortablePlaceRow: ({ place, isHighlighted, hasScheduleConflict }: MockSortablePlaceRowProps) => (
     <div
       data-testid={`sortable-place-row-${place.id}`}
@@ -100,7 +125,9 @@ vi.mock("./note-item", () => ({
     isDraft,
     onCreate,
     onCancelDraft,
+    dragHandle,
   }: {
+    dragHandle?: ReactNode;
     note: { id: string };
     isDraft?: boolean;
     onCreate?: (content: string) => void;
@@ -112,7 +139,7 @@ vi.mock("./note-item", () => ({
         <button onClick={() => onCancelDraft?.()}>cancel-note-draft</button>
       </div>
     ) : (
-      <div data-testid={`note-item-${note.id}`} />
+      <div data-testid={`note-item-${note.id}`}>{dragHandle}</div>
     ),
 }));
 
@@ -122,7 +149,9 @@ vi.mock("./checklist-item", () => ({
     isDraft,
     onCommitDraft,
     onCancelDraft,
+    dragHandle,
   }: {
+    dragHandle?: ReactNode;
     checklist: { id: string };
     isDraft?: boolean;
     onCommitDraft?: (firstItemContent?: string) => void;
@@ -135,7 +164,7 @@ vi.mock("./checklist-item", () => ({
         <button onClick={() => onCancelDraft?.()}>cancel-checklist-draft</button>
       </div>
     ) : (
-      <div data-testid={`checklist-item-${checklist.id}`} />
+      <div data-testid={`checklist-item-${checklist.id}`}>{dragHandle}</div>
     ),
 }));
 
@@ -463,6 +492,81 @@ describe("DayCardDnd", () => {
     });
 
     expect(screen.getByTestId("checklist-item-checklist-1")).toBeInTheDocument();
+  });
+
+  function renderTimeline() {
+    return render(
+      <DayCardDnd
+        dayNumber={1}
+        timelineItems={timelineItems}
+        renderEntries={renderEntries}
+        makeGapProps={() => ({
+          gapKey: "gap-1",
+          isActive: false,
+          onOpen: vi.fn(),
+          onSelectType: vi.fn(),
+          onDismiss: vi.fn(),
+        })}
+        commitDraft={vi.fn()}
+        cancelDraft={vi.fn()}
+        setOptimisticOrder={vi.fn()}
+        onReorderDayItems={vi.fn()}
+        onUpdateEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+      />
+    );
+  }
+
+  it.each(["manual-event-1", "note-1", "checklist-1"])("shows a grip in the %s drag preview", (id) => {
+    renderTimeline();
+    expect(screen.queryByTestId("drag-grip-preview")).not.toBeInTheDocument();
+
+    act(() => {
+      dndHandlerCapture.onDragStart?.({ active: { id } });
+    });
+
+    expect(screen.getByTestId("drag-grip-preview")).toBeInTheDocument();
+  });
+
+  it("registers keyboard reordering alongside pointer dragging", () => {
+    renderTimeline();
+
+    expect(sensorMocks.useSensor).toHaveBeenCalledWith(sensorMocks.PointerSensor, {
+      activationConstraint: { distance: 5 },
+    });
+    expect(sensorMocks.useSensor).toHaveBeenCalledWith(sensorMocks.KeyboardSensor, {
+      coordinateGetter: sensorMocks.sortableKeyboardCoordinates,
+    });
+  });
+
+  it("announces drags by row name and position among sortable rows", () => {
+    renderTimeline();
+    const announcements = dndHandlerCapture.accessibility!.announcements;
+    const note = { id: "note-1" };
+    const overEvent = { active: note, over: { id: "manual-event-1" } };
+    const overNothing = { active: note, over: null };
+
+    // The linked event is not sortable, so the note is second of three
+    expect(announcements.onDragStart(overNothing)).toBe("Picked up Bring sunscreen, position 2 of 3.");
+    expect(announcements.onDragOver(overEvent)).toBe("Bring sunscreen moved to position 1 of 3.");
+    expect(announcements.onDragOver(overNothing)).toBe("Bring sunscreen is not over a position.");
+    expect(announcements.onDragEnd(overEvent)).toBe("Bring sunscreen dropped at position 1 of 3.");
+    expect(announcements.onDragEnd(overNothing)).toBe("Bring sunscreen returned to position 2 of 3.");
+    expect(announcements.onDragCancel(overNothing)).toBe(
+      "Reorder cancelled. Bring sunscreen returned to position 2 of 3."
+    );
+  });
+
+  it("announces events and checklists by their own names", () => {
+    renderTimeline();
+    const announcements = dndHandlerCapture.accessibility!.announcements;
+
+    expect(announcements.onDragStart({ active: { id: "manual-event-1" }, over: null })).toBe(
+      "Picked up Museum Visit, position 1 of 3."
+    );
+    expect(announcements.onDragStart({ active: { id: "checklist-1" }, over: null })).toBe(
+      "Picked up checklist, position 3 of 3."
+    );
   });
 
   it("defaults the note and checklist draft position to 0 when draftInsertAtPosition is not provided", () => {

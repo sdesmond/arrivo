@@ -292,6 +292,11 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/profile.steps.ts",
     "tests/e2e/steps/app-users.steps.ts",
   ]),
+  entry("update-notice", [
+    "src/lib/update-check.ts",
+    "src/app/api/admin/update-status/route.ts",
+    "src/components/arrivo/update-notice.tsx",
+  ]),
   entry("account-menu", [
     "src/components/arrivo/account-menu.tsx",
     "src/components/arrivo/admin-section-nav.tsx",
@@ -666,6 +671,8 @@ export const FEATURE_MAP = [
   entry("viewer-trip-access", [
     "src/app/(app)/trips/[tripId]/trip-detail-hero.tsx",
     "src/components/arrivo/trip-edit-access.tsx",
+    "src/components/arrivo/packing-list*.tsx",
+    "src/components/arrivo/packing-lists-view.tsx",
     "src/components/arrivo/place-row*.tsx",
     "src/components/arrivo/day-card-header.tsx",
     "src/components/arrivo/day-card-sortables.tsx",

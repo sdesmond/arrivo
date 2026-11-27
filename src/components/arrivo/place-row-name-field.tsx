@@ -57,10 +57,13 @@ export function PlaceRowNameField({
           }}
         />
       ) : !canEdit ? (
-        <span style={nameStyle}>{displayName}</span>
+        <span className="min-w-0 wrap-anywhere" style={nameStyle}>
+          {displayName}
+        </span>
       ) : (
         <button
           type="button"
+          className="min-w-0 wrap-anywhere"
           onClick={() => onStartEdit()}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") onStartEdit();

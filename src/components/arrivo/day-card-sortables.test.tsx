@@ -42,7 +42,7 @@ vi.mock("./checklist-item", () => ({
   ),
 }));
 
-import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem } from "./day-card-sortables";
+import { SortablePlaceRow, SortableNoteItem, SortableChecklistItem, DragGripPreview } from "./day-card-sortables";
 import { TripEditAccessProvider } from "./trip-edit-access";
 import { IconSize } from "@/lib/size-tokens";
 
@@ -123,6 +123,46 @@ describe("day-card-sortables", () => {
       );
       expect(getByTestId("checklist-item-cl-2")).toBeInTheDocument();
     });
+  });
+});
+
+describe("day-card-sortables drag handle names", () => {
+  it("names each drag handle after its row", () => {
+    const { getByLabelText } = render(
+      <>
+        <SortablePlaceRow place={{ id: "ev-n", name: "Museum", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+        <SortableNoteItem note={{ id: "n-n", content: "Pack bags\nand passports", position: 1 }} />
+        <SortableChecklistItem checklist={{ id: "cl-n", tripDayId: "d", position: 2, title: "Beach", items: [] }} />
+      </>
+    );
+
+    for (const name of ["Reorder Museum", "Reorder Pack bags", "Reorder Beach"]) {
+      expect(getByLabelText(name)).toHaveAttribute("title", "Drag to reorder");
+    }
+  });
+
+  it("shortens a long note and names untitled rows by their kind", () => {
+    const { getByLabelText } = render(
+      <>
+        <SortablePlaceRow place={{ id: "ev-u", name: "", position: 0 }} onUpdate={vi.fn()} onDelete={vi.fn()} />
+        <SortableNoteItem note={{ id: "n-l", content: "a".repeat(60), position: 1 }} />
+        <SortableChecklistItem checklist={{ id: "cl-u", tripDayId: "d", position: 2, items: [] }} />
+      </>
+    );
+
+    expect(getByLabelText("Reorder event")).toBeInTheDocument();
+    expect(getByLabelText(`Reorder ${"a".repeat(40)}…`)).toBeInTheDocument();
+    expect(getByLabelText("Reorder checklist")).toBeInTheDocument();
+  });
+
+  it("draws an inert, hidden grip the size of a real one for the drag preview", () => {
+    const { container } = render(<DragGripPreview />);
+    const grip = container.firstElementChild as HTMLElement;
+
+    expect(grip).toHaveAttribute("aria-hidden", "true");
+    expect(grip).toHaveClass("size-11", "items-center", "justify-center");
+    expect(grip).not.toHaveAttribute("title");
+    expect(grip.querySelector("svg")).toHaveAttribute("width", String(IconSize.rowAction));
   });
 });
 

@@ -21,7 +21,8 @@ git switch main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-Then publish the release notes: on GitHub, **Releases → Draft a new release**, choose the `vX.Y.Z` tag, title it
+Once the publish workflow has succeeded, publish the release notes. Publishing the GitHub Release tells
+running instances that the version is available, so the images must exist first. On GitHub, **Releases → Draft a new release**, choose the `vX.Y.Z` tag, title it
 `vX.Y.Z`, and paste that version's section from [CHANGELOG.md](../CHANGELOG.md) (or run
 `gh release create vX.Y.Z --title vX.Y.Z --notes-file <section>`).
 

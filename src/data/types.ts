@@ -1551,3 +1551,9 @@ export interface MfaPolicy {
 export type MfaPolicySaveResult =
   | { status: "ok"; required: boolean }
   | { status: "invalid" | "forbidden" | "stale" | "unavailable" | "key-unavailable" };
+
+/** A published release newer than the running version. */
+export interface AvailableUpdate {
+  version: string;
+  url: string;
+}

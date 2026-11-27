@@ -7,12 +7,15 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "light", setTheme: vi.fn() }),
 }));
 
-beforeEach(() =>
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => Response.json({ isAdmin: false }))
-  )
+const update = { version: "1.0.0", url: "https://github.com/sdesmond/arrivo/releases/tag/v1.0.0" };
+const fetchMock = vi.fn(async (input: string) =>
+  input === "/api/admin/update-status" ? Response.json({ update }) : Response.json({ isAdmin: false })
 );
+
+beforeEach(() => {
+  fetchMock.mockClear();
+  vi.stubGlobal("fetch", fetchMock);
+});
 afterEach(() => vi.unstubAllGlobals());
 
 vi.mock("@/app/(auth)/actions", () => ({
@@ -145,5 +148,17 @@ describe("SidebarNav", () => {
   it("renders no badge on the Trips nav item when invitationCount is omitted", () => {
     render(<SidebarNav user={baseUser} />);
     expect(screen.getByRole("link", { name: "Trips" })).toBeInTheDocument();
+  });
+
+  it("shows an admin the available update", async () => {
+    render(<SidebarNav user={baseUser} isAdmin />);
+    const link = await screen.findByRole("link", { name: /Version 1\.0\.0 available/ });
+    expect(link).toHaveAttribute("href", update.url);
+  });
+
+  it("does not check for updates for a member", () => {
+    render(<SidebarNav user={baseUser} />);
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/update-status", expect.anything());
+    expect(screen.queryByRole("link", { name: /available/ })).not.toBeInTheDocument();
   });
 });

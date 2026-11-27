@@ -78,6 +78,14 @@ describe("ChecklistItemRow", () => {
   });
 });
 
+describe("ChecklistItemRow layout", () => {
+  it("lets the edit input shrink inside a narrow row", () => {
+    render(<ChecklistItemRow item={item} />);
+    fireEvent.click(screen.getByText("Sunscreen"));
+    expect(screen.getByDisplayValue("Sunscreen")).toHaveStyle({ minWidth: "0" });
+  });
+});
+
 describe("ChecklistItemRow length limit", () => {
   it("caps the edit input at the shared checklist item limit", () => {
     render(<ChecklistItemRow item={item} onUpdate={vi.fn()} />);

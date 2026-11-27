@@ -7,7 +7,7 @@ interface WaitForServerActionOptions {
   pathIncludes: string;
   /** Long enough for a real mutation under load, short enough not to stall a no-op gesture. */
   timeoutMs?: number;
-  /** Explicit redirect status expected from an action that navigates after commit. */
+  /** Explicit HTTP status expected from the action; 303 also accepts a fetch-action redirect. */
   expectedStatus?: number;
   /**
    * Whether the POST must actually happen. Default true: no response, or a non-2xx one, throws.
@@ -40,7 +40,9 @@ export function waitForServerActionResponse(
   if (!required) return pending.catch(() => null);
 
   return pending.then((response) => {
-    if (expectedStatus === undefined ? !response.ok() : response.status() !== expectedStatus) {
+    const fetchRedirect =
+      expectedStatus === 303 && response.status() === 200 && Boolean(response.headers()["x-action-redirect"]);
+    if (expectedStatus === undefined ? !response.ok() : response.status() !== expectedStatus && !fetchRedirect) {
       throw new Error(`Server action POST to ${response.url()} failed with status ${response.status()}.`);
     }
     return response;
