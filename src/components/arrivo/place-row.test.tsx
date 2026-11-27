@@ -629,7 +629,7 @@ describe("PlaceRow", () => {
 
     expect(slot).toBe(slot.parentElement?.firstElementChild);
     expect(slot).toHaveClass("size-11", "shrink-0");
-    expect(slot.style.color).toBe("var(--fg-4)");
+    expect(slot.style.color).toBe("var(--fg-3)");
     for (let element: HTMLElement | null = handle; element; element = element.parentElement) {
       expect(element.className).not.toContain("opacity-");
     }

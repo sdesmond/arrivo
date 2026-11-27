@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItineraryNote } from "@/data/types";
@@ -32,7 +32,18 @@ export function NoteItem({
   const canEdit = useCanEditTrip();
   const [isEditing, setIsEditing] = useState(isDraft ?? false);
   const [draft, setDraft] = useState(note.content);
-  const hasDragSlot = !!dragHandle && canEdit && !isDraft && !displayOnly;
+  const hasDragSlot = !!dragHandle && canEdit && !isDraft;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // `rows` only counts newlines, so measure to keep wrapped lines visible while editing
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    if (textarea.scrollHeight === 0) return;
+    const borderHeight = textarea.offsetHeight - textarea.clientHeight;
+    textarea.style.height = `${textarea.scrollHeight + borderHeight}px`;
+  }, [draft, isEditing]);
 
   function startEdit() {
     setDraft(note.content);
@@ -67,7 +78,7 @@ export function NoteItem({
     >
       {/* The slot stays while editing so the content doesn't shift when the grip hides. */}
       {hasDragSlot && (
-        <span className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-4)" }}>
+        <span className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-3)" }}>
           {!isEditing && dragHandle}
         </span>
       )}
@@ -87,6 +98,7 @@ export function NoteItem({
 
       {isEditing ? (
         <textarea
+          ref={textareaRef}
           autoFocus
           placeholder="Add a note…"
           value={draft}
@@ -115,6 +127,7 @@ export function NoteItem({
             outline: "none",
             fontFamily: "inherit",
             resize: "none",
+            overflow: "hidden",
             lineHeight: 1.5,
             padding: "2px 0",
           }}

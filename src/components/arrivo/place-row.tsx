@@ -227,7 +227,7 @@ export function PlaceRow({
       >
         {/* The negative margins pull the 44px grip into the row's padding, level with the title. */}
         {showDragHandle && (
-          <div className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-4)" }}>
+          <div className="-mx-2 -my-2.5 flex size-11 shrink-0" style={{ color: "var(--fg-3)" }}>
             {dragHandle}
           </div>
         )}

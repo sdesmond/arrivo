@@ -49,7 +49,7 @@ export function ChecklistItem({
     setPrevInitiallyExpanded(initiallyExpanded);
     if (initiallyExpanded) setIsExpanded(true);
   }
-  const showDragHandle = !!dragHandle && canEdit && !isDraft && !displayOnly;
+  const showDragHandle = !!dragHandle && canEdit && !isDraft;
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(checklist.title ?? "");
   const [itemInput, setItemInput] = useState("");
@@ -136,17 +136,18 @@ export function ChecklistItem({
     >
       {/* Header. The grip sits beside the expand button, not inside it, so it never toggles. */}
       {showDragHandle && (
-        <span className="absolute left-1 top-0 flex size-11" style={{ color: "var(--fg-4)" }}>
+        <span className="absolute left-1 top-0 flex size-11" style={{ color: "var(--fg-3)" }}>
           {dragHandle}
         </span>
       )}
       <button
         className={cn(
-          "w-full flex items-center gap-2.5 px-3 py-2.5 text-left",
+          "w-full flex min-h-11 items-center gap-2.5 px-3 py-2.5 text-left",
           showDragHandle && "pl-13",
           !isDraft && canEdit && "pr-12"
         )}
         style={{ background: "none", border: "none", cursor: "pointer" }}
+        aria-expanded={isDraft ? undefined : isExpanded}
         onClick={() => {
           if (!isDraft) setIsExpanded((prev) => !prev);
         }}

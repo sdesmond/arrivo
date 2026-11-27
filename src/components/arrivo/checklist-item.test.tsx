@@ -707,7 +707,7 @@ describe("ChecklistItem — drag handle", () => {
     expect(header).not.toContainElement(grip);
     expect(grip.compareDocumentPosition(header)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(slot).toHaveClass("absolute", "left-1", "top-0", "size-11");
-    expect(slot.style.color).toBe("var(--fg-4)");
+    expect(slot.style.color).toBe("var(--fg-3)");
     for (let element: HTMLElement | null = grip; element; element = element.parentElement) {
       expect(element.className).not.toContain("opacity-");
     }
@@ -752,15 +752,38 @@ describe("ChecklistItem — drag handle", () => {
     expect(headerButton(container)).not.toHaveClass("pl-13");
   });
 
-  it.each([
-    ["a draft", { isDraft: true }],
-    ["display-only", { displayOnly: true, initiallyExpanded: true }],
-  ])("renders no grip or inset when %s", (_label, props) => {
-    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} {...props} dragHandle={handle} />);
+  it("renders no grip or inset when a draft", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} isDraft dragHandle={handle} />);
 
     expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
     expect(headerButton(container)).not.toHaveClass("pl-13");
     expect(expandedBody().style.paddingLeft).toBe("37px");
+  });
+
+  it("keeps the grip and inset in a display-only preview so content lines up", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} displayOnly dragHandle={handle} />);
+
+    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+    expect(headerButton(container)).toHaveClass("pl-13");
+  });
+
+  it("gives the header a 44px minimum height", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+    expect(headerButton(container)).toHaveClass("min-h-11");
+  });
+
+  it("exposes the expanded state on the header button", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} />);
+
+    expect(headerButton(container)).toHaveAttribute("aria-expanded", "false");
+    await user.click(headerButton(container));
+    expect(headerButton(container)).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("claims no expanded state for a draft, which cannot be toggled", () => {
+    const { container } = render(<ChecklistItem checklist={BASE_CHECKLIST} isDraft />);
+    expect(headerButton(container)).not.toHaveAttribute("aria-expanded");
   });
 
   it("top-aligns the list icon with the grip only when a grip shows", () => {

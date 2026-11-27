@@ -171,7 +171,7 @@ describe("NoteItem", () => {
 
     expect(slot).toBe(noteRow().firstElementChild);
     expect(slot).toHaveClass("size-11", "shrink-0");
-    expect(slot.style.color).toBe("var(--fg-4)");
+    expect(slot.style.color).toBe("var(--fg-3)");
     for (let element: HTMLElement | null = grip; element; element = element.parentElement) {
       expect(element.className).not.toContain("opacity-");
     }
@@ -219,9 +219,29 @@ describe("NoteItem", () => {
     expectNoGripOrLeftInset(container);
   });
 
-  it("renders no drag handle or left inset when display-only", () => {
-    const { container } = render(<NoteItem note={note} displayOnly dragHandle={handle} />);
-    expectNoGripOrLeftInset(container);
+  it("keeps the grip and left inset in a display-only preview so content lines up", () => {
+    render(<NoteItem note={note} displayOnly dragHandle={handle} />);
+    expect(screen.getByTestId("drag-handle").parentElement).toHaveClass("size-11", "shrink-0");
+  });
+
+  it("sizes the edit textarea to its wrapped content", async () => {
+    // jsdom does no layout, so stand in for a note that wraps onto three lines
+    Object.defineProperty(HTMLTextAreaElement.prototype, "scrollHeight", { configurable: true, get: () => 66 });
+    try {
+      const user = userEvent.setup();
+      render(<NoteItem note={note} />);
+      await user.click(screen.getByRole("button", { name: note.content }));
+      expect(screen.getByRole("textbox").style.height).toBe("66px");
+    } finally {
+      Reflect.deleteProperty(HTMLTextAreaElement.prototype, "scrollHeight");
+    }
+  });
+
+  it("leaves the textarea height to its rows when it cannot be measured", async () => {
+    const user = userEvent.setup();
+    render(<NoteItem note={note} />);
+    await user.click(screen.getByRole("button", { name: note.content }));
+    expect(screen.getByRole("textbox").style.height).toBe("auto");
   });
 
   it("lets long unbroken content wrap", () => {
