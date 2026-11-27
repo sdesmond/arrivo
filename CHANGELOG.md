@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-27
+
+### Added
+
+- Itinerary events, notes and checklists can be reordered from the keyboard: focus a row's drag handle, press Space or
+  Enter, move with the arrow keys, then press Space, Enter or Tab to drop, or Escape to cancel. Screen readers
+  announce the row and its position.
+
+### Changed
+
+- Itinerary drag handles moved to the left of each row and are always visible, instead of appearing on hover next to
+  Delete. The handle and delete icons are larger with bigger tap targets, so long event names wrap a little sooner on
+  phones.
+
+### Fixed
+
+- Viewers see packing lists as read-only. Controls to add, rename, check off, reorder and delete, which always failed
+  for them, are gone.
+- The box for editing an itinerary note grows to show all of a long, wrapped note.
+
+### Security
+
+- Updated Next.js to 16.4.6, along with patched versions of PostCSS and Vite. Updating Arrivo as usual picks them up;
+  if you build from source, rebuild.
+
 ## [0.9.0] - 2026-11-06
 
 ### Upgrading
@@ -245,7 +270,8 @@
 - Passport and Known Traveler Numbers are encrypted at rest (AES-256-GCM). Docker installs encrypt existing values
   during the upgrade.
 
-[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/sdesmond/arrivo/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/sdesmond/arrivo/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/sdesmond/arrivo/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/sdesmond/arrivo/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/sdesmond/arrivo/compare/v0.6.2...v0.7.0
