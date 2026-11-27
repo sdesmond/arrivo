@@ -47,6 +47,8 @@ function appServer(port: number, bootstrap: boolean) {
       E2E_MODE: "true",
       E2E_MAPBOX_STUB: "true",
       E2E_UNSPLASH_STUB: "true",
+      E2E_UPDATE_STUB: "99.0.0",
+      UPDATE_CHECK: "true",
       STORAGE_PROVIDER: "local",
       STORAGE_LOCAL_ROOT_DIR: bootstrap ? BOOTSTRAP_E2E_STORAGE_DIRECTORY : E2E_STORAGE_DIRECTORY,
     },
