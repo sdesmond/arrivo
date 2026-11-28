@@ -386,3 +386,18 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `fix/trip-edit-sheet-stale-draft` (load run, 2026-11-26)
   summary: `reservations.feature` "A lodging reservation and its budget survive reload until the lodging is deleted" failed once in 20 repeats under 3-worker load, at "And I edit the reservation provider to \"Revised Hotel Name\"".
   evidence: Strict-mode violation: two `Provider` textboxes matched, the row's inline input (`reservation-row-…` `textbox "Provider"`) and an empty `#reservation-provider` (`textbox "Provider *"`) from the add-reservation form, which was still mounted or opening at that moment. Not investigated. A likely fix is to scope the step's locator to the reservation row, or to wait for the form to close first.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
+  summary: Log a safe provider failure detail for /api/v1 routes that wrap third-party errors.
+  evidence: errorResponse logs only the error name, so a missing Mapbox token, timeout, provider 4xx and bad coordinates look identical to a self-hoster; the former server actions logged the message. Any added log must not include tokens or request URLs.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
+  summary: Cap the location search query at Mapbox's 256-character limit.
+  evidence: The contract and location inputs allow 300 (FIELD_LIMITS.locationAddress); Mapbox documents 256 for the Search Box suggest query, so 257-300 characters spend budget and return 500. The former actions forwarded any length.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
+  summary: Share the Mapbox location types, coordinate schema and timeout wrapper between locations.ts and cover-search.ts.
+  evidence: Both services declare the same administrative type list, coordinate tuple and 10 s abort handling; a change to one will drift from the other.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
+  summary: Before story 8.5 moves the cover typeahead onto the endpoints, guard it against parallel requests.
+  evidence: cover-location-search.tsx applies any retrieve that resolves, re-searches the picked name if the retrieve takes over 300 ms, and rotates the session token only on success; serial server actions currently mask the first two.
+- source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
+  summary: Close cover search suggestions when the input drops below two characters.
+  evidence: The search effect returns early without clearing suggestions, so stale options stay selectable; unchanged from the former search tab.
