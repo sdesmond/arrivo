@@ -1,8 +1,4 @@
-<!-- BEGIN:nextjs-agent-rules -->
-
 Next.js 16 ships version-matched docs in `node_modules/next/dist/docs/`; read the relevant guide there before writing Next.js code.
-
-<!-- END:nextjs-agent-rules -->
 
 ## Response Style Rules
 
