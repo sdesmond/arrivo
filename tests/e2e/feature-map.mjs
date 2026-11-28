@@ -580,6 +580,10 @@ export const FEATURE_MAP = [
     "tests/e2e/steps/profile.steps.ts",
   ]),
   entry("create-trip", [
+    "src/app/api/v1/locations/**",
+    "src/lib/services/locations.ts",
+    "src/lib/api/contract/locations.ts",
+    "src/components/arrivo/use-location-autocomplete.ts",
     "src/lib/services/cover-search.ts",
     "src/app/api/v1/cover-images/**",
     "src/components/arrivo/new-trip-card.tsx",
@@ -608,6 +612,9 @@ export const FEATURE_MAP = [
     "src/app/api/v1/trips/*/collaborators/**",
   ]),
   entry("day-planning", [
+    "src/app/api/v1/locations/**",
+    "src/lib/services/locations.ts",
+    "src/lib/api/contract/locations.ts",
     // Row costs create, edit and remove their linked expense through the expense endpoints.
     "src/lib/services/expenses.ts",
     "src/lib/services/expense-conversions.ts",
@@ -864,6 +871,10 @@ export const FEATURE_MAP = [
     "tests/e2e/api-response.ts",
   ]),
   entry("reservations", [
+    "src/app/api/v1/locations/**",
+    "src/lib/services/locations.ts",
+    "src/lib/api/contract/locations.ts",
+    "src/components/arrivo/use-location-autocomplete.ts",
     "tests/e2e/api-support.ts",
     "tests/e2e/steps/api-reservation-read.steps.ts",
     "tests/e2e/steps/budget.steps.ts",
@@ -1013,6 +1024,9 @@ export const FEATURE_MAP = [
     "src/lib/currencies.ts",
   ]),
   entry("trip-cover-overflow", [
+    "src/app/api/v1/locations/**",
+    "src/lib/services/locations.ts",
+    "src/lib/api/contract/locations.ts",
     "src/lib/services/cover-search.ts",
     "src/app/api/v1/cover-images/**",
     "src/components/arrivo/trip-cover-controls.tsx",

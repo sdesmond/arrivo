@@ -65,11 +65,11 @@ Sharing reads and invitation creation require **manager**; insufficient member r
 
 Per user, in fixed one-minute windows, held in the server's memory (a restart resets them):
 
-| Bucket           | Limit   | Applies to                                              |
-| ---------------- | ------- | ------------------------------------------------------- |
-| `api`            | 600/min | Every endpoint except `GET /api/v1/meta`                |
-| `unsplashSearch` | 30/min  | `GET /api/v1/cover-images`, on top of `api`             |
-| `mapboxSearch`   | 120/min | `GET /api/v1/cover-images/destination`, on top of `api` |
+| Bucket           | Limit   | Applies to                                                                                                                   |
+| ---------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `api`            | 600/min | Every endpoint except `GET /api/v1/meta`                                                                                     |
+| `unsplashSearch` | 30/min  | `GET /api/v1/cover-images`, on top of `api`                                                                                  |
+| `mapboxSearch`   | 120/min | `GET /api/v1/cover-images/destination`, `GET /api/v1/locations/search` and `GET /api/v1/locations/retrieve`, on top of `api` |
 
 ### Deadlines
 
@@ -205,6 +205,31 @@ interface CoverImageSearchResult {
   photographerUrl?: string;
   alt: string;
 }
+
+interface LocationSuggestion {
+  // a destination search result
+  placeName: string;
+  country: string; // empty when unknown
+  countryCode: string; // empty when unknown
+  mapboxId: string;
+}
+
+interface LocationLookupSuggestion {
+  // an address search result
+  name: string;
+  fullAddress: string;
+  mapboxId: string;
+  resolvedLocation?: RetrievedLocation; // when present, no retrieve is needed
+}
+
+interface RetrievedLocation {
+  name: string;
+  fullAddress: string;
+  placeName: string;
+  country: string; // empty when unknown
+  countryCode: string; // empty when unknown
+  center: [number, number]; // [longitude, latitude]
+}
 ```
 
 ## Metadata
@@ -299,13 +324,13 @@ Send `{}`. Recalculates every expense against the trip's persisted budget curren
 
 ### PATCH /api/v1/expenses/:expenseId
 
-**Role** editor � **`Idempotency-Key`** yes � **Success** `200` `Expense & { conversionError?: true }`
+**Role** editor · **`Idempotency-Key`** yes · **Success** `200` `Expense & { conversionError?: true }`
 
 Partial update with the create's fields and limits, except `id`. A field that is absent is left alone; `null` clears `note`, `eventId` or `reservationId`. `currency` is trimmed and uppercased. The merged result links to at most one event or reservation, and a new target must belong to the expense's trip; both links, or a missing or foreign target, return 422 and write nothing. Conversions are recomputed only when the amount, currency or date differs from the stored value; a note-only or link-only edit keeps the stored converted totals and does no rate lookup. A failed lookup still saves, unconverted, and the response carries `conversionError: true`. A body that changes nothing (including `{}`) returns the stored expense and writes nothing. Unknown fields and failed checks return 422; viewers receive 403, and unknown or inaccessible expenses, or a role revoked while waiting for the trip lock, 404.
 
 ### DELETE /api/v1/expenses/:expenseId
 
-**Role** editor � **`Idempotency-Key`** no � **Success** `204`
+**Role** editor · **`Idempotency-Key`** no · **Success** `204`
 
 Send `{}`. Deletes the expense and records its ID as deleted. Repeating a deletion returns 204 with no further effect. Viewers receive 403, and inaccessible expenses or a role revoked while waiting for the trip lock 404. An expense ID deleted directly, or removed with its event (event deletion, a trip date change with `delete-events`, or removing a day with its events), cannot be reused by a create during the 24-hour retention window: the create returns 409 `conflict`.
 
@@ -761,6 +786,37 @@ Geocodes a destination name, for a map cover. `center` is `null` when nothing ma
 | Query  | Type          | Notes             |
 | ------ | ------------- | ----------------- |
 | `name` | string, 1–200 | Required; trimmed |
+
+## Locations
+
+Place search for destination and address fields. Any signed-in user can call them; they do not touch a trip. Search for suggestions, then retrieve the one picked, sending the same `sessionToken` on both (Mapbox bills them as one session) and a new one for the next search.
+
+### GET /api/v1/locations/search
+
+**Auth** signed in · **`Idempotency-Key`** no · **Success** `200` `{ suggestions }`, at most 5
+
+Searches Mapbox. `suggestions` is `LocationSuggestion[]` for `mode=destination`, which returns only places, localities, neighbourhoods, regions and countries, and `LocationLookupSuggestion[]` for `mode=address`, which is not filtered by type.
+
+| Query          | Type                       | Notes             |
+| -------------- | -------------------------- | ----------------- |
+| `query`        | string, 1–300              | Required; trimmed |
+| `mode`         | `destination` or `address` | Required          |
+| `sessionToken` | string, 1–255              | Required; trimmed |
+
+500 when the server has no `MAPBOX_ACCESS_TOKEN` or Mapbox fails or takes over 10 seconds.
+
+### GET /api/v1/locations/retrieve
+
+**Auth** signed in · **`Idempotency-Key`** no · **Success** `200` `{ location: RetrievedLocation }`
+
+Returns the details and coordinates of a suggestion.
+
+| Query          | Type           | Notes                              |
+| -------------- | -------------- | ---------------------------------- |
+| `mapboxId`     | string, 1–2048 | Required; trimmed; from the search |
+| `sessionToken` | string, 1–255  | Required; trimmed                  |
+
+500 when the server has no `MAPBOX_ACCESS_TOKEN`, Mapbox fails or takes over 10 seconds, or it returns no location with valid coordinates.
 
 ## Sharing
 
