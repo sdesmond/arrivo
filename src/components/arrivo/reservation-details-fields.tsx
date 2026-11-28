@@ -1,6 +1,5 @@
 "use client";
 
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Input } from "@/components/ui/input";
 import { Section, Field } from "@/components/arrivo/form-section";
 import { LocationLookupInput } from "@/components/arrivo/location-lookup-input";
@@ -8,7 +7,7 @@ import { ReservationAnchorFieldset } from "@/components/arrivo/reservation-ancho
 import { ANCHOR_LABELS, SERVICE_NUMBER_LABELS } from "@/components/arrivo/reservation-type-badge";
 import type { ReservationDraft } from "@/components/arrivo/use-reservation-draft";
 import { REQUIRES_END_AT } from "@/lib/reservation-types";
-import type { ReservationType, SavedLocationValue } from "@/data/types";
+import type { ReservationType, RetrievedLocation, SavedLocationValue } from "@/data/types";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationDetailsFieldsProps {

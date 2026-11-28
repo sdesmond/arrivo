@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import type { LocationSuggestion } from "@/app/(app)/trips/actions";
+import type { LocationSuggestion } from "@/data/types";
 import { CoverLocationSearch, type CoverLocationSearchProps } from "./cover-location-search";
 
 const { searchLocations, retrieveLocation } = vi.hoisted(() => ({

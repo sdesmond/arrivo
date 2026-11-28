@@ -587,7 +587,9 @@ When("I set the event location for {string} using the first lookup suggestion", 
   await row.getByRole("button", { name: /add location/i }).click();
   const dialog = page.getByRole("dialog");
   const input = dialog.getByRole("combobox");
+  const searched = waitForApiResponse(page, { method: "GET", path: "/api/v1/locations/search", timeoutMs: 10_000 });
   await input.fill("Par");
+  await searched;
   await expect(dialog.getByRole("listbox")).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole("option").first().click();
   await expect(input).toHaveValue("Paris, France");

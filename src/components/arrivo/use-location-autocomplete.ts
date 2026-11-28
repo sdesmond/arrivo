@@ -1,14 +1,12 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createRandomId } from "@/lib/utils";
-import {
-  retrieveLocation,
-  searchAddressLocations,
-  searchLocations,
-  type RetrievedLocation,
-} from "@/app/(app)/trips/actions";
+import { api, ApiClientError } from "@/lib/api/client";
+import { retrieveLocation, searchLocations } from "@/lib/api/contract/locations";
+import type { RetrievedLocation } from "@/data/types";
 
 export interface AutocompleteSuggestionOption {
   mapboxId: string;
@@ -40,6 +38,14 @@ export interface UseLocationAutocompleteResult {
   reset: () => void;
 }
 
+/** Where a lost session sends the user, as in `useApiMutation`; undefined for every other failure. */
+function authRedirectPath(error: unknown): string | undefined {
+  if (!(error instanceof ApiClientError)) return undefined;
+  if (error.code === "unauthenticated") return "/sign-in";
+  if (error.code === "mfa_enrollment_required") return "/mfa-enrollment";
+  return undefined;
+}
+
 export function useLocationAutocomplete({
   value,
   resolvedValue = null,
@@ -51,12 +57,20 @@ export function useLocationAutocomplete({
   retrieveErrorMessage,
 }: UseLocationAutocompleteOptions): UseLocationAutocompleteResult {
   const sessionTokenRef = useRef("");
-  const cancelRetrieveRef = useRef(false);
+  // Retrieves run in parallel, so only the latest request may apply its result or end the loading state.
+  const retrieveRequestRef = useRef(0);
   const suppressSearchRef = useRef(false);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestionOption[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [retrieveLoading, setRetrieveLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  // Held in a ref so a new router object never restarts the search debounce.
+  const router = useRouter();
+  const routerRef = useRef(router);
+
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
 
   useEffect(() => {
     if (!sessionTokenRef.current) {
@@ -81,34 +95,31 @@ export function useLocationAutocomplete({
     const timerId = window.setTimeout(async () => {
       setSuggestionsLoading(true);
       try {
-        if (mode === "destination") {
-          const results = await searchLocations(searchQuery, sessionToken);
-          if (!active) return;
-          setSuggestions(
-            results.slice(0, 5).map((result) => ({
-              mapboxId: result.mapboxId,
-              primaryText: result.placeName,
-              inputValue: result.placeName,
-            }))
-          );
-        } else {
-          const results = await searchAddressLocations(searchQuery, sessionToken);
-          if (!active) return;
-          setSuggestions(
-            results.slice(0, 5).map((result) => ({
-              mapboxId: result.mapboxId,
-              primaryText: result.name,
-              secondaryText: result.fullAddress !== result.name ? result.fullAddress : undefined,
-              inputValue: result.fullAddress,
-              resolvedLocation: result.resolvedLocation,
-            }))
-          );
-        }
+        const { suggestions: results } = await api(searchLocations, {
+          params: {},
+          body: { query: searchQuery, mode: mode === "destination" ? "destination" : "address", sessionToken },
+        });
+        if (!active) return;
+        setSuggestions(
+          results.slice(0, 5).map((result) =>
+            "placeName" in result
+              ? { mapboxId: result.mapboxId, primaryText: result.placeName, inputValue: result.placeName }
+              : {
+                  mapboxId: result.mapboxId,
+                  primaryText: result.name,
+                  secondaryText: result.fullAddress !== result.name ? result.fullAddress : undefined,
+                  inputValue: result.fullAddress,
+                  resolvedLocation: result.resolvedLocation,
+                }
+          )
+        );
         setHighlightedIndex(-1);
-      } catch {
+      } catch (error) {
         if (!active) return;
         setSuggestions([]);
-        toast.error(searchErrorMessage);
+        const redirectPath = authRedirectPath(error);
+        if (redirectPath) routerRef.current.push(redirectPath);
+        else toast.error(searchErrorMessage);
       } finally {
         if (active) {
           setSuggestionsLoading(false);
@@ -123,7 +134,7 @@ export function useLocationAutocomplete({
   }, [mode, resolvedValue, searchErrorMessage, value]);
 
   function clearResolvedState(nextValue: string): void {
-    cancelRetrieveRef.current = true;
+    retrieveRequestRef.current += 1;
     setRetrieveLoading(false);
     setSuggestions([]);
     setHighlightedIndex(-1);
@@ -133,32 +144,44 @@ export function useLocationAutocomplete({
   }
 
   async function handleSuggestionSelect(suggestion: AutocompleteSuggestionOption): Promise<void> {
-    cancelRetrieveRef.current = true;
+    const requestId = ++retrieveRequestRef.current;
+    // This pick closes its search session: the next search starts a new one while the retrieve is still pending.
+    const sessionToken = sessionTokenRef.current;
+    sessionTokenRef.current = createRandomId();
     suppressSearchRef.current = true;
     onValueChange(suggestion.inputValue);
     setSuggestions([]);
     setHighlightedIndex(-1);
     setSuggestionsLoading(false);
     setRetrieveLoading(true);
-    cancelRetrieveRef.current = false;
 
     try {
       const location =
-        suggestion.resolvedLocation ?? (await retrieveLocation(suggestion.mapboxId, sessionTokenRef.current));
-      if (cancelRetrieveRef.current) {
+        suggestion.resolvedLocation ??
+        (
+          await api(retrieveLocation, {
+            params: {},
+            body: { mapboxId: suggestion.mapboxId, sessionToken },
+          })
+        ).location;
+      if (requestId !== retrieveRequestRef.current) {
         return;
       }
       suppressSearchRef.current = true;
       onValueChange(mode === "destination" ? location.placeName : location.fullAddress);
       onResolved(location);
     } catch (error) {
-      if (!cancelRetrieveRef.current) {
-        console.error("Location retrieve failed:", error);
-        toast.error(retrieveErrorMessage);
+      if (requestId === retrieveRequestRef.current) {
+        const redirectPath = authRedirectPath(error);
+        if (redirectPath) {
+          routerRef.current.push(redirectPath);
+        } else {
+          console.error("Location retrieve failed:", error);
+          toast.error(retrieveErrorMessage);
+        }
       }
     } finally {
-      sessionTokenRef.current = createRandomId();
-      if (!cancelRetrieveRef.current) {
+      if (requestId === retrieveRequestRef.current) {
         setRetrieveLoading(false);
       }
     }

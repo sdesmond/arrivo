@@ -42,3 +42,4 @@ Feature: Create Trip
     Then the destination field shows the selected place name
     When I click the Create button
     Then I am on the trip detail page for "E2E Destination Trip"
+    And the trip still shows the destination "Paris, France" after a reload

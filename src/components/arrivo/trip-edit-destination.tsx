@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
+import type { RetrievedLocation } from "@/data/types";
 import { Field, Section } from "@/components/arrivo/form-section";
 import { Input } from "@/components/ui/input";
 import { useLocationAutocomplete } from "./use-location-autocomplete";

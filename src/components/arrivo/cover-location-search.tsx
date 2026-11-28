@@ -4,7 +4,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { createRandomId } from "@/lib/utils";
-import type { LocationSuggestion } from "@/app/(app)/trips/actions";
+import type { LocationSuggestion } from "@/data/types";
 import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
 
 function simplifyLocationName(name: string): string {

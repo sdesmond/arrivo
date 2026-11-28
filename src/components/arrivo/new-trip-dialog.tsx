@@ -2,13 +2,12 @@
 
 import { X } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Button } from "@/components/ui/button";
 import { Field, Section } from "@/components/arrivo/form-section";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { NewTripDraft } from "@/data/types";
+import type { NewTripDraft, RetrievedLocation } from "@/data/types";
 import { FIELD_LIMITS, MAX_BUDGET_INPUT_LENGTH } from "@/lib/validation-limits";
 import { useLocationAutocomplete } from "./use-location-autocomplete";
 

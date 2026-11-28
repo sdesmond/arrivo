@@ -4,8 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
-import type { SavedLocationValue } from "@/data/types";
+import type { RetrievedLocation, SavedLocationValue } from "@/data/types";
 import { LocationLookupInput } from "./location-lookup-input";
 
 interface ReservationFieldDialogBaseProps {

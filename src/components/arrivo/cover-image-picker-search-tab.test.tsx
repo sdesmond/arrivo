@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { CoverImageSearchResult } from "@/data/types";
-import type { LocationSuggestion } from "@/app/(app)/trips/actions";
+import type { CoverImageSearchResult, LocationSuggestion } from "@/data/types";
 
 const mockSearchCoverImages = vi.fn();
 const mockResolveDestinationCenter = vi.fn();
