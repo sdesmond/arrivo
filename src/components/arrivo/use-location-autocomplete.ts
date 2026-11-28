@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createRandomId } from "@/lib/utils";
 import { api, ApiClientError } from "@/lib/api/client";
-import { retrieveLocation, searchLocations } from "@/lib/api/contract/locations";
+import { MAX_LOCATION_SEARCH_QUERY_LENGTH, retrieveLocation, searchLocations } from "@/lib/api/contract/locations";
 import type { RetrievedLocation } from "@/data/types";
 
 export interface AutocompleteSuggestionOption {
@@ -84,7 +84,7 @@ export function useLocationAutocomplete({
       return;
     }
 
-    const searchQuery = resolvedValue === value ? "" : value.trim();
+    const searchQuery = resolvedValue === value ? "" : value.trim().slice(0, MAX_LOCATION_SEARCH_QUERY_LENGTH);
     if (searchQuery.length < 2) {
       return;
     }

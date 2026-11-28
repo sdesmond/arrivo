@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { LocationLookupSuggestion, LocationSuggestion, RetrievedLocation } from "@/data/types";
-import { FIELD_LIMITS } from "@/lib/validation-limits";
 import { defineEndpoint } from "../endpoint";
+/** Mapbox Search Box rejects a longer search query. Saved addresses may be longer. */
+export const MAX_LOCATION_SEARCH_QUERY_LENGTH = 256;
 /** Mapbox Search Box session tokens group one search with its retrieve for billing. */
 const sessionToken = z.string().trim().min(1).max(255);
 export const searchLocations = defineEndpoint<{
@@ -12,7 +13,7 @@ export const searchLocations = defineEndpoint<{
   path: "/api/v1/locations/search",
   params: z.object({}),
   body: z.strictObject({
-    query: z.string().trim().min(1).max(FIELD_LIMITS.locationAddress),
+    query: z.string().trim().min(1).max(MAX_LOCATION_SEARCH_QUERY_LENGTH),
     mode: z.enum(["destination", "address"]),
     sessionToken,
   }),

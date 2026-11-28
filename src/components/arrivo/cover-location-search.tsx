@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createRandomId } from "@/lib/utils";
 import type { LocationSuggestion } from "@/data/types";
 import { searchLocations, retrieveLocation } from "@/app/(app)/trips/actions";
+import { MAX_LOCATION_SEARCH_QUERY_LENGTH } from "@/lib/api/contract/locations";
 
 function simplifyLocationName(name: string): string {
   const parts = name
@@ -134,6 +135,7 @@ export function CoverLocationSearch({
           }
           aria-label="Search location for photos"
           value={value}
+          maxLength={MAX_LOCATION_SEARCH_QUERY_LENGTH}
           placeholder="Search location"
           autoComplete="off"
           onChange={(event) => {

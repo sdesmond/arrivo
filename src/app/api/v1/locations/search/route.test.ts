@@ -47,7 +47,7 @@ it("rejects unauthenticated, cross-origin, malformed and keyed reads before sear
     "mode=destination&sessionToken=session",
     "query=%20&mode=destination&sessionToken=session",
     "query=Paris&mode=location&sessionToken=session",
-    `query=${"q".repeat(301)}&mode=address&sessionToken=session`,
+    `query=${"q".repeat(257)}&mode=address&sessionToken=session`,
     "query=Paris&mode=address",
     valid + "&extra=x",
   ]) {

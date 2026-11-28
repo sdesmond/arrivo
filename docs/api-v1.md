@@ -799,7 +799,7 @@ Searches Mapbox. `suggestions` is `LocationSuggestion[]` for `mode=destination`,
 
 | Query          | Type                       | Notes             |
 | -------------- | -------------------------- | ----------------- |
-| `query`        | string, 1–300              | Required; trimmed |
+| `query`        | string, 1–256              | Required; trimmed |
 | `mode`         | `destination` or `address` | Required          |
 | `sessionToken` | string, 1–255              | Required; trimmed |
 

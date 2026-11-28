@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { FIELD_LIMITS } from "@/lib/validation-limits";
-import { retrieveLocation, searchLocations } from "./locations";
+import { MAX_LOCATION_SEARCH_QUERY_LENGTH, retrieveLocation, searchLocations } from "./locations";
 
 const search = { query: "Paris", mode: "destination", sessionToken: "session" };
 const retrieve = { mapboxId: "mapbox-id", sessionToken: "session" };
@@ -11,6 +10,10 @@ describe("searchLocations", () => {
     expect(searchLocations).toMatchObject({ method: "GET", path: "/api/v1/locations/search" });
   });
 
+  it("caps the query at Mapbox's limit", () => {
+    expect(MAX_LOCATION_SEARCH_QUERY_LENGTH).toBe(256);
+  });
+
   it.each(["destination", "address"])("accepts mode %s and trims the query", (mode) => {
     expect(searchLocations.body.parse({ ...search, mode, query: "  Paris " })).toEqual({ ...search, mode });
   });
@@ -18,7 +21,7 @@ describe("searchLocations", () => {
   it("accepts the longest query and session token", () => {
     const longest = {
       ...search,
-      query: "q".repeat(FIELD_LIMITS.locationAddress),
+      query: "q".repeat(MAX_LOCATION_SEARCH_QUERY_LENGTH),
       sessionToken: "s".repeat(255),
     };
 
@@ -27,7 +30,7 @@ describe("searchLocations", () => {
 
   it.each([
     ["a blank query", { ...search, query: "   " }],
-    ["a long query", { ...search, query: "q".repeat(FIELD_LIMITS.locationAddress + 1) }],
+    ["a long query", { ...search, query: "q".repeat(MAX_LOCATION_SEARCH_QUERY_LENGTH + 1) }],
     ["an unknown mode", { ...search, mode: "location" }],
     ["no mode", { query: "Paris", sessionToken: "session" }],
     ["a blank session token", { ...search, sessionToken: " " }],

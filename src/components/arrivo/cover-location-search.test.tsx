@@ -84,6 +84,12 @@ describe("CoverLocationSearch", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("stops the input at the longest query Mapbox accepts", () => {
+    render(<Harness onLocationSelected={vi.fn()} />);
+
+    expect(combobox()).toHaveAttribute("maxLength", "256");
+  });
+
   it("searches only after the debounce, with the trimmed query and session token", async () => {
     render(<Harness onLocationSelected={vi.fn()} />);
 

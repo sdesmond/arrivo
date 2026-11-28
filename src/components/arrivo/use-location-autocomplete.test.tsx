@@ -461,6 +461,17 @@ describe("useLocationAutocomplete", () => {
     });
   });
 
+  it("searches only the first 256 characters of a longer value", async () => {
+    vi.useFakeTimers();
+    renderAutocomplete({ initialValue: ` ${"a".repeat(256)}${"b".repeat(44)} ` });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).toHaveBeenCalledExactlyOnceWith("a".repeat(256), expect.any(String));
+  });
+
   it("requests details from the retrieve endpoint", async () => {
     const { result } = renderAutocomplete();
 
