@@ -96,6 +96,8 @@ context:
 
 ## Plan Change Log
 
+- 2026-11-27, requested after the build: deferred finding BH7/EH5 fixed here. The `query` cap in Tasks (`FIELD_LIMITS.locationAddress`, 300) is now Mapbox's 256; the typeahead truncates longer addresses and the cover search input is capped. Address saving limits are unchanged.
+
 ## Review Triage Log
 
 Review pass 1. VG = verification gap, BH = blind hunter, EH = edge case, IA = intent alignment.
@@ -155,3 +157,5 @@ Search returns one key, `suggestions`, whose item shape follows `mode`; the hook
 - Production build: PASS
 - Coverage: PASS (532 files, 8593 tests; lines 98.43%, functions 97.85%, branches 94.59%)
 - Affected E2E: PASS, 929 of 929 on the second run. The first run had 928 passed, 1 failed (`trip-live-refresh` "A contributor viewing the trip is redirected when it is deleted elsewhere", already in deferred-work.md as load-related); it passed alone. The implementation run before review had a different single failure (`trip-sharing` "API invitation updates an invitee watching their dashboard") that also passed alone.
+
+After the 256-character query cap (2026-11-27): lint, production build and coverage PASS (532 files, 8596 tests; lines 98.43%, functions 97.85%, branches 94.59%); TypeScript PASS when run alone (same `.next-validate` race when concurrent with the build); affected E2E PASS, 883 of 883. Pass marker recorded.

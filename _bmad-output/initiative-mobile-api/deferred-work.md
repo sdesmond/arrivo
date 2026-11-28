@@ -392,6 +392,7 @@ Follow-up evidence, 2026-11-22 (`plan-template-api-follow-ups.md`):
 - source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
   summary: Cap the location search query at Mapbox's 256-character limit.
   evidence: The contract and location inputs allow 300 (FIELD_LIMITS.locationAddress); Mapbox documents 256 for the Search Box suggest query, so 257-300 characters spend budget and return 500. The former actions forwarded any length.
+  completed: 2026-11-27 on `story/8-1-locations-search-api`; the contract caps `query` at 256 (`MAX_LOCATION_SEARCH_QUERY_LENGTH`), the typeahead searches the first 256 characters of a longer address, which still saves up to 300, and the cover search input stops at 256. Tests: `contract/locations.test.ts`, `search/route.test.ts`, `use-location-autocomplete.test.tsx`, `cover-location-search.test.tsx`.
 - source_plan: `_bmad-output/initiative-mobile-api/epic-locations-routing-api/story-search-and-retrieve-locations-through-the-api-plan.md`
   summary: Share the Mapbox location types, coordinate schema and timeout wrapper between locations.ts and cover-search.ts.
   evidence: Both services declare the same administrative type list, coordinate tuple and 10 s abort handling; a change to one will drift from the other.
