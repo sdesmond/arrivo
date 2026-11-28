@@ -912,6 +912,7 @@ export const FEATURE_MAP = [
     "src/app/api/v1/reservations/*/documents/**",
     "src/components/arrivo/reservation*",
     "src/components/arrivo/use-reservation-patch.ts",
+    "src/components/arrivo/use-reservation-draft.ts",
     "src/components/arrivo/add-reservation-doc-dialog.tsx",
     "src/components/arrivo/delete-reservation-alert-dialog.tsx",
     "src/app/(app)/trips/[tripId]/reservations/**",
