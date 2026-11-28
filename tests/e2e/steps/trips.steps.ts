@@ -63,7 +63,9 @@ When("I save", async ({ page }) => {
   await expect(page.getByRole("dialog")).not.toBeVisible();
   // The sheet seeds its draft from the trip prop only while closed, so reopening before the revalidated trip
   // lands (the dialog closes first) shows the old values. Wait for the action's payload, then two frames for React.
-  await (await saved)?.finished();
+  // Playwright sometimes never reports that response as finished although the save applied, so cap the wait.
+  const response = await saved;
+  if (response) await Promise.race([response.finished(), page.waitForTimeout(2_000)]);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 });
 
