@@ -6,6 +6,8 @@ import {
   E2E_TRIP_START_DATE,
   E2E_TRIP_THIRD_DATE,
 } from "../e2e-seed-data";
+import { waitForApiResponse } from "../api-response";
+import { reloadPage } from "../page-reload";
 
 async function clickDate(page: Page, isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00`);
@@ -59,10 +61,12 @@ When("I type {string} in the title field", async ({ page }, title: string) => {
 });
 
 When("I type {string} in the destination field", async ({ page }, destination: string) => {
-  // searchLocations and retrieveLocation are server actions — Mapbox API calls happen server-side.
-  // E2E_MAPBOX_STUB=true (set in the E2E environment) makes both actions return deterministic stubs
+  // The field searches through GET /api/v1/locations/search; Mapbox is only called server-side.
+  // E2E_MAPBOX_STUB=true (set in the E2E environment) makes the endpoints return deterministic stubs
   // without making real API calls. No browser-level route mocking is needed.
+  const searched = waitForApiResponse(page, { method: "GET", path: "/api/v1/locations/search", timeoutMs: 10_000 });
   await page.getByRole("dialog").getByLabel("Destination").fill(destination);
+  await searched;
 });
 
 When("I select dates {string} to {string}", async ({ page }, startDate: string, endDate: string) => {
@@ -126,9 +130,26 @@ Then("the destination suggestions appear", async ({ page }) => {
 });
 
 When("I select the first destination suggestion", async ({ page }) => {
+  const retrieved = waitForApiResponse(page, {
+    method: "GET",
+    path: "/api/v1/locations/retrieve",
+    timeoutMs: 10_000,
+  });
   await page.getByRole("option").first().click();
+  await retrieved;
+  // The response only fills the draft once the field has applied it.
+  await expect(page.getByRole("dialog").getByLabel("Destination")).not.toHaveAttribute("aria-busy", "true");
 });
 
 Then("the destination field shows the selected place name", async ({ page }) => {
   await expect(page.getByRole("dialog").getByLabel("Destination")).toHaveValue("Paris, France");
+});
+
+Then("the trip still shows the destination {string} after a reload", async ({ page }, destination: string) => {
+  await reloadPage(page);
+  // The trip page shows the full destination name only in the edit sheet.
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("combobox", { name: "Location" })).toHaveValue(destination, {
+    timeout: 15_000,
+  });
 });

@@ -1,28 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
 import { Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle } from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Section, Field } from "@/components/arrivo/form-section";
-import { LocationLookupInput } from "@/components/arrivo/location-lookup-input";
-import { ReservationAnchorFieldset } from "@/components/arrivo/reservation-anchor-fieldset";
-import {
-  ANCHOR_LABELS,
-  RESERVATION_TYPE_META,
-  SERVICE_NUMBER_LABELS,
-} from "@/components/arrivo/reservation-type-badge";
-import { REQUIRES_END_AT } from "@/lib/reservation-types";
-import { useRouter } from "next/navigation";
-import { api, ApiClientError } from "@/lib/api/client";
-import { createReservation } from "@/lib/api/contract/reservations";
-import { ReservationType, type CreateReservationInput, type SavedLocationValue } from "@/data/types";
-import { combineDateAndTimeToIso, createRandomId } from "@/lib/utils";
+import { Section } from "@/components/arrivo/form-section";
+import { ReservationDetailsFields } from "@/components/arrivo/reservation-details-fields";
+import { RESERVATION_TYPE_META } from "@/components/arrivo/reservation-type-badge";
+import { useReservationDraft } from "@/components/arrivo/use-reservation-draft";
+import type { ReservationType } from "@/data/types";
 import { FileText } from "lucide-react";
-import { FIELD_LIMITS } from "@/lib/validation-limits";
 
 export interface ReservationEditDrawerProps {
   tripId: string;
@@ -31,160 +17,10 @@ export interface ReservationEditDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function combineAnchor(date: string | undefined, time: string | undefined): { iso?: string; error?: string } {
-  const hasDate = !!date;
-  const hasTime = !!time;
-  if (hasDate !== hasTime) {
-    return { error: "Enter both a date and a time." };
-  }
-  return { iso: combineDateAndTimeToIso(date, time) };
-}
-
-function focusAnchor(ref: React.RefObject<HTMLDivElement | null>): void {
-  ref.current?.querySelector<HTMLElement>("input, button")?.focus();
-}
-
 export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: ReservationEditDrawerProps) {
-  const router = useRouter();
-  const attempt = useRef<{ id: string; input: CreateReservationInput } | null>(null);
-  const [provider, setProvider] = useState("");
-  const [startDate, setStartDate] = useState<string | undefined>(undefined);
-  const [startTime, setStartTime] = useState<string | undefined>(undefined);
-  const [endDate, setEndDate] = useState<string | undefined>(undefined);
-  const [endTime, setEndTime] = useState<string | undefined>(undefined);
-  const [startAddress, setStartAddress] = useState("");
-  const [startResolvedLocation, setStartResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
-  const [endAddress, setEndAddress] = useState("");
-  const [endResolvedLocation, setEndResolvedLocation] = useState<SavedLocationValue | undefined>(undefined);
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [serviceNumber, setServiceNumber] = useState("");
-  const [notes, setNotes] = useState("");
-  const [providerError, setProviderError] = useState<string | undefined>(undefined);
-  const [startAtError, setStartAtError] = useState<string | undefined>(undefined);
-  const [endAtError, setEndAtError] = useState<string | undefined>(undefined);
-  const [saving, setSaving] = useState(false);
-
-  const providerInputRef = useRef<HTMLInputElement | null>(null);
-  const startAnchorRef = useRef<HTMLDivElement | null>(null);
-  const endAnchorDateRef = useRef<HTMLDivElement | null>(null);
-
+  const draft = useReservationDraft({ tripId, type, open, onOpenChange });
+  const { saving, handleSave } = draft;
   const { label, icon: Icon } = RESERVATION_TYPE_META[type];
-  const anchorLabels = ANCHOR_LABELS[type];
-  const serviceNumberLabel = SERVICE_NUMBER_LABELS[type];
-  const endAtRequired = REQUIRES_END_AT.includes(type);
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (open) {
-      providerInputRef.current?.focus();
-    } else {
-      attempt.current = null;
-      setProvider("");
-      setStartDate(undefined);
-      setStartTime(undefined);
-      setEndDate(undefined);
-      setEndTime(undefined);
-      setStartAddress("");
-      setStartResolvedLocation(undefined);
-      setEndAddress("");
-      setEndResolvedLocation(undefined);
-      setConfirmationCode("");
-      setServiceNumber("");
-      setNotes("");
-      setProviderError(undefined);
-      setStartAtError(undefined);
-      setEndAtError(undefined);
-      setSaving(false);
-    }
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [open]);
-
-  async function handleSave(): Promise<void> {
-    setProviderError(undefined);
-    setStartAtError(undefined);
-    setEndAtError(undefined);
-
-    if (!provider.trim()) {
-      setProviderError("Provider is required.");
-      providerInputRef.current?.focus();
-      return;
-    }
-
-    const start = combineAnchor(startDate, startTime);
-    if (start.error) {
-      setStartAtError(start.error);
-      focusAnchor(startAnchorRef);
-      return;
-    }
-
-    const end = combineAnchor(endDate, endTime);
-    if (end.error) {
-      setEndAtError(end.error);
-      focusAnchor(endAnchorDateRef);
-      return;
-    }
-
-    if (endAtRequired && !end.iso) {
-      setEndAtError(`${anchorLabels.end} is required for this reservation type.`);
-      focusAnchor(endAnchorDateRef);
-      return;
-    }
-
-    if (end.iso && !start.iso) {
-      setStartAtError(`${anchorLabels.start} is required when ${anchorLabels.end.toLowerCase()} is set.`);
-      focusAnchor(startAnchorRef);
-      return;
-    }
-
-    if (start.iso && end.iso && new Date(end.iso).getTime() < new Date(start.iso).getTime()) {
-      setEndAtError(`${anchorLabels.end} must be after ${anchorLabels.start.toLowerCase()}.`);
-      focusAnchor(endAnchorDateRef);
-      return;
-    }
-
-    setSaving(true);
-
-    const input: CreateReservationInput = {
-      type,
-      provider: provider.trim(),
-      startAt: start.iso,
-      endAt: end.iso,
-      startAddress: startAddress || undefined,
-      startLocationName: startResolvedLocation?.name,
-      startLocationLat: startResolvedLocation?.lat,
-      startLocationLng: startResolvedLocation?.lng,
-      endAddress: endAddress || undefined,
-      endLocationName: endResolvedLocation?.name,
-      endLocationLat: endResolvedLocation?.lat,
-      endLocationLng: endResolvedLocation?.lng,
-      confirmationCode: confirmationCode || undefined,
-      serviceNumber: serviceNumber || undefined,
-      notes: notes || undefined,
-    };
-
-    try {
-      attempt.current ??= { id: createRandomId(), input };
-      const previousInput = attempt.current.input;
-      const changed = JSON.stringify(previousInput) !== JSON.stringify(input);
-      await api(createReservation, { params: { tripId }, body: { ...previousInput, id: attempt.current.id } });
-      if (changed) toast.info("Your earlier reservation was saved. Your recent changes were not saved.");
-      router.refresh();
-      onOpenChange(false);
-    } catch (error) {
-      if (
-        error instanceof ApiClientError &&
-        error.status >= 400 &&
-        error.status < 500 &&
-        error.status !== 408 &&
-        error.status !== 409 &&
-        error.status !== 429
-      )
-        attempt.current = null;
-      toast.error(error instanceof Error ? error.message : "Failed to save reservation.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <Drawer open={open} onOpenChange={(isOpen) => !saving && onOpenChange(isOpen)} direction="right">
@@ -208,129 +44,7 @@ export function ReservationEditDrawer({ tripId, type, open, onOpenChange }: Rese
         </DrawerHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4.5">
-          <Section title="Details">
-            <Field
-              label={
-                <>
-                  Provider <span style={{ color: "var(--accent-brand)" }}>*</span>
-                </>
-              }
-              htmlFor="reservation-provider"
-              error={providerError}
-            >
-              <Input
-                id="reservation-provider"
-                ref={providerInputRef}
-                className="h-9"
-                value={provider}
-                maxLength={FIELD_LIMITS.provider}
-                onChange={(event) => setProvider(event.target.value)}
-                aria-required="true"
-                aria-invalid={!!providerError}
-                disabled={saving}
-              />
-            </Field>
-
-            <div ref={startAnchorRef}>
-              <ReservationAnchorFieldset
-                legend={anchorLabels.start}
-                required={false}
-                date={startDate}
-                time={startTime}
-                onDateChange={setStartDate}
-                onTimeChange={setStartTime}
-                error={startAtError}
-              />
-            </div>
-
-            <div ref={endAnchorDateRef}>
-              <ReservationAnchorFieldset
-                legend={anchorLabels.end}
-                required={endAtRequired}
-                date={endDate}
-                time={endTime}
-                onDateChange={setEndDate}
-                onTimeChange={setEndTime}
-                error={endAtError}
-              />
-            </div>
-
-            <Field label={`${anchorLabels.start} address (Optional)`} htmlFor="reservation-start-address">
-              <LocationLookupInput
-                id="reservation-start-address"
-                value={startAddress}
-                resolvedValue={startResolvedLocation?.address ?? null}
-                className="h-9"
-                onValueChange={setStartAddress}
-                onResolved={(location: RetrievedLocation) =>
-                  setStartResolvedLocation({
-                    name: location.fullAddress !== location.placeName ? location.name : undefined,
-                    address: location.fullAddress,
-                    lat: location.center[1],
-                    lng: location.center[0],
-                  })
-                }
-                onClearResolved={() => setStartResolvedLocation(undefined)}
-                disabled={saving}
-              />
-            </Field>
-
-            <Field label={`${anchorLabels.end} address (Optional)`} htmlFor="reservation-end-address">
-              <LocationLookupInput
-                id="reservation-end-address"
-                value={endAddress}
-                resolvedValue={endResolvedLocation?.address ?? null}
-                className="h-9"
-                onValueChange={setEndAddress}
-                onResolved={(location: RetrievedLocation) =>
-                  setEndResolvedLocation({
-                    name: location.fullAddress !== location.placeName ? location.name : undefined,
-                    address: location.fullAddress,
-                    lat: location.center[1],
-                    lng: location.center[0],
-                  })
-                }
-                onClearResolved={() => setEndResolvedLocation(undefined)}
-                disabled={saving}
-              />
-            </Field>
-
-            <Field label="Confirmation code (Optional)" htmlFor="reservation-confirmation-code">
-              <Input
-                id="reservation-confirmation-code"
-                className="h-9"
-                value={confirmationCode}
-                maxLength={FIELD_LIMITS.confirmationCode}
-                onChange={(event) => setConfirmationCode(event.target.value)}
-                disabled={saving}
-              />
-            </Field>
-
-            {serviceNumberLabel && (
-              <Field label={`${serviceNumberLabel} (Optional)`} htmlFor="reservation-service-number">
-                <Input
-                  id="reservation-service-number"
-                  className="h-9"
-                  value={serviceNumber}
-                  maxLength={FIELD_LIMITS.serviceNumber}
-                  onChange={(event) => setServiceNumber(event.target.value)}
-                  disabled={saving}
-                />
-              </Field>
-            )}
-
-            <Field label="Notes (Optional)" htmlFor="reservation-notes">
-              <textarea
-                id="reservation-notes"
-                className="w-full rounded-lg border border-input bg-transparent px-3 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
-                style={{ minHeight: 72 }}
-                value={notes}
-                maxLength={FIELD_LIMITS.reservationNotes}
-                onChange={(event) => setNotes(event.target.value)}
-                disabled={saving}
-              />
-            </Field>
-          </Section>
+          <ReservationDetailsFields type={type} draft={draft} />
 
           <Section title="Documents">
             <Empty>

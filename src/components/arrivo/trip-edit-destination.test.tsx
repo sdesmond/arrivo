@@ -6,9 +6,14 @@ import { useState } from "react";
 const mockSearchLocations = vi.fn();
 const mockRetrieveLocation = vi.fn();
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  searchLocations: (...args: unknown[]) => mockSearchLocations(...args),
-  retrieveLocation: (...args: unknown[]) => mockRetrieveLocation(...args),
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: async (endpoint: { path: string }, input: { body: Record<string, string> }) => {
+    const { query, mapboxId, sessionToken } = input.body;
+    return endpoint.path.endsWith("/retrieve")
+      ? { location: await mockRetrieveLocation(mapboxId, sessionToken) }
+      : { suggestions: await mockSearchLocations(query, sessionToken) };
+  },
 }));
 
 vi.mock("sonner", () => ({

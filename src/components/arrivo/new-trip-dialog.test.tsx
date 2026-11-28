@@ -8,9 +8,14 @@ const { mockSearchLocations, mockRetrieveLocation } = vi.hoisted(() => ({
   mockRetrieveLocation: vi.fn(),
 }));
 
-vi.mock("@/app/(app)/trips/actions", () => ({
-  searchLocations: mockSearchLocations,
-  retrieveLocation: mockRetrieveLocation,
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: async (endpoint: { path: string }, input: { body: Record<string, string> }) => {
+    const { query, mapboxId, sessionToken } = input.body;
+    return endpoint.path.endsWith("/retrieve")
+      ? { location: await mockRetrieveLocation(mapboxId, sessionToken) }
+      : { suggestions: await mockSearchLocations(query, sessionToken) };
+  },
 }));
 
 vi.mock("sonner", () => ({
@@ -347,7 +352,7 @@ describe("NewTripDialog", () => {
         await vi.advanceTimersByTimeAsync(300);
       });
       expect(screen.getByRole("option", { name: "Paris, France" })).toBeInTheDocument();
-      // mouseDown starts the async retrieve; immediately typing cancels it via cancelRetrieveRef
+      // mouseDown starts the async retrieve; immediately typing makes that request stale
       act(() => {
         fireEvent.mouseDown(screen.getByRole("option", { name: "Paris, France" }));
       });

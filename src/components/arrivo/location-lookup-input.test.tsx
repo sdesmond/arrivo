@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
+import type { RetrievedLocation } from "@/data/types";
 import { LocationLookupInput } from "./location-lookup-input";
 import type { UseLocationAutocompleteResult } from "./use-location-autocomplete";
 import { FIELD_LIMITS } from "@/lib/validation-limits";

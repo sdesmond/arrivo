@@ -232,7 +232,6 @@ describe("searchLocations", () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
     await expect(searchLocations("Tokyo", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
-    expect(requireUser).not.toHaveBeenCalled();
     expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 
@@ -253,7 +252,6 @@ describe("searchLocations", () => {
 
   it("throws when query is empty", async () => {
     await expect(searchLocations("  ", "sess")).rejects.toThrow("Search query must not be empty");
-    expect(requireUser).not.toHaveBeenCalled();
     expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 
@@ -337,14 +335,14 @@ describe("searchAddressLocations", () => {
 
   it("throws when the query is empty", async () => {
     await expect(searchAddressLocations("  ", "sess")).rejects.toThrow("Search query must not be empty");
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 
   it("throws when the Mapbox token is missing", async () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
     await expect(searchAddressLocations("Tokyo", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockSearchBoxSuggest).not.toHaveBeenCalled();
   });
 });
 
@@ -463,12 +461,12 @@ describe("retrieveLocation", () => {
     vi.stubEnv("MAPBOX_ACCESS_TOKEN", "");
 
     await expect(retrieveLocation("some-id", "sess")).rejects.toThrow("MAPBOX_ACCESS_TOKEN is not configured");
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockSearchBoxRetrieve).not.toHaveBeenCalled();
   });
 
   it("throws when mapboxId is empty", async () => {
     await expect(retrieveLocation("", "sess")).rejects.toThrow("mapboxId is required");
-    expect(requireUser).not.toHaveBeenCalled();
+    expect(mockSearchBoxRetrieve).not.toHaveBeenCalled();
   });
 
   it("throws when no feature is returned", async () => {

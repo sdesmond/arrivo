@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type KeyboardEvent } from "react";
 import { Input } from "@/components/ui/input";
-import type { RetrievedLocation } from "@/app/(app)/trips/actions";
+import type { RetrievedLocation } from "@/data/types";
 import { useLocationAutocomplete } from "./use-location-autocomplete";
 import { FIELD_LIMITS } from "@/lib/validation-limits";
 

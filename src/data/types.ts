@@ -719,6 +719,32 @@ export interface LocationLookupSelection {
   center: [number, number];
 }
 
+/** A place suggestion for a trip destination. */
+export interface LocationSuggestion {
+  placeName: string;
+  country: string;
+  countryCode: string;
+  mapboxId: string;
+}
+
+/** A place or address suggestion for an event or reservation location. */
+export interface LocationLookupSuggestion {
+  name: string;
+  fullAddress: string;
+  mapboxId: string;
+  /** Present when the suggestion already carries its details, so no retrieve is needed. */
+  resolvedLocation?: RetrievedLocation;
+}
+
+export interface RetrievedLocation {
+  name: string;
+  fullAddress: string;
+  placeName: string;
+  country: string;
+  countryCode: string;
+  center: [number, number];
+}
+
 export interface CurrencyOption {
   code: string;
   name: string;

@@ -2,25 +2,37 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useState, type KeyboardEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import {
-  retrieveLocation,
-  searchAddressLocations,
-  searchLocations,
-  type LocationLookupSuggestion,
-  type LocationSuggestion,
-  type RetrievedLocation,
-} from "@/app/(app)/trips/actions";
+import type { LocationLookupSuggestion, LocationSuggestion, RetrievedLocation } from "@/data/types";
+import { api, ApiClientError } from "@/lib/api/client";
+import { retrieveLocation as retrieveEndpoint, searchLocations as searchEndpoint } from "@/lib/api/contract/locations";
 import {
   useLocationAutocomplete,
   type AutocompleteSuggestionOption,
   type UseLocationAutocompleteOptions,
 } from "./use-location-autocomplete";
 
-vi.mock("@/app/(app)/trips/actions", () => ({
+// Stand-ins for what each lookup returns, so a test can drive one without building response envelopes.
+const { searchLocations, searchAddressLocations, retrieveLocation } = vi.hoisted(() => ({
   searchLocations: vi.fn(),
   searchAddressLocations: vi.fn(),
   retrieveLocation: vi.fn(),
 }));
+
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api: vi.fn(
+    async (endpoint: { path: string }, input: { body: Record<string, string> }): Promise<Record<string, unknown>> => {
+      const { query, mode, mapboxId, sessionToken } = input.body;
+      if (endpoint.path.endsWith("/retrieve")) return { location: await retrieveLocation(mapboxId, sessionToken) };
+      const search = mode === "destination" ? searchLocations : searchAddressLocations;
+      return { suggestions: await search(query, sessionToken) };
+    }
+  ),
+}));
+
+// A new router object on every call, so a debounce that depended on it would restart on each render.
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -131,9 +143,9 @@ describe("useLocationAutocomplete", () => {
       return `token-${tokenCounter}`;
     });
 
-    vi.mocked(searchLocations).mockResolvedValue([]);
-    vi.mocked(searchAddressLocations).mockResolvedValue([]);
-    vi.mocked(retrieveLocation).mockResolvedValue(retrievedLocation);
+    searchLocations.mockResolvedValue([]);
+    searchAddressLocations.mockResolvedValue([]);
+    retrieveLocation.mockResolvedValue(retrievedLocation);
   });
 
   it("searches without crypto.randomUUID, as on a plain-HTTP origin", async () => {
@@ -181,7 +193,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("searches destination suggestions and maps place names into options", async () => {
-    vi.mocked(searchLocations).mockResolvedValue([
+    searchLocations.mockResolvedValue([
       buildDestinationSuggestion(),
       buildDestinationSuggestion({
         country: "Canada",
@@ -214,7 +226,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("searches location suggestions and includes POI secondary text when available", async () => {
-    vi.mocked(searchAddressLocations).mockResolvedValue([
+    searchAddressLocations.mockResolvedValue([
       buildLocationSuggestion(),
       buildLocationSuggestion({
         fullAddress: "1 World Way, Los Angeles, CA",
@@ -248,7 +260,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("shows a toast and clears suggestions when search fails", async () => {
-    vi.mocked(searchAddressLocations).mockRejectedValue(new Error("network"));
+    searchAddressLocations.mockRejectedValue(new Error("network"));
     vi.useFakeTimers();
 
     const { result } = renderAutocomplete({ initialValue: "To" });
@@ -326,7 +338,7 @@ describe("useLocationAutocomplete", () => {
 
   it("does not re-search after selecting a suggestion, even when retrieval is slower than the debounce window", async () => {
     let resolveRetrieve: (location: RetrievedLocation) => void = () => undefined;
-    vi.mocked(retrieveLocation).mockReturnValue(
+    retrieveLocation.mockReturnValue(
       new Promise<RetrievedLocation>((resolve) => {
         resolveRetrieve = resolve;
       })
@@ -360,7 +372,7 @@ describe("useLocationAutocomplete", () => {
 
   it("ignores a retrieve result that was cancelled by later typing and rotates the session token", async () => {
     let resolveRetrieve: (location: RetrievedLocation) => void = () => undefined;
-    vi.mocked(retrieveLocation).mockReturnValue(
+    retrieveLocation.mockReturnValue(
       new Promise<RetrievedLocation>((resolve) => {
         resolveRetrieve = resolve;
       })
@@ -394,7 +406,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("shows a toast when retrieving location details fails", async () => {
-    vi.mocked(retrieveLocation).mockRejectedValue(new Error("boom"));
+    retrieveLocation.mockRejectedValue(new Error("boom"));
 
     const { onResolved, result } = renderAutocomplete();
 
@@ -410,7 +422,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("rotates the session token after a failed retrieve", async () => {
-    vi.mocked(retrieveLocation).mockRejectedValueOnce(new Error("boom"));
+    retrieveLocation.mockRejectedValueOnce(new Error("boom"));
     vi.useFakeTimers();
 
     const { result } = renderAutocomplete();
@@ -428,6 +440,243 @@ describe("useLocationAutocomplete", () => {
     });
 
     expect(searchAddressLocations).toHaveBeenLastCalledWith("Par", "token-2");
+  });
+
+  it("requests suggestions from the search endpoint, calling location mode address", async () => {
+    vi.useFakeTimers();
+    renderAutocomplete({ initialValue: " To " });
+    renderAutocomplete({ initialValue: "Pa", mode: "destination" });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(api).toHaveBeenCalledWith(searchEndpoint, {
+      params: {},
+      body: { query: "To", mode: "address", sessionToken: expect.any(String) },
+    });
+    expect(api).toHaveBeenCalledWith(searchEndpoint, {
+      params: {},
+      body: { query: "Pa", mode: "destination", sessionToken: expect.any(String) },
+    });
+  });
+
+  it("searches only the first 256 characters of a longer value", async () => {
+    vi.useFakeTimers();
+    renderAutocomplete({ initialValue: ` ${"a".repeat(256)}${"b".repeat(44)} ` });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+
+    expect(searchAddressLocations).toHaveBeenCalledExactlyOnceWith("a".repeat(256), expect.any(String));
+  });
+
+  it("requests details from the retrieve endpoint", async () => {
+    const { result } = renderAutocomplete();
+
+    await act(async () => {
+      await result.current.handleSuggestionSelect(buildSuggestion());
+    });
+
+    expect(api).toHaveBeenCalledWith(retrieveEndpoint, {
+      params: {},
+      body: { mapboxId: "mapbox-1", sessionToken: "token-1" },
+    });
+  });
+
+  it("uses an already resolved suggestion without a retrieve request", async () => {
+    const { onResolved, result } = renderAutocomplete();
+
+    await act(async () => {
+      await result.current.handleSuggestionSelect(buildSuggestion({ resolvedLocation: retrievedLocation }));
+    });
+
+    expect(api).not.toHaveBeenCalled();
+    expect(onResolved).toHaveBeenCalledWith(retrievedLocation);
+  });
+
+  describe("late retrieve", () => {
+    const secondLocation: RetrievedLocation = {
+      ...retrievedLocation,
+      fullAddress: "1 World Way, Los Angeles, CA",
+      name: "LAX Airport",
+      placeName: "LAX Airport",
+    };
+
+    /** Picks A, edits the input and lets it search, then picks B, leaving both retrieves pending. */
+    async function pickTwice() {
+      vi.useFakeTimers();
+      const pending: { resolve: (location: RetrievedLocation) => void; reject: (error: Error) => void }[] = [];
+      retrieveLocation.mockImplementation(
+        () => new Promise<RetrievedLocation>((resolve, reject) => pending.push({ resolve, reject }))
+      );
+      const view = renderAutocomplete();
+      let first!: Promise<void>;
+      let second!: Promise<void>;
+      act(() => {
+        first = view.result.current.handleSuggestionSelect(buildSuggestion({ mapboxId: "first" }));
+      });
+      act(() => view.result.current.handleInputChange("LA"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      act(() => {
+        second = view.result.current.handleSuggestionSelect(buildSuggestion({ mapboxId: "second" }));
+      });
+      return { ...view, pending, first, second };
+    }
+
+    it("keeps each search and its retrieve on one session token", async () => {
+      const { result, pending, first, second } = await pickTwice();
+
+      expect(searchAddressLocations).toHaveBeenCalledExactlyOnceWith("LA", "token-2");
+      expect(retrieveLocation.mock.calls).toEqual([
+        ["first", "token-1"],
+        ["second", "token-2"],
+      ]);
+
+      await act(async () => {
+        pending[1].resolve(secondLocation);
+        pending[0].resolve(retrievedLocation);
+        await Promise.all([first, second]);
+      });
+      act(() => result.current.handleInputChange("Rome"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+
+      // The superseded retrieve finishing late does not change the token again.
+      expect(searchAddressLocations).toHaveBeenLastCalledWith("Rome", "token-3");
+    });
+
+    it("applies only the second pick when it resolves before the first", async () => {
+      const { onResolved, result, pending, first, second } = await pickTwice();
+
+      await act(async () => {
+        pending[1].resolve(secondLocation);
+        await second;
+      });
+      await act(async () => {
+        pending[0].resolve(retrievedLocation);
+        await first;
+      });
+
+      expect(onResolved).toHaveBeenCalledExactlyOnceWith(secondLocation);
+      expect(result.current.value).toBe(secondLocation.fullAddress);
+      expect(result.current.retrieveLoading).toBe(false);
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it.each(["resolves", "fails"])("keeps the second pick loading when the first %s", async (outcome) => {
+      const { onResolved, result, pending, first, second } = await pickTwice();
+
+      await act(async () => {
+        if (outcome === "resolves") pending[0].resolve(retrievedLocation);
+        else pending[0].reject(new Error("boom"));
+        await first;
+      });
+
+      expect(onResolved).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(result.current.retrieveLoading).toBe(true);
+
+      await act(async () => {
+        pending[1].resolve(secondLocation);
+        await second;
+      });
+      expect(onResolved).toHaveBeenCalledExactlyOnceWith(secondLocation);
+      expect(result.current.retrieveLoading).toBe(false);
+    });
+  });
+
+  describe.each([
+    ["unauthenticated", 401, "/sign-in"],
+    ["mfa_enrollment_required", 403, "/mfa-enrollment"],
+  ])("a %s response", (code, status, path) => {
+    const failure = () => new ApiClientError(status, code, "Denied");
+
+    it("redirects from a search without a toast", async () => {
+      searchAddressLocations.mockRejectedValue(failure());
+      vi.useFakeTimers();
+
+      const { result } = renderAutocomplete({ initialValue: "To" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+
+      expect(push).toHaveBeenCalledExactlyOnceWith(path);
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(result.current.suggestionsLoading).toBe(false);
+    });
+
+    it("redirects from a retrieve without a toast", async () => {
+      retrieveLocation.mockRejectedValue(failure());
+
+      const { result } = renderAutocomplete();
+      await act(async () => {
+        await result.current.handleSuggestionSelect(buildSuggestion());
+      });
+
+      expect(push).toHaveBeenCalledExactlyOnceWith(path);
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(result.current.retrieveLoading).toBe(false);
+    });
+
+    it("ignores a superseded search", async () => {
+      let reject!: (error: Error) => void;
+      searchAddressLocations.mockReturnValueOnce(new Promise((_resolve, rejectSearch) => (reject = rejectSearch)));
+      vi.useFakeTimers();
+
+      const { result } = renderAutocomplete({ initialValue: "To" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      act(() => result.current.handleInputChange("Tok"));
+      await act(async () => {
+        reject(failure());
+      });
+
+      expect(push).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("ignores a superseded retrieve", async () => {
+      let reject!: (error: Error) => void;
+      retrieveLocation.mockReturnValueOnce(new Promise((_resolve, rejectRetrieve) => (reject = rejectRetrieve)));
+
+      const { result } = renderAutocomplete();
+      let pending!: Promise<void>;
+      act(() => {
+        pending = result.current.handleSuggestionSelect(buildSuggestion());
+      });
+      act(() => result.current.handleInputChange("P"));
+      await act(async () => {
+        reject(failure());
+        await pending;
+      });
+
+      expect(push).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not restart the debounce when a re-render brings a new router", async () => {
+    vi.useFakeTimers();
+    const { result } = renderAutocomplete({ initialValue: "To" });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    // Re-renders with the same value: only the loading flag changes.
+    act(() => {
+      result.current.handleInputChange("To");
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(searchAddressLocations).toHaveBeenCalledOnce();
   });
 
   it("handles Escape even when there are no suggestions", () => {
@@ -449,7 +698,7 @@ describe("useLocationAutocomplete", () => {
   });
 
   it("moves the highlighted suggestion with arrow keys and selects it on Enter", async () => {
-    vi.mocked(searchAddressLocations).mockResolvedValue([
+    searchAddressLocations.mockResolvedValue([
       buildLocationSuggestion(),
       buildLocationSuggestion({
         fullAddress: "1 World Way, Los Angeles, CA",
@@ -484,7 +733,7 @@ describe("useLocationAutocomplete", () => {
 
     await act(async () => {
       result.current.handleKeyDown(enterEvent);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(onResolved).toHaveBeenCalledWith(retrievedLocation);
